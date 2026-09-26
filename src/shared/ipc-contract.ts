@@ -38,6 +38,14 @@ export interface ProjectFile {
   pendingFolders: string[];
 }
 
+/** An exported mod: files (text or base64) and texture copies, all under vehicles/<slug>/. */
+export interface ExportBundle {
+  slug: string;
+  projectName: string;
+  files: { path: string; text?: string; base64?: string }[];
+  copies: { from: string; to: string }[];
+}
+
 export interface RecentProject {
   path: string;
   name: string;
@@ -93,6 +101,12 @@ export interface InvokeContract {
   'taxonomy:getUser': { req: undefined; res: TaxonomyEntry[] };
   /** Replace the user layer; rejects when the merged taxonomy would be invalid. */
   'taxonomy:saveUser': { req: { entries: TaxonomyEntry[] }; res: TaxonomyEntry[] };
+  /** Install the exported mod unpacked into BeamNG's mods/unpacked/<slug> (replaces only our own previous export). */
+  'export:install': { req: ExportBundle; res: { path: string; bytes: number } };
+  /** Save the exported mod as a zip (save dialog); null when cancelled. */
+  'export:zip': { req: ExportBundle; res: { path: string; bytes: number } | null };
+  /** Reveal the last export in Explorer. */
+  'export:reveal': { req: undefined; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
@@ -143,6 +157,9 @@ export const INVOKE_CHANNELS = [
   'project:allowFolders',
   'taxonomy:getUser',
   'taxonomy:saveUser',
+  'export:install',
+  'export:zip',
+  'export:reveal',
 ] as const satisfies readonly InvokeChannel[];
 
 export const EVENT_CHANNELS = [

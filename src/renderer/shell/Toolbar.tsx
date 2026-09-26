@@ -25,11 +25,11 @@ import { openProject, redo, saveProject, undo } from '@renderer/project/actions'
 import { startImport } from '@renderer/import/importFlow';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { generateAll, useStructureUi } from '@renderer/structure/generate';
+import { openExport } from '@renderer/export/exportFlow';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { Select } from '@renderer/ui/components/Select';
-import { Tooltip } from '@renderer/ui/components/Tooltip';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS } from './presets';
 import styles from './Toolbar.module.css';
@@ -113,11 +113,9 @@ export function Toolbar() {
           className={styles.preset}
         />
         <span className={styles.divider} aria-hidden />
-        <Tooltip content="Export mod — coming in phase 5">
-          <Button variant="primary" icon={Download} aria-disabled="true">
-            Export
-          </Button>
-        </Tooltip>
+        <Button variant="primary" icon={Download} onClick={openExport} disabled={!hasParts} data-testid="toolbar-export">
+          Export
+        </Button>
         <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
       </div>
       {settingsOpen && settings && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}

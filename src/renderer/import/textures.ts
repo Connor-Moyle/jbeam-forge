@@ -198,6 +198,8 @@ export async function applyTextures(materials: readonly Material[], io: TextureI
       // Slots sharing one image share the decoded data; each gets its own UV settings.
       const tex = i === 0 ? decoded.texture : decoded.texture.clone();
       adopt(tex, u.placeholder, u.slot, decoded);
+      tex.userData.sourcePath = path; // the exporter copies this file into the mod
+      tex.userData.sourceRef = ref;
       setSlot(u.material, u.slot, tex);
       u.placeholder.dispose();
     });

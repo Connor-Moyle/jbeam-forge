@@ -10,7 +10,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | done |
 | 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | done |
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | done |
-| 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | not started |
+| 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | not started |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | not started |
 | 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | not started |
@@ -22,6 +22,51 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | not started |
 
 ## Phase log
+
+### Phase 5 — Export v1 + in-game gate (built; waiting for your in-game test)
+
+**Ground truth:** read from the official Sunburst's jbeam, materials and DAE:
+- part sections, and the option rows on nodes, beams and triangles (`groundModel` metal/plastic/glass);
+- the main part with its `coreSlot` body, and the body's `refNodes` and `cameraExternal`;
+- material entries keyed by name with `mapTo` = the DAE material name, and textures referenced as `/vehicles/<slug>/…`.
+
+**Export pipeline:**
+- **jbeam** (`src/shared/export/jbeam.ts`):
+  - A main part `<slug>` (slotType `main`, `slots2` with the body as a `coreSlot`), plus **one jbeam file per project part**.
+  - slotType = the slot, i.e. the base part's name, which variants share. `slots2` declares children per slot, so every variant of a parent offers them.
+  - **Node groups are per slot**: parts that ride on a parent (badges, gauges…) and suspension-role parts (until Phase 10) bind their flexbodies to the nearest slot with nodes, and keep working whichever variant is installed.
+  - Measured presets drive beam values: edges, softer braces, and attach beams with a `<part>_attach` breakGroup.
+  - Readable, stable output (nodes sorted `b1, b1l, b1r…`, commented sections), covered by snapshot tests.
+- **Attachments:** they only use parent node names common to every variant of the parent slot, so swapping a bumper variant in-game never leaves dangling beams. Openable parts are **bolted shut with breakable bolts** until Phase 9 hinges. Mirrors are no longer "openable" (taxonomy fix).
+- **DAE writer** (`src/renderer/export/dae.ts`):
+  - COLLADA 1.4.1, `Z_UP`, BeamNG-space vertices and identity node matrices, so flexbodies line up with the nodes.
+  - It keeps normals, both UV sets (V flipped for glTF sources) and material groups, and writes only the vertices each split subset uses.
+  - Round-trip tested through our own importer.
+- **Names:** the source's vehicle prefix is replaced by the mod slug (`sunburst2_hood` → `test_hood`). Material names are always slug-prefixed, since BeamNG material names are global.
+- **Files:** `main.materials.json` (v1.5 stage 0: colour/metallic/roughness factors plus every resolved map, textures copied), `info.json`, `default.pc` (format 2) + `info_default.json`, `default.jpg` preview.
+- **Validator** (hard-fails, per SPEC §3.2):
+  - a meshed part without structure;
+  - a flexbody whose mesh isn't in the DAE, or with no node group to bind to;
+  - orphan or duplicate nodes, dangling beams or triangles;
+  - missing or dangling refNodes, missing textures, orphaned variants and slots.
+  - Warnings: unhinged openables, unassigned meshes, empty parts. The dialog offers **Generate missing**.
+- **Main process writer:**
+  - **Install to BeamNG** writes `mods/unpacked/<slug>`: staged, then swapped in. It replaces only a folder carrying our `jbforge-export.json` marker. Paths are confined to `vehicles/<slug>/`, and only granted image files are copied.
+  - **Save .zip…** is the alternative.
+- **Empty proxies** (thin or fragmented shapes) fall back to a fitted box, so every meshed part gets structure.
+
+**The reference mod (your "test" car):**
+- `node scripts/export-reference.mjs --name=Test` drives the real app: new mod "Test" → import the Sunburst → auto-classify → generate → validate → **installed unpacked at `%LOCALAPPDATA%\BeamNG\BeamNG.drive\current\mods\unpacked\test`** (117.7 MB).
+- `npm run lint-mod` on the installed folder reports **no errors**:
+  - 286 parts in 286 jbeam files (one per part, plus the main part);
+  - the default config installs 142 parts: 1,055 nodes, 4,751 beams, 235 flexbodies;
+  - the DAE has 411 meshes and 66 materials.
+- The project is saved at `scratch/reference-project/test.jbforge`.
+- An older `mods/unpacked/Test` folder from July (loose `sunburst_6_*` files with no `vehicles/` folder, so not loadable) was **moved, not deleted**, to `scratch/beamng-backups/unpacked-Test-2026-07-18/`.
+
+**Tests:** 443 unit tests. The harness has 17 scenarios; the generate scenario now also exports into the harness's fake BeamNG folder and checks the files, `.pc` and flexbody↔DAE link.
+
+**Gate status:** not done until you spawn it in-game (steps in `docs/testing-in-beamng.md`).
 
 ### Phase 4 — Proxy generation (done)
 
@@ -226,7 +271,7 @@ Decisions recorded with you:
 
 **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 225/225 ✔ · `npm run run-desktop` 9/9 ✔ (new: BeamNG auto-detect + Settings modal against a fake install) · `npm run jbeam:corpus` 5062/5062 ✔. No in-game gate: export output is unchanged.
 
-**Next:** Phase 5 — Export v1 + in-game gate.
+**Next:** your in-game test of `test` (Phase 5 gate), then Phase 6: physics sandbox.
 
 
 ### Phase 1 — Foundations (done 2026-09-26)

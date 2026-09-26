@@ -132,7 +132,13 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     const massKg = partMass(part, entry, settings);
     const cap = massNodeCap(entry, massKg);
     const target = Math.min(targetVertices(defaults.budget, settings.detail), cap);
-    const built = buildProxy(mesh, { mode: settings.mode, targetVertices: target, symmetry: settings.symmetry, maxEdge: settings.maxEdge, minEdge: settings.minEdge, inset: settings.inset, maxVertices: cap });
+    let built = buildProxy(mesh, { mode: settings.mode, targetVertices: target, symmetry: settings.symmetry, maxEdge: settings.maxEdge, minEdge: settings.minEdge, inset: settings.inset, maxVertices: cap });
+    const fallbackWarnings: string[] = [];
+    if (built.stats.vertices < 4 || built.stats.triangles < 2) {
+      // Thin or fragmented shapes can clean down to nothing: every meshed part still needs nodes.
+      built = buildProxy(mesh, { mode: 'box', targetVertices: 8, symmetry: false, maxEdge: 0, minEdge: 0, inset: 0 });
+      fallbackWarnings.push(`The ${settings.mode} proxy came out empty (very thin or fragmented shape), so a box was fitted instead.`);
+    }
 
     // Replace this part's structure (manual nodes are kept for Phase 7's regeneration rules).
     removePartStructure(doc, partId);
@@ -142,7 +148,7 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     doc.nodes.push(...derived.nodes);
     doc.beams.push(...derived.beams);
     doc.tris.push(...derived.tris);
-    const warnings = [...derived.warnings];
+    const warnings = [...fallbackWarnings, ...derived.warnings];
 
     const attach = attachBeams(doc, part, entry, derived.nodes, settings.attachment);
     doc.beams.push(...attach.beams);
@@ -156,9 +162,11 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     reports.push({ partId, vertices: derived.nodes.length, beams: partBeams.length, triangles: derived.tris.length, massKg, mirrored: built.mirrored, ms: built.stats.ms, warnings, stability });
   }
 
-  // Children that were not regenerated keep their nodes but must re-attach to a regenerated parent's new nodes.
+  // Children that were not regenerated keep their nodes but must re-attach: their parent's slot has new
+  // nodes (and, if a variant changed, a new set of names common to every variant).
+  const regeneratedSlots = new Set([...regenerated].map((id) => slotOf(doc.parts, id)));
   for (const child of doc.parts) {
-    if (regenerated.has(child.id) || !child.parentPartId || !regenerated.has(child.parentPartId)) continue;
+    if (regenerated.has(child.id) || !child.parentPartId || !regeneratedSlots.has(slotOf(doc.parts, child.parentPartId))) continue;
     const entry = tax.entry(child.taxonomyId);
     const nodes = doc.nodes.filter((n) => n.partId === child.id);
     if (!entry || !nodes.length) continue;
@@ -176,12 +184,38 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
 
 function attachBeams(doc: Doc, part: Part, entry: TaxonomyEntry, nodes: readonly StructNode[], style: PartProxy['attachment']) {
   if (!part.parentPartId) return { beams: [], warning: null as string | null };
-  if (entry.openable) return { beams: [], warning: `${entry.label} opens: it attaches through hinges and a latch (Phase 9), so no rigid attachment was generated.` };
-  const parentNodes = doc.nodes.filter((n) => n.partId === part.parentPartId);
+  const parentNodes = swapSafeParentNodes(doc, part.parentPartId);
   if (!parentNodes.length) return { beams: [], warning: 'Its parent part has no structure yet: generate the parent, then this part attaches automatically.' };
   const gap = parentGap(nodes, parentNodes);
-  const warning = gap > FAR_FROM_PARENT ? `${gap.toFixed(2)} m from its parent part: attached by its 3 nearest nodes only. Check the part's parent, or move its mesh.` : null;
-  return { beams: attachToParent(nodes, parentNodes, style, part.id), warning };
+  // Openable parts are held shut by temporary breakable bolts until the hinge wizard (Phase 9) replaces them.
+  const warning = entry.openable
+    ? `${entry.label} opens: until hinges and a latch are added (Phase 9) it is held shut by temporary breakable bolts.`
+    : gap > FAR_FROM_PARENT
+      ? `${gap.toFixed(2)} m from its parent part: attached by its 3 nearest nodes only. Check the part's parent, or move its mesh.`
+      : null;
+  return { beams: attachToParent(nodes, parentNodes, entry.openable ? 'bolted' : style, part.id), warning };
+}
+
+/**
+ * Nodes of the parent to attach to. When the parent's slot has several generated
+ * variants, only node names that *every* variant has are used, so swapping the
+ * parent's variant in-game never leaves this part's beams dangling. Falls back to
+ * the parent's own nodes when the variants share fewer than 3 names.
+ */
+export function swapSafeParentNodes(doc: Pick<Doc, 'parts' | 'nodes'>, parentId: string): StructNode[] {
+  const own = doc.nodes.filter((n) => n.partId === parentId);
+  const parent = doc.parts.find((p) => p.id === parentId);
+  if (!parent) return own;
+  const slot = parent.variantOf ?? parent.id;
+  const siblings = doc.parts.filter((p) => (p.variantOf ?? p.id) === slot && p.id !== parentId);
+  let common = new Set(own.map((n) => n.id));
+  for (const s of siblings) {
+    const ids = new Set(doc.nodes.filter((n) => n.partId === s.id).map((n) => n.id));
+    if (ids.size === 0) continue; // not generated: no constraint yet
+    common = new Set([...common].filter((id) => ids.has(id)));
+  }
+  const safe = own.filter((n) => common.has(n.id));
+  return safe.length >= 3 ? safe : own;
 }
 
 /** Drop a part's generated nodes/beams/triangles, plus beams of other parts that pointed at its nodes. */

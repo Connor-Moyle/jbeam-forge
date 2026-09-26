@@ -141,7 +141,7 @@ export function deriveStructure(input: DeriveInput): DerivedStructure {
   const weight = n ? input.massKg / n : 0;
   const warnings: string[] = [];
   if (n && weight < LIGHT_NODE_KG) warnings.push(`Nodes weigh ${weight.toFixed(2)} kg each (below ${LIGHT_NODE_KG} kg): raise the part's mass or lower its detail.`);
-  const round = (v: number) => Math.round(v * 1e4) / 1e4;
+  const round = (v: number) => Math.round(v * 1e4) / 1e4 || 0; // no -0
   const nodes: StructNode[] = ids.map((id, v) => ({ id, partId, pos: [round(mesh.positions[v * 3]!), round(mesh.positions[v * 3 + 1]!), round(mesh.positions[v * 3 + 2]!)], weight: Math.round(weight * 1000) / 1000 || 0.001 }));
   const beams: StructBeam[] = [...edges(mesh).map(([a, b]) => ({ id1: ids[a]!, id2: ids[b]!, partId, kind: 'edge' as const })), ...braces(mesh, input.bracing).map(([a, b]) => ({ id1: ids[a]!, id2: ids[b]!, partId, kind: 'brace' as const }))];
   const tris: StructTri[] = [];

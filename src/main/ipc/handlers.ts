@@ -16,7 +16,8 @@ import { getLogFolder, scoped } from '../log';
 import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
 import { resolveTextureRefs } from '../import/textures';
 import { readFile, stat } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
+import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
 
 const logger = scoped('ipc');
@@ -133,6 +134,48 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('shell:openLogFolder', async () => {
     const err = await shell.openPath(getLogFolder());
     if (err) throw new Error(err);
+    return undefined;
+  });
+
+  // ---------------------------------------------------------------- export (Phase 5)
+  let lastExport: string | null = null;
+  const ExportBundleSchema = z.object({
+    slug: z.string().min(1).max(64),
+    projectName: z.string().max(256),
+    files: z.array(z.object({ path: z.string().min(1).max(512), text: z.string().optional(), base64: z.string().optional() })).max(20_000),
+    copies: z.array(z.object({ from: z.string().min(1).max(4096), to: z.string().min(1).max(512) })).max(5_000),
+  });
+  const modsDir = async (): Promise<string> => {
+    const userDir = settings.get().beamngUserDir ?? (await beamng.detect()).userDir;
+    if (!userDir) throw new ExportError('BeamNG user folder not found: set it in Settings → BeamNG.');
+    return join(userDir, 'mods');
+  };
+  registerInvoke(
+    'export:install',
+    async (bundle) => {
+      checkBundle(bundle, (p) => projects.isUnderGrantedRoot(p));
+      const r = await installUnpacked(await modsDir(), bundle);
+      lastExport = r.path;
+      logger.info(`exported ${bundle.slug} unpacked to ${r.path} (${bundle.files.length} files, ${bundle.copies.length} textures, ${r.bytes} bytes)`);
+      return r;
+    },
+    ExportBundleSchema,
+  );
+  registerInvoke(
+    'export:zip',
+    async (bundle, event) => {
+      checkBundle(bundle, (p) => projects.isUnderGrantedRoot(p));
+      const picked = await pickSaveFile(event.sender, { title: 'Save mod zip', defaultPath: `${bundle.slug}.zip`, filters: [{ name: 'BeamNG mod (.zip)', extensions: ['zip'] }] });
+      if (!picked) return null;
+      const r = await writeZip(picked.toLowerCase().endsWith('.zip') ? picked : `${picked}.zip`, bundle);
+      lastExport = r.path;
+      logger.info(`exported ${bundle.slug} as ${r.path} (${r.bytes} bytes)`);
+      return r;
+    },
+    ExportBundleSchema,
+  );
+  registerInvoke('export:reveal', () => {
+    if (lastExport) shell.showItemInFolder(lastExport);
     return undefined;
   });
 

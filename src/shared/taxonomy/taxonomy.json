@@ -1052,7 +1052,7 @@
       "defaultMass": 0.8,
       "nodePrefix": "mi",
       "beamPreset": "panel_plastic",
-      "openable": true,
+      "openable": false,
       "nameHints": [
         "wing mirror",
         "door mirror",

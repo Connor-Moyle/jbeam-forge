@@ -21,7 +21,8 @@
     "extract-reference": "tsx --tsconfig tsconfig.node.json scripts/extract-reference.ts",
     "build-taxonomy": "tsx --tsconfig tsconfig.node.json scripts/build-taxonomy.ts",
     "classify:bench": "tsx --tsconfig tsconfig.node.json scripts/classify-bench.ts",
-    "study-structure": "tsx --tsconfig tsconfig.node.json scripts/study-structure.ts"
+    "study-structure": "tsx --tsconfig tsconfig.node.json scripts/study-structure.ts",
+    "lint-mod": "tsx --tsconfig tsconfig.node.json scripts/lint-mod.ts"
   },
   "engines": {
     "node": ">=22"

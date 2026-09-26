@@ -96,7 +96,7 @@ const rows: Row[] = [
 
   // ---- Exterior trim
   ['grille', 'Grille', TRIM, 'Trim', 'none', 'bumper', 1, 'gr', 'panel_plastic', false, ['grill', 'front grille', 'kidney']],
-  ['mirror', 'Side mirror', TRIM, 'Trim', 'lr', 'door', 0.8, 'mi', 'panel_plastic', true, ['wing mirror', 'door mirror', 'side mirror']],
+  ['mirror', 'Side mirror', TRIM, 'Trim', 'lr', 'door', 0.8, 'mi', 'panel_plastic', false, ['wing mirror', 'door mirror', 'side mirror']],
   ['door_handle', 'Door handle', TRIM, 'Trim', 'corner', 'door', 0.2, 'dh', 'trim_light', false, ['handle', 'door pull']],
   ['wiper', 'Wiper', TRIM, 'Trim', 'lr', 'windshield', 0.3, 'wi', 'mechanical_light', false, ['wipers', 'wiper arm', 'windshield wiper']],
   ['rear_wiper', 'Rear wiper', TRIM, 'Trim', 'none', 'tailgate', 0.2, 'rwi', 'mechanical_light', false, ['rear wiper']],

@@ -15,8 +15,11 @@ The app detects both folders; see **Settings → BeamNG**. Never install mods in
 
 ## The loop
 
-1. **Export** from JBeam Forge. The zip lands wherever you choose. From Phase 5 there is also a one-click "Install to mods".
-2. **Install:** copy `<slug>.zip` into the mods folder, and delete any previous version of the same mod first.
+1. **Export** from JBeam Forge (toolbar → Export). Validation runs first; anything that would break in-game blocks the export.
+2. **Install:** click **Install to BeamNG**. It writes `mods/unpacked/<slug>/vehicles/<slug>/…` in your BeamNG user folder.
+   - It replaces only an earlier JBeam Forge export: a `jbforge-export.json` marker proves ownership. It never touches another mod.
+   - Alternatively, **Save .zip…** and copy the zip into `mods/` yourself.
+   - `npm run lint-mod -- "<mods>/unpacked/<slug>"` re-checks an installed export the way the game reads it: parsing, slots, the default config, flexbody meshes vs the DAE, node references, materials and textures.
 3. **Clear the log's noise:** fully quit BeamNG before launching, so `beamng.log` starts fresh.
 4. **Spawn:** launch the game, load *Gridmap* (fast), open the vehicle selector and pick the mod.
 5. **Check, in order:**

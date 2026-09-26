@@ -4,6 +4,7 @@ import { ImportDialog } from './ImportDialog';
 import { ClassifyDialog } from '@renderer/parts/ClassifyDialog';
 import { AssignDialog } from '@renderer/parts/AssignDialog';
 import { CustomPartDialog } from '@renderer/parts/CustomPartDialog';
+import { ExportDialog } from '@renderer/export/ExportDialog';
 import { confirmImport, useImportUi } from './importFlow';
 import styles from './ImportHost.module.css';
 
@@ -17,6 +18,7 @@ export function ImportHost() {
       <ClassifyDialog />
       <AssignDialog />
       <CustomPartDialog />
+      <ExportDialog />
       {staged && <ImportDialog staged={staged} onCancel={() => setStaged(null)} onConfirm={(settings) => void confirmImport(staged, settings)} />}
       {busy && (
         <div className={styles.overlay} role="status" aria-live="polite" data-testid="import-busy">

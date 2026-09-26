@@ -8,7 +8,7 @@ import type { StructNode } from '../../src/shared/project/schema';
 import { meshoptReady } from '../../src/shared/proxy/shapes';
 import type { ProxyMesh } from '../../src/shared/proxy/mesh';
 import { attachToParent, braces, deriveStructure, nameNodes, placeRefNodes, positionTag, predictStability, STABILITY_OK } from '../../src/shared/proxy/derive';
-import { defaultProxySettings, generateStructure, removePartStructure, structureTotals } from '../../src/shared/proxy/generate';
+import { defaultProxySettings, generateStructure, removePartStructure, structureTotals, swapSafeParentNodes } from '../../src/shared/proxy/generate';
 import { kindDefaults, targetVertices } from '../../src/shared/proxy/presets';
 
 const tax = new Classifier(TaxonomyFileSchema.parse(shipped).entries);
@@ -150,9 +150,9 @@ describe('generateStructure', () => {
     expect(ids.size).toBe(doc.nodes.length);
     for (const b of doc.beams) expect(ids.has(b.id1) && ids.has(b.id2), `${b.id1}-${b.id2}`).toBe(true);
     for (const t of doc.tris) for (const id of t.ids) expect(ids.has(id)).toBe(true);
-    // Hood opens: no rigid attachment (hinges later) and a warning says why. Bumper attaches with breakable bolts.
-    expect(doc.beams.some((b) => b.partId === hood.id && b.kind === 'attach')).toBe(false);
-    expect(hoodReport.warnings.join()).toMatch(/hinges/);
+    // Hood opens: held shut by temporary bolts until hinges (Phase 9), and a warning says so. Bumper attaches with breakable bolts.
+    expect(doc.beams.some((b) => b.partId === hood.id && b.kind === 'attach')).toBe(true);
+    expect(hoodReport.warnings.join()).toMatch(/temporary breakable bolts/);
     expect(doc.beams.filter((b) => b.partId === bumper.id && b.kind === 'attach').length).toBeGreaterThan(5);
     expect(doc.proxy.refNodes).not.toBeNull();
     // Masses come from taxonomy defaults × material.
@@ -189,6 +189,16 @@ describe('generateStructure', () => {
     expect(doc.nodes.length).toBeGreaterThan(0);
   });
 
+  it('attaches only to parent node names every parent variant has (swap-safe)', () => {
+    const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
+    const n = (id: string, partId: string): StructNode => ({ id, partId, pos: [0, 0, 0], weight: 1 });
+    const base = createPart(doc, tax, { taxonomyId: 'bumper', position: 'F', id: 'base' });
+    const race = createPart(doc, tax, { taxonomyId: 'bumper', position: 'F', variant: 'race', variantOf: 'base', id: 'race' });
+    doc.nodes.push(...['a1', 'a2', 'a3', 'a4', 'a5'].map((id) => n(id, base.id)), ...['a1', 'a2', 'a3', 'a9'].map((id) => n(id, race.id)));
+    expect(swapSafeParentNodes(doc, base.id).map((x) => x.id)).toEqual(['a1', 'a2', 'a3']);
+    expect(swapSafeParentNodes(doc, race.id).map((x) => x.id)).toEqual(['a1', 'a2', 'a3']);
+  });
+
   it('caps the node count by mass so nodes stay ≥ 0.1 kg', () => {
     const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
     const lip = createPart(doc, tax, { taxonomyId: 'lip', position: 'F' });
@@ -196,5 +206,24 @@ describe('generateStructure', () => {
     generateStructure(doc, tax, [{ partId: lip.id, mesh: boxShell(0.8, -2.3, -2.1, 0.1, 0.2, 6) }]);
     expect(doc.nodes.length).toBeLessThanOrEqual(12);
     expect(Math.min(...doc.nodes.map((n) => n.weight))).toBeGreaterThanOrEqual(0.06);
+  });
+});
+
+describe('empty proxy fallback', () => {
+  it('fits a box when decimation cleans a sliver-thin part down to nothing', async () => {
+    await meshoptReady;
+    const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
+    const flare = createPart(doc, tax, { taxonomyId: 'fender_flare', position: 'RR' });
+    // A long, paper-thin strip of slivers: every triangle fails the sliver test.
+    const p: number[] = [];
+    const idx: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const b = p.length / 3;
+      p.push(-0.8, 1 + i * 0.05, 0.5, -0.8, 1 + i * 0.05 + 0.05, 0.5, -0.8, 1 + i * 0.05 + 0.025, 0.5 + 1e-6);
+      idx.push(b, b + 1, b + 2);
+    }
+    const r = generateStructure(doc, tax, [{ partId: flare.id, mesh: { positions: new Float32Array(p), index: new Uint32Array(idx) } }]);
+    expect(doc.nodes.filter((n) => n.partId === flare.id).length).toBeGreaterThanOrEqual(4);
+    expect(r.reports[0]!.warnings.join()).toMatch(/box was fitted/);
   });
 });

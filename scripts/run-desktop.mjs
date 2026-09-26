@@ -10,7 +10,7 @@
  *        node scripts/run-desktop.mjs --only=crash,gl
  */
 import { _electron } from 'playwright-core';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -589,6 +589,28 @@ const scenarios = [
       assert((await hook(page, 'structureState')).nodes === 0, 'undo removes the generated structure');
       await hook(page, 'runCommand', 'redo');
       assert((await hook(page, 'structureState')).nodes === st.nodes, 'redo restores it');
+
+      // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-dialog').waitFor();
+      assert((await page.getByTestId('export-errors').count()) === 0, `no export errors (${await page.getByTestId('export-dialog').textContent()})`);
+      await shot(page, 'export-dialog');
+      await page.getByTestId('export-install').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 30_000 });
+      const vdir = join(fakeUserDir, 'mods', 'unpacked', 'generate_test', 'vehicles', 'generate_test');
+      const files = readdirSync(vdir).sort();
+      for (const f of ['generate_test.dae', 'generate_test.jbeam', 'generate_test_body.jbeam', 'generate_test_engine.jbeam', 'generate_test_bumper_F.jbeam', 'info.json', 'default.pc', 'info_default.json', 'main.materials.json', 'default.jpg']) {
+        assert(files.includes(f), `exported ${f} (got ${files.join(', ')})`);
+      }
+      const pc = JSON.parse(readFileSync(join(vdir, 'default.pc'), 'utf8'));
+      assert(pc.format === 2 && pc.model === 'generate_test' && pc.parts.generate_test_body === 'generate_test_body', `default.pc (${JSON.stringify(pc)})`);
+      const dae = readFileSync(join(vdir, 'generate_test.dae'), 'utf8');
+      const body = readFileSync(join(vdir, 'generate_test_body.jbeam'), 'utf8');
+      const flexMesh = body.match(/\["(generate_test_[a-z0-9_]+)",\s*\["generate_test_body"\]\]/)?.[1];
+      assert(flexMesh && dae.includes(`<node id="${flexMesh}" name="${flexMesh}"`), `body flexbody mesh ${flexMesh} is a DAE node`);
+      assert(existsSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test', 'jbforge-export.json')), 'export marker written');
+      await shot(page, 'export-done');
+      await page.getByRole('button', { name: 'Done' }).click();
       await hook(page, 'runCommand', 'close');
       await page.getByTestId('unsaved-discard').click();
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');

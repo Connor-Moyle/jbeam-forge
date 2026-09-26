@@ -34,3 +34,15 @@ export function captureThumbnail(): string | null {
 export function textureCaps(): GpuTextureCaps {
   return active?.textureCaps() ?? ALL_CAPS;
 }
+
+/** Config preview size BeamNG's vehicle selector uses (16:9). */
+export const PREVIEW_SIZE = { width: 500, height: 281 } as const; // token-lint-ignore: output image pixels, not UI layout
+
+/** Vehicle-selector preview (JPEG data URL), or null when no viewport is rendering. */
+export function capturePreview(): string | null {
+  try {
+    return active?.capture(PREVIEW_SIZE.width, PREVIEW_SIZE.height) ?? null;
+  } catch {
+    return null;
+  }
+}
