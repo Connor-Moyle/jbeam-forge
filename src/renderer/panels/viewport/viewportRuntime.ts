@@ -3,6 +3,7 @@ import { resolveToken } from '@renderer/ui/tokens';
 import { rlog } from '@renderer/diagnostics/logger';
 import { onTestSignal } from '@renderer/app/testBus';
 import { GuardedLoop } from './guardedLoop';
+import { registerViewport } from './registry';
 
 export type GlState = 'starting' | 'running' | 'lost' | 'unsupported';
 
@@ -85,8 +86,27 @@ export class ViewportRuntime {
       }),
     );
 
+    this.disposers.push(registerViewport({ capture: (w, h) => this.capture(w, h) }));
+
     this.loop.start();
     callbacks.onState('running');
+  }
+
+  /** Render a frame now and copy it, cover-cropped, into a w×h JPEG. */
+  capture(width: number, height: number): string | null {
+    const src = this.renderer.domElement;
+    if (src.width === 0 || src.height === 0) return null;
+    this.renderer.render(this.scene, this.camera); // drawing buffer is only valid right after a render
+    const out = document.createElement('canvas');
+    out.width = width;
+    out.height = height;
+    const ctx = out.getContext('2d');
+    if (!ctx) return null;
+    const scale = Math.max(width / src.width, height / src.height);
+    const sw = width / scale;
+    const sh = height / scale;
+    ctx.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, 0, 0, width, height);
+    return out.toDataURL('image/jpeg', 0.85);
   }
 
   private frame(): void {

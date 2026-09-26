@@ -13,7 +13,23 @@ export interface Migration {
   migrate(doc: Readonly<RawDoc>): RawDoc;
 }
 
-export const MIGRATIONS: readonly Migration[] = [];
+const isEmptyList = (v: unknown) => Array.isArray(v) && v.length === 0;
+const isEmptyMap = (v: unknown) => typeof v === 'object' && v !== null && !Array.isArray(v) && Object.keys(v).length === 0;
+
+export const MIGRATIONS: readonly Migration[] = [
+  {
+    from: 1,
+    describe: 'Phase 3 import/taxonomy sections (typed sources/splits/assignments; parts, ignoredMeshes, customTaxonomy)',
+    migrate: (doc) => {
+      // v1 only had untyped placeholders that no release ever filled. Refuse to
+      // guess at unexpected content rather than silently dropping it.
+      if (!isEmptyList(doc.sources) || !isEmptyList(doc.splits) || !isEmptyMap(doc.assignments)) {
+        throw new Error('v1 project has data in sources/splits/assignments, which no v1 app could write');
+      }
+      return { ...doc, formatVersion: 2, sources: [], splits: [], parts: [], assignments: {}, ignoredMeshes: [], customTaxonomy: [] };
+    },
+  },
+];
 
 export class MigrationError extends Error {
   constructor(

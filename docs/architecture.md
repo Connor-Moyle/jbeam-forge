@@ -24,7 +24,7 @@ tests/          vitest: node project (main/shared/scripts) + jsdom project (rend
 - IPC channels are declared once in `src/shared/ipc-contract.ts`. Both the preload allowlist and the main handlers derive from it.
 - Main rejects calls from any frame that isn't our renderer, and zod-validates every request with a payload.
 - Handlers never throw across the bridge. They return `{ ok: false, error }`, and the renderer's `call()` unwraps it and logs the failure once.
-- `project:read`/`project:write` only accept absolute `*.jbforge` paths. `write` refuses any document that `parseProject` cannot load back. Phase 3 moves path selection behind native dialogs.
+- **Project files:** the renderer never supplies a path it chose itself. Paths come from native dialogs (`project:open`/`saveAs`), the main-owned recent list (`project:openRecent`), or an earlier grant (`project:save`). `ProjectFiles` only reads `.jbforge`, and it validates with `parseProject` before every write. Harness runs script dialog answers through `harness:queueDialog`, which is only registered when `JBFORGE_HARNESS=1`.
 
 ## Error handling & logging (SPEC §3.6)
 
@@ -73,3 +73,16 @@ Presets (`Modelling`, `Materials`, `Testing`) are data in `src/renderer/shell/pr
 - Both scripts find the install via `--dir`, then the app's saved setting, then auto-detect (`scripts/lib/installDir.ts`).
 - Official zips are read lazily with yauzl (`src/main/beamng/zip.ts`). `common.zip` is ~4 GB, so nothing ever buffers a whole archive.
 - Verified format notes: `docs/beamng-jbeam-syntax.md`, `docs/beamng-vehicle-layout.md`, `docs/beamng-reference-vehicle-notes.md`, `docs/beamng-section-catalogue.md`, `docs/testing-in-beamng.md`.
+
+## Project lifecycle & undo (Phase 3a)
+
+- **Home screen** when no project is open (`src/renderer/home/`); the dock editor otherwise (`App.tsx → Root`).
+- **Document store** `src/renderer/app/stores/project.ts`:
+  - Every edit is a `Command` run through `execute`, and immer records forward/inverse patches, so undo/redo is unlimited.
+  - "Dirty" compares the history position with the one at the last save, so undoing back to the saved state is clean.
+  - Save-time stamps (`modifiedAt`) use `markSaved` and never enter history.
+- **Lifecycle actions** `src/renderer/project/actions.ts` (new / open / recent / save / save as / close).
+  - Anything that could lose work first calls `confirmDiscardOrSave()` (Save / Don't save / Cancel).
+  - The renderer mirrors dirtiness to main (`window:setDirty`) for the window-close guard.
+- **Menu → renderer:** File and Edit items send `menu:command`. Undo/redo go to text fields when one is focused, and to the document history otherwise.
+- **Recent projects** `userData/recent-projects.json`: max 12, JPEG thumbnails in `userData/thumbnails/` captured from the viewport on save, missing files flagged.

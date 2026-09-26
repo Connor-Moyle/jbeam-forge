@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import {
@@ -48,11 +48,41 @@ describe('.jbforge io', () => {
     expect(serializeProject(shuffled)).toBe(serializeProject(p));
   });
 
-  it('loads every committed fixture', () => {
-    const text = readFileSync(join(FIXTURES, 'v1-empty.jbforge'), 'utf8');
-    const { project } = parseProject(text);
+  it('loads every committed fixture at the current version', () => {
+    for (const file of readdirSync(FIXTURES).filter((f) => f.endsWith('.jbforge'))) {
+      const { project } = parseProject(readFileSync(join(FIXTURES, file), 'utf8'));
+      expect(project.formatVersion, file).toBe(CURRENT_PROJECT_VERSION);
+    }
+  });
+
+  it('migrates the v1 fixture to v2 with empty Phase 3 sections', () => {
+    const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v1-empty.jbforge'), 'utf8'));
+    expect(migratedFrom).toBe(1);
+    expect(applied).toEqual([expect.stringMatching(/^v1→v2: /)]);
     expect(project.meta.slug).toBe('fixture_car');
-    expect(project.formatVersion).toBe(CURRENT_PROJECT_VERSION);
+    expect(project).toMatchObject({ sources: [], splits: [], parts: [], assignments: {}, ignoredMeshes: [], customTaxonomy: [] });
+  });
+
+  it('refuses to migrate a v1 file with unexpected Phase 3 data', () => {
+    const v1 = JSON.parse(readFileSync(join(FIXTURES, 'v1-empty.jbforge'), 'utf8')) as Record<string, unknown>;
+    expectLoadError(() => parseProject(JSON.stringify({ ...v1, sources: ['mystery'] })), 'MIGRATION_FAILED');
+  });
+
+  it('loads the populated v2 fixture with typed sections', () => {
+    const { project, migratedFrom } = parseProject(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8'));
+    expect(migratedFrom).toBeNull();
+    expect(project.sources[0]!.import).toEqual({ scale: 1, upAxis: '+z', forwardAxis: '-y' });
+    expect(project.parts.map((p) => p.taxonomyId)).toEqual(['main_body', 'hood']);
+    expect(project.assignments['split:split_1']).toBe('part_hood');
+  });
+
+  it('rejects invalid v2 content (bad axis, negative price)', () => {
+    const v2 = JSON.parse(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8')) as { sources: { import: { upAxis: string } }[]; parts: { price: number }[] };
+    v2.sources[0]!.import.upAxis = 'up';
+    expectLoadError(() => parseProject(JSON.stringify(v2)), 'INVALID_SCHEMA');
+    v2.sources[0]!.import.upAxis = '+z';
+    v2.parts[0]!.price = -1;
+    expectLoadError(() => parseProject(JSON.stringify(v2)), 'INVALID_SCHEMA');
   });
 
   it('rejects invalid JSON', () => {

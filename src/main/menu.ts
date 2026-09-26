@@ -1,5 +1,6 @@
 import { Menu, shell, type BrowserWindow, type MenuItemConstructorOptions } from 'electron';
 import { PRESET_IDS } from '@shared/layout-schema';
+import type { AppCommand } from '@shared/ipc-contract';
 import type { SettingsService } from './services/settings';
 import { copyDiagnosticsToClipboard } from './diagnostics';
 import { getLogFolder, scoped } from './log';
@@ -20,9 +21,37 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
     if (w) fn(w);
   };
 
+  const command = (cmd: AppCommand) => () => send((w) => sendEvent(w.webContents, 'menu:command', { command: cmd }));
+
   const template: MenuItemConstructorOptions[] = [
-    { label: 'File', submenu: [{ role: 'quit' }] },
-    { role: 'editMenu' },
+    {
+      label: 'File',
+      submenu: [
+        { label: 'New Mod…', accelerator: 'CmdOrCtrl+N', click: command('new') },
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: command('open') },
+        { type: 'separator' },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: command('save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: command('saveAs') },
+        { type: 'separator' },
+        { label: 'Close Project', click: command('close') },
+        { type: 'separator' },
+        { role: 'quit' },
+      ],
+    },
+    {
+      // Custom undo/redo: the renderer routes them to text fields or to the document history.
+      label: 'Edit',
+      submenu: [
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: command('undo') },
+        { label: 'Redo', accelerator: 'CmdOrCtrl+Y', click: command('redo') },
+        { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: command('redo'), visible: false },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'selectAll' },
+      ],
+    },
     {
       label: 'View',
       submenu: [

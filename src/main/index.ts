@@ -1,9 +1,11 @@
 import { join } from 'node:path';
-import { app, type BrowserWindow } from 'electron';
+import { app, dialog, type BrowserWindow } from 'electron';
 import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
 import { LayoutService } from './services/layout';
+import { RecentService } from './services/recent';
+import { ProjectFiles } from './services/projectFiles';
 import { BeamngService, rootsFromEnv } from './beamng/service';
 import { registerIpcHandlers } from './ipc/handlers';
 import { sendEvent, setTrustedUrlPredicate } from './ipc/register';
@@ -33,7 +35,11 @@ async function start(): Promise<void> {
   hardenSessions();
   setTrustedUrlPredicate(makeTrustedUrlPredicate(devServerUrl));
   const beamng = new BeamngService(rootsFromEnv(), scoped('beamng'));
-  registerIpcHandlers({ settings, layout, beamng });
+  const recent = new RecentService(join(userData, 'recent-projects.json'), join(userData, 'thumbnails'), scoped('recent'));
+  await recent.load();
+  const projects = new ProjectFiles();
+  const windowState = { dirty: false };
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 
@@ -46,6 +52,20 @@ async function start(): Promise<void> {
   mainWindow = createMainWindow({ devServerUrl, harness });
   mainWindow.on('closed', () => {
     mainWindow = null;
+  });
+  // Guard unsaved work (the renderer reports dirtiness via window:setDirty).
+  mainWindow.on('close', (event) => {
+    if (!windowState.dirty || harness || !mainWindow) return;
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'warning',
+      buttons: ['Quit without saving', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Unsaved changes',
+      message: 'The project has unsaved changes.',
+      detail: 'Quit anyway and lose them?',
+    });
+    if (choice === 1) event.preventDefault();
   });
 
   // First run: find BeamNG without asking when the answer is unambiguous.

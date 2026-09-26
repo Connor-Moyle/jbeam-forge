@@ -5,7 +5,7 @@ import { SettingsModal } from '../../src/renderer/settings/SettingsModal';
 import { TooltipProvider } from '../../src/renderer/ui/components/Tooltip';
 import type { Settings } from '../../src/shared/settings-schema';
 
-const SETTINGS: Settings = { version: 1, debugLogging: false, beamngInstallDir: 'C:\\Game', beamngUserDir: 'C:\\User' };
+const SETTINGS: Settings = { version: 1, debugLogging: false, beamngInstallDir: 'C:\\Game', beamngUserDir: 'C:\\User', author: null };
 
 const valid = (dir: string) => ({ ok: true, dir, version: '0.39.1.0', build: null, vehicleCount: 3, problems: [] });
 

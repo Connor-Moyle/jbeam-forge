@@ -14,6 +14,8 @@ export const SettingsSchema = z.object({
   beamngInstallDir: z.string().min(1).nullable(),
   /** BeamNG user folder (…/BeamNG.drive/current); mods are installed under it. */
   beamngUserDir: z.string().min(1).nullable(),
+  /** Mod author, entered once in the New Mod wizard and reused (SPEC §4.1). */
+  author: z.string().max(100).nullable(),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -23,6 +25,7 @@ export const DEFAULT_SETTINGS: Settings = {
   debugLogging: false,
   beamngInstallDir: null,
   beamngUserDir: null,
+  author: null,
 };
 
 /** Fields the renderer may change. `version` is owned by the main process. */

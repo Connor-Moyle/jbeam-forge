@@ -10,6 +10,7 @@ const alias = {
 
 export default defineConfig({
   resolve: { alias },
+  define: { __APP_VERSION__: JSON.stringify('0.0.0-test') },
   test: {
     projects: [
       {

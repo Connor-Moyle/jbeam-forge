@@ -86,7 +86,30 @@ async function openPanels(page) {
   return (await hook(page, 'openPanels')).sort();
 }
 
+const projectFile = join(userData, 'projects', 'harness_test_car.jbforge');
+
 const scenarios = [
+  {
+    id: 'home',
+    name: 'home screen → New Mod wizard → editor',
+    async run({ page }) {
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.evaluate(() => document.fonts.ready);
+      await shot(page, 'home-empty');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-wizard').waitFor();
+      await page.getByTestId('newmod-name').fill('Harness Test Car');
+      assert((await page.getByTestId('newmod-slug').inputValue()) === 'harness_test_car', 'slug derived from the name');
+      await page.getByTestId('newmod-author').fill('Fatkiwi');
+      await shot(page, 'newmod-wizard');
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      const state = await hook(page, 'projectState');
+      assert(state.name === 'Harness Test Car' && state.dirty === true && state.filePath === null, `new project is open and unsaved (${JSON.stringify(state)})`);
+      const settingsJson = JSON.parse(readFileSync(join(userData, 'settings.json'), 'utf8'));
+      assert(settingsJson.author === 'Fatkiwi', 'author remembered in settings');
+    },
+  },
   {
     id: 'shell',
     name: 'default shell renders',
@@ -257,8 +280,36 @@ const scenarios = [
     },
   },
   {
+    id: 'project',
+    name: 'save (dialog) · undo/redo · dirty tracking',
+    async run({ page }) {
+      await hook(page, 'queueDialog', [projectFile]);
+      await page.getByTestId('toolbar-save').click();
+      for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
+      assert(existsSync(projectFile), 'project written via Save As dialog');
+      const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
+      assert(saved.formatVersion === 2 && saved.meta.slug === 'harness_test_car', 'saved as a v2 project');
+      let state = await hook(page, 'projectState');
+      assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
+      assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
+
+      await hook(page, 'renameProject', 'Renamed Car');
+      state = await hook(page, 'projectState');
+      assert(state.dirty && state.undo === 1, 'edit makes the project dirty');
+      assert((await page.title()).includes('•'), 'title shows the unsaved marker');
+      await hook(page, 'runCommand', 'undo');
+      state = await hook(page, 'projectState');
+      assert(state.name === 'Harness Test Car' && !state.dirty && state.redo === 1, 'undo returns to the saved state (clean)');
+      await hook(page, 'runCommand', 'redo');
+      state = await hook(page, 'projectState');
+      assert(state.name === 'Renamed Car' && state.dirty, 'redo re-applies the edit');
+      await hook(page, 'runCommand', 'undo');
+      await shot(page, 'editor-saved-project');
+    },
+  },
+  {
     id: 'persist',
-    name: 'layout persists across relaunch',
+    name: 'layout + recent project persist across relaunch',
     async run(ctx) {
       await hook(ctx.page, 'applyPreset', 'materials');
       await hook(ctx.page, 'flushLayout');
@@ -274,10 +325,33 @@ const scenarios = [
       assert(storedPreset() === 'materials', `stored preset = materials (got ${storedPreset()})`);
       await ctx.app.close();
       Object.assign(ctx, await launch());
+      // Relaunch lands on home; the project is in Recent (with its thumbnail) and reopens from there.
+      await ctx.page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      const row = ctx.page.getByTestId('recent-row').filter({ hasText: 'Harness Test Car' });
+      await row.waitFor();
+      assert((await row.locator('img').count()) === 1, 'recent entry has a viewport thumbnail');
+      await shot(ctx.page, 'home-recent');
+      await row.locator('button').first().click();
+      await ctx.page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      assert((await hook(ctx.page, 'projectState')).filePath === projectFile, 'reopened the saved project');
       assert((await hook(ctx.page, 'preset')) === 'materials', 'preset restored after relaunch');
       const open = await openPanels(ctx.page);
       assert(open.includes('materials'), `materials panel restored (got ${open})`);
       await shot(ctx.page, 'relaunch-restored');
+    },
+  },
+  {
+    id: 'unsaved',
+    name: 'unsaved-changes guard on close',
+    async run({ page }) {
+      await hook(page, 'renameProject', 'Unsaved Name');
+      await hook(page, 'runCommand', 'close');
+      await page.getByTestId('unsaved-discard').waitFor();
+      await shot(page, 'unsaved-prompt');
+      await page.getByTestId('unsaved-discard').click();
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
+      assert(saved.meta.name === 'Harness Test Car', 'discarded edits were not written');
     },
   },
 ];

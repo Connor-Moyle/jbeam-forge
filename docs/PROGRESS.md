@@ -8,7 +8,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 |---|---|---|---|
 | 1 | Foundations — scaffold, design tokens + component kit, logging/error boundaries, dockview shell, .jbforge versioning/migrations | — | done |
 | 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | done |
-| 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | not started |
+| 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | in progress (3a done) |
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | not started |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | not started |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | not started |
@@ -22,6 +22,34 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | not started |
 
 ## Phase log
+
+### Phase 3 — Import + taxonomy (in progress)
+
+Split into four sub-phases, each committed on its own: **3a** project system ✔ · **3b** import pipeline · **3c** taxonomy/classify/tree/assignment · **3d** splitting.
+
+Decisions recorded with you:
+- **Test model:** the in-game **Hirochi Sunburst** (`sunburst2.zip`). Its jbeam is a reference for how parts link, used only to measure our hierarchy and classifier. All generated data is built from scratch.
+- **End goal:** an unpacked mod named **`test`** in the BeamNG mods folder, with a jbeam for every part. That's the Phase 5 target and in-game gate.
+- **Import from mod folder** moves to after Phase 5.
+
+**3a — Project system & startup (done)**
+- `.jbforge` **v2** (first real migration; the v1 fixture still loads):
+  - typed `sources` (import scale/axes), `splits` (triangle runs), `parts` (taxonomy id, display name, price, description, construction material, parent, variant);
+  - `assignments` (mesh → part), `ignoredMeshes`, `customTaxonomy`.
+- **Document store** with command-based **unlimited undo/redo** (immer patches). Dirty state is tracked against the saved history position.
+- **Home screen:** New Mod / Open cards and Recent projects (thumbnail, relative time, missing-file badge, right-click Open / Show in folder / Remove).
+- **New Mod wizard:** name → auto slug, brand, type, description; the author is remembered in settings.
+- **File operations:** Open, Save, Save As, Close. Paths only ever come from dialogs, recents or earlier grants. The unsaved-changes prompt is Save / Don't save / Cancel, plus a native quit guard. The window title shows a • when there are unsaved changes.
+- **Menus and toolbar:** the native File/Edit menus drive the renderer; undo/redo route to text fields or to the document. The toolbar File and Edit groups are live.
+- **Tests:** 276 unit tests. The harness has 12 scenarios (new: home → wizard → editor · save/undo/redo/dirty · reopen from recents after relaunch · unsaved guard).
+- **Code review fixes** (each with a regression test where testable):
+  - An edit made while a save dialog was open was marked saved. The save now records the history position when the text is serialized.
+  - A recent-list write failure no longer fails an open or save that had already succeeded.
+  - Files that fail to parse no longer go into Recent.
+  - The dock layout is flushed and detached when the editor unmounts, and an empty layout is never restored.
+  - The wizard no longer erases the remembered author when settings load after it opens.
+  - A rejected thumbnail keeps the previous one.
+
 
 ### Phase 2 — Ground truth (done 2026-09-26)
 

@@ -86,6 +86,10 @@ describe('isRestorable', () => {
     expect(isRestorable(layout(['viewport', 'future-panel']), false)).toBe(false);
   });
 
+  it('rejects an empty layout', () => {
+    expect(isRestorable(layout([]), true)).toBe(false);
+  });
+
   it('rejects dev-only panels outside dev mode', () => {
     expect(isRestorable(layout(['kit-gallery']), false)).toBe(false);
     expect(isRestorable(layout(['kit-gallery']), true)).toBe(true);

@@ -26,9 +26,20 @@ export interface DiagnosticInfo {
   recentLog: string[];
 }
 
-export interface ProjectReadResult {
+export interface ProjectFile {
   path: string;
   text: string;
+}
+
+export interface RecentProject {
+  path: string;
+  name: string;
+  slug: string;
+  openedAt: string;
+  /** False when the file has been moved or deleted since. */
+  exists: boolean;
+  /** JPEG data URL captured from the viewport on save, if any. */
+  thumbnail: string | null;
 }
 
 /** Request/response types for renderer → main invokes. */
@@ -41,12 +52,29 @@ export interface InvokeContract {
   'diagnostics:get': { req: { rendererErrors?: string[] } | undefined; res: DiagnosticInfo };
   'diagnostics:copy': { req: { extra?: string } | undefined; res: undefined };
   'shell:openLogFolder': { req: undefined; res: undefined };
-  'project:read': { req: { path: string }; res: ProjectReadResult };
-  'project:write': { req: { path: string; text: string }; res: undefined };
+  /** Shows an open dialog; null when cancelled. */
+  'project:open': { req: undefined; res: ProjectFile | null };
+  'project:openRecent': { req: { path: string }; res: ProjectFile };
+  /** Save to a path previously granted by a dialog/open/recent. */
+  'project:save': { req: { path: string; text: string; thumbnail?: string | null }; res: undefined };
+  /** Shows a save dialog; returns the chosen path, or null when cancelled. */
+  'project:saveAs': { req: { text: string; suggestedName: string; thumbnail?: string | null }; res: string | null };
+  'recent:list': { req: undefined; res: RecentProject[] };
+  'recent:remove': { req: { path: string }; res: undefined };
+  /** Reveal a recent/granted file in Explorer. */
+  'shell:showItemInFolder': { req: { path: string }; res: undefined };
+  /** Renderer reports unsaved changes so main can guard window close. */
+  'window:setDirty': { req: { dirty: boolean }; res: undefined };
+  /** run-desktop harness only (registered only in harness mode): scripted dialog answers. */
+  'harness:queueDialog': { req: { answers: (string | null)[] }; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
 }
+
+/** Commands the native menu forwards to the renderer. */
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'undo', 'redo'] as const;
+export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */
 export interface EventContract {
@@ -54,6 +82,7 @@ export interface EventContract {
   'menu:applyPreset': { preset: string };
   'settings:changed': Settings;
   'status:message': { text: string; tone: 'info' | 'success' | 'warning' | 'danger' };
+  'menu:command': { command: AppCommand };
 }
 
 export type InvokeChannel = keyof InvokeContract;
@@ -68,8 +97,15 @@ export const INVOKE_CHANNELS = [
   'diagnostics:get',
   'diagnostics:copy',
   'shell:openLogFolder',
-  'project:read',
-  'project:write',
+  'project:open',
+  'project:openRecent',
+  'project:save',
+  'project:saveAs',
+  'recent:list',
+  'recent:remove',
+  'shell:showItemInFolder',
+  'window:setDirty',
+  'harness:queueDialog',
   'beamng:detect',
   'beamng:validate',
   'dialog:pickDirectory',
@@ -80,6 +116,7 @@ export const EVENT_CHANNELS = [
   'menu:applyPreset',
   'settings:changed',
   'status:message',
+  'menu:command',
 ] as const satisfies readonly EventChannel[];
 
 /** API surface exposed on `window.forge` by the preload script. */

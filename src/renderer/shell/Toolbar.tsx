@@ -8,14 +8,19 @@ import {
   LayoutGrid,
   Play,
   Save,
+  Redo2,
   ScanEye,
   Settings,
+  Undo2,
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
 import { useState } from 'react';
 import { PRESET_IDS, type PresetId } from '@shared/layout-schema';
 import { useSettingsStore } from '@renderer/app/stores/settings';
+import { useDialogStore } from '@renderer/app/stores/dialogs';
+import { useProjectStore } from '@renderer/app/stores/project';
+import { openProject, redo, saveProject, undo } from '@renderer/project/actions';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
@@ -34,15 +39,6 @@ interface PendingAction {
 
 /** Toolbar actions owned by later phases: visible so the chrome is final, inert until built. */
 const GROUPS: { id: string; label: string; actions: PendingAction[] }[] = [
-  {
-    id: 'file',
-    label: 'File',
-    actions: [
-      { icon: FilePlus, label: 'New mod', phase: 3, shortcut: 'Ctrl+N' },
-      { icon: FolderOpen, label: 'Open project', phase: 3, shortcut: 'Ctrl+O' },
-      { icon: Save, label: 'Save', phase: 3, shortcut: 'Ctrl+S' },
-    ],
-  },
   { id: 'generate', label: 'Generate', actions: [{ icon: Wand2, label: 'Generate proxies', phase: 4 }] },
   {
     id: 'view',
@@ -66,10 +62,24 @@ export function Toolbar() {
   const { preset, applyPreset, togglePanel, devMode } = useShell();
   const settings = useSettingsStore((s) => s.settings);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const setNewModOpen = useDialogStore((s) => s.setNewModOpen);
+  const undoLabel = useProjectStore((s) => s.undoStack[s.undoStack.length - 1]?.label ?? null);
+  const redoLabel = useProjectStore((s) => s.redoStack[s.redoStack.length - 1]?.label ?? null);
 
   return (
     <header className={styles.toolbar} role="toolbar" aria-label="Main toolbar">
       <div className={styles.brand}>JBeam Forge</div>
+      <div className={styles.group} role="group" aria-label="File">
+        <span className={styles.divider} aria-hidden />
+        <IconButton icon={FilePlus} label="New mod" shortcut="Ctrl+N" onClick={() => setNewModOpen(true)} />
+        <IconButton icon={FolderOpen} label="Open project" shortcut="Ctrl+O" onClick={() => void openProject()} />
+        <IconButton icon={Save} label="Save" shortcut="Ctrl+S" onClick={() => void saveProject()} data-testid="toolbar-save" />
+      </div>
+      <div className={styles.group} role="group" aria-label="Edit">
+        <span className={styles.divider} aria-hidden />
+        <IconButton icon={Undo2} label={undoLabel ? `Undo ${undoLabel}` : 'Nothing to undo'} shortcut="Ctrl+Z" disabled={!undoLabel} onClick={undo} />
+        <IconButton icon={Redo2} label={redoLabel ? `Redo ${redoLabel}` : 'Nothing to redo'} shortcut="Ctrl+Y" disabled={!redoLabel} onClick={redo} />
+      </div>
       {GROUPS.map((g) => (
         <div key={g.id} className={styles.group} role="group" aria-label={g.label}>
           <span className={styles.divider} aria-hidden />

@@ -5,6 +5,9 @@ import { call } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import { reportError } from '@renderer/diagnostics/globalHandlers';
 import { runSmokeWorker } from '@renderer/diagnostics/workerRelay';
+import { isDirty, projectStore } from '@renderer/app/stores/project';
+import { runAppCommand } from '@renderer/project/appCommands';
+import type { AppCommand } from '@shared/ipc-contract';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { emitTestSignal } from '@renderer/app/testBus';
 import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, togglePanel as toggle } from './presets';
@@ -34,7 +37,9 @@ export function useShell(): ShellApi {
 
 /** A stored layout is usable only if every panel is one we can render here. */
 export function isRestorable(layout: StoredLayout, devMode: boolean): boolean {
-  return Object.values(layout.dockview.panels).every((p) => {
+  const panels = Object.values(layout.dockview.panels);
+  if (panels.length === 0) return false; // an empty layout (e.g. captured mid-teardown) is never useful
+  return panels.every((p) => {
     const component = p.contentComponent ?? p.id;
     return isPanelId(component) && (devMode || !('devOnly' in PANELS[component]));
   });
@@ -50,9 +55,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const pushStatus = useUiStore((s) => s.pushStatus);
 
   const saveNow = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    saveTimer.current = undefined;
     const api = apiRef.current;
     if (!api) return;
-    clearTimeout(saveTimer.current);
     const layout: StoredLayout = {
       version: LAYOUT_VERSION,
       preset: presetRef.current,
@@ -62,6 +68,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const scheduleSave = useCallback(() => {
+    if (!apiRef.current) return; // detached (editor closing): ignore teardown layout events
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(saveNow, SAVE_DEBOUNCE_MS);
   }, [saveNow]);
@@ -133,7 +140,17 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       if (saveTimer.current !== undefined) saveNow();
     };
     window.addEventListener('beforeunload', flush);
-    return () => window.removeEventListener('beforeunload', flush);
+    return () => {
+      window.removeEventListener('beforeunload', flush);
+      // Editor closing (project closed): flush while dockview is still alive, then detach so
+      // layout events fired during teardown can't schedule a save of a half-disposed layout.
+      try {
+        flush();
+      } catch {
+        /* dockview already disposed; the last completed save stands */
+      }
+      apiRef.current = null;
+    };
   }, [saveNow]);
 
   // run-desktop harness hooks (never installed in production runs).
@@ -153,6 +170,13 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       preset: () => presetRef.current,
       flushLayout: () => saveNow(),
       spawnSmokeWorker: () => runSmokeWorker(),
+      renameProject: (name: string) => projectStore.getState().execute({ label: 'Rename project', apply: (d) => void (d.meta.name = name) }),
+      projectState: () => {
+        const s = projectStore.getState();
+        return { name: s.doc?.meta.name ?? null, dirty: isDirty(s), filePath: s.filePath, undo: s.undoStack.length, redo: s.redoStack.length };
+      },
+      runCommand: (command: AppCommand) => runAppCommand(command),
+      queueDialog: (answers: (string | null)[]) => call('harness:queueDialog', { answers }),
     };
     (window as unknown as { __jbforgeTest?: typeof hooks }).__jbforgeTest = hooks;
     return () => {
