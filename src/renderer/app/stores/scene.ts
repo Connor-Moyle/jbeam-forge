@@ -29,6 +29,8 @@ interface SceneState {
   hidden: Record<string, true>;
   selection: readonly string[];
   hover: string | null;
+  /** Part picked in the tree (Inspector subject); cleared by plain mesh selection. */
+  activePart: string | null;
   /** Changed to ask the viewport to frame meshes (empty keys = everything). */
   frameRequest: { id: number; keys: readonly string[] };
 
@@ -39,6 +41,9 @@ interface SceneState {
   setHover: (meshKey: string | null) => void;
   /** mode: replace (click), add (shift), toggle (ctrl). */
   select: (keys: readonly string[], mode?: 'replace' | 'add' | 'toggle') => void;
+  /** Select a part: its meshes become the selection and it becomes the active part. */
+  selectPart: (partId: string | null, meshKeys: readonly string[]) => void;
+  setHidden: (meshKeys: readonly string[], hidden: boolean) => void;
   requestFrame: (keys?: readonly string[]) => void;
 }
 
@@ -51,6 +56,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   hidden: {},
   selection: EMPTY_ARR,
   hover: null,
+  activePart: null,
   frameRequest: { id: 0, keys: EMPTY_ARR },
 
   setSource: (s) => {
@@ -74,7 +80,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   },
   clear: () => {
     for (const s of Object.values(get().sources)) disposeSource(s);
-    set({ sources: {}, hidden: {}, selection: EMPTY_ARR, hover: null });
+    set({ sources: {}, hidden: {}, selection: EMPTY_ARR, hover: null, activePart: null });
   },
   toggleHidden: (key) =>
     set((st) => {
@@ -86,15 +92,25 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   setHover: (hover) => {
     if (get().hover !== hover) set({ hover });
   },
+  setHidden: (keys, hide) =>
+    set((st) => {
+      const hidden = { ...st.hidden };
+      for (const k of keys) {
+        if (hide) hidden[k] = true;
+        else delete hidden[k];
+      }
+      return { hidden };
+    }),
+  selectPart: (partId, keys) => set({ activePart: partId, selection: keys.length ? [...keys] : EMPTY_ARR }),
   select: (keys, mode = 'replace') =>
     set((st) => {
-      if (mode === 'replace') return { selection: keys.length ? [...keys] : EMPTY_ARR };
+      if (mode === 'replace') return { selection: keys.length ? [...keys] : EMPTY_ARR, activePart: null };
       const current = new Set(st.selection);
       for (const k of keys) {
         if (mode === 'toggle' && current.has(k)) current.delete(k);
         else current.add(k);
       }
-      return { selection: current.size ? [...current] : EMPTY_ARR };
+      return { selection: current.size ? [...current] : EMPTY_ARR, activePart: null };
     }),
   requestFrame: (keys = EMPTY_ARR) => set((st) => ({ frameRequest: { id: st.frameRequest.id + 1, keys } })),
 }));

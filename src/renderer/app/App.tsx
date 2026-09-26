@@ -15,6 +15,8 @@ import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
 import { registerTestHooks } from './testHooks';
+import { loadUserTaxonomy } from '@renderer/parts/taxonomy';
+import { offerAutoClassify } from '@renderer/parts/commands';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
 
@@ -25,6 +27,7 @@ function AppEffects() {
 
   useEffect(() => window.forge.on('status:message', ({ text, tone }) => pushStatus(text, tone, 8000)), [pushStatus]);
   useEffect(() => window.forge.on('menu:command', ({ command }) => runAppCommand(command)), []);
+  useEffect(() => void loadUserTaxonomy(), []);
 
   // run-desktop harness hooks available on every screen (home and editor).
   useEffect(
@@ -37,6 +40,19 @@ function AppEffects() {
         },
         runCommand: (command: AppCommand) => runAppCommand(command),
         queueDialog: (answers: (string | null)[]) => call('harness:queueDialog', { answers }),
+        partsState: () => {
+          const d = projectStore.getState().doc;
+          return {
+            parts: (d?.parts ?? []).map((p) => ({ id: p.id, taxonomyId: p.taxonomyId, name: p.name, displayName: p.displayName, position: p.position, parentPartId: p.parentPartId, variantOf: p.variantOf })),
+            assigned: Object.keys(d?.assignments ?? {}).length,
+            ignored: d?.ignoredMeshes.length ?? 0,
+            activePart: useSceneStore.getState().activePart,
+          };
+        },
+        offerAutoClassify: () => {
+          const meshes = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);
+          offerAutoClassify('harness', meshes);
+        },
         sceneStats: () => {
           const s = useSceneStore.getState();
           const sources = Object.values(s.sources);

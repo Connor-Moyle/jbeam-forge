@@ -1,0 +1,26 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`UserTaxonomyService > serializes deterministically (snapshot) 1`] = `
+"{
+  "version": 1,
+  "entries": [
+    {
+      "id": "ducktail",
+      "label": "Ducktail",
+      "category": "Aero",
+      "subcategory": "Wings",
+      "positionAxis": "none",
+      "slotType": "ducktail",
+      "parent": "trunk",
+      "defaultMass": 2,
+      "nodePrefix": "dkt",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "duck tail"
+      ]
+    }
+  ]
+}
+"
+`;

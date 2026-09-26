@@ -2,6 +2,7 @@ import type { Settings, SettingsPatch } from './settings-schema';
 import type { StoredLayout } from './layout-schema';
 import type { BeamngDetection, InstallValidation } from './beamng';
 import type { SourceFormat } from './project/schema';
+import type { TaxonomyEntry } from './taxonomy/schema';
 
 /**
  * Single source of truth for every IPC channel. The preload bridge only
@@ -88,6 +89,10 @@ export interface InvokeContract {
   'import:locateSource': { req: { projectPath: string | null; path: string; absolutePath: string }; res: string | null };
   /** run-desktop harness only (registered only in harness mode): scripted dialog answers. */
   'harness:queueDialog': { req: { answers: (string | null)[] }; res: undefined };
+  /** The user-global taxonomy layer (userData/user-taxonomy.json). */
+  'taxonomy:getUser': { req: undefined; res: TaxonomyEntry[] };
+  /** Replace the user layer; rejects when the merged taxonomy would be invalid. */
+  'taxonomy:saveUser': { req: { entries: TaxonomyEntry[] }; res: TaxonomyEntry[] };
   'beamng:detect': { req: undefined; res: BeamngDetection };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
@@ -136,6 +141,8 @@ export const INVOKE_CHANNELS = [
   'import:pickTextureDir',
   'import:locateSource',
   'project:allowFolders',
+  'taxonomy:getUser',
+  'taxonomy:saveUser',
 ] as const satisfies readonly InvokeChannel[];
 
 export const EVENT_CHANNELS = [

@@ -1,0 +1,2455 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "body",
+      "label": "Body shell",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "body",
+      "parent": null,
+      "defaultMass": 350,
+      "nodePrefix": "b",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "shell",
+        "unibody",
+        "main body",
+        "bodyshell",
+        "body main"
+      ]
+    },
+    {
+      "id": "frame",
+      "label": "Chassis frame",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "frame",
+      "parent": "body",
+      "defaultMass": 180,
+      "nodePrefix": "fr",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "chassis",
+        "ladder frame",
+        "ladderframe"
+      ]
+    },
+    {
+      "id": "roof",
+      "label": "Roof",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "roof",
+      "parent": "body",
+      "defaultMass": 15,
+      "nodePrefix": "rf",
+      "beamPreset": "panel_metal",
+      "openable": false,
+      "nameHints": [
+        "roof panel",
+        "hardtop"
+      ]
+    },
+    {
+      "id": "firewall",
+      "label": "Firewall",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "firewall",
+      "parent": "body",
+      "defaultMass": 8,
+      "nodePrefix": "fw",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "bulkhead"
+      ]
+    },
+    {
+      "id": "radiator_support",
+      "label": "Radiator support",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "radiator_support",
+      "parent": "body",
+      "defaultMass": 6,
+      "nodePrefix": "rs",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "core support",
+        "rad support"
+      ]
+    },
+    {
+      "id": "floor",
+      "label": "Floor pan",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "floor",
+      "parent": "body",
+      "defaultMass": 25,
+      "nodePrefix": "fl",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "floorpan",
+        "floor pan",
+        "underbody"
+      ]
+    },
+    {
+      "id": "subframe",
+      "label": "Subframe",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "fr",
+      "slotType": "subframe",
+      "parent": "body",
+      "defaultMass": 20,
+      "nodePrefix": "sf",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "crossmember",
+        "k frame",
+        "kframe"
+      ]
+    },
+    {
+      "id": "engine_bay",
+      "label": "Engine bay",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "none",
+      "slotType": "engine_bay",
+      "parent": "body",
+      "defaultMass": 10,
+      "nodePrefix": "eb",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "engbay",
+        "enginebay",
+        "inner fender",
+        "strut tower"
+      ]
+    },
+    {
+      "id": "inner_fender",
+      "label": "Inner fender liner",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "corner",
+      "slotType": "inner_fender",
+      "parent": "body",
+      "defaultMass": 1.5,
+      "nodePrefix": "if",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "innerfender",
+        "arch liner",
+        "wheel liner",
+        "liners"
+      ]
+    },
+    {
+      "id": "rollcage",
+      "label": "Roll cage",
+      "category": "Body & Structure",
+      "subcategory": "Rollcage",
+      "positionAxis": "none",
+      "slotType": "rollcage",
+      "parent": "body",
+      "defaultMass": 45,
+      "nodePrefix": "rc",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "roll cage",
+        "cage",
+        "full cage"
+      ]
+    },
+    {
+      "id": "rollbar",
+      "label": "Roll bar (half cage)",
+      "category": "Body & Structure",
+      "subcategory": "Rollcage",
+      "positionAxis": "none",
+      "slotType": "rollbar",
+      "parent": "body",
+      "defaultMass": 25,
+      "nodePrefix": "rb",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "half cage",
+        "halfcage"
+      ]
+    },
+    {
+      "id": "exocage",
+      "label": "Exterior cage",
+      "category": "Body & Structure",
+      "subcategory": "Rollcage",
+      "positionAxis": "none",
+      "slotType": "exocage",
+      "parent": "body",
+      "defaultMass": 40,
+      "nodePrefix": "ec",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "exo cage",
+        "exterior cage"
+      ]
+    },
+    {
+      "id": "chassis_brace",
+      "label": "Chassis brace",
+      "category": "Body & Structure",
+      "subcategory": "Structure",
+      "positionAxis": "fr",
+      "slotType": "chassis_brace",
+      "parent": "body",
+      "defaultMass": 3,
+      "nodePrefix": "cb",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "strut bar",
+        "strutbar",
+        "brace",
+        "tower brace"
+      ]
+    },
+    {
+      "id": "hood",
+      "label": "Hood",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "none",
+      "slotType": "hood",
+      "parent": "body",
+      "defaultMass": 15,
+      "nodePrefix": "h",
+      "beamPreset": "panel_metal",
+      "openable": true,
+      "nameHints": [
+        "bonnet"
+      ]
+    },
+    {
+      "id": "trunk",
+      "label": "Trunk lid",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "none",
+      "slotType": "trunk",
+      "parent": "body",
+      "defaultMass": 12,
+      "nodePrefix": "t",
+      "beamPreset": "panel_metal",
+      "openable": true,
+      "nameHints": [
+        "boot",
+        "decklid",
+        "deck lid",
+        "trunklid"
+      ]
+    },
+    {
+      "id": "tailgate",
+      "label": "Tailgate",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "none",
+      "slotType": "tailgate",
+      "parent": "body",
+      "defaultMass": 18,
+      "nodePrefix": "tg",
+      "beamPreset": "panel_metal",
+      "openable": true,
+      "nameHints": [
+        "hatch",
+        "liftgate",
+        "rear hatch"
+      ]
+    },
+    {
+      "id": "door",
+      "label": "Door",
+      "category": "Panels",
+      "subcategory": "Doors",
+      "positionAxis": "corner",
+      "slotType": "door",
+      "parent": "body",
+      "defaultMass": 22,
+      "nodePrefix": "d",
+      "beamPreset": "panel_metal",
+      "openable": true,
+      "nameHints": [
+        "door shell",
+        "door sheet",
+        "door skin"
+      ]
+    },
+    {
+      "id": "sliding_door",
+      "label": "Sliding door",
+      "category": "Panels",
+      "subcategory": "Doors",
+      "positionAxis": "lr",
+      "slotType": "sliding_door",
+      "parent": "body",
+      "defaultMass": 28,
+      "nodePrefix": "sd",
+      "beamPreset": "panel_metal",
+      "openable": true,
+      "nameHints": [
+        "slider"
+      ]
+    },
+    {
+      "id": "fender",
+      "label": "Fender",
+      "category": "Panels",
+      "subcategory": "Fenders",
+      "positionAxis": "lr",
+      "slotType": "fender",
+      "parent": "body",
+      "defaultMass": 5,
+      "nodePrefix": "fe",
+      "beamPreset": "panel_metal",
+      "openable": false,
+      "nameHints": [
+        "front wing",
+        "wing panel"
+      ]
+    },
+    {
+      "id": "quarter_panel",
+      "label": "Quarter panel",
+      "category": "Panels",
+      "subcategory": "Fenders",
+      "positionAxis": "lr",
+      "slotType": "quarter_panel",
+      "parent": "body",
+      "defaultMass": 8,
+      "nodePrefix": "q",
+      "beamPreset": "panel_metal",
+      "openable": false,
+      "nameHints": [
+        "quarterpanel",
+        "quarter",
+        "rear quarter"
+      ]
+    },
+    {
+      "id": "fender_flare",
+      "label": "Fender flare",
+      "category": "Panels",
+      "subcategory": "Fenders",
+      "positionAxis": "corner",
+      "slotType": "fender_flare",
+      "parent": "body",
+      "defaultMass": 1.5,
+      "nodePrefix": "ff",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "flare",
+        "overfender",
+        "arch extension",
+        "wheel arch"
+      ]
+    },
+    {
+      "id": "side_skirt",
+      "label": "Side skirt",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "lr",
+      "slotType": "side_skirt",
+      "parent": "body",
+      "defaultMass": 3,
+      "nodePrefix": "ss",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "sideskirt",
+        "rocker",
+        "sill",
+        "skirt"
+      ]
+    },
+    {
+      "id": "fuel_door",
+      "label": "Fuel filler door",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "none",
+      "slotType": "fuel_door",
+      "parent": "body",
+      "defaultMass": 0.3,
+      "nodePrefix": "fd",
+      "beamPreset": "panel_metal",
+      "openable": true,
+      "nameHints": [
+        "fuel flap",
+        "fuel door",
+        "gas cap",
+        "filler",
+        "fuel lid"
+      ]
+    },
+    {
+      "id": "bed",
+      "label": "Truck bed",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "none",
+      "slotType": "bed",
+      "parent": "frame",
+      "defaultMass": 60,
+      "nodePrefix": "bd",
+      "beamPreset": "panel_metal",
+      "openable": false,
+      "nameHints": [
+        "pickup bed",
+        "box",
+        "tray"
+      ]
+    },
+    {
+      "id": "cab",
+      "label": "Cab",
+      "category": "Panels",
+      "subcategory": "Body panels",
+      "positionAxis": "none",
+      "slotType": "cab",
+      "parent": "frame",
+      "defaultMass": 150,
+      "nodePrefix": "cab",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "cabin"
+      ]
+    },
+    {
+      "id": "bumper",
+      "label": "Bumper",
+      "category": "Bumpers & Aero",
+      "subcategory": "Bumpers",
+      "positionAxis": "fr",
+      "slotType": "bumper",
+      "parent": "body",
+      "defaultMass": 10,
+      "nodePrefix": "bp",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "bumper cover",
+        "fascia",
+        "bumperbar"
+      ]
+    },
+    {
+      "id": "bumper_reinforcement",
+      "label": "Bumper reinforcement",
+      "category": "Bumpers & Aero",
+      "subcategory": "Bumpers",
+      "positionAxis": "fr",
+      "slotType": "bumper_reinforcement",
+      "parent": "body",
+      "defaultMass": 6,
+      "nodePrefix": "br",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "crash bar",
+        "bumper beam",
+        "reinforcement",
+        "bumperbar",
+        "bar"
+      ]
+    },
+    {
+      "id": "bull_bar",
+      "label": "Bull bar",
+      "category": "Bumpers & Aero",
+      "subcategory": "Bumpers",
+      "positionAxis": "fr",
+      "slotType": "bull_bar",
+      "parent": "body",
+      "defaultMass": 15,
+      "nodePrefix": "bb",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": [
+        "bullbar",
+        "bash bar",
+        "bashbar",
+        "push bar",
+        "offroad bumper"
+      ]
+    },
+    {
+      "id": "splitter",
+      "label": "Splitter",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "splitter",
+      "parent": "bumper",
+      "defaultMass": 3,
+      "nodePrefix": "spl",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "front splitter",
+        "air dam"
+      ]
+    },
+    {
+      "id": "lip",
+      "label": "Lip spoiler",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "fr",
+      "slotType": "lip",
+      "parent": "bumper",
+      "defaultMass": 2,
+      "nodePrefix": "lp",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "chin",
+        "front lip",
+        "bumper lip"
+      ]
+    },
+    {
+      "id": "diffuser",
+      "label": "Diffuser",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "diffuser",
+      "parent": "bumper",
+      "defaultMass": 3,
+      "nodePrefix": "df",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "rear diffuser"
+      ]
+    },
+    {
+      "id": "wing",
+      "label": "Rear wing",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "wing",
+      "parent": "trunk",
+      "defaultMass": 6,
+      "nodePrefix": "wg",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "gt wing",
+        "bigwing",
+        "rear wing"
+      ]
+    },
+    {
+      "id": "spoiler",
+      "label": "Spoiler",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "spoiler",
+      "parent": "trunk",
+      "defaultMass": 3,
+      "nodePrefix": "sp",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "ducktail",
+        "lip spoiler",
+        "roof spoiler"
+      ]
+    },
+    {
+      "id": "canard",
+      "label": "Canard",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "lr",
+      "slotType": "canard",
+      "parent": "bumper",
+      "defaultMass": 0.4,
+      "nodePrefix": "cn",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "canards",
+        "dive plane"
+      ]
+    },
+    {
+      "id": "mudflap",
+      "label": "Mud flap",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "corner",
+      "slotType": "mudflap",
+      "parent": "body",
+      "defaultMass": 0.4,
+      "nodePrefix": "mf",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "mudflaps",
+        "mud guard",
+        "splash guard"
+      ]
+    },
+    {
+      "id": "skidplate",
+      "label": "Skid plate",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "fr",
+      "slotType": "skidplate",
+      "parent": "body",
+      "defaultMass": 4,
+      "nodePrefix": "sk",
+      "beamPreset": "panel_metal",
+      "openable": false,
+      "nameHints": [
+        "skid plate",
+        "sump guard",
+        "bash plate",
+        "underbody protection",
+        "protection"
+      ]
+    },
+    {
+      "id": "tow_hook",
+      "label": "Tow hook",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "fr",
+      "slotType": "tow_hook",
+      "parent": "bumper",
+      "defaultMass": 0.8,
+      "nodePrefix": "th",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "towhook",
+        "tow eye",
+        "tow strap",
+        "shackle",
+        "recovery point"
+      ]
+    },
+    {
+      "id": "tow_hitch",
+      "label": "Tow hitch",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "tow_hitch",
+      "parent": "frame",
+      "defaultMass": 12,
+      "nodePrefix": "hi",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "towhitch",
+        "tow bar",
+        "towbar",
+        "receiver",
+        "hitch"
+      ]
+    },
+    {
+      "id": "roof_scoop",
+      "label": "Roof scoop",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "roof_scoop",
+      "parent": "roof",
+      "defaultMass": 1,
+      "nodePrefix": "rsc",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "roofscoop",
+        "scoop"
+      ]
+    },
+    {
+      "id": "hood_scoop",
+      "label": "Hood scoop",
+      "category": "Bumpers & Aero",
+      "subcategory": "Aero",
+      "positionAxis": "none",
+      "slotType": "hood_scoop",
+      "parent": "hood",
+      "defaultMass": 1,
+      "nodePrefix": "hsc",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "bonnet scoop"
+      ]
+    },
+    {
+      "id": "headlight",
+      "label": "Headlight",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "lr",
+      "slotType": "headlight",
+      "parent": "body",
+      "defaultMass": 1.5,
+      "nodePrefix": "hl",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "headlamp",
+        "head light",
+        "lowbeam",
+        "highbeam",
+        "lowhighbeam",
+        "headlightglass"
+      ]
+    },
+    {
+      "id": "taillight",
+      "label": "Taillight",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "lr",
+      "slotType": "taillight",
+      "parent": "body",
+      "defaultMass": 1,
+      "nodePrefix": "tl",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "tail light",
+        "taillamp",
+        "rear light",
+        "taillightglass",
+        "brakelight",
+        "tailgate light",
+        "tailgate lightglass"
+      ]
+    },
+    {
+      "id": "foglight",
+      "label": "Fog light",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "lr",
+      "slotType": "foglight",
+      "parent": "bumper",
+      "defaultMass": 0.4,
+      "nodePrefix": "fg",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "fog light",
+        "fog lamp",
+        "foglamp"
+      ]
+    },
+    {
+      "id": "indicator",
+      "label": "Indicator",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "corner",
+      "slotType": "indicator",
+      "parent": "body",
+      "defaultMass": 0.2,
+      "nodePrefix": "in",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "turn signal",
+        "signal",
+        "blinker",
+        "side marker",
+        "sidemarker",
+        "signalglass",
+        "mirrorsignal"
+      ]
+    },
+    {
+      "id": "reverse_light",
+      "label": "Reverse light",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "lr",
+      "slotType": "reverse_light",
+      "parent": "body",
+      "defaultMass": 0.2,
+      "nodePrefix": "rv",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "reverselight",
+        "backup light"
+      ]
+    },
+    {
+      "id": "brake_light",
+      "label": "Third brake light",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "none",
+      "slotType": "brake_light",
+      "parent": "body",
+      "defaultMass": 0.2,
+      "nodePrefix": "cm",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "chmsl",
+        "third brake light"
+      ]
+    },
+    {
+      "id": "underglow",
+      "label": "Underglow",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "none",
+      "slotType": "underglow",
+      "parent": "body",
+      "defaultMass": 0.5,
+      "nodePrefix": "ug",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "neon",
+        "neon light",
+        "underbody light"
+      ]
+    },
+    {
+      "id": "plate_light",
+      "label": "License plate light",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "none",
+      "slotType": "plate_light",
+      "parent": "body",
+      "defaultMass": 0.1,
+      "nodePrefix": "pl",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "plate light",
+        "license light",
+        "number plate light"
+      ]
+    },
+    {
+      "id": "light_bar",
+      "label": "Light bar",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "none",
+      "slotType": "light_bar",
+      "parent": "roof",
+      "defaultMass": 3,
+      "nodePrefix": "lb",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "lightbar",
+        "rally lights",
+        "rallylights",
+        "roundlight",
+        "auxiliary lights",
+        "aux lights",
+        "spotlight"
+      ]
+    },
+    {
+      "id": "police_lights",
+      "label": "Emergency lights",
+      "category": "Lights",
+      "subcategory": "Lights",
+      "positionAxis": "none",
+      "slotType": "police_lights",
+      "parent": "roof",
+      "defaultMass": 4,
+      "nodePrefix": "pol",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "police lights",
+        "emergency",
+        "siren",
+        "beacon"
+      ]
+    },
+    {
+      "id": "windshield",
+      "label": "Windshield",
+      "category": "Glass",
+      "subcategory": "Glass",
+      "positionAxis": "none",
+      "slotType": "windshield",
+      "parent": "body",
+      "defaultMass": 12,
+      "nodePrefix": "ws",
+      "beamPreset": "glass_brittle",
+      "openable": false,
+      "nameHints": [
+        "windscreen",
+        "front glass",
+        "front window"
+      ]
+    },
+    {
+      "id": "rear_window",
+      "label": "Rear window",
+      "category": "Glass",
+      "subcategory": "Glass",
+      "positionAxis": "none",
+      "slotType": "rear_window",
+      "parent": "body",
+      "defaultMass": 8,
+      "nodePrefix": "rw",
+      "beamPreset": "glass_brittle",
+      "openable": false,
+      "nameHints": [
+        "rearglass",
+        "rear glass",
+        "backlight",
+        "back glass"
+      ]
+    },
+    {
+      "id": "door_glass",
+      "label": "Door glass",
+      "category": "Glass",
+      "subcategory": "Glass",
+      "positionAxis": "corner",
+      "slotType": "door_glass",
+      "parent": "door",
+      "defaultMass": 3,
+      "nodePrefix": "dg",
+      "beamPreset": "glass_brittle",
+      "openable": false,
+      "nameHints": [
+        "doorglass",
+        "door window",
+        "side window"
+      ]
+    },
+    {
+      "id": "quarter_glass",
+      "label": "Quarter glass",
+      "category": "Glass",
+      "subcategory": "Glass",
+      "positionAxis": "lr",
+      "slotType": "quarter_glass",
+      "parent": "quarter_panel",
+      "defaultMass": 2,
+      "nodePrefix": "qg",
+      "beamPreset": "glass_brittle",
+      "openable": false,
+      "nameHints": [
+        "quarter window",
+        "sideglass",
+        "side glass",
+        "opera window"
+      ]
+    },
+    {
+      "id": "sunroof",
+      "label": "Sunroof",
+      "category": "Glass",
+      "subcategory": "Glass",
+      "positionAxis": "none",
+      "slotType": "sunroof",
+      "parent": "roof",
+      "defaultMass": 6,
+      "nodePrefix": "sr",
+      "beamPreset": "glass_brittle",
+      "openable": true,
+      "nameHints": [
+        "moonroof",
+        "roof glass"
+      ]
+    },
+    {
+      "id": "tailgate_glass",
+      "label": "Tailgate glass",
+      "category": "Glass",
+      "subcategory": "Glass",
+      "positionAxis": "none",
+      "slotType": "tailgate_glass",
+      "parent": "tailgate",
+      "defaultMass": 5,
+      "nodePrefix": "tgg",
+      "beamPreset": "glass_brittle",
+      "openable": false,
+      "nameHints": [
+        "hatch glass",
+        "liftgate glass"
+      ]
+    },
+    {
+      "id": "grille",
+      "label": "Grille",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "grille",
+      "parent": "bumper",
+      "defaultMass": 1,
+      "nodePrefix": "gr",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "grill",
+        "front grille",
+        "kidney"
+      ]
+    },
+    {
+      "id": "mirror",
+      "label": "Side mirror",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "lr",
+      "slotType": "mirror",
+      "parent": "door",
+      "defaultMass": 0.8,
+      "nodePrefix": "mi",
+      "beamPreset": "panel_plastic",
+      "openable": true,
+      "nameHints": [
+        "wing mirror",
+        "door mirror",
+        "side mirror"
+      ]
+    },
+    {
+      "id": "door_handle",
+      "label": "Door handle",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "corner",
+      "slotType": "door_handle",
+      "parent": "door",
+      "defaultMass": 0.2,
+      "nodePrefix": "dh",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "handle",
+        "door pull"
+      ]
+    },
+    {
+      "id": "wiper",
+      "label": "Wiper",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "lr",
+      "slotType": "wiper",
+      "parent": "windshield",
+      "defaultMass": 0.3,
+      "nodePrefix": "wi",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "wipers",
+        "wiper arm",
+        "windshield wiper"
+      ]
+    },
+    {
+      "id": "rear_wiper",
+      "label": "Rear wiper",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "rear_wiper",
+      "parent": "tailgate",
+      "defaultMass": 0.2,
+      "nodePrefix": "rwi",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "rear wiper"
+      ]
+    },
+    {
+      "id": "badge",
+      "label": "Badge",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "fr",
+      "slotType": "badge",
+      "parent": "body",
+      "defaultMass": 0.05,
+      "nodePrefix": "bg",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "emblem",
+        "logo",
+        "lettering",
+        "script",
+        "decal",
+        "decals"
+      ]
+    },
+    {
+      "id": "antenna",
+      "label": "Antenna",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "antenna",
+      "parent": "roof",
+      "defaultMass": 0.2,
+      "nodePrefix": "an",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "aerial",
+        "rallyantenna",
+        "radio antenna"
+      ]
+    },
+    {
+      "id": "roof_rack",
+      "label": "Roof rack",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "roof_rack",
+      "parent": "roof",
+      "defaultMass": 5,
+      "nodePrefix": "rr",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "roofrack",
+        "roof bars",
+        "roofbars",
+        "rails",
+        "cargo rack"
+      ]
+    },
+    {
+      "id": "snorkel",
+      "label": "Snorkel",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "snorkel",
+      "parent": "fender",
+      "defaultMass": 1.5,
+      "nodePrefix": "sn",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "air snorkel"
+      ]
+    },
+    {
+      "id": "sunstrip",
+      "label": "Sun strip",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "sunstrip",
+      "parent": "windshield",
+      "defaultMass": 0.1,
+      "nodePrefix": "sst",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "sun strip",
+        "windshield banner",
+        "visor strip"
+      ]
+    },
+    {
+      "id": "trim",
+      "label": "Trim piece",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "trim",
+      "parent": "body",
+      "defaultMass": 0.3,
+      "nodePrefix": "tr",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "moulding",
+        "molding",
+        "chrome",
+        "garnish",
+        "cladding",
+        "pillar trim",
+        "stripe",
+        "stripes"
+      ]
+    },
+    {
+      "id": "spare_wheel_carrier",
+      "label": "Spare wheel carrier",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "spare_wheel_carrier",
+      "parent": "tailgate",
+      "defaultMass": 4,
+      "nodePrefix": "swc",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "spare carrier",
+        "spare wheel mount"
+      ]
+    },
+    {
+      "id": "cargo",
+      "label": "Cargo / load",
+      "category": "Exterior Trim",
+      "subcategory": "Trim",
+      "positionAxis": "none",
+      "slotType": "cargo",
+      "parent": "body",
+      "defaultMass": 10,
+      "nodePrefix": "cg",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "load",
+        "cargo box",
+        "straps",
+        "strap",
+        "luggage"
+      ]
+    },
+    {
+      "id": "dashboard",
+      "label": "Dashboard",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "dashboard",
+      "parent": "body",
+      "defaultMass": 12,
+      "nodePrefix": "da",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "dash",
+        "instrument panel"
+      ]
+    },
+    {
+      "id": "gauges",
+      "label": "Gauge cluster",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "gauges",
+      "parent": "dashboard",
+      "defaultMass": 1,
+      "nodePrefix": "ga",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "gauge",
+        "cluster",
+        "instrument cluster",
+        "speedo",
+        "tacho",
+        "needle",
+        "dials"
+      ]
+    },
+    {
+      "id": "center_console",
+      "label": "Center console",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "center_console",
+      "parent": "dashboard",
+      "defaultMass": 3,
+      "nodePrefix": "cc",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "console",
+        "centre console",
+        "armrest"
+      ]
+    },
+    {
+      "id": "radio",
+      "label": "Radio / head unit",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "radio",
+      "parent": "dashboard",
+      "defaultMass": 1,
+      "nodePrefix": "ra",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "head unit",
+        "stereo",
+        "nav",
+        "screen"
+      ]
+    },
+    {
+      "id": "steering_wheel",
+      "label": "Steering wheel",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "steering_wheel",
+      "parent": "dashboard",
+      "defaultMass": 2,
+      "nodePrefix": "sw",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "steeringwheel",
+        "wheel steering"
+      ]
+    },
+    {
+      "id": "steering_column",
+      "label": "Steering column",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "steering_column",
+      "parent": "dashboard",
+      "defaultMass": 3,
+      "nodePrefix": "sc",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "column",
+        "column shroud",
+        "signalstalk",
+        "wiperstalk"
+      ]
+    },
+    {
+      "id": "shifter",
+      "label": "Shifter",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "shifter",
+      "parent": "center_console",
+      "defaultMass": 1,
+      "nodePrefix": "shf",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "gear stick",
+        "gearstick",
+        "gear lever",
+        "knob",
+        "paddles",
+        "shift boot"
+      ]
+    },
+    {
+      "id": "handbrake",
+      "label": "Handbrake",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "handbrake",
+      "parent": "center_console",
+      "defaultMass": 1,
+      "nodePrefix": "hb",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "parkingbrake",
+        "parking brake",
+        "e brake",
+        "ebrake"
+      ]
+    },
+    {
+      "id": "pedals",
+      "label": "Pedals",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "pedals",
+      "parent": "floor",
+      "defaultMass": 1.5,
+      "nodePrefix": "pe",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "pedal",
+        "brakepedal",
+        "gaspedal",
+        "clutchpedal",
+        "pedal box"
+      ]
+    },
+    {
+      "id": "seat",
+      "label": "Seat",
+      "category": "Interior",
+      "subcategory": "Seats",
+      "positionAxis": "corner",
+      "slotType": "seat",
+      "parent": "floor",
+      "defaultMass": 15,
+      "nodePrefix": "se",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "seats",
+        "bucket seat",
+        "bench"
+      ]
+    },
+    {
+      "id": "rear_seat",
+      "label": "Rear bench",
+      "category": "Interior",
+      "subcategory": "Seats",
+      "positionAxis": "none",
+      "slotType": "rear_seat",
+      "parent": "floor",
+      "defaultMass": 20,
+      "nodePrefix": "rse",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "rear seat",
+        "back seat",
+        "bench seat",
+        "rear bench"
+      ]
+    },
+    {
+      "id": "seatbelt",
+      "label": "Seat belt",
+      "category": "Interior",
+      "subcategory": "Seats",
+      "positionAxis": "corner",
+      "slotType": "seatbelt",
+      "parent": "seat",
+      "defaultMass": 0.3,
+      "nodePrefix": "sb",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "belt",
+        "harness"
+      ]
+    },
+    {
+      "id": "door_card",
+      "label": "Door card",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "corner",
+      "slotType": "door_card",
+      "parent": "door",
+      "defaultMass": 2,
+      "nodePrefix": "dc",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "doorpanel",
+        "door panel",
+        "door trim",
+        "doorcard"
+      ]
+    },
+    {
+      "id": "window_switch",
+      "label": "Window switch",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "corner",
+      "slotType": "window_switch",
+      "parent": "door_card",
+      "defaultMass": 0.1,
+      "nodePrefix": "wsw",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "button",
+        "buttons",
+        "switch",
+        "switches",
+        "window button"
+      ]
+    },
+    {
+      "id": "headliner",
+      "label": "Headliner",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "headliner",
+      "parent": "roof",
+      "defaultMass": 3,
+      "nodePrefix": "hli",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "roof lining",
+        "sunvisor",
+        "sunvisors",
+        "sun visor"
+      ]
+    },
+    {
+      "id": "interior_mirror",
+      "label": "Interior mirror",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "interior_mirror",
+      "parent": "windshield",
+      "defaultMass": 0.3,
+      "nodePrefix": "im",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "rearview mirror",
+        "rear view mirror"
+      ]
+    },
+    {
+      "id": "carpet",
+      "label": "Carpet",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "fr",
+      "slotType": "carpet",
+      "parent": "floor",
+      "defaultMass": 2,
+      "nodePrefix": "ca",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "floor mat",
+        "mats",
+        "trunkcarpet"
+      ]
+    },
+    {
+      "id": "parcel_shelf",
+      "label": "Parcel shelf",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "parcel_shelf",
+      "parent": "body",
+      "defaultMass": 2,
+      "nodePrefix": "ps",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "package tray",
+        "rear shelf",
+        "cargo cover"
+      ]
+    },
+    {
+      "id": "trunk_trim",
+      "label": "Trunk trim",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "trunk_trim",
+      "parent": "body",
+      "defaultMass": 3,
+      "nodePrefix": "tt",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "trunkpanel",
+        "trunk panel",
+        "boot trim",
+        "cargo area"
+      ]
+    },
+    {
+      "id": "interior_trim",
+      "label": "Interior trim",
+      "category": "Interior",
+      "subcategory": "Interior",
+      "positionAxis": "none",
+      "slotType": "interior_trim",
+      "parent": "body",
+      "defaultMass": 5,
+      "nodePrefix": "it",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "interior",
+        "pillar",
+        "kick panel",
+        "partition"
+      ]
+    },
+    {
+      "id": "engine",
+      "label": "Engine",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "engine",
+      "parent": "body",
+      "defaultMass": 140,
+      "nodePrefix": "e",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "motor",
+        "block",
+        "boxer",
+        "flat four",
+        "inline",
+        "v6",
+        "v8",
+        "pulley",
+        "belt"
+      ]
+    },
+    {
+      "id": "intake",
+      "label": "Intake",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "intake",
+      "parent": "engine",
+      "defaultMass": 3,
+      "nodePrefix": "ik",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "airbox",
+        "air filter",
+        "airfilter",
+        "cold air",
+        "intake manifold"
+      ]
+    },
+    {
+      "id": "turbo",
+      "label": "Turbocharger",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "turbo",
+      "parent": "engine",
+      "defaultMass": 6,
+      "nodePrefix": "tu",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "turbocharger",
+        "turbo charger",
+        "wastegate"
+      ]
+    },
+    {
+      "id": "supercharger",
+      "label": "Supercharger",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "supercharger",
+      "parent": "engine",
+      "defaultMass": 9,
+      "nodePrefix": "su",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "blower",
+        "roots",
+        "twin screw"
+      ]
+    },
+    {
+      "id": "engine_cover",
+      "label": "Engine cover",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "engine_cover",
+      "parent": "engine",
+      "defaultMass": 1,
+      "nodePrefix": "ecv",
+      "beamPreset": "panel_plastic",
+      "openable": false,
+      "nameHints": [
+        "heatshield",
+        "heat shield",
+        "engine shroud"
+      ]
+    },
+    {
+      "id": "engine_mount",
+      "label": "Engine mount",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "engine_mount",
+      "parent": "engine",
+      "defaultMass": 2,
+      "nodePrefix": "em",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "mounts",
+        "motor mount",
+        "mount"
+      ]
+    },
+    {
+      "id": "exhaust_manifold",
+      "label": "Exhaust manifold",
+      "category": "Mechanical",
+      "subcategory": "Exhaust",
+      "positionAxis": "none",
+      "slotType": "exhaust_manifold",
+      "parent": "engine",
+      "defaultMass": 5,
+      "nodePrefix": "xm",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "header",
+        "headers",
+        "manifold"
+      ]
+    },
+    {
+      "id": "exhaust",
+      "label": "Exhaust",
+      "category": "Mechanical",
+      "subcategory": "Exhaust",
+      "positionAxis": "none",
+      "slotType": "exhaust",
+      "parent": "body",
+      "defaultMass": 12,
+      "nodePrefix": "x",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "downpipe",
+        "midpipe",
+        "catalytic",
+        "resonator"
+      ]
+    },
+    {
+      "id": "muffler",
+      "label": "Muffler",
+      "category": "Mechanical",
+      "subcategory": "Exhaust",
+      "positionAxis": "none",
+      "slotType": "muffler",
+      "parent": "exhaust",
+      "defaultMass": 6,
+      "nodePrefix": "mu",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "silencer",
+        "tip",
+        "exhaust tip",
+        "backbox"
+      ]
+    },
+    {
+      "id": "radiator",
+      "label": "Radiator",
+      "category": "Mechanical",
+      "subcategory": "Cooling",
+      "positionAxis": "none",
+      "slotType": "radiator",
+      "parent": "radiator_support",
+      "defaultMass": 7,
+      "nodePrefix": "rd",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "rad",
+        "fan",
+        "cooling",
+        "coolant"
+      ]
+    },
+    {
+      "id": "intercooler",
+      "label": "Intercooler",
+      "category": "Mechanical",
+      "subcategory": "Cooling",
+      "positionAxis": "none",
+      "slotType": "intercooler",
+      "parent": "radiator_support",
+      "defaultMass": 5,
+      "nodePrefix": "ic",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "fmic",
+        "charge cooler"
+      ]
+    },
+    {
+      "id": "oil_cooler",
+      "label": "Oil cooler",
+      "category": "Mechanical",
+      "subcategory": "Cooling",
+      "positionAxis": "none",
+      "slotType": "oil_cooler",
+      "parent": "radiator_support",
+      "defaultMass": 2,
+      "nodePrefix": "oc",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "oil cooler"
+      ]
+    },
+    {
+      "id": "fuel_tank",
+      "label": "Fuel tank",
+      "category": "Mechanical",
+      "subcategory": "Fuel",
+      "positionAxis": "none",
+      "slotType": "fuel_tank",
+      "parent": "body",
+      "defaultMass": 10,
+      "nodePrefix": "ft",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "fueltank",
+        "gas tank",
+        "petrol tank",
+        "fuel cell"
+      ]
+    },
+    {
+      "id": "nitrous",
+      "label": "Nitrous bottle",
+      "category": "Mechanical",
+      "subcategory": "Fuel",
+      "positionAxis": "none",
+      "slotType": "nitrous",
+      "parent": "body",
+      "defaultMass": 8,
+      "nodePrefix": "n2o",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "n2o",
+        "nos",
+        "bottle"
+      ]
+    },
+    {
+      "id": "battery",
+      "label": "Battery",
+      "category": "Mechanical",
+      "subcategory": "Electrical",
+      "positionAxis": "none",
+      "slotType": "battery",
+      "parent": "body",
+      "defaultMass": 15,
+      "nodePrefix": "bt",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "accumulator"
+      ]
+    },
+    {
+      "id": "washer_tank",
+      "label": "Washer tank",
+      "category": "Mechanical",
+      "subcategory": "Electrical",
+      "positionAxis": "none",
+      "slotType": "washer_tank",
+      "parent": "body",
+      "defaultMass": 2,
+      "nodePrefix": "wt",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "watertank",
+        "water tank",
+        "washer fluid",
+        "reservoir"
+      ]
+    },
+    {
+      "id": "transmission",
+      "label": "Transmission",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "none",
+      "slotType": "transmission",
+      "parent": "engine",
+      "defaultMass": 50,
+      "nodePrefix": "tx",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "gearbox",
+        "transaxle",
+        "trans",
+        "clutch",
+        "bellhousing"
+      ]
+    },
+    {
+      "id": "transfer_case",
+      "label": "Transfer case",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "none",
+      "slotType": "transfer_case",
+      "parent": "transmission",
+      "defaultMass": 20,
+      "nodePrefix": "tc",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "transfercase",
+        "transfer box",
+        "awd"
+      ]
+    },
+    {
+      "id": "driveshaft",
+      "label": "Driveshaft",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "fr",
+      "slotType": "driveshaft",
+      "parent": "body",
+      "defaultMass": 8,
+      "nodePrefix": "ds",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "propshaft",
+        "prop shaft",
+        "drive shaft",
+        "ujoint",
+        "u joint",
+        "cardan"
+      ]
+    },
+    {
+      "id": "differential",
+      "label": "Differential",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "fr",
+      "slotType": "differential",
+      "parent": "subframe",
+      "defaultMass": 20,
+      "nodePrefix": "di",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "diff",
+        "dif",
+        "cdiff",
+        "final drive",
+        "rear end",
+        "lsd"
+      ]
+    },
+    {
+      "id": "halfshaft",
+      "label": "Halfshaft",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "corner",
+      "slotType": "halfshaft",
+      "parent": "differential",
+      "defaultMass": 5,
+      "nodePrefix": "hs",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "half shaft",
+        "axle shaft",
+        "cv shaft",
+        "driveshaft side",
+        "axle boot",
+        "cv boot"
+      ]
+    },
+    {
+      "id": "axle",
+      "label": "Solid axle",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "fr",
+      "slotType": "axle",
+      "parent": "frame",
+      "defaultMass": 60,
+      "nodePrefix": "ax",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "live axle",
+        "beam axle",
+        "axle housing"
+      ]
+    },
+    {
+      "id": "strut",
+      "label": "Strut",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "strut",
+      "parent": "subframe",
+      "defaultMass": 4,
+      "nodePrefix": "st",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "macpherson",
+        "strut mount",
+        "uppermount",
+        "upper mount",
+        "camberplate",
+        "camber plate",
+        "top mount"
+      ]
+    },
+    {
+      "id": "coilover",
+      "label": "Coilover",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "coilover",
+      "parent": "subframe",
+      "defaultMass": 4,
+      "nodePrefix": "co",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "coil over",
+        "shock",
+        "damper",
+        "shocks"
+      ]
+    },
+    {
+      "id": "spring",
+      "label": "Spring",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "spring",
+      "parent": "subframe",
+      "defaultMass": 2,
+      "nodePrefix": "sg",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "coil spring",
+        "leaf spring",
+        "leaf",
+        "springs"
+      ]
+    },
+    {
+      "id": "lower_arm",
+      "label": "Lower control arm",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "lower_arm",
+      "parent": "subframe",
+      "defaultMass": 3,
+      "nodePrefix": "la",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "lowerarm",
+        "lca",
+        "lower wishbone",
+        "wishbone lower",
+        "control arm"
+      ]
+    },
+    {
+      "id": "upper_arm",
+      "label": "Upper control arm",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "upper_arm",
+      "parent": "subframe",
+      "defaultMass": 2,
+      "nodePrefix": "ua",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "upperarm",
+        "uca",
+        "upper wishbone",
+        "wishbone upper"
+      ]
+    },
+    {
+      "id": "trailing_arm",
+      "label": "Trailing arm",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "trailing_arm",
+      "parent": "subframe",
+      "defaultMass": 4,
+      "nodePrefix": "ta",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "trailingarm",
+        "radius arm",
+        "semi trailing"
+      ]
+    },
+    {
+      "id": "link",
+      "label": "Suspension link",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "link",
+      "parent": "subframe",
+      "defaultMass": 1,
+      "nodePrefix": "lk",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "toelink",
+        "toe link",
+        "lateral link",
+        "panhard",
+        "watts",
+        "links"
+      ]
+    },
+    {
+      "id": "sway_bar",
+      "label": "Anti-roll bar",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "fr",
+      "slotType": "sway_bar",
+      "parent": "subframe",
+      "defaultMass": 4,
+      "nodePrefix": "arb",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "swaybar",
+        "anti roll bar",
+        "antiroll",
+        "arb",
+        "stabilizer",
+        "endlink",
+        "drop link"
+      ]
+    },
+    {
+      "id": "hub",
+      "label": "Hub",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "hub",
+      "parent": "knuckle",
+      "defaultMass": 3,
+      "nodePrefix": "hu",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "wheel hub",
+        "hub carrier",
+        "bearing"
+      ]
+    },
+    {
+      "id": "knuckle",
+      "label": "Knuckle",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "corner",
+      "slotType": "knuckle",
+      "parent": "subframe",
+      "defaultMass": 4,
+      "nodePrefix": "kn",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "upright",
+        "spindle",
+        "steering knuckle"
+      ]
+    },
+    {
+      "id": "tie_rod",
+      "label": "Tie rod",
+      "category": "Mechanical",
+      "subcategory": "Steering",
+      "positionAxis": "lr",
+      "slotType": "tie_rod",
+      "parent": "steering_rack",
+      "defaultMass": 0.5,
+      "nodePrefix": "tie",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "tierod",
+        "track rod",
+        "tie rod end",
+        "steeringboot",
+        "steering boot"
+      ]
+    },
+    {
+      "id": "steering_rack",
+      "label": "Steering rack",
+      "category": "Mechanical",
+      "subcategory": "Steering",
+      "positionAxis": "none",
+      "slotType": "steering_rack",
+      "parent": "subframe",
+      "defaultMass": 5,
+      "nodePrefix": "srk",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "steeringrack",
+        "rack",
+        "steering box",
+        "power steering"
+      ]
+    },
+    {
+      "id": "wheel",
+      "label": "Wheel",
+      "category": "Mechanical",
+      "subcategory": "Wheels",
+      "positionAxis": "corner",
+      "slotType": "wheel",
+      "parent": "hub",
+      "defaultMass": 9,
+      "nodePrefix": "w",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "rim",
+        "rims",
+        "hubcap",
+        "wheel cover"
+      ]
+    },
+    {
+      "id": "tire",
+      "label": "Tire",
+      "category": "Mechanical",
+      "subcategory": "Wheels",
+      "positionAxis": "corner",
+      "slotType": "tire",
+      "parent": "wheel",
+      "defaultMass": 9,
+      "nodePrefix": "ti",
+      "beamPreset": "tyre_rubber",
+      "openable": false,
+      "nameHints": [
+        "tyre",
+        "tires",
+        "tyres",
+        "rubber"
+      ]
+    },
+    {
+      "id": "spare_wheel",
+      "label": "Spare wheel",
+      "category": "Mechanical",
+      "subcategory": "Wheels",
+      "positionAxis": "none",
+      "slotType": "spare_wheel",
+      "parent": "body",
+      "defaultMass": 15,
+      "nodePrefix": "spw",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "spare",
+        "spare tire",
+        "spare tyre"
+      ]
+    },
+    {
+      "id": "brake_disc",
+      "label": "Brake disc",
+      "category": "Mechanical",
+      "subcategory": "Brakes",
+      "positionAxis": "corner",
+      "slotType": "brake_disc",
+      "parent": "hub",
+      "defaultMass": 5,
+      "nodePrefix": "bdi",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "rotor",
+        "disc",
+        "disk",
+        "brake rotor"
+      ]
+    },
+    {
+      "id": "brake_caliper",
+      "label": "Brake caliper",
+      "category": "Mechanical",
+      "subcategory": "Brakes",
+      "positionAxis": "corner",
+      "slotType": "brake_caliper",
+      "parent": "knuckle",
+      "defaultMass": 3,
+      "nodePrefix": "bc",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "caliper",
+        "calliper"
+      ]
+    },
+    {
+      "id": "brake_drum",
+      "label": "Brake drum",
+      "category": "Mechanical",
+      "subcategory": "Brakes",
+      "positionAxis": "corner",
+      "slotType": "brake_drum",
+      "parent": "hub",
+      "defaultMass": 5,
+      "nodePrefix": "bdr",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "brakedrum",
+        "drum"
+      ]
+    },
+    {
+      "id": "license_plate",
+      "label": "License plate",
+      "category": "Misc",
+      "subcategory": "Misc",
+      "positionAxis": "fr",
+      "slotType": "license_plate",
+      "parent": "bumper",
+      "defaultMass": 0.4,
+      "nodePrefix": "lpl",
+      "beamPreset": "trim_light",
+      "openable": false,
+      "nameHints": [
+        "plate",
+        "licenseplate",
+        "number plate",
+        "numberplate",
+        "license"
+      ]
+    },
+    {
+      "id": "police_equipment",
+      "label": "Police equipment",
+      "category": "Misc",
+      "subcategory": "Misc",
+      "positionAxis": "none",
+      "slotType": "police_equipment",
+      "parent": "body",
+      "defaultMass": 5,
+      "nodePrefix": "peq",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": [
+        "police",
+        "laptop",
+        "radar",
+        "push bar",
+        "partition"
+      ]
+    },
+    {
+      "id": "custom",
+      "label": "Custom part",
+      "category": "Misc",
+      "subcategory": "Misc",
+      "positionAxis": "none",
+      "slotType": "custom",
+      "parent": "body",
+      "defaultMass": 5,
+      "nodePrefix": "cu",
+      "beamPreset": "mechanical",
+      "openable": false,
+      "nameHints": []
+    }
+  ]
+}

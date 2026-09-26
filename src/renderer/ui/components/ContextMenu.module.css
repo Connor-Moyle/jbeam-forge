@@ -49,3 +49,16 @@
   margin: var(--space-1) 0;
   background: var(--border-1);
 }
+
+.item[data-state='open'] {
+  background: var(--bg-3);
+}
+
+.subArrow {
+  color: var(--text-2);
+}
+
+.menu {
+  max-height: var(--radix-context-menu-content-available-height);
+  overflow-y: auto;
+}

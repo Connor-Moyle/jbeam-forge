@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { SettingsPatchSchema } from '@shared/settings-schema';
 import { StoredLayoutSchema } from '@shared/layout-schema';
 import { parseProject } from '@shared/project/io';
+import { TaxonomyEntrySchema } from '@shared/taxonomy/schema';
 import type { SettingsService } from '../services/settings';
+import type { UserTaxonomyService } from '../services/userTaxonomy';
 import type { LayoutService } from '../services/layout';
 import type { RecentService } from '../services/recent';
 import { AccessError, withProjectExtension, type ProjectFiles } from '../services/projectFiles';
@@ -36,6 +38,7 @@ export interface HandlerServices {
   projects: ProjectFiles;
   windowState: WindowState;
   trust: FolderTrust;
+  userTaxonomy: UserTaxonomyService;
   harness: boolean;
 }
 
@@ -55,7 +58,7 @@ function describeProject(text: string): { name: string; slug: string } | null {
 }
 
 export function registerIpcHandlers(services: HandlerServices): void {
-  const { settings, layout, beamng, recent, projects, windowState, trust } = services;
+  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy } = services;
   /** Folders each opened project wants but the user hasn't allowed yet. */
   const pendingByProject = new Map<string, string[]>();
 
@@ -99,6 +102,9 @@ export function registerIpcHandlers(services: HandlerServices): void {
     },
     SettingsPatchSchema,
   );
+
+  registerInvoke('taxonomy:getUser', () => userTaxonomy.get());
+  registerInvoke('taxonomy:saveUser', (req) => userTaxonomy.save(req.entries), z.object({ entries: z.array(TaxonomyEntrySchema) }));
 
   registerInvoke('layout:load', () => layout.load());
   registerInvoke(

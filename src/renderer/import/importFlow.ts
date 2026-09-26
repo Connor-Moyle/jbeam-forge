@@ -12,6 +12,7 @@ import type { ImportSettings } from './normalize';
 import { dirOf, fileNameOf, finishImport, stageImport, type StagedImport } from './pipeline';
 import { disposeImported } from './dispose';
 import { EMPTY_ARR } from '@shared/empty';
+import { offerAutoClassify } from '@renderer/parts/commands';
 
 const logger = rlog('import');
 
@@ -100,6 +101,7 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
     });
     projectStore.getState().execute({ label: `Import ${staged.fileName}`, apply: (d) => void d.sources.push(source) });
     useSceneStore.getState().requestFrame();
+    offerAutoClassify(staged.fileName, done.meshes);
     const missing = done.textures.missing.length;
     useUiStore
       .getState()

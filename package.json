@@ -18,7 +18,9 @@
     "run-desktop": "electron-vite build && node scripts/run-desktop.mjs",
     "study-vehicle": "tsx --tsconfig tsconfig.node.json scripts/study-vehicle.ts",
     "jbeam:corpus": "tsx --tsconfig tsconfig.node.json scripts/jbeam-corpus.ts",
-    "extract-reference": "tsx --tsconfig tsconfig.node.json scripts/extract-reference.ts"
+    "extract-reference": "tsx --tsconfig tsconfig.node.json scripts/extract-reference.ts",
+    "build-taxonomy": "tsx --tsconfig tsconfig.node.json scripts/build-taxonomy.ts",
+    "classify:bench": "tsx --tsconfig tsconfig.node.json scripts/classify-bench.ts"
   },
   "engines": {
     "node": ">=22"

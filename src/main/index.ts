@@ -3,6 +3,7 @@ import { app, dialog, type BrowserWindow } from 'electron';
 import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
+import { UserTaxonomyService } from './services/userTaxonomy';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
 import { ProjectFiles } from './services/projectFiles';
@@ -42,7 +43,9 @@ async function start(): Promise<void> {
   const windowState = { dirty: false };
   const trust = new FolderTrust(join(userData, 'trusted-folders.json'));
   await trust.load();
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, harness });
+  const userTaxonomy = new UserTaxonomyService(join(userData, 'user-taxonomy.json'), scoped('taxonomy'));
+  await userTaxonomy.load();
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 

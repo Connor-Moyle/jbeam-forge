@@ -1,29 +1,47 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
-import { AlertTriangle, Eye, EyeOff, FileBox, FileInput, FolderSearch, Search } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
+import { AlertTriangle, Ban, Boxes, Copy, CornerLeftUp, Eye, EyeOff, FileBox, FileInput, FolderSearch, Merge, Search, Tag, Trash2, Undo2, Unlink } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore, type LoadedSource } from '@renderer/app/stores/scene';
 import { useProjectStore } from '@renderer/app/stores/project';
+import { useUiStore } from '@renderer/app/stores/ui';
 import { locateTextures, startImport } from '@renderer/import/importFlow';
+import * as cmd from '@renderer/parts/commands';
+import { useAssignUi } from '@renderer/parts/assignUi';
+import { categoryColor, useTaxonomy, type Taxonomy } from '@renderer/parts/taxonomy';
 import { Badge } from '@renderer/ui/components/Badge';
 import { Button } from '@renderer/ui/components/Button';
 import { Callout } from '@renderer/ui/components/Callout';
+import { ContextMenu, type ContextMenuItem } from '@renderer/ui/components/ContextMenu';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { Input } from '@renderer/ui/components/Input';
 import { Popover } from '@renderer/ui/components/Popover';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { TreeRow } from '@renderer/ui/components/TreeRow';
+import { cx } from '@renderer/ui/cx';
+import { ancestorIds, buildSceneTree, subtreeIds, type MeshInfo, type PartNode } from '@shared/parts/tree';
+import { positionLabel } from '@shared/parts/ops';
+import { POSITIONS_BY_AXIS } from '@shared/taxonomy/schema';
+import type { Part } from '@shared/project/schema';
 import { EMPTY_ARR } from '@shared/empty';
 import styles from './ScenePanel.module.css';
 
 /**
- * Imported sources and their meshes (Phase 3b: flat per source). Phase 3c
- * replaces this with the part hierarchy once meshes are assigned to parts.
+ * Scene tree (SPEC §4.3): sources, then the part hierarchy rooted at the
+ * body with each part's meshes, then unassigned and ignored meshes. Drag a
+ * part onto another to reparent it, drag meshes onto a part to assign them.
  */
+
+const MIME_PART = 'application/x-jbf-part';
+const MIME_MESHES = 'application/x-jbf-meshes';
+const GROUP_UNASSIGNED = '#unassigned';
+const GROUP_IGNORED = '#ignored';
+
 export function ScenePanel() {
   const sourceIds = useProjectStore(useShallow((s) => s.doc?.sources.map((x) => x.id) ?? EMPTY_ARR));
-  const loaded = useSceneStore((s) => s.sources);
   const [query, setQuery] = useState('');
+  const selection = useSceneStore((s) => s.selection);
+  const openAssign = useAssignUi((s) => s.openAssign);
 
   if (sourceIds.length === 0) {
     return <EmptyState icon={FileBox} message="No model imported yet. Import a DAE, FBX, OBJ, glTF or STL to start." action={{ label: 'Import model', icon: FileInput, onClick: () => void startImport() }} />;
@@ -35,54 +53,40 @@ export function ScenePanel() {
         <span className={styles.searchIcon}>
           <Search aria-hidden />
         </span>
-        <Input aria-label="Filter meshes" placeholder="Filter meshes" value={query} onChange={(e) => setQuery(e.target.value)} className={styles.search} data-testid="scene-filter" />
+        <Input aria-label="Search parts and meshes" placeholder="Search parts and meshes" value={query} onChange={(e) => setQuery(e.target.value)} className={styles.search} data-testid="scene-filter" />
+        <IconButton icon={Tag} label="Assign selected meshes…" disabled={selection.length === 0} onClick={() => openAssign(selection)} data-testid="scene-assign" />
         <IconButton icon={FileInput} label="Import model" shortcut="Ctrl+I" onClick={() => void startImport()} />
       </div>
       <ScrollArea className={styles.list}>
-        <div role="tree" aria-label="Imported meshes" data-testid="scene-tree">
-          {sourceIds.map((id) => {
-            const src = loaded[id];
-            return src ? <SourceBranch key={id} source={src} query={query.trim().toLowerCase()} /> : null;
-          })}
-        </div>
+        <SourcesSection sourceIds={sourceIds} />
+        <PartTree query={query.trim().toLowerCase()} />
       </ScrollArea>
     </div>
   );
 }
 
-function SourceBranch({ source, query }: { source: LoadedSource; query: string }) {
-  const [open, setOpen] = useState(true);
-  const hidden = useSceneStore((s) => s.hidden);
-  const selection = useSceneStore((s) => s.selection);
-  const hover = useSceneStore((s) => s.hover);
-  const select = useSceneStore((s) => s.select);
-  const setHover = useSceneStore((s) => s.setHover);
-  const toggleHidden = useSceneStore((s) => s.toggleHidden);
-  const requestFrame = useSceneStore((s) => s.requestFrame);
-  const listRef = useRef<HTMLDivElement>(null);
+// ---------------------------------------------------------------- sources
 
-  const meshes = useMemo(() => (query ? source.meshes.filter((m) => m.name.toLowerCase().includes(query)) : source.meshes), [source.meshes, query]);
-  const selected = useMemo(() => new Set(selection), [selection]);
-
-  // Selecting in the viewport scrolls the row into view.
-  useEffect(() => {
-    const last = selection[selection.length - 1];
-    if (!last) return;
-    listRef.current?.querySelector(`[data-mesh-key="${CSS.escape(last)}"]`)?.scrollIntoView({ block: 'nearest' });
-  }, [selection]);
-
-  const onSelect = (key: string) => (e: MouseEvent) => select([key], e.ctrlKey || e.metaKey ? 'toggle' : e.shiftKey ? 'add' : 'replace');
-  const textures = source.textures;
-  const missing = textures?.missing.length ?? 0;
-  const unsupported = textures?.unsupported.length ?? 0;
-
+function SourcesSection({ sourceIds }: { sourceIds: readonly string[] }) {
+  const loaded = useSceneStore((s) => s.sources);
   return (
-    <div ref={listRef} data-source-id={source.sourceId}>
+    <div role="group" aria-label="Sources" data-testid="scene-sources">
+      {sourceIds.map((id) => {
+        const src = loaded[id];
+        return src ? <SourceRow key={id} source={src} /> : null;
+      })}
+    </div>
+  );
+}
+
+function SourceRow({ source }: { source: LoadedSource }) {
+  const missing = source.textures?.missing.length ?? 0;
+  const unsupported = source.textures?.unsupported.length ?? 0;
+  return (
+    <div data-source-id={source.sourceId}>
       <TreeRow
         depth={0}
         icon={FileBox}
-        expanded={open}
-        onToggle={() => setOpen((o) => !o)}
         label={
           <span className={styles.sourceLabel}>
             {source.fileName}
@@ -98,27 +102,315 @@ function SourceBranch({ source, query }: { source: LoadedSource; query: string }
           {source.error}
         </Callout>
       )}
-      {open &&
-        meshes.map((m) => (
-          <div key={m.key} data-mesh-key={m.key} onMouseEnter={() => setHover(m.key)} onMouseLeave={() => hover === m.key && setHover(null)}>
-            <TreeRow
-              depth={1}
-              label={m.name}
-              count={m.triangles}
-              selected={selected.has(m.key)}
-              muted={!!hidden[m.key]}
-              onSelect={onSelect(m.key)}
-              onActivate={() => select([m.key])}
-              onDoubleClick={() => {
-                select([m.key]);
-                requestFrame([m.key]);
-              }}
-              actions={<IconButton icon={hidden[m.key] ? EyeOff : Eye} label={hidden[m.key] ? 'Show' : 'Hide'} size="sm" onClick={() => toggleHidden(m.key)} />}
-            />
-          </div>
-        ))}
     </div>
   );
+}
+
+// ---------------------------------------------------------------- parts tree
+
+type Row =
+  | { type: 'part'; node: PartNode; open: boolean; hasKids: boolean }
+  | { type: 'mesh'; mesh: MeshInfo; depth: number; partId: string | null; ignored: boolean }
+  | { type: 'group'; id: string; label: string; count: number; open: boolean };
+
+function PartTree({ query }: { query: string }) {
+  const tax = useTaxonomy();
+  const parts = useProjectStore((s) => s.doc?.parts ?? EMPTY_ARR);
+  const assignments = useProjectStore((s) => s.doc?.assignments);
+  const ignoredMeshes = useProjectStore((s): readonly string[] => s.doc?.ignoredMeshes ?? EMPTY_ARR);
+  const sources = useSceneStore((s) => s.sources);
+  const selection = useSceneStore((s) => s.selection);
+  const activePart = useSceneStore((s) => s.activePart);
+  /** Rows flipped from their default (top-level parts and groups start open, deeper parts closed). */
+  const [toggled, setToggled] = useState<ReadonlySet<string>>(() => new Set());
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(() => new Set());
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  const meshes = useMemo(() => Object.values(sources).flatMap((s) => s.meshes.map((m) => ({ key: m.key, name: m.name, triangles: m.triangles }))), [sources]);
+  const tree = useMemo(() => buildSceneTree(parts, assignments ?? {}, ignoredMeshes, meshes, query), [parts, assignments, ignoredMeshes, meshes, query]);
+  const selected = useMemo(() => new Set(selection), [selection]);
+
+  // Viewport → tree: reveal the part of the mesh picked in the viewport
+  // (adjusted during render when the selection changes, then scrolled into view).
+  const [seenSelection, setSeenSelection] = useState(selection);
+  const last = selection[selection.length - 1];
+  if (selection !== seenSelection) {
+    setSeenSelection(selection);
+    if (last && !activePart) {
+      const pid = assignments?.[last];
+      const reveal = pid ? [pid, ...ancestorIds(parts, pid)] : ignoredMeshes.includes(last) ? [GROUP_IGNORED] : [GROUP_UNASSIGNED];
+      if (!reveal.every((id) => revealed.has(id) && !toggled.has(id))) {
+        setRevealed(new Set([...revealed, ...reveal]));
+        setToggled(new Set([...toggled].filter((id) => !reveal.includes(id))));
+      }
+    }
+  }
+  useEffect(() => {
+    if (!last || activePart) return;
+    rootRef.current?.querySelector(`[data-mesh-key="${CSS.escape(last)}"]`)?.scrollIntoView({ block: 'nearest' });
+  }, [last, activePart]);
+
+  const isOpen = (id: string, topLevel: boolean) => {
+    if (query !== '' && (tree.hitPath.has(id) || id.startsWith('#'))) return true;
+    return (topLevel || revealed.has(id)) !== toggled.has(id);
+  };
+  const toggle = (id: string) =>
+    setToggled((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const rows: Row[] = [];
+  const walk = (node: PartNode) => {
+    const open = isOpen(node.part.id, node.depth === 0);
+    rows.push({ type: 'part', node, open, hasKids: node.children.length + node.meshes.length > 0 });
+    if (!open) return;
+    for (const m of node.meshes) rows.push({ type: 'mesh', mesh: m, depth: node.depth + 1, partId: node.part.id, ignored: false });
+    for (const c of node.children) walk(c);
+  };
+  tree.roots.forEach(walk);
+  if (tree.unassigned.length || !query) {
+    const open = isOpen(GROUP_UNASSIGNED, true);
+    rows.push({ type: 'group', id: GROUP_UNASSIGNED, label: 'Unassigned', count: tree.unassigned.length, open });
+    if (open) for (const m of tree.unassigned) rows.push({ type: 'mesh', mesh: m, depth: 1, partId: null, ignored: false });
+  }
+  if (tree.ignored.length) {
+    const open = isOpen(GROUP_IGNORED, false);
+    rows.push({ type: 'group', id: GROUP_IGNORED, label: 'Ignored', count: tree.ignored.length, open });
+    if (open) for (const m of tree.ignored) rows.push({ type: 'mesh', mesh: m, depth: 1, partId: null, ignored: true });
+  }
+
+  const ctx: RowContext = { tax, parts, selected, activePart, partMeshes: tree.partMeshes, dropTarget, setDropTarget, toggle };
+  return (
+    <div ref={rootRef} role="tree" aria-label="Parts" data-testid="scene-tree" className={styles.tree}>
+      {tree.roots.length === 0 && !query && <p className={styles.hint}>No parts yet. Select meshes and press Assign, or right-click them.</p>}
+      {rows.map((r) =>
+        r.type === 'part' ? (
+          <PartRow key={`p:${r.node.part.id}`} row={r} ctx={ctx} />
+        ) : r.type === 'mesh' ? (
+          <MeshRow key={`m:${r.mesh.key}`} row={r} ctx={ctx} />
+        ) : (
+          <GroupRow key={r.id} row={r} ctx={ctx} />
+        ),
+      )}
+    </div>
+  );
+}
+
+interface RowContext {
+  tax: Taxonomy;
+  parts: readonly Part[];
+  selected: ReadonlySet<string>;
+  activePart: string | null;
+  partMeshes: Map<string, string[]>;
+  dropTarget: string | null;
+  setDropTarget: (id: string | null) => void;
+  toggle: (id: string) => void;
+}
+
+function readDrag(e: DragEvent): { part: string | null; meshes: string[] } {
+  const part = e.dataTransfer.getData(MIME_PART) || null;
+  const raw = e.dataTransfer.getData(MIME_MESHES);
+  let meshes: string[] = [];
+  try {
+    meshes = raw ? (JSON.parse(raw) as string[]) : [];
+  } catch {
+    meshes = [];
+  }
+  return { part, meshes };
+}
+
+function dropProps(id: string, ctx: RowContext, onDrop: (d: { part: string | null; meshes: string[] }) => void) {
+  return {
+    onDragOver: (e: DragEvent) => {
+      if (!e.dataTransfer.types.includes(MIME_PART) && !e.dataTransfer.types.includes(MIME_MESHES)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (ctx.dropTarget !== id) ctx.setDropTarget(id);
+    },
+    onDragLeave: () => ctx.dropTarget === id && ctx.setDropTarget(null),
+    onDrop: (e: DragEvent) => {
+      e.preventDefault();
+      ctx.setDropTarget(null);
+      onDrop(readDrag(e));
+    },
+  };
+}
+
+function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowContext }) {
+  const { node } = row;
+  const part = node.part;
+  const entry = ctx.tax.entry(part.taxonomyId);
+  const hidden = useSceneStore((s) => s.hidden);
+  const selectPart = useSceneStore((s) => s.selectPart);
+  const setHidden = useSceneStore((s) => s.setHidden);
+  const requestFrame = useSceneStore((s) => s.requestFrame);
+  const pushStatus = useUiStore((s) => s.pushStatus);
+  const own = ctx.partMeshes.get(part.id) ?? EMPTY_ARR;
+  const subtreeMeshes = () => subtreeIds(ctx.parts, part.id).flatMap((id) => ctx.partMeshes.get(id) ?? []);
+  const allHidden = own.length > 0 && own.every((k) => hidden[k]);
+
+  const onDrop = ({ part: dragged, meshes }: { part: string | null; meshes: string[] }) => {
+    if (dragged && dragged !== part.id) {
+      if (!cmd.reparentPart(dragged, part.id)) pushStatus('Can’t move a part inside its own child.', 'warning');
+    } else if (meshes.length) cmd.assignToPart(meshes, part.id);
+  };
+
+  const siblingsOfKind = ctx.parts.filter((p) => p.taxonomyId === part.taxonomyId && p.id !== part.id);
+  const items: ContextMenuItem[] = [
+    { label: 'Select meshes', icon: Boxes, onSelect: () => selectPart(part.id, own) },
+    { label: 'Duplicate as variant', icon: Copy, onSelect: () => void cmd.duplicateAsVariant(part.id) },
+    { label: 'Move to top level', icon: CornerLeftUp, disabled: !part.parentPartId, onSelect: () => void cmd.reparentPart(part.id, null) },
+    {
+      type: 'submenu',
+      label: 'Merge into',
+      icon: Merge,
+      disabled: siblingsOfKind.length === 0,
+      items: siblingsOfKind.map((p) => ({ label: p.displayName, onSelect: () => cmd.mergeParts(p.id, [part.id]) })),
+    },
+    { type: 'separator' },
+    { label: 'Delete part', icon: Trash2, danger: true, onSelect: () => cmd.deletePart(part.id) },
+  ];
+
+  return (
+    <ContextMenu items={items}>
+      <div
+        data-part-id={part.id}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(MIME_PART, part.id);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        {...dropProps(part.id, ctx, onDrop)}
+        className={cx(ctx.dropTarget === part.id && styles.dropTarget)}
+      >
+        <TreeRow
+          depth={node.depth}
+          expanded={row.hasKids ? row.open : undefined}
+          onToggle={() => ctx.toggle(part.id)}
+          dotColor={categoryColor(entry?.category)}
+          label={
+            <span className={styles.partLabel}>
+              <span className={styles.partName}>{part.displayName}</span>
+              {part.variantOf && <Badge>variant</Badge>}
+              {!entry && <Badge tone="warning">unknown type</Badge>}
+            </span>
+          }
+          count={node.total}
+          selected={ctx.activePart === part.id}
+          muted={allHidden}
+          onSelect={() => selectPart(part.id, own)}
+          onActivate={() => selectPart(part.id, own)}
+          onDoubleClick={() => {
+            selectPart(part.id, own);
+            requestFrame(subtreeMeshes());
+          }}
+          actions={<IconButton icon={allHidden ? EyeOff : Eye} label={allHidden ? 'Show' : 'Hide'} size="sm" onClick={() => setHidden(subtreeMeshes(), !allHidden)} />}
+        />
+      </div>
+    </ContextMenu>
+  );
+}
+
+function MeshRow({ row, ctx }: { row: Extract<Row, { type: 'mesh' }>; ctx: RowContext }) {
+  const { mesh } = row;
+  const hidden = useSceneStore((s) => s.hidden);
+  const hover = useSceneStore((s) => s.hover);
+  const select = useSceneStore((s) => s.select);
+  const setHover = useSceneStore((s) => s.setHover);
+  const toggleHidden = useSceneStore((s) => s.toggleHidden);
+  const requestFrame = useSceneStore((s) => s.requestFrame);
+  const openAssign = useAssignUi((s) => s.openAssign);
+  const isSelected = ctx.selected.has(mesh.key);
+  /** Actions apply to the whole selection when this row is part of it. */
+  const targets = () => (isSelected ? [...ctx.selected] : [mesh.key]);
+
+  const onSelect = (e: MouseEvent) => select([mesh.key], e.ctrlKey || e.metaKey ? 'toggle' : e.shiftKey ? 'add' : 'replace');
+  // Built when the menu opens: the cascading type menu has ~150 entries.
+  const items = (): ContextMenuItem[] => [
+    { label: 'Assign…', icon: Tag, onSelect: () => openAssign(targets()) },
+    { type: 'submenu', label: 'Assign as', icon: Tag, items: kindMenu(ctx.tax, targets) },
+    { label: 'Unassign', icon: Unlink, disabled: row.partId === null, onSelect: () => cmd.unassign(targets()) },
+    row.ignored ? { label: 'Restore', icon: Undo2, onSelect: () => cmd.setIgnored(targets(), false) } : { label: 'Ignore (not exported)', icon: Ban, onSelect: () => cmd.setIgnored(targets(), true) },
+  ];
+
+  return (
+    <ContextMenu items={items}>
+      <div
+        data-mesh-key={mesh.key}
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData(MIME_MESHES, JSON.stringify(targets()));
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        onMouseEnter={() => setHover(mesh.key)}
+        onMouseLeave={() => hover === mesh.key && setHover(null)}
+      >
+        <TreeRow
+          depth={row.depth}
+          label={<span className={styles.meshLabel}>{mesh.name}</span>}
+          count={mesh.triangles}
+          selected={isSelected}
+          muted={row.ignored || !!hidden[mesh.key]}
+          onSelect={onSelect}
+          onActivate={() => select([mesh.key])}
+          onDoubleClick={() => {
+            select([mesh.key]);
+            requestFrame([mesh.key]);
+          }}
+          actions={<IconButton icon={hidden[mesh.key] ? EyeOff : Eye} label={hidden[mesh.key] ? 'Show' : 'Hide'} size="sm" onClick={() => toggleHidden(mesh.key)} />}
+        />
+      </div>
+    </ContextMenu>
+  );
+}
+
+function GroupRow({ row, ctx }: { row: Extract<Row, { type: 'group' }>; ctx: RowContext }) {
+  const onDrop = ({ part, meshes }: { part: string | null; meshes: string[] }) => {
+    if (part) return;
+    if (!meshes.length) return;
+    if (row.id === GROUP_IGNORED) cmd.setIgnored(meshes, true);
+    else cmd.moveToUnassigned(meshes);
+  };
+  return (
+    <div data-group={row.id} {...dropProps(row.id, ctx, onDrop)} className={cx(styles.group, row.id === GROUP_IGNORED && styles.ignoredGroup, ctx.dropTarget === row.id && styles.dropTarget)} data-testid={`scene-group-${row.id.slice(1)}`}>
+      <TreeRow depth={0} expanded={row.count > 0 ? row.open : undefined} onToggle={() => ctx.toggle(row.id)} label={row.label} count={row.count} muted={row.id === GROUP_IGNORED} />
+    </div>
+  );
+}
+
+/** Cascading Category → Subcategory → Part → Position menu. */
+function kindMenu(tax: Taxonomy, targets: () => string[]): ContextMenuItem[] {
+  const byCat = new Map<string, Map<string, typeof tax.entries>>();
+  for (const e of tax.entries) {
+    const subs = byCat.get(e.category) ?? new Map<string, typeof tax.entries>();
+    subs.set(e.subcategory, [...(subs.get(e.subcategory) ?? []), e]);
+    byCat.set(e.category, subs);
+  }
+  const kindItem = (e: (typeof tax.entries)[number]): ContextMenuItem => {
+    const positions = POSITIONS_BY_AXIS[e.positionAxis];
+    if (!positions.length) return { label: e.label, onSelect: () => void cmd.assignToNewPart(targets(), { taxonomyId: e.id }) };
+    return {
+      type: 'submenu',
+      label: e.label,
+      items: [
+        { label: 'Auto (by location)', onSelect: () => void cmd.assignDistributed(targets(), e.id, '') },
+        { type: 'separator' },
+        ...positions.map((p): ContextMenuItem => ({ label: `${p} · ${positionLabel(e.positionAxis, p)}`, onSelect: () => void cmd.assignToNewPart(targets(), { taxonomyId: e.id, position: p }) })),
+      ],
+    };
+  };
+  return [...byCat.entries()].map(([cat, subs]): ContextMenuItem => ({
+    type: 'submenu',
+    label: cat,
+    items:
+      subs.size === 1
+        ? [...subs.values()][0]!.map(kindItem)
+        : [...subs.entries()].map(([sub, list]): ContextMenuItem => ({ type: 'submenu', label: sub, items: list.map(kindItem) })),
+  }));
 }
 
 function TextureIssues({ source }: { source: LoadedSource }) {
@@ -157,3 +449,4 @@ function TextureIssues({ source }: { source: LoadedSource }) {
     </Popover>
   );
 }
+

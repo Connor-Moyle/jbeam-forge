@@ -333,6 +333,12 @@ const scenarios = [
         throw new Error(`expected ${n} meshes, got ${JSON.stringify(await hook(page, 'sceneStats'))}`);
       };
       await waitMeshes(5);
+      // Auto-classify summary: body, wheel FL and mirror are recognised; the two "dup" meshes aren't.
+      await page.getByTestId('classify-summary').waitFor();
+      const unassigned = await page.getByTestId('classify-unassigned').textContent();
+      assert(unassigned === '2', `classify summary: 2 unrecognised meshes (got ${unassigned})`);
+      await shot(page, 'classify-summary');
+      await page.getByTestId('classify-skip').click();
       await page.getByTestId('scene-tree').getByText('fixture_wheel_FL').click();
       assert(JSON.stringify((await hook(page, 'sceneStats')).selection).includes('fixture_wheel_FL'), 'clicking a row selects the mesh');
       await page.waitForTimeout(200);
@@ -345,6 +351,60 @@ const scenarios = [
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
       assert(saved.formatVersion === 3 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+    },
+  },
+  {
+    id: 'parts',
+    name: 'auto-classify · assign · inspector · drag-reparent · undo',
+    async run({ page }) {
+      const parts = () => hook(page, 'partsState');
+      await hook(page, 'offerAutoClassify');
+      await page.getByTestId('classify-apply').click();
+      let st = await parts();
+      const kinds = st.parts.map((p) => `${p.taxonomyId}${p.position ? `_${p.position}` : ''}`).sort();
+      assert(JSON.stringify(kinds) === JSON.stringify(['body', 'mirror', 'wheel_FL']), `auto-classify created body, mirror, wheel_FL (got ${kinds})`);
+      const body = st.parts.find((p) => p.taxonomyId === 'body');
+      assert(st.parts.every((p) => p === body || p.parentPartId), 'every part below the body has a parent');
+      const tree = page.getByTestId('scene-tree');
+      await tree.getByText('Body shell').click();
+      await shot(page, 'scene-tree-parts');
+
+      // Assign the unrecognised meshes through the search-first dialog.
+      await tree.getByText('dup', { exact: true }).click();
+      await tree.getByText('dup (2)', { exact: true }).click({ modifiers: ['Shift'] }); // duplicate names get " (2)"
+      await page.getByTestId('scene-assign').click();
+      await page.getByTestId('assign-search').fill('spoiler');
+      await shot(page, 'assign-dialog');
+      await page.getByTestId('assign-search').press('Enter');
+      await page.getByTestId('assign-confirm').click();
+      st = await parts();
+      const spoiler = st.parts.find((p) => p.taxonomyId === 'spoiler');
+      assert(spoiler && st.assigned === 5, `both dup meshes assigned to a new spoiler part (${JSON.stringify(st)})`);
+
+      // Inspector edits are undoable document commands.
+      await tree.getByText('Body shell').click();
+      await page.getByTestId('inspector-display-name').fill('Main body');
+      await page.getByTestId('inspector-display-name').press('Enter');
+      st = await parts();
+      assert(st.parts.find((p) => p.id === body.id).displayName === 'Main body', 'inspector renamed the part');
+      await shot(page, 'inspector-part');
+
+      // Drag-reparent: mirror under the wheel works; body under the wheel would loop and is refused.
+      const mirror = st.parts.find((p) => p.taxonomyId === 'mirror');
+      const wheel = st.parts.find((p) => p.taxonomyId === 'wheel');
+      await page.locator(`[data-part-id="${mirror.id}"]`).dragTo(page.locator(`[data-part-id="${wheel.id}"]`));
+      st = await parts();
+      assert(st.parts.find((p) => p.id === mirror.id).parentPartId === wheel.id, 'drag-reparented the mirror under the wheel');
+      await page.locator(`[data-part-id="${body.id}"]`).dragTo(page.locator(`[data-part-id="${wheel.id}"]`)); // wheel is below the body
+      st = await parts();
+      assert(st.parts.find((p) => p.id === body.id).parentPartId === null, 'cycle-creating drop refused');
+      await hook(page, 'runCommand', 'undo'); // un-reparent the mirror
+      st = await parts();
+      assert(st.parts.find((p) => p.id === mirror.id).parentPartId !== wheel.id, 'undo restores the old parent');
+      await page.getByTestId('toolbar-save').click();
+      for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).parts.length; i++) await page.waitForTimeout(100);
+      const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
+      assert(saved.parts.length === 4 && Object.keys(saved.assignments).length === 5, `parts + assignments saved (${saved.parts.length} parts)`);
     },
   },
   {
@@ -381,6 +441,7 @@ const scenarios = [
       await ctx.page.getByTestId('folders-allow').click();
       for (let i = 0; i < 100 && (await hook(ctx.page, 'sceneStats')).meshes !== 5; i++) await ctx.page.waitForTimeout(100);
       assert((await hook(ctx.page, 'sceneStats')).meshes === 5, 'imported meshes reloaded from disk after relaunch + consent');
+      assert((await hook(ctx.page, 'partsState')).parts.length === 4, 'parts restored from the saved project');
       assert((await hook(ctx.page, 'preset')) === 'materials', 'preset restored after relaunch');
       const open = await openPanels(ctx.page);
       assert(open.includes('materials'), `materials panel restored (got ${open})`);
@@ -417,6 +478,7 @@ const scenarios = [
       const started = Date.now();
       await page.getByTestId('import-confirm').click();
       let st;
+      await page.getByTestId('classify-summary').waitFor({ timeout: 600_000 });
       for (let i = 0; i < 1800; i++) {
         st = await hook(page, 'sceneStats');
         if (st.meshes > 0 && st.sources.every((x) => x.status === 'ready')) break;
@@ -428,6 +490,13 @@ const scenarios = [
       smokeReport = { meshes: st.meshes, triangles: src.stats?.triangles, importMs: src.stats?.totalMs, finishWallMs: Date.now() - started, fps: Math.round(fps), textures: src.textures && { loaded: src.textures.loaded, missing: src.textures.missing.length, unsupported: src.textures.unsupported } };
       await page.waitForTimeout(500);
       await shot(page, 'smoke-model');
+      await shot(page, 'smoke-classify-summary');
+      const summary = { detected: await page.getByTestId('classify-detected').textContent(), low: await page.getByTestId('classify-low').textContent(), unassigned: await page.getByTestId('classify-unassigned').textContent() };
+      await page.getByTestId('classify-apply').click();
+      const ps = await hook(page, 'partsState');
+      smokeReport.classify = { ...summary, parts: ps.parts.length, assigned: ps.assigned };
+      await page.waitForTimeout(300);
+      await shot(page, 'smoke-model-parts');
       await page.getByTestId('scene-filter').fill('door');
       await page.waitForTimeout(200);
       await shot(page, 'smoke-model-filtered');
