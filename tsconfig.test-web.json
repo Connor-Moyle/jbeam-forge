@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.web.json",
+  "compilerOptions": {
+    "types": [
+      "vite/client",
+      "@testing-library/jest-dom/vitest",
+      "node"
+    ],
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.test-web"
+  },
+  "include": [
+    "src/renderer/**/*",
+    "src/workers/**/*",
+    "src/shared/**/*",
+    "tests/renderer/**/*",
+    "tests/workers/**/*",
+    "tests/setup-dom.ts"
+  ]
+}

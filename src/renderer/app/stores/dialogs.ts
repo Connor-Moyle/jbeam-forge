@@ -18,8 +18,16 @@ interface PendingAlert {
   resolve: () => void;
 }
 
+interface PendingFolders {
+  folders: string[];
+  resolve: (allow: boolean) => void;
+}
+
 interface DialogState {
   unsaved: PendingUnsaved | null;
+  folders: PendingFolders | null;
+  askFolders: (folders: string[]) => Promise<boolean>;
+  answerFolders: (allow: boolean) => void;
   alert: PendingAlert | null;
   newModOpen: boolean;
   askUnsaved: (projectName: string) => Promise<UnsavedChoice>;
@@ -31,7 +39,18 @@ interface DialogState {
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
   unsaved: null,
+  folders: null,
   alert: null,
+  askFolders: (folders) =>
+    new Promise<boolean>((resolve) => {
+      get().folders?.resolve(false);
+      set({ folders: { folders, resolve } });
+    }),
+  answerFolders: (allow) => {
+    const pending = get().folders;
+    set({ folders: null });
+    pending?.resolve(allow);
+  },
   newModOpen: false,
   askUnsaved: (projectName) =>
     new Promise<UnsavedChoice>((resolve) => {

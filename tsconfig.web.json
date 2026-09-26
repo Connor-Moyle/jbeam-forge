@@ -1,17 +1,22 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker.ImportScripts"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable",
+      "WebWorker.ImportScripts"
+    ],
     "jsx": "react-jsx",
-    "types": ["vite/client", "@testing-library/jest-dom/vitest"],
+    "types": [
+      "vite/client",
+      "@testing-library/jest-dom/vitest"
+    ],
     "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo.web"
   },
   "include": [
     "src/renderer/**/*",
     "src/workers/**/*",
-    "src/shared/**/*",
-    "tests/renderer/**/*",
-    "tests/workers/**/*",
-    "tests/setup-dom.ts"
+    "src/shared/**/*"
   ]
 }

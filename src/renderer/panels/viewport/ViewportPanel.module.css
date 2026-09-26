@@ -1,5 +1,6 @@
 .host {
   position: relative;
+  outline: none;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -30,4 +31,13 @@
   color: var(--warning);
   font-size: var(--text-control);
   transform: translateX(-50%);
+}
+
+button.pill {
+  color: var(--text-0);
+  cursor: pointer;
+}
+
+button.pill:hover {
+  border-color: var(--accent);
 }

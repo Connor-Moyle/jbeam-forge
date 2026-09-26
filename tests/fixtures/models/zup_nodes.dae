@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hand-written fixture (SPEC §2 Z-up lock-down). Every node carries a matrix,
+     like BeamNG-exported DAEs. Expected BeamNG-space positions are computed in
+     tests/renderer/import.test.ts. -->
+<COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
+  <asset>
+    <unit name="meter" meter="1"/>
+    <up_axis>Z_UP</up_axis>
+  </asset>
+  <library_geometries>
+    <geometry id="tri-mesh" name="tri">
+      <mesh>
+        <source id="tri-positions">
+          <float_array id="tri-positions-array" count="9">0 0 0  1 0 0  0 1 0</float_array>
+          <technique_common>
+            <accessor source="#tri-positions-array" count="3" stride="3">
+              <param name="X" type="float"/><param name="Y" type="float"/><param name="Z" type="float"/>
+            </accessor>
+          </technique_common>
+        </source>
+        <vertices id="tri-vertices">
+          <input semantic="POSITION" source="#tri-positions"/>
+        </vertices>
+        <triangles count="1">
+          <input semantic="VERTEX" source="#tri-vertices" offset="0"/>
+          <p>0 1 2</p>
+        </triangles>
+      </mesh>
+    </geometry>
+  </library_geometries>
+  <library_visual_scenes>
+    <visual_scene id="Scene" name="Scene">
+      <!-- translate (0, -1, 0.5) -->
+      <node id="fixture_body" name="fixture_body" type="NODE">
+        <matrix sid="transform">1 0 0 0  0 1 0 -1  0 0 1 0.5  0 0 0 1</matrix>
+        <instance_geometry url="#tri-mesh" name="fixture_body"/>
+      </node>
+      <!-- rotate +90° about Z, then translate (0.8, -1.2, 0.3) -->
+      <node id="fixture_wheel_FL" name="fixture_wheel_FL" type="NODE">
+        <matrix sid="transform">0 -1 0 0.8  1 0 0 -1.2  0 0 1 0.3  0 0 0 1</matrix>
+        <instance_geometry url="#tri-mesh" name="fixture_wheel_FL"/>
+      </node>
+      <!-- mirrored across X (scale -1 0 0): a left part made from a right one -->
+      <node id="fixture_mirror" name="fixture_mirror" type="NODE">
+        <matrix sid="transform">-1 0 0 0  0 1 0 0  0 0 1 0  0 0 0 1</matrix>
+        <instance_geometry url="#tri-mesh" name="fixture_mirror"/>
+      </node>
+      <!-- same name twice: must become unique -->
+      <node id="dup_a" name="dup" type="NODE">
+        <matrix sid="transform">1 0 0 0  0 1 0 0  0 0 1 0  0 0 0 1</matrix>
+        <instance_geometry url="#tri-mesh" name="dup"/>
+      </node>
+      <node id="dup_b" name="dup" type="NODE">
+        <matrix sid="transform">1 0 0 0  0 1 0 0  0 0 1 0  0 0 0 1</matrix>
+        <instance_geometry url="#tri-mesh" name="dup"/>
+      </node>
+    </visual_scene>
+  </library_visual_scenes>
+  <scene>
+    <instance_visual_scene url="#Scene"/>
+  </scene>
+</COLLADA>

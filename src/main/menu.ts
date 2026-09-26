@@ -30,6 +30,8 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
         { label: 'New Mod…', accelerator: 'CmdOrCtrl+N', click: command('new') },
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: command('open') },
         { type: 'separator' },
+        { label: 'Import Model…', accelerator: 'CmdOrCtrl+I', click: command('import') },
+        { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: command('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: command('saveAs') },
         { type: 'separator' },

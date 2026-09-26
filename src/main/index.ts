@@ -6,6 +6,7 @@ import { SettingsService } from './services/settings';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
 import { ProjectFiles } from './services/projectFiles';
+import { FolderTrust } from './import/access';
 import { BeamngService, rootsFromEnv } from './beamng/service';
 import { registerIpcHandlers } from './ipc/handlers';
 import { sendEvent, setTrustedUrlPredicate } from './ipc/register';
@@ -39,7 +40,9 @@ async function start(): Promise<void> {
   await recent.load();
   const projects = new ProjectFiles();
   const windowState = { dirty: false };
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, harness });
+  const trust = new FolderTrust(join(userData, 'trusted-folders.json'));
+  await trust.load();
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 

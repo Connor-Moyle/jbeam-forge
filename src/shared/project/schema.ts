@@ -12,7 +12,7 @@ import { z } from 'zod';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 2;
+export const CURRENT_PROJECT_VERSION = 3;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -50,7 +50,8 @@ export const ProjectV1Schema = z.object({
   variables: placeholderList, // Phase 12
 });
 
-// ---------------------------------------------------------------- v2 (Phase 3)
+// ---------------------------------------------------------------- v3 (Phase 3)
+// v2 (3a) added sources/splits/parts/assignments; v3 (3b) adds Source.textureDirs.
 
 export const SOURCE_FORMATS = ['dae', 'fbx', 'obj', 'gltf', 'glb', 'stl'] as const;
 export const AXES = ['+x', '-x', '+y', '-y', '+z', '-z'] as const;
@@ -67,11 +68,13 @@ export const SourceSchema = z.object({
   import: z.object({
     /** Metres per source unit (1 = metres, 0.01 = centimetres, 0.0254 = inches). */
     scale: z.number().positive(),
-    /** Source axis that becomes BeamNG +Z (up). */
+    /** Loader-space axis that becomes BeamNG +Z (up). See src/shared/coords.ts. */
     upAxis: z.enum(AXES),
-    /** Source axis the vehicle's front faces; becomes BeamNG −Y. */
+    /** Loader-space axis the vehicle's front faces; becomes BeamNG −Y. */
     forwardAxis: z.enum(AXES),
   }),
+  /** Extra folders searched for this source's textures ("Locate folder…"). */
+  textureDirs: z.array(z.string().min(1)),
   addedAt: z.iso.datetime(),
 });
 
@@ -106,9 +109,9 @@ export const PartSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV2Schema = z.object({
+export const ProjectV3Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(2),
+  formatVersion: z.literal(3),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -131,7 +134,7 @@ export const ProjectV2Schema = z.object({
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV2Schema;
+export const ProjectSchema = ProjectV3Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

@@ -4,6 +4,7 @@ import {
   Eye,
   FilePlus,
   FlaskConical,
+  FileInput,
   FolderOpen,
   LayoutGrid,
   Play,
@@ -21,6 +22,7 @@ import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { openProject, redo, saveProject, undo } from '@renderer/project/actions';
+import { startImport } from '@renderer/import/importFlow';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
@@ -73,6 +75,7 @@ export function Toolbar() {
         <span className={styles.divider} aria-hidden />
         <IconButton icon={FilePlus} label="New mod" shortcut="Ctrl+N" onClick={() => setNewModOpen(true)} />
         <IconButton icon={FolderOpen} label="Open project" shortcut="Ctrl+O" onClick={() => void openProject()} />
+        <IconButton icon={FileInput} label="Import model" shortcut="Ctrl+I" onClick={() => void startImport()} data-testid="toolbar-import" />
         <IconButton icon={Save} label="Save" shortcut="Ctrl+S" onClick={() => void saveProject()} data-testid="toolbar-save" />
       </div>
       <div className={styles.group} role="group" aria-label="Edit">

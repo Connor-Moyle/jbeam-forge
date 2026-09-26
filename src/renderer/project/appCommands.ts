@@ -2,6 +2,7 @@ import type { AppCommand } from '@shared/ipc-contract';
 import { projectStore } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } from './actions';
+import { startImport } from '@renderer/import/importFlow';
 
 function isEditableTarget(el: Element | null): boolean {
   if (!el) return false;
@@ -24,6 +25,9 @@ export function runAppCommand(command: AppCommand): void {
       break;
     case 'saveAs':
       if (projectStore.getState().doc) void saveProjectAs();
+      break;
+    case 'import':
+      void startImport();
       break;
     case 'close':
       if (projectStore.getState().doc) void closeProject();

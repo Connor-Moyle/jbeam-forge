@@ -8,7 +8,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 |---|---|---|---|
 | 1 | Foundations — scaffold, design tokens + component kit, logging/error boundaries, dockview shell, .jbforge versioning/migrations | — | done |
 | 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | done |
-| 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | in progress (3a done) |
+| 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | in progress (3a, 3b done) |
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | not started |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | not started |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | not started |
@@ -25,12 +25,36 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 
 ### Phase 3 — Import + taxonomy (in progress)
 
-Split into four sub-phases, each committed on its own: **3a** project system ✔ · **3b** import pipeline · **3c** taxonomy/classify/tree/assignment · **3d** splitting.
+Split into four sub-phases, each committed on its own: **3a** project system ✔ · **3b** import pipeline ✔ · **3c** taxonomy/classify/tree/assignment · **3d** splitting.
 
 Decisions recorded with you:
 - **Test model:** the in-game **Hirochi Sunburst** (`sunburst2.zip`). Its jbeam is a reference for how parts link, used only to measure our hierarchy and classifier. All generated data is built from scratch.
 - **End goal:** an unpacked mod named **`test`** in the BeamNG mods folder, with a jbeam for every part. That's the Phase 5 target and in-game gate.
 - **Import from mod folder** moves to after Phase 5.
+
+**3b — Import pipeline (done)**
+- **Formats:** DAE, FBX, OBJ+MTL, glTF (external buffers/images inlined), GLB and STL, all normalised to *loader space*.
+  - World matrices are baked per mesh, with winding fixed for mirrored nodes.
+  - Everything is converted to **BeamNG space** by the single `src/shared/coords.ts` module (+Z up, −Y forward, +X left).
+  - The **Z-up fixture test** (SPEC §2) locks down node matrices, mirroring and duplicate names.
+- **Textures** are decoupled from the loaders:
+  - Main resolves references: the path as given, then name/stem + extension fallback across the model folder and "Locate folder…" folders. That's needed because official DAEs reference `.png` files while `.dds` ships, and they use absolute paths from BeamNG's build machine.
+  - A new **DDS reader** handles BC1–BC5 and **BC7**, which three.js can't read and which every Sunburst texture uses.
+- **Import dialog:** units presets or a custom value, up/forward axes, a live size readout, and plausibility advice with a one-click unit suggestion.
+- **Viewport:** orbit camera, F/Home framing, BVH-accelerated hover/click picking, selection highlight, and disposal that never touches store-owned geometry.
+- **Scene panel:** mesh list per source with filter, visibility, texture-issue popover (Locate folder…) and selection synced with the viewport. The status bar shows the triangle count.
+- **Undo/redo and schema:** import is an undoable command. Source sync reloads geometry on open, undo/redo and texture-folder changes. Schema **v3** (per-source `textureDirs`, migrated from v2).
+- **Access:** grants for project resources, with reads limited to model/texture extensions.
+- **Sunburst smoke test** (local, `npm run extract-reference -- sunburst2` then `run-desktop --model=…`): **418 meshes, 325,961 triangles, 1.3 s import, 83 fps, 11/11 BC7 textures loaded.** Well inside the 15 s / 30 fps budget; no worker parser needed.
+  - Known and expected: body paint comes from BeamNG's `materials.json`, not the DAE, so it renders white (Phase 8). Every part variant is shown overlapping until 3c classifies them.
+- **Tests:** 332 unit tests. The harness has 14 scenarios (new: import fixture · dialog size readout · row/viewport selection · undo/redo reload from disk · consent-gated reload after relaunch · optional smoke model).
+- **Code review fixes** (each with a regression test or harness assertion):
+  - **Security:** a shared `.jbforge` could grant itself read access to any folder. Opening a project now auto-grants only folders inside its own folder. Others need a one-time **consent prompt**, remembered per project in `userData/trusted-folders.json`. `locateSource` never probes paths outside grants.
+  - **Texture search:** the file budget is now per search root, so a model in a huge folder can't make "Locate folder…" useless. Found-but-unreadable textures (e.g. `../textures`) now count as *missing*, so Locate is offered.
+  - **glTF** textures weren't loading under Electron (ImageBitmapLoader). Images now load as elements, and the texture pass honours each slot's `flipY` (glTF: false), including BC7 V-flip.
+  - **COLLADA `.tga`** textures now reach the texture pass instead of silently rendering black.
+  - Loads that finish after an undo or project close no longer resurrect a ghost source.
+  - Reloads free materials and GPU textures, not just geometry.
 
 **3a — Project system & startup (done)**
 - `.jbforge` **v2** (first real migration; the v1 fixture still loads):

@@ -6,11 +6,16 @@ import { StatusBar } from '@renderer/shell/StatusBar';
 import { Toolbar } from '@renderer/shell/Toolbar';
 import { HomeScreen } from '@renderer/home/HomeScreen';
 import { DialogHost } from '@renderer/project/DialogHost';
+import { ImportHost } from '@renderer/import/ImportHost';
+import { useSourceSync } from '@renderer/import/importFlow';
 import { runAppCommand } from '@renderer/project/appCommands';
 import { call } from '@renderer/diagnostics/ipc';
 import { useSettingsSync } from './stores/settings';
 import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
+import { useSceneStore } from './stores/scene';
+import { registerTestHooks } from './testHooks';
+import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -20,6 +25,41 @@ function AppEffects() {
 
   useEffect(() => window.forge.on('status:message', ({ text, tone }) => pushStatus(text, tone, 8000)), [pushStatus]);
   useEffect(() => window.forge.on('menu:command', ({ command }) => runAppCommand(command)), []);
+
+  // run-desktop harness hooks available on every screen (home and editor).
+  useEffect(
+    () =>
+      registerTestHooks({
+        renameProject: (name: string) => projectStore.getState().execute({ label: 'Rename project', apply: (d) => void (d.meta.name = name) }),
+        projectState: () => {
+          const s = projectStore.getState();
+          return { name: s.doc?.meta.name ?? null, dirty: isDirty(s), filePath: s.filePath, undo: s.undoStack.length, redo: s.redoStack.length };
+        },
+        runCommand: (command: AppCommand) => runAppCommand(command),
+        queueDialog: (answers: (string | null)[]) => call('harness:queueDialog', { answers }),
+        sceneStats: () => {
+          const s = useSceneStore.getState();
+          const sources = Object.values(s.sources);
+          return {
+            sources: sources.map((src) => ({ status: src.status, fileName: src.fileName, meshes: src.meshes.length, error: src.error, textures: src.textures, stats: src.stats })),
+            meshes: sources.reduce((n, src) => n + src.meshes.length, 0),
+            selection: s.selection,
+          };
+        },
+        measureFps: (ms: number) =>
+          new Promise<number>((resolve) => {
+            let frames = 0;
+            const start = performance.now();
+            const tick = () => {
+              frames++;
+              if (performance.now() - start < ms) requestAnimationFrame(tick);
+              else resolve((frames * 1000) / (performance.now() - start));
+            };
+            requestAnimationFrame(tick);
+          }),
+      }),
+    [],
+  );
 
   // Window title + unsaved-changes flag for main's close guard.
   useEffect(() => {
@@ -42,6 +82,7 @@ function AppEffects() {
 
 function Editor() {
   const { ready } = useShell();
+  useSourceSync();
   return (
     <div className={styles.app} data-testid={ready ? 'app-ready' : 'app-loading'} data-view="editor">
       <Toolbar />
@@ -67,6 +108,7 @@ export function App() {
       <AppEffects />
       <Root />
       <DialogHost />
+      <ImportHost />
     </TooltipProvider>
   );
 }

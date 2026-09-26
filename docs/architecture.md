@@ -86,3 +86,22 @@ Presets (`Modelling`, `Materials`, `Testing`) are data in `src/renderer/shell/pr
   - The renderer mirrors dirtiness to main (`window:setDirty`) for the window-close guard.
 - **Menu → renderer:** File and Edit items send `menu:command`. Undo/redo go to text fields when one is focused, and to the document history otherwise.
 - **Recent projects** `userData/recent-projects.json`: max 12, JPEG thumbnails in `userData/thumbnails/` captured from the viewport on save, missing files flagged.
+
+## Import pipeline (Phase 3b)
+
+`src/renderer/import/`, measured on the official Sunburst DAE (77 MB, 418 meshes, 326k triangles): import 1.3 s, 83 fps orbiting, 11/11 BC7 textures.
+
+1. **Pick** (`import:pickSource`): a native dialog; the file's folder is granted for side files and textures.
+2. **Stage** (`pipeline.stageImport`): bytes over IPC, then three.js loaders (DAE/FBX/OBJ+MTL/glTF/GLB/STL) produce *loader space*. Every mesh's `matrixWorld` is baked into its own geometry copy (SPEC §2), with winding fixed for mirrored nodes. Duplicate names get " (2)".
+3. **Dialog** (`ImportDialog`): units and axes, a live BeamNG-space size readout, and plausibility advice ("looks like centimetres", "wider than long — check the forward axis").
+4. **Finish** (`pipeline.finishImport`): the texture pass, then conversion to BeamNG space via `src/shared/coords.ts`, the only conversion module.
+   - Loaders never fetch images. Each request becomes a placeholder tagged with its reference. Main resolves references (`src/main/import/textures.ts`): the path as given, then the same file name or the same stem with another image extension, indexed across the model folder and "Locate folder…" folders. This is needed because official DAEs name `x.png` while the game ships `x.dds`, and use absolute paths from BeamNG's build machine.
+   - `dds.ts` reads BC1–BC5/BC7 (BeamNG ships DX10 BC7 sRGB). Formats the GPU lacks are reported as unsupported.
+5. **Record:** an undoable "Import <file>" command adds the `Source` (path relative to the project when possible, import settings, `textureDirs`). `useSourceSync` loads/unloads geometry whenever `doc.sources` changes: open, undo/redo, adding a texture folder.
+
+**Security:** `import:readFile` only reads model, side-file and image extensions under granted folders.
+- Opening a project grants the project's own folder, plus source folders inside it.
+- Folders outside it (other source folders, `textureDirs`) need a one-time consent prompt, remembered per project in `userData/trusted-folders.json`. A shared `.jbforge` therefore can't grant itself access to arbitrary folders.
+- `import:locateSource` never checks existence outside granted folders.
+
+**Local reference model:** `npm run extract-reference -- sunburst2` streams the DAE and its textures into `scratch/test-models/` (never committed). `npm run run-desktop -- --model=scratch/test-models/sunburst2/sunburst2.dae` adds a smoke scenario that reports import time, fps and texture results.

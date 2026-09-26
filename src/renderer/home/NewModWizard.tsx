@@ -10,6 +10,8 @@ import { Textarea } from '@renderer/ui/components/Textarea';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { call } from '@renderer/diagnostics/ipc';
 import { newProject } from '@renderer/project/actions';
+import { Checkbox } from '@renderer/ui/components/Checkbox';
+import { startImport } from '@renderer/import/importFlow';
 
 /** info.json "Type" values seen in official vehicles (docs/beamng-vehicle-layout.md). */
 const VEHICLE_TYPES = [
@@ -41,6 +43,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
   const [brand, setBrand] = useState('');
   const [type, setType] = useState<VehicleType>('Car');
   const [showErrors, setShowErrors] = useState(false);
+  const [importNow, setImportNow] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const effectiveSlug = slugTouched ? slug : slugify(name);
@@ -58,7 +61,9 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
     if (authorDraft !== null && trimmedAuthor !== savedAuthor) call('settings:update', { author: trimmedAuthor || null }).catch(() => undefined);
     void newProject({ name: name.trim(), slug: effectiveSlug, author: trimmedAuthor, description: description.trim(), brand: brand.trim(), type }).then((ok) => {
       setBusy(false);
-      if (ok) onClose();
+      if (!ok) return;
+      onClose();
+      if (importNow) void startImport();
     });
   };
 
@@ -118,6 +123,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
             <Input id={ids.author} value={author} onChange={(e) => setAuthorDraft(e.target.value)} placeholder="e.g. Fatkiwi" data-testid="newmod-author" />
           </Field>
         </FieldGroup>
+        <Checkbox checked={importNow} onChange={setImportNow} label="Import a 3D model right after creating" />
         <button type="submit" hidden />
       </form>
     </Modal>

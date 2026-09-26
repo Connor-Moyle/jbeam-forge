@@ -11,6 +11,10 @@ import type { BeamngService } from '../beamng/service';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
 import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
 import { getLogFolder, scoped } from '../log';
+import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
+import { resolveTextureRefs } from '../import/textures';
+import { readFile, stat } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { describeError } from '@shared/logger';
 
 const logger = scoped('ipc');
@@ -31,21 +35,45 @@ export interface HandlerServices {
   recent: RecentService;
   projects: ProjectFiles;
   windowState: WindowState;
+  trust: FolderTrust;
   harness: boolean;
 }
 
-/** Name/slug for the recent list, or null when the file doesn't load (it isn't added). */
-function describeProject(text: string): { name: string; slug: string } | null {
+/** Parse leniently for main's own bookkeeping; null when the file doesn't load. */
+function tryParse(text: string) {
   try {
-    const { project } = parseProject(text);
-    return { name: project.meta.name, slug: project.meta.slug };
+    return parseProject(text).project;
   } catch {
     return null;
   }
 }
 
+/** Name/slug for the recent list, or null when the file doesn't load (it isn't added). */
+function describeProject(text: string): { name: string; slug: string } | null {
+  const project = tryParse(text);
+  return project ? { name: project.meta.name, slug: project.meta.slug } : null;
+}
+
 export function registerIpcHandlers(services: HandlerServices): void {
-  const { settings, layout, beamng, recent, projects, windowState } = services;
+  const { settings, layout, beamng, recent, projects, windowState, trust } = services;
+  /** Folders each opened project wants but the user hasn't allowed yet. */
+  const pendingByProject = new Map<string, string[]>();
+
+  /** Grant what an opened project may read; return the folders that need consent. */
+  const grantForOpenedProject = async (path: string, text: string): Promise<string[]> => {
+    projects.grantFile(path); // the project folder itself
+    const project = tryParse(text);
+    if (!project) return [];
+    const { inside, outside } = await projectResourceFolders(path, project);
+    for (const d of inside) projects.grantRoot(d);
+    const pending: string[] = [];
+    for (const d of outside) {
+      if (trust.isTrusted(path, d)) projects.grantRoot(d);
+      else pending.push(d);
+    }
+    pendingByProject.set(path.toLowerCase(), pending);
+    return pending;
+  };
 
   /** The recent list is a convenience: its failures are logged, never turned into open/save failures. */
   const touchRecent = async (path: string, info: { name: string; slug: string } | null, thumbnail?: string | null) => {
@@ -121,9 +149,9 @@ export function registerIpcHandlers(services: HandlerServices): void {
     const path = await pickOpenFile(event.sender, { title: 'Open project', filters: PROJECT_FILTERS, properties: ['openFile'] });
     if (!path) return null;
     const text = await projects.read(path);
-    projects.grantFile(path);
+    const pendingFolders = await grantForOpenedProject(path, text);
     await touchRecent(path, describeProject(text));
-    return { path, text };
+    return { path, text, pendingFolders };
   });
 
   registerInvoke(
@@ -131,9 +159,9 @@ export function registerIpcHandlers(services: HandlerServices): void {
     async ({ path }) => {
       if (!recent.has(path)) throw new AccessError('Not in the recent projects list');
       const text = await projects.read(path);
-      projects.grantFile(path);
+      const pendingFolders = await grantForOpenedProject(path, text);
       await touchRecent(path, describeProject(text));
-      return { path, text };
+      return { path, text, pendingFolders };
     },
     z.object({ path: z.string().min(1).max(4096) }),
   );
@@ -164,6 +192,18 @@ export function registerIpcHandlers(services: HandlerServices): void {
     z.object({ text: z.string(), suggestedName: z.string().min(1).max(255), thumbnail: Thumbnail }),
   );
 
+  registerInvoke(
+    'project:allowFolders',
+    async ({ path }) => {
+      const pending = pendingByProject.get(path.toLowerCase()) ?? [];
+      for (const d of pending) projects.grantRoot(d);
+      await trust.trust(path, pending);
+      pendingByProject.set(path.toLowerCase(), []);
+      return undefined;
+    },
+    z.object({ path: z.string().min(1).max(4096) }),
+  );
+
   registerInvoke('recent:list', () => recent.list());
   registerInvoke(
     'recent:remove',
@@ -191,6 +231,56 @@ export function registerIpcHandlers(services: HandlerServices): void {
       return undefined;
     },
     z.object({ dirty: z.boolean() }),
+  );
+
+  // ---- import: source files, side files and textures, all inside granted folders ----
+
+  registerInvoke('import:pickSource', async (_req, event) => {
+    const path = await pickOpenFile(event.sender, { title: 'Import 3D model', filters: MODEL_FILTERS, properties: ['openFile'] });
+    if (!path) return null;
+    const format = formatFromPath(path);
+    if (!format) throw new Error('Unsupported file type. Import DAE, FBX, OBJ, glTF/GLB or STL.');
+    projects.grantFile(path); // also grants its folder: MTL, .bin and textures live next to it
+    return { path, format, bytes: (await stat(path)).size };
+  });
+
+  registerInvoke(
+    'import:readFile',
+    async ({ path }) => {
+      assertReadable(projects, path);
+      return new Uint8Array(await readFile(path));
+    },
+    z.object({ path: z.string().min(1).max(4096) }),
+  );
+
+  registerInvoke(
+    'import:resolveTextures',
+    async ({ sourcePath, refs, textureDirs }) => {
+      assertReadable(projects, sourcePath);
+      const roots = textureDirs.filter((d) => projects.isUnderGrantedRoot(d));
+      const result = await resolveTextureRefs(refs, dirname(sourcePath), roots);
+      // A texture that exists but isn't readable (e.g. ../textures next to an ungranted folder) is
+      // "missing" to the user — that is what offers "Locate folder…", which grants it.
+      for (const [ref, p] of Object.entries(result.resolved)) if (p && !projects.isUnderGrantedRoot(p)) result.resolved[ref] = null;
+      return result;
+    },
+    z.object({ sourcePath: z.string().min(1).max(4096), refs: z.array(z.string().max(4096)).max(5000), textureDirs: z.array(z.string().max(4096)).max(50) }),
+  );
+
+  registerInvoke('import:pickTextureDir', async (_req, event) => {
+    const dir = await pickDirectory(event.sender, { title: 'Locate the folder containing the missing textures' });
+    if (dir) projects.grantRoot(dir);
+    return dir;
+  });
+
+  registerInvoke(
+    'import:locateSource',
+    async (req) => {
+      const found = await locateSource(projects, req.projectPath, req);
+      if (found) assertReadable(projects, found);
+      return found;
+    },
+    z.object({ projectPath: z.string().max(4096).nullable(), path: z.string().min(1).max(4096), absolutePath: z.string().min(1).max(4096) }),
   );
 
   // Harness-only: scripted dialog answers. Not registered in normal runs.

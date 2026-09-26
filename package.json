@@ -11,13 +11,14 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.test-web.json",
     "lint": "eslint . && node scripts/lint-tokens.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "run-desktop": "electron-vite build && node scripts/run-desktop.mjs",
     "study-vehicle": "tsx --tsconfig tsconfig.node.json scripts/study-vehicle.ts",
-    "jbeam:corpus": "tsx --tsconfig tsconfig.node.json scripts/jbeam-corpus.ts"
+    "jbeam:corpus": "tsx --tsconfig tsconfig.node.json scripts/jbeam-corpus.ts",
+    "extract-reference": "tsx --tsconfig tsconfig.node.json scripts/extract-reference.ts"
   },
   "engines": {
     "node": ">=22"

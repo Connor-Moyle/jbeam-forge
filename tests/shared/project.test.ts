@@ -55,10 +55,17 @@ describe('.jbforge io', () => {
     }
   });
 
-  it('migrates the v1 fixture to v2 with empty Phase 3 sections', () => {
+  it('migrates the v2 fixture to v3, adding textureDirs to every source', () => {
+    const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8'));
+    expect(migratedFrom).toBe(2);
+    expect(applied).toEqual([expect.stringMatching(/^v2→v3: /)]);
+    expect(project.sources.map((s) => s.textureDirs)).toEqual([[]]);
+  });
+
+  it('migrates the v1 fixture through v2 to v3 with empty Phase 3 sections', () => {
     const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v1-empty.jbforge'), 'utf8'));
     expect(migratedFrom).toBe(1);
-    expect(applied).toEqual([expect.stringMatching(/^v1→v2: /)]);
+    expect(applied).toEqual([expect.stringMatching(/^v1→v2: /), expect.stringMatching(/^v2→v3: /)]);
     expect(project.meta.slug).toBe('fixture_car');
     expect(project).toMatchObject({ sources: [], splits: [], parts: [], assignments: {}, ignoredMeshes: [], customTaxonomy: [] });
   });
@@ -69,8 +76,7 @@ describe('.jbforge io', () => {
   });
 
   it('loads the populated v2 fixture with typed sections', () => {
-    const { project, migratedFrom } = parseProject(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8'));
-    expect(migratedFrom).toBeNull();
+    const { project } = parseProject(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8'));
     expect(project.sources[0]!.import).toEqual({ scale: 1, upAxis: '+z', forwardAxis: '-y' });
     expect(project.parts.map((p) => p.taxonomyId)).toEqual(['main_body', 'hood']);
     expect(project.assignments['split:split_1']).toBe('part_hood');

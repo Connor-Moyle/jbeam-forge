@@ -5,9 +5,7 @@ import { call } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import { reportError } from '@renderer/diagnostics/globalHandlers';
 import { runSmokeWorker } from '@renderer/diagnostics/workerRelay';
-import { isDirty, projectStore } from '@renderer/app/stores/project';
-import { runAppCommand } from '@renderer/project/appCommands';
-import type { AppCommand } from '@shared/ipc-contract';
+import { registerTestHooks } from '@renderer/app/testHooks';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { emitTestSignal } from '@renderer/app/testBus';
 import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, togglePanel as toggle } from './presets';
@@ -153,36 +151,26 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     };
   }, [saveNow]);
 
-  // run-desktop harness hooks (never installed in production runs).
-  useEffect(() => {
-    if (!devMode) return;
-    const hooks = {
-      crashPanel: (panelId: string) => emitTestSignal({ type: 'crash-panel', panelId }),
-      loseGlContext: () => emitTestSignal({ type: 'gl-lose' }),
-      restoreGlContext: () => emitTestSignal({ type: 'gl-restore' }),
-      injectFrameErrors: (count: number) => emitTestSignal({ type: 'gl-frame-errors', count }),
-      applyPreset: (p: PresetId) => applyPreset(p),
-      resetLayout,
-      togglePanel: (id: PanelId) => togglePanel(id),
-      maximizePanel: (id: PanelId) => apiRef.current?.getPanel(id)?.api.maximize(),
-      exitMaximized: () => apiRef.current?.exitMaximizedGroup(),
-      openPanels: () => apiRef.current?.panels.map((p) => p.id) ?? [],
-      preset: () => presetRef.current,
-      flushLayout: () => saveNow(),
-      spawnSmokeWorker: () => runSmokeWorker(),
-      renameProject: (name: string) => projectStore.getState().execute({ label: 'Rename project', apply: (d) => void (d.meta.name = name) }),
-      projectState: () => {
-        const s = projectStore.getState();
-        return { name: s.doc?.meta.name ?? null, dirty: isDirty(s), filePath: s.filePath, undo: s.undoStack.length, redo: s.redoStack.length };
-      },
-      runCommand: (command: AppCommand) => runAppCommand(command),
-      queueDialog: (answers: (string | null)[]) => call('harness:queueDialog', { answers }),
-    };
-    (window as unknown as { __jbforgeTest?: typeof hooks }).__jbforgeTest = hooks;
-    return () => {
-      delete (window as unknown as { __jbforgeTest?: typeof hooks }).__jbforgeTest;
-    };
-  }, [devMode, applyPreset, resetLayout, togglePanel, saveNow]);
+  // run-desktop harness hooks for the dock shell (app-level hooks live in App.tsx).
+  useEffect(
+    () =>
+      registerTestHooks({
+        crashPanel: (panelId: string) => emitTestSignal({ type: 'crash-panel', panelId }),
+        loseGlContext: () => emitTestSignal({ type: 'gl-lose' }),
+        restoreGlContext: () => emitTestSignal({ type: 'gl-restore' }),
+        injectFrameErrors: (count: number) => emitTestSignal({ type: 'gl-frame-errors', count }),
+        applyPreset: (p: PresetId) => applyPreset(p),
+        resetLayout,
+        togglePanel: (id: PanelId) => togglePanel(id),
+        maximizePanel: (id: PanelId) => apiRef.current?.getPanel(id)?.api.maximize(),
+        exitMaximized: () => apiRef.current?.exitMaximizedGroup(),
+        openPanels: () => apiRef.current?.panels.map((p) => p.id) ?? [],
+        preset: () => presetRef.current,
+        flushLayout: () => saveNow(),
+        spawnSmokeWorker: () => runSmokeWorker(),
+      }),
+    [applyPreset, resetLayout, togglePanel, saveNow],
+  );
 
   const value = useMemo<ShellApi>(
     () => ({ ready, preset, devMode, attach, applyPreset, resetLayout, togglePanel }),

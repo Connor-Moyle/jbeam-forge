@@ -5,3 +5,18 @@
   word-break: break-word;
   user-select: text;
 }
+
+.folders {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--text-1);
+  user-select: text;
+}
+
+.folders li {
+  padding: var(--space-1) 0;
+  word-break: break-all;
+}

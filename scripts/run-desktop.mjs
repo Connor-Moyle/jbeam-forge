@@ -20,6 +20,8 @@ const MARKER = '[harness-triggered]';
 const TIMEOUT = 15_000;
 
 const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split(',');
+// Optional local smoke model (never committed), e.g. --model=scratch/test-models/sunburst2/sunburst2.dae
+const smokeModel = process.argv.find((a) => a.startsWith('--model='))?.slice(8);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(ROOT, 'artifacts', 'run-desktop', stamp);
 const userData = mkdtempSync(join(tmpdir(), 'jbforge-harness-'));
@@ -102,6 +104,8 @@ const scenarios = [
       assert((await page.getByTestId('newmod-slug').inputValue()) === 'harness_test_car', 'slug derived from the name');
       await page.getByTestId('newmod-author').fill('Fatkiwi');
       await shot(page, 'newmod-wizard');
+      // "Import a 3D model right after creating" is on by default: answer its file dialog with Cancel.
+      await hook(page, 'queueDialog', [null]);
       await page.getByTestId('newmod-create').click();
       await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       const state = await hook(page, 'projectState');
@@ -288,7 +292,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 2 && saved.meta.slug === 'harness_test_car', 'saved as a v2 project');
+      assert(saved.formatVersion === 3 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -305,6 +309,42 @@ const scenarios = [
       assert(state.name === 'Renamed Car' && state.dirty, 'redo re-applies the edit');
       await hook(page, 'runCommand', 'undo');
       await shot(page, 'editor-saved-project');
+    },
+  },
+  {
+    id: 'import',
+    name: 'import Z-up DAE fixture · dialog · viewport · undo/redo',
+    async run({ page }) {
+      const fixture = join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae');
+      await hook(page, 'queueDialog', [fixture]);
+      await page.getByTestId('toolbar-import').click();
+      await page.getByTestId('import-dialog').waitFor();
+      const dims = await page.getByTestId('import-dims').textContent();
+      // Fixture extents in BeamNG space: Y −1.2…1, X −1…1, Z 0…0.5 (checks the app's orientation mapping end to end).
+      assert(/Length\s*2\.20 m.*Width\s*2\.00 m.*Height\s*0\.50 m/.test(dims ?? ''), `size readout matches the fixture's BeamNG extents (${dims})`);
+      await shot(page, 'import-dialog');
+      await page.getByTestId('import-confirm').click();
+      const waitMeshes = async (n) => {
+        for (let i = 0; i < 100; i++) {
+          const st = await hook(page, 'sceneStats');
+          if (st.meshes === n && st.sources.every((x) => x.status === 'ready')) return st;
+          await page.waitForTimeout(100);
+        }
+        throw new Error(`expected ${n} meshes, got ${JSON.stringify(await hook(page, 'sceneStats'))}`);
+      };
+      await waitMeshes(5);
+      await page.getByTestId('scene-tree').getByText('fixture_wheel_FL').click();
+      assert(JSON.stringify((await hook(page, 'sceneStats')).selection).includes('fixture_wheel_FL'), 'clicking a row selects the mesh');
+      await page.waitForTimeout(200);
+      await shot(page, 'import-fixture');
+      await hook(page, 'runCommand', 'undo');
+      await waitMeshes(0);
+      await hook(page, 'runCommand', 'redo'); // re-adds the source → reloaded from disk by source sync
+      await waitMeshes(5);
+      await page.getByTestId('toolbar-save').click();
+      for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
+      const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
+      assert(saved.formatVersion === 3 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -334,6 +374,13 @@ const scenarios = [
       await row.locator('button').first().click();
       await ctx.page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       assert((await hook(ctx.page, 'projectState')).filePath === projectFile, 'reopened the saved project');
+      // The fixture model lives outside the project folder: reading it needs consent first.
+      await ctx.page.getByTestId('folders-allow').waitFor();
+      await shot(ctx.page, 'folder-consent');
+      assert((await hook(ctx.page, 'sceneStats')).meshes === 0, 'nothing outside the project folder is read before consent');
+      await ctx.page.getByTestId('folders-allow').click();
+      for (let i = 0; i < 100 && (await hook(ctx.page, 'sceneStats')).meshes !== 5; i++) await ctx.page.waitForTimeout(100);
+      assert((await hook(ctx.page, 'sceneStats')).meshes === 5, 'imported meshes reloaded from disk after relaunch + consent');
       assert((await hook(ctx.page, 'preset')) === 'materials', 'preset restored after relaunch');
       const open = await openPanels(ctx.page);
       assert(open.includes('materials'), `materials panel restored (got ${open})`);
@@ -354,7 +401,40 @@ const scenarios = [
       assert(saved.meta.name === 'Harness Test Car', 'discarded edits were not written');
     },
   },
+  {
+    id: 'smoke-model',
+    name: 'local smoke model import (--model)',
+    skip: () => !smokeModel,
+    async run({ page }) {
+      const model = join(ROOT, smokeModel);
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Smoke Model');
+      await hook(page, 'queueDialog', [model]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-dialog').waitFor({ timeout: 180_000 });
+      await shot(page, 'smoke-import-dialog');
+      const started = Date.now();
+      await page.getByTestId('import-confirm').click();
+      let st;
+      for (let i = 0; i < 1800; i++) {
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 0 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.meshes > 0, `smoke model imported (${JSON.stringify(st)})`);
+      const src = st.sources[0];
+      const fps = await hook(page, 'measureFps', 2000);
+      smokeReport = { meshes: st.meshes, triangles: src.stats?.triangles, importMs: src.stats?.totalMs, finishWallMs: Date.now() - started, fps: Math.round(fps), textures: src.textures && { loaded: src.textures.loaded, missing: src.textures.missing.length, unsupported: src.textures.unsupported } };
+      await page.waitForTimeout(500);
+      await shot(page, 'smoke-model');
+      await page.getByTestId('scene-filter').fill('door');
+      await page.waitForTimeout(200);
+      await shot(page, 'smoke-model-filtered');
+    },
+  },
 ];
+let smokeReport = null;
 
 function unexpectedLogErrors() {
   const logFile = join(userData, 'logs', 'main.log');
@@ -370,6 +450,7 @@ try {
   ctx = await launch();
   for (const s of scenarios) {
     if (only && !only.includes(s.id)) continue;
+    if (s.skip?.()) continue;
     const started = Date.now();
     try {
       await s.run(ctx);
@@ -390,6 +471,8 @@ const badLog = unexpectedLogErrors();
 
 console.log(`\nrun-desktop — screenshots in ${outDir}\n`);
 for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.ms !== undefined ? ` (${r.ms} ms)` : ''}${r.error ? `\n      ${r.error}` : ''}`);
+if (smokeReport) console.log(`
+smoke model: ${JSON.stringify(smokeReport, null, 2)}`);
 if (badConsole.length) console.log(`FAIL  renderer console errors:\n      ${badConsole.join('\n      ')}`);
 if (badLog.length) console.log(`FAIL  main.log error lines:\n      ${badLog.join('\n      ')}`);
 

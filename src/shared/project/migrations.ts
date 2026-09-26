@@ -29,6 +29,18 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...doc, formatVersion: 2, sources: [], splits: [], parts: [], assignments: {}, ignoredMeshes: [], customTaxonomy: [] };
     },
   },
+  {
+    from: 2,
+    describe: 'per-source texture search folders (Source.textureDirs)',
+    migrate: (doc) => {
+      const sources: unknown[] = Array.isArray(doc.sources) ? (doc.sources as unknown[]) : [];
+      return {
+        ...doc,
+        formatVersion: 3,
+        sources: sources.map((s) => (typeof s === 'object' && s !== null ? { ...s, textureDirs: [] } : s)),
+      };
+    },
+  },
 ];
 
 export class MigrationError extends Error {

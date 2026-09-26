@@ -8,6 +8,8 @@ import styles from './DialogHost.module.css';
 export function DialogHost() {
   const unsaved = useDialogStore((s) => s.unsaved);
   const alert = useDialogStore((s) => s.alert);
+  const folders = useDialogStore((s) => s.folders);
+  const answerFolders = useDialogStore((s) => s.answerFolders);
   const newModOpen = useDialogStore((s) => s.newModOpen);
   const answerUnsaved = useDialogStore((s) => s.answerUnsaved);
   const dismissAlert = useDialogStore((s) => s.dismissAlert);
@@ -36,6 +38,31 @@ export function DialogHost() {
             </>
           }
         />
+      )}
+      {folders && (
+        <Modal
+          open
+          size="md"
+          onOpenChange={(o) => {
+            if (!o) answerFolders(false);
+          }}
+          title="Allow this project to read these folders?"
+          description="Its models or textures live outside the project's own folder. JBeam Forge only reads model and image files from folders you allow."
+          footer={
+            <>
+              <Button onClick={() => answerFolders(false)}>Not now</Button>
+              <Button variant="primary" onClick={() => answerFolders(true)} data-testid="folders-allow">
+                Allow
+              </Button>
+            </>
+          }
+        >
+          <ul className={styles.folders}>
+            {folders.folders.map((f) => (
+              <li key={f}>{f}</li>
+            ))}
+          </ul>
+        </Modal>
       )}
       {alert && (
         <Modal

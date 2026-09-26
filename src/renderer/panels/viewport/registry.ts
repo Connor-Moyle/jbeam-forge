@@ -2,9 +2,13 @@
  * The active viewport, for app-level features that need a rendered frame
  * (project thumbnails on save; preview capture later).
  */
+import { ALL_CAPS, type GpuTextureCaps } from '@renderer/import/textures';
+
 export interface ViewportHandle {
   /** Render now and return a JPEG data URL of `width`×`height` (cover-cropped), or null. */
   capture(width: number, height: number): string | null;
+  /** Block-compressed texture formats this GPU can sample. */
+  textureCaps(): GpuTextureCaps;
 }
 
 let active: ViewportHandle | null = null;
@@ -24,4 +28,9 @@ export function captureThumbnail(): string | null {
   } catch {
     return null; // a thumbnail is never worth failing a save over
   }
+}
+
+/** GPU texture support of the active viewport (optimistic when no viewport exists yet). */
+export function textureCaps(): GpuTextureCaps {
+  return active?.textureCaps() ?? ALL_CAPS;
 }

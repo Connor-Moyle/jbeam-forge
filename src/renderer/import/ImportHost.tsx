@@ -1,0 +1,25 @@
+import { Loader } from 'lucide-react';
+import { iconSize } from '@renderer/ui/tokens';
+import { ImportDialog } from './ImportDialog';
+import { confirmImport, useImportUi } from './importFlow';
+import styles from './ImportHost.module.css';
+
+/** Import settings dialog + a blocking busy indicator while a model is read/imported. */
+export function ImportHost() {
+  const staged = useImportUi((s) => s.staged);
+  const busy = useImportUi((s) => s.busy);
+  const setStaged = useImportUi((s) => s.setStaged);
+  return (
+    <>
+      {staged && <ImportDialog staged={staged} onCancel={() => setStaged(null)} onConfirm={(settings) => void confirmImport(staged, settings)} />}
+      {busy && (
+        <div className={styles.overlay} role="status" aria-live="polite" data-testid="import-busy">
+          <div className={styles.card}>
+            <Loader className={styles.spinner} size={iconSize('size-icon')} aria-hidden />
+            <span>{busy}</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

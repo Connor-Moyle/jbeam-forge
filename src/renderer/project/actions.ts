@@ -5,6 +5,8 @@ import { currentStateId, isDirty, projectStore } from '@renderer/app/stores/proj
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { captureThumbnail } from '@renderer/panels/viewport/registry';
+import { reloadUnreadySources } from '@renderer/import/importFlow';
+import type { ProjectFile } from '@shared/ipc-contract';
 
 /**
  * Project lifecycle (SPEC §4.1): every entry point that could lose work goes
@@ -40,6 +42,24 @@ export async function newProject(meta: NewProjectMeta): Promise<boolean> {
   return true;
 }
 
+/** A project referencing folders outside its own asks once before the app may read them. */
+async function consentToFolders(file: ProjectFile): Promise<void> {
+  if (file.pendingFolders.length === 0) return;
+  const allow = await useDialogStore.getState().askFolders(file.pendingFolders);
+  if (!allow) {
+    status('Some of this project’s models or textures stay unavailable until you allow their folders', 'warning');
+    return;
+  }
+  await call('project:allowFolders', { path: file.path });
+  reloadUnreadySources();
+}
+
+function loadFromFile(file: ProjectFile): boolean {
+  const ok = loadFromText(file.path, file.text);
+  if (ok) void consentToFolders(file).catch(() => undefined);
+  return ok;
+}
+
 function loadFromText(path: string, text: string): boolean {
   try {
     const { project, migratedFrom } = parseProject(text);
@@ -58,7 +78,7 @@ export async function openProject(): Promise<boolean> {
   if (!(await confirmDiscardOrSave())) return false;
   try {
     const file = await call('project:open');
-    return file ? loadFromText(file.path, file.text) : false;
+    return file ? loadFromFile(file) : false;
   } catch (err) {
     void useDialogStore.getState().showAlert('Could not open project', errorMessage(err));
     return false;
@@ -69,7 +89,7 @@ export async function openRecentProject(path: string): Promise<boolean> {
   if (!(await confirmDiscardOrSave())) return false;
   try {
     const file = await call('project:openRecent', { path });
-    return loadFromText(file.path, file.text);
+    return loadFromFile(file);
   } catch (err) {
     void useDialogStore.getState().showAlert('Could not open project', errorMessage(err));
     return false;

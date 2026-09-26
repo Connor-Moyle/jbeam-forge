@@ -1,0 +1,93 @@
+{
+  "format": "jbforge",
+  "formatVersion": 3,
+  "appVersion": "0.1.0",
+  "meta": {
+    "name": "Fixture Car v3",
+    "slug": "fixture_car_v3",
+    "author": "Fatkiwi",
+    "description": "Frozen v3 fixture (texture folders). Never edit.",
+    "brand": "Forge",
+    "type": "Car",
+    "createdAt": "2026-09-26T00:00:00.000Z",
+    "modifiedAt": "2026-09-26T00:00:00.000Z"
+  },
+  "sources": [
+    {
+      "id": "src_1",
+      "path": "models/test_car.dae",
+      "absolutePath": "C:/Projects/fixture/models/test_car.dae",
+      "format": "dae",
+      "import": {
+        "scale": 1,
+        "upAxis": "+y",
+        "forwardAxis": "+z"
+      },
+      "textureDirs": [
+        "C:/Projects/fixture/textures"
+      ],
+      "addedAt": "2026-09-26T00:00:00.000Z"
+    }
+  ],
+  "splits": [
+    {
+      "id": "split_1",
+      "meshKey": "src_1:body",
+      "name": "body_hood",
+      "triangleRuns": [
+        [
+          0,
+          12
+        ],
+        [
+          40,
+          8
+        ]
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "id": "part_body",
+      "taxonomyId": "main_body",
+      "name": "fixture_body",
+      "displayName": "Body",
+      "position": null,
+      "parentPartId": null,
+      "variantOf": null,
+      "price": 1000,
+      "description": "",
+      "constructionMaterial": "steel"
+    },
+    {
+      "id": "part_hood",
+      "taxonomyId": "hood",
+      "name": "fixture_hood",
+      "displayName": "Hood",
+      "position": null,
+      "parentPartId": "part_body",
+      "variantOf": null,
+      "price": 250,
+      "description": "",
+      "constructionMaterial": "aluminium"
+    }
+  ],
+  "assignments": {
+    "src_1:body": "part_body",
+    "split:split_1": "part_hood"
+  },
+  "ignoredMeshes": [
+    "src_1:helper_plane"
+  ],
+  "customTaxonomy": [],
+  "proxy": {},
+  "nodes": [],
+  "beams": [],
+  "tris": [],
+  "materials": [],
+  "hinges": [],
+  "suspension": {},
+  "powertrain": {},
+  "configs": [],
+  "variables": []
+}

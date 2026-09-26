@@ -39,6 +39,10 @@
   --backdrop: rgba(5, 6, 8, 0.6);
   --grid-major: #2c313a; /* viewport grid */
   --grid-minor: #1c1f25;
+  --mesh-default: #9aa1ab; /* untextured imported meshes (STL, missing materials) */
+  --viewport-sky: #2a2f38; /* hemisphere light, sky side */
+  --viewport-ground: #0e0f12; /* hemisphere light, ground side */
+  --viewport-key: #ffffff; /* key light */
 
   /* Category colour dots (scene tree); extended in Phase 3 */
   --cat-body: #4f8ef7;

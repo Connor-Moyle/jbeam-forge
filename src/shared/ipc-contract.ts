@@ -1,6 +1,7 @@
 import type { Settings, SettingsPatch } from './settings-schema';
 import type { StoredLayout } from './layout-schema';
 import type { BeamngDetection, InstallValidation } from './beamng';
+import type { SourceFormat } from './project/schema';
 
 /**
  * Single source of truth for every IPC channel. The preload bridge only
@@ -29,6 +30,11 @@ export interface DiagnosticInfo {
 export interface ProjectFile {
   path: string;
   text: string;
+  /**
+   * Folders outside the project's own folder that its sources/textures live
+   * in and that the user hasn't allowed yet (see project:allowFolders).
+   */
+  pendingFolders: string[];
 }
 
 export interface RecentProject {
@@ -59,12 +65,27 @@ export interface InvokeContract {
   'project:save': { req: { path: string; text: string; thumbnail?: string | null }; res: undefined };
   /** Shows a save dialog; returns the chosen path, or null when cancelled. */
   'project:saveAs': { req: { text: string; suggestedName: string; thumbnail?: string | null }; res: string | null };
+  /** Consent: let the opened project read its pending folders (remembered per project). */
+  'project:allowFolders': { req: { path: string }; res: undefined };
   'recent:list': { req: undefined; res: RecentProject[] };
   'recent:remove': { req: { path: string }; res: undefined };
   /** Reveal a recent/granted file in Explorer. */
   'shell:showItemInFolder': { req: { path: string }; res: undefined };
   /** Renderer reports unsaved changes so main can guard window close. */
   'window:setDirty': { req: { dirty: boolean }; res: undefined };
+  /** Pick a model file to import (grants its folder for side files and textures). */
+  'import:pickSource': { req: undefined; res: { path: string; format: SourceFormat; bytes: number } | null };
+  /** Read a model/texture/side file inside a granted folder. */
+  'import:readFile': { req: { path: string }; res: Uint8Array };
+  /** Resolve texture references for a model (see src/main/import/textures.ts). */
+  'import:resolveTextures': {
+    req: { sourcePath: string; refs: string[]; textureDirs: string[] };
+    res: { resolved: Record<string, string | null>; truncated: boolean };
+  };
+  /** "Locate folder…" for missing textures; grants the folder. */
+  'import:pickTextureDir': { req: undefined; res: string | null };
+  /** Find a project's source file on disk (relative path, absolute path, next to the project). */
+  'import:locateSource': { req: { projectPath: string | null; path: string; absolutePath: string }; res: string | null };
   /** run-desktop harness only (registered only in harness mode): scripted dialog answers. */
   'harness:queueDialog': { req: { answers: (string | null)[] }; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
@@ -73,7 +94,7 @@ export interface InvokeContract {
 }
 
 /** Commands the native menu forwards to the renderer. */
-export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'undo', 'redo'] as const;
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'undo', 'redo'] as const;
 export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */
@@ -109,6 +130,12 @@ export const INVOKE_CHANNELS = [
   'beamng:detect',
   'beamng:validate',
   'dialog:pickDirectory',
+  'import:pickSource',
+  'import:readFile',
+  'import:resolveTextures',
+  'import:pickTextureDir',
+  'import:locateSource',
+  'project:allowFolders',
 ] as const satisfies readonly InvokeChannel[];
 
 export const EVENT_CHANNELS = [
