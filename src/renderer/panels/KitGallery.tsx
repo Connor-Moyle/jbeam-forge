@@ -7,6 +7,7 @@ import {
   Checkbox,
   CollapsibleSection,
   EmptyState,
+  Field,
   IconButton,
   Input,
   Modal,
@@ -79,6 +80,9 @@ export function KitGalleryPanel() {
       </CollapsibleSection>
 
       <CollapsibleSection id="kit.inputs" title="Inputs" actions={<Badge tone="accent">6</Badge>}>
+        <Field label="Labelled field" hint="Field wraps a control with its label and an optional hint.">
+          <Input placeholder="Mod name" aria-label="Mod name" />
+        </Field>
         <Row label="Text">
           <Input placeholder="Vehicle name" aria-label="Vehicle name" />
           <Input defaultValue="dl4r" mono aria-label="Node id" />

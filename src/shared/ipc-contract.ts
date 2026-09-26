@@ -1,5 +1,6 @@
 import type { Settings, SettingsPatch } from './settings-schema';
 import type { StoredLayout } from './layout-schema';
+import type { BeamngDetection, InstallValidation } from './beamng';
 
 /**
  * Single source of truth for every IPC channel. The preload bridge only
@@ -42,6 +43,9 @@ export interface InvokeContract {
   'shell:openLogFolder': { req: undefined; res: undefined };
   'project:read': { req: { path: string }; res: ProjectReadResult };
   'project:write': { req: { path: string; text: string }; res: undefined };
+  'beamng:detect': { req: undefined; res: BeamngDetection };
+  'beamng:validate': { req: { dir: string }; res: InstallValidation };
+  'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
 }
 
 /** Payload types for main → renderer events. */
@@ -49,6 +53,7 @@ export interface EventContract {
   'menu:resetLayout': undefined;
   'menu:applyPreset': { preset: string };
   'settings:changed': Settings;
+  'status:message': { text: string; tone: 'info' | 'success' | 'warning' | 'danger' };
 }
 
 export type InvokeChannel = keyof InvokeContract;
@@ -65,12 +70,16 @@ export const INVOKE_CHANNELS = [
   'shell:openLogFolder',
   'project:read',
   'project:write',
+  'beamng:detect',
+  'beamng:validate',
+  'dialog:pickDirectory',
 ] as const satisfies readonly InvokeChannel[];
 
 export const EVENT_CHANNELS = [
   'menu:resetLayout',
   'menu:applyPreset',
   'settings:changed',
+  'status:message',
 ] as const satisfies readonly EventChannel[];
 
 /** API surface exposed on `window.forge` by the preload script. */

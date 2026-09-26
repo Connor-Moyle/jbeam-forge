@@ -28,3 +28,8 @@ export function describeError(err: unknown): { message: string; stack?: string }
     return { message: String(err) };
   }
 }
+
+/** Remove a leading UTF-8 byte-order mark (U+FEFF), common in BeamNG text files. */
+export function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}

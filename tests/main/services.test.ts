@@ -47,6 +47,13 @@ describe('settings', () => {
     expect(mergeSettings(null)).toEqual(DEFAULT_SETTINGS);
   });
 
+  it('loads a Phase 1 settings file (no BeamNG fields) with the new fields defaulted', async () => {
+    const file = join(dir, 'settings.json');
+    await writeFile(file, '{\n  "version": 1,\n  "debugLogging": true\n}\n');
+    const svc = new SettingsService(file, recordingLogger().logger);
+    expect(await svc.load()).toEqual({ version: 1, debugLogging: true, beamngInstallDir: null, beamngUserDir: null });
+  });
+
   it('uses defaults when the file is missing, without warning', async () => {
     const { logger, warnings } = recordingLogger();
     const svc = new SettingsService(join(dir, 'settings.json'), logger);

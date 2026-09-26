@@ -5,6 +5,7 @@ export { Callout, type CalloutTone } from './components/Callout';
 export { Checkbox } from './components/Checkbox';
 export { CollapsibleSection } from './components/CollapsibleSection';
 export { EmptyState } from './components/EmptyState';
+export { Field, FieldGroup } from './components/Field';
 export { IconButton } from './components/IconButton';
 export { Input } from './components/Input';
 export { Modal } from './components/Modal';

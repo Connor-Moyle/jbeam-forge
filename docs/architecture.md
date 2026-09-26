@@ -3,13 +3,15 @@
 Electron + React 19 + TypeScript + Vite (electron-vite). Zustand for state. No backend: the filesystem is reached only through the main process over typed IPC.
 
 ```
-src/main/       Electron main: window, menu, logging, crash hooks, IPC handlers, services
+src/main/       Electron main: window, menu, logging, crash hooks, IPC handlers, services,
+                beamng/ (install detection/validation, lazy zip reader)
 src/preload/    contextBridge → window.forge (allowlisted invoke/on). Sandboxed, CommonJS output.
-src/shared/     Pure code used by both sides: IPC contract, zod schemas, .jbforge io/migrations
+src/shared/     Pure code used by both sides: IPC contract, zod schemas, .jbforge io/migrations,
+                jbeam/ (lenient parser, idiomatic serializer, table model)
 src/renderer/   React app: app/ (App, stores, test bus), shell/ (dock, toolbar, status bar),
                 ui/ (tokens + component kit), panels/, diagnostics/ (logging, boundaries, IPC client)
 src/workers/    Web Worker code + worker log bridge
-scripts/        run-desktop harness, token lint
+scripts/        run-desktop harness, token lint, study-vehicle + jbeam-corpus (tsx, ground truth)
 eslint-rules/   forge/no-fresh-selector-fallback
 tests/          vitest: node project (main/shared/scripts) + jsdom project (renderer/workers)
 ```
@@ -63,3 +65,11 @@ Presets (`Modelling`, `Materials`, `Testing`) are data in `src/renderer/shell/pr
 - `npm run lint`: ESLint (type-checked, react-hooks as errors, selector rule) + token lint.
 - `npm run typecheck`: node and web tsconfigs.
 - `npm run run-desktop`: builds, then drives the real app via Playwright's Electron driver. It uses an isolated temp userData and screenshots to `artifacts/run-desktop/<timestamp>/`. It fails on any unexpected console error or `[error]` line in `main.log`. Deliberate crashes carry the `[harness-triggered]` marker. Hooks are exposed on `window.__jbforgeTest` only in dev/harness runs.
+
+## Ground truth (SPEC §3.1, Phase 2)
+
+- `npm run study-vehicle -- <name> [--common]` streams an official vehicle's text files, DAE node names and a `summary.json` into `scratch/vehicle-study/<name>/` (gitignored: game content never enters the repo).
+- `npm run jbeam:corpus [-- --catalogue=docs/beamng-section-catalogue.md]` parses, round-trips and table-reads every official `.jbeam`. Re-run it after every BeamNG update.
+- Both scripts find the install via `--dir`, then the app's saved setting, then auto-detect (`scripts/lib/installDir.ts`).
+- Official zips are read lazily with yauzl (`src/main/beamng/zip.ts`). `common.zip` is ~4 GB, so nothing ever buffers a whole archive.
+- Verified format notes: `docs/beamng-jbeam-syntax.md`, `docs/beamng-vehicle-layout.md`, `docs/beamng-reference-vehicle-notes.md`, `docs/beamng-section-catalogue.md`, `docs/testing-in-beamng.md`.

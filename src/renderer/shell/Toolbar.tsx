@@ -13,7 +13,10 @@ import {
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
+import { useState } from 'react';
 import { PRESET_IDS, type PresetId } from '@shared/layout-schema';
+import { useSettingsStore } from '@renderer/app/stores/settings';
+import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { Select } from '@renderer/ui/components/Select';
@@ -61,6 +64,8 @@ function pendingLabel(a: PendingAction): string {
 
 export function Toolbar() {
   const { preset, applyPreset, togglePanel, devMode } = useShell();
+  const settings = useSettingsStore((s) => s.settings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <header className={styles.toolbar} role="toolbar" aria-label="Main toolbar">
@@ -94,8 +99,9 @@ export function Toolbar() {
             Export
           </Button>
         </Tooltip>
-        <IconButton icon={Settings} label="Settings — coming in phase 2" aria-disabled="true" />
+        <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
       </div>
+      {settingsOpen && settings && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
     </header>
   );
 }

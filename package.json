@@ -15,7 +15,9 @@
     "lint": "eslint . && node scripts/lint-tokens.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "run-desktop": "electron-vite build && node scripts/run-desktop.mjs"
+    "run-desktop": "electron-vite build && node scripts/run-desktop.mjs",
+    "study-vehicle": "tsx --tsconfig tsconfig.node.json scripts/study-vehicle.ts",
+    "jbeam:corpus": "tsx --tsconfig tsconfig.node.json scripts/jbeam-corpus.ts"
   },
   "engines": {
     "node": ">=22"
@@ -29,6 +31,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "three": "^0.186.1",
+    "yauzl": "^3.4.0",
     "zod": "^4.6.5",
     "zustand": "^5.0.15"
   },
@@ -41,6 +44,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.4.5",
     "electron-vite": "^5.0.0",
@@ -50,10 +55,12 @@
     "globals": "^17.12.0",
     "jsdom": "^30.1.1",
     "playwright-core": "^1.63.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.70.1",
     "vite": "^7.3.6",
-    "vitest": "^5.0.2"
+    "vitest": "^5.0.2",
+    "yazl": "^3.3.1"
   },
   "allowScripts": {
     "electron@44.4.5": true,

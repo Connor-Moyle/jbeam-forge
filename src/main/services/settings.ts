@@ -52,15 +52,33 @@ export class SettingsService {
   }
 
   async update(patch: SettingsPatch): Promise<Settings> {
-    const valid = SettingsPatchSchema.parse(patch);
-    const next: Settings = { ...this.current, ...valid };
-    // Persist first: if the write fails, in-memory state and listeners stay on the saved value.
-    await atomicWrite(this.filePath, serializeSettings(next));
-    this.current = next;
-    this.logger.info('settings updated:', Object.keys(valid).join(', '));
-    for (const l of this.listeners) l(this.current);
-    return this.current;
+    const valid = SettingsPatchSchema.parse(patch); // async: invalid input rejects, never throws synchronously
+    return this.updateWith(() => valid);
   }
+
+  /**
+   * Serialized read-modify-write: `compute` sees the settings as they are when
+   * this update runs (after every earlier update), so concurrent writers never
+   * clobber each other. Return null to skip.
+   */
+  updateWith(compute: (current: Settings) => SettingsPatch | null): Promise<Settings> {
+    const run = this.queue.then(async () => {
+      const patch = compute(this.current);
+      if (patch === null || Object.keys(patch).length === 0) return this.current;
+      const valid = SettingsPatchSchema.parse(patch);
+      const next: Settings = { ...this.current, ...valid };
+      // Persist first: if the write fails, in-memory state and listeners stay on the saved value.
+      await atomicWrite(this.filePath, serializeSettings(next));
+      this.current = next;
+      this.logger.info('settings updated:', Object.keys(valid).join(', '));
+      for (const l of this.listeners) l(this.current);
+      return this.current;
+    });
+    this.queue = run.catch(() => undefined);
+    return run;
+  }
+
+  private queue: Promise<unknown> = Promise.resolve();
 
   onChange(listener: Listener): () => void {
     this.listeners.add(listener);

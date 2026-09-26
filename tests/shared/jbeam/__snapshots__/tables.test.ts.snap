@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`writeTable > serializes a nodes section idiomatically (snapshot) and parses back strictly 1`] = `
+"{
+"hood": {
+    "nodes": [
+        ["id", "posX", "posY", "posZ"],
+        //--HOOD--
+        {"nodeMaterial":"|NM_METAL", "group":"hood", "nodeWeight":0.5},
+        ["h1", -0.72,  -0.8,   0.865],
+        ["h2", 0,      -1.6,   0.775, {"nodeWeight":2, "selfCollision":false}],
+        {"group":""},
+        ["h3", 0.1,    0.2,    0.3]
+    ]
+}
+}
+"
+`;

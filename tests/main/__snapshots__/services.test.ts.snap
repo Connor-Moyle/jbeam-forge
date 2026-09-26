@@ -29,7 +29,9 @@ exports[`layout > serializes deterministically (snapshot) 1`] = `
 exports[`settings > serializes deterministically (snapshot) 1`] = `
 "{
   "version": 1,
-  "debugLogging": true
+  "debugLogging": true,
+  "beamngInstallDir": null,
+  "beamngUserDir": null
 }
 "
 `;

@@ -4,6 +4,7 @@ import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
 import { LayoutService } from './services/layout';
+import { BeamngService, rootsFromEnv } from './beamng/service';
 import { registerIpcHandlers } from './ipc/handlers';
 import { sendEvent, setTrustedUrlPredicate } from './ipc/register';
 import { buildAppMenu } from './menu';
@@ -31,7 +32,8 @@ async function start(): Promise<void> {
 
   hardenSessions();
   setTrustedUrlPredicate(makeTrustedUrlPredicate(devServerUrl));
-  registerIpcHandlers({ settings, layout });
+  const beamng = new BeamngService(rootsFromEnv(), scoped('beamng'));
+  registerIpcHandlers({ settings, layout, beamng });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 
@@ -45,6 +47,19 @@ async function start(): Promise<void> {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  // First run: find BeamNG without asking when the answer is unambiguous.
+  const win = mainWindow;
+  beamng
+    .autoConfigure(settings)
+    .then((message) => {
+      // The setting is already saved; the message is only a courtesy if the window is still open.
+      if (!message || win.isDestroyed()) return;
+      const send = () => sendEvent(win.webContents, 'status:message', { text: message, tone: 'success' });
+      if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+      else send();
+    })
+    .catch((err: unknown) => logger.warn('BeamNG auto-detect failed:', err));
 }
 
 // A second launch hands focus to the running instance and exits without

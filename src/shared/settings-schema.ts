@@ -10,6 +10,10 @@ export const SETTINGS_VERSION = 1;
 export const SettingsSchema = z.object({
   version: z.literal(SETTINGS_VERSION),
   debugLogging: z.boolean(),
+  /** BeamNG.drive install folder (contains BeamNG.drive.exe and content/vehicles). */
+  beamngInstallDir: z.string().min(1).nullable(),
+  /** BeamNG user folder (…/BeamNG.drive/current); mods are installed under it. */
+  beamngUserDir: z.string().min(1).nullable(),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -17,6 +21,8 @@ export type Settings = z.infer<typeof SettingsSchema>;
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   debugLogging: false,
+  beamngInstallDir: null,
+  beamngUserDir: null,
 };
 
 /** Fields the renderer may change. `version` is owned by the main process. */

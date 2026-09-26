@@ -1,0 +1,19 @@
+.gap {
+  margin-bottom: var(--space-3);
+}
+
+.readonly {
+  overflow: hidden;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-control);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+.help {
+  margin: var(--space-1) 0 var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-label);
+}

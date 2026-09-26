@@ -10,7 +10,7 @@
  *        node scripts/run-desktop.mjs --only=crash,gl
  */
 import { _electron } from 'playwright-core';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +23,18 @@ const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split('
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(ROOT, 'artifacts', 'run-desktop', stamp);
 const userData = mkdtempSync(join(tmpdir(), 'jbforge-harness-'));
+
+// A fake BeamNG install + %LOCALAPPDATA% so detection is deterministic and
+// never touches (or depends on) the machine's real game install.
+const fakeLocalAppData = join(userData, 'fake-localappdata');
+const fakeInstall = join(userData, 'fake-beamng');
+const fakeUserDir = join(fakeLocalAppData, 'BeamNG', 'BeamNG.drive', 'current');
+mkdirSync(join(fakeInstall, 'content', 'vehicles'), { recursive: true });
+mkdirSync(fakeUserDir, { recursive: true });
+writeFileSync(join(fakeInstall, 'BeamNG.drive.exe'), '');
+writeFileSync(join(fakeInstall, 'content', 'vehicles', 'fakecar.zip'), '');
+writeFileSync(join(fakeInstall, 'integrity.json'), '{"buildinfo": "harness build 1", "format": 1}');
+writeFileSync(join(fakeLocalAppData, 'BeamNG', 'BeamNG.drive.ini'), `version = 0.39.1.0\ninstallPath = ${fakeInstall}\\\n`);
 mkdirSync(outDir, { recursive: true });
 
 if (!existsSync(join(ROOT, 'out', 'main', 'index.js'))) {
@@ -38,7 +50,14 @@ async function launch() {
   const app = await _electron.launch({
     args: ['.'],
     cwd: ROOT,
-    env: { ...process.env, JBFORGE_USER_DATA: userData, JBFORGE_HARNESS: '1', ELECTRON_RENDERER_URL: '' },
+    env: {
+      ...process.env,
+      JBFORGE_USER_DATA: userData,
+      JBFORGE_HARNESS: '1',
+      ELECTRON_RENDERER_URL: '',
+      JBFORGE_LOCALAPPDATA: fakeLocalAppData,
+      JBFORGE_STEAM_ROOTS: '',
+    },
     timeout: TIMEOUT,
   });
   const page = await app.firstWindow();
@@ -80,6 +99,48 @@ const scenarios = [
       assert(bodyFont.includes('Inter'), `body font is Inter (got ${bodyFont})`);
       await page.evaluate(() => document.fonts.ready);
       await shot(page, 'shell-modelling');
+    },
+  },
+  {
+    id: 'settings',
+    name: 'BeamNG auto-detect + Settings modal',
+    async run({ page }) {
+      const settingsFile = join(userData, 'settings.json');
+      const saved = () => {
+        try {
+          return JSON.parse(readFileSync(settingsFile, 'utf8'));
+        } catch {
+          return {};
+        }
+      };
+      // First run: exactly one valid install → configured without asking.
+      for (let i = 0; i < 50 && !saved().beamngInstallDir; i++) await page.waitForTimeout(100);
+      assert(saved().beamngInstallDir === fakeInstall, `auto-detected install saved (got ${saved().beamngInstallDir})`);
+      assert(saved().beamngUserDir === fakeUserDir, 'auto-detected user folder saved');
+
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByTestId('beamng-status').filter({ hasText: '0.39.1 · 1 vehicle' }).waitFor();
+      assert((await page.getByTestId('beamng-user-dir').textContent()) === fakeUserDir, 'user folder shown');
+      await shot(page, 'settings-valid');
+
+      await page.getByTestId('beamng-dir').fill(join(userData, 'not-a-game'));
+      await page.getByTestId('beamng-status').filter({ hasText: 'Folder does not exist' }).waitFor();
+      assert(await page.getByTestId('settings-save').isDisabled(), 'Save disabled for an invalid folder');
+      await shot(page, 'settings-invalid');
+
+      await page.getByTestId('beamng-dir').fill(fakeInstall);
+      await page.getByTestId('beamng-status').filter({ hasText: '1 vehicle' }).waitFor();
+      await page.getByRole('switch', { name: 'Debug logging' }).click();
+      await page.getByTestId('settings-save').click();
+      await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
+      for (let i = 0; i < 30 && saved().debugLogging !== true; i++) await page.waitForTimeout(100);
+      assert(saved().debugLogging === true, 'debug logging saved');
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      assert(await page.getByRole('switch', { name: 'Debug logging' }).isChecked(), 'modal reflects saved settings');
+      await page.keyboard.press('Escape');
+      await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
     },
   },
   {

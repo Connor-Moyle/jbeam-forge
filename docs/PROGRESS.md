@@ -7,7 +7,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | # | Phase | Gate | Status |
 |---|---|---|---|
 | 1 | Foundations — scaffold, design tokens + component kit, logging/error boundaries, dockview shell, .jbforge versioning/migrations | — | done |
-| 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | not started |
+| 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | done |
 | 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | not started |
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | not started |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | not started |
@@ -22,6 +22,51 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | not started |
 
 ## Phase log
+
+### Phase 2 — Ground truth (done 2026-09-26)
+
+**Ground truth used:** BeamNG.drive **0.39.1.0** (build 20972), installed at `I:SteamLibrarysteamappscommonBeamNG.drive`. Reference vehicles: covet, pickup, etk800.
+
+**Delivered**
+- **BeamNG locations** (`src/main/beamng/locate.ts`):
+  - The install is detected from `%LOCALAPPDATA%BeamNGBeamNG.drive.ini`, then Steam `libraryfolders.vdf`.
+  - Validation checks for the exe and `content/vehicles`, and reports version, build and vehicle count.
+  - The user folder is detected too.
+  - Both are persisted as settings (additive; Phase 1 settings files still load). First run auto-configures when there's exactly one valid install.
+- **Settings modal** (toolbar gear): install folder with Browse, Detect and live validation; the detected user folder; the debug-logging toggle. Main refuses to save an invalid install folder.
+- **Lazy zip reader** (yauzl): zip64, streaming, traversal-safe extraction. `common.zip` is 4.2 GB and is never buffered.
+- **Lenient jbeam parser, idiomatic serializer and table model** (`src/shared/jbeam/`).
+  - The parser handles every quirk found in official content, including stray commas around colons and trailing commas after the root.
+  - The serializer writes aligned, official-looking output that is strict JSON plus comments.
+  - The table model covers header, option rows, per-row options and resets.
+- **`npm run study-vehicle -- <name> [--common]`**: text files, DAE node names and `summary.json`, written to `scratch/` (gitignored).
+- **`npm run jbeam:corpus`**: **5062/5062 official jbeam files** parse, round-trip exactly through lenient → serialize → strict, and serialize idempotently. 68,286 tables were read. It also generates `docs/beamng-section-catalogue.md` (344 sections, header variants).
+- **Docs** (all evidence-based and re-verifiable):
+  - `beamng-jbeam-syntax.md`
+  - `beamng-vehicle-layout.md`
+  - `beamng-reference-vehicle-notes.md` (old-build claims marked ✔/✘/➕)
+  - `beamng-section-catalogue.md`
+  - `testing-in-beamng.md` (in-game gate protocol for Phase 5)
+
+**Key findings that change later phases**
+- Write `slots2`, not `slots`. Legacy `slots` still ships in 52 vehicles, so the importer must read both.
+- Flexbody meshes resolve against the vehicle's DAEs **and** `common.zip`, and can be `$=` expressions. The Phase 5 validator must handle both. Our own meshes must still resolve in our own DAE.
+- `info.json` and `.pc` are not strict JSON, so parse everything leniently. A legacy flat `.pc` format still ships.
+- `refNodes`: write the 6-column form. `slotType` may be an array.
+
+**Code review fixes** (`/code-review`, before commit; each has a regression test):
+- **Serializer:** commas were dropped when an earlier array element equalled the last one, which broke strict JSON. The comma is now decided by position.
+- **Parser:** numbers longer than 64 characters were split into two values.
+- **Zip reader:** concurrent first calls ran the central directory twice. The pending read is now cached.
+- **Settings:** auto-detect could overwrite a folder the user saved during detection, and overlapping saves could lose fields. Updates are now serialized, with a read-modify-write step (`updateWith`).
+- **Settings modal:** a stale validation could enable Save for a new path. Each result is now tied to the path it checked.
+- **study-vehicle:** the output folder is created before the first write.
+- **Startup:** the status message is skipped if the window has already closed.
+
+**Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 225/225 ✔ · `npm run run-desktop` 9/9 ✔ (new: BeamNG auto-detect + Settings modal against a fake install) · `npm run jbeam:corpus` 5062/5062 ✔. No in-game gate: export output is unchanged.
+
+**Next:** Phase 3 — Import + taxonomy.
+
 
 ### Phase 1 — Foundations (done 2026-09-26)
 

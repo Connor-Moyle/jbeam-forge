@@ -1,0 +1,34 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`serializeJbeam > writes idiomatic, aligned output (snapshot) 1`] = `
+"{
+"test_part": {
+    "information": {"authors":"JBeam Forge tests", "name":"Quirks", "value":275},
+    "slotType": "test_part",
+    "slots2": [
+        ["name",     "allowTypes", "denyTypes", "default", "description"],
+        ["test_mod", ["test_mod"], [],          "",        "Additional Modification", {"coreSlot":true}]
+    ],
+    "scaledragCoef": 1,
+    "nodes": [
+        ["id", "posX", "posY", "posZ"],
+        {"nodeMaterial":"|NM_METAL"},
+        {"group":"test_part"},
+        {"nodeWeight":0.5},
+        ["n1", -0.72,  -0.8,   0.865],
+        ["n2", 0.001,  250,    0, {"nodeWeight":2}],
+        {"group":""}
+    ],
+    "beams": [
+        ["id1:", "id2:"],
+        {"beamSpring":2000000, "beamDamp":150, "beamDeform":"FLT_MAX", "beamStrength":"FLT_MAX"},
+        ["n1",   "n2"]
+    ],
+    "spoke1": {"links:":["n1"]},
+    "brakes": {"brakeTorque":"$=$brakebias == nil and $brakestrength*600 or 2800"},
+    "text": "quote \\" backslash \\\\ tab \\t unicode é slash /",
+    "flags": [true, false, null]
+}
+}
+"
+`;
