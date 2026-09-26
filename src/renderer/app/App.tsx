@@ -59,6 +59,7 @@ function AppEffects() {
           return {
             sources: sources.map((src) => ({ status: src.status, fileName: src.fileName, meshes: src.meshes.length, error: src.error, textures: src.textures, stats: src.stats })),
             meshes: sources.reduce((n, src) => n + src.meshes.length, 0),
+            meshNames: sources.flatMap((src) => src.meshes.map((m) => m.name)).slice(0, 50),
             selection: s.selection,
           };
         },

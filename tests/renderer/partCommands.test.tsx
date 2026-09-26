@@ -25,7 +25,7 @@ beforeEach(() => {
   doc.sources.push({ id: 'src', path: 'car.dae', absolutePath: 'C:/car.dae', format: 'dae', import: { scale: 1, upAxis: '+z', forwardAxis: '-y' }, textureDirs: [], addedAt: '2026-01-01T00:00:00.000Z' });
   projectStore.getState().load(doc, 'C:/test.jbforge');
   useSceneStore.getState().clear();
-  useSceneStore.getState().setSource({ sourceId: 'src', status: 'ready', fingerprint: 'x', fileName: 'car.dae', meshes: MESHES, textures: null, error: null, stats: null });
+  useSceneStore.getState().setSource({ sourceId: 'src', status: 'ready', fingerprint: 'x', fileName: 'car.dae', raw: MESHES, meshes: MESHES, splitsKey: '[]', textures: null, error: null, stats: null });
   cmd.useClassifyUi.getState().setPending(null);
 });
 

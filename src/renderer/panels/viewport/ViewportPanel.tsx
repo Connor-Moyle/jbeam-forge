@@ -6,7 +6,10 @@ import { reportError } from '@renderer/diagnostics/globalHandlers';
 import { allMeshes, useSceneStore } from '@renderer/app/stores/scene';
 import { startImport } from '@renderer/import/importFlow';
 import type { ImportedMesh } from '@renderer/import/normalize';
-import { ViewportRuntime, webglAvailable, type GlState, type ViewState } from './viewportRuntime';
+import { ViewportRuntime, webglAvailable, type GlState, type ToolState, type ViewState } from './viewportRuntime';
+import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
+import { SplitToolbar } from '@renderer/split/SplitToolbar';
+import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
 export function ViewportPanel() {
@@ -14,6 +17,7 @@ export function ViewportPanel() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [glState, setGlState] = useState<GlState>(() => (webglAvailable() ? 'starting' : 'unsupported'));
   const [fatal, setFatal] = useState<Error | null>(null);
+  const [toolShape, setToolShape] = useState<number[] | null>(null);
   const hasMeshes = useSceneStore((s) => Object.values(s.sources).some((src) => src.meshes.length > 0));
 
   useEffect(() => {
@@ -35,6 +39,8 @@ export function ViewportPanel() {
           scene.getState().select([key], mods.ctrl ? 'toggle' : mods.shift ? 'add' : 'replace');
         },
         onDoublePick: (key) => runtime?.frame(key ? [key] : []),
+        onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
+        onToolShape: setToolShape,
       });
     } catch (err) {
       reportError('viewport init failed', err);
@@ -59,6 +65,14 @@ export function ViewportPanel() {
     };
     push();
     if (meshes.length) rt.frame();
+    // Split tool state → runtime.
+    const pushTool = () => {
+      const t = useSplitTool.getState();
+      const tool: ToolState | null = t.meshKey ? { meshKey: t.meshKey, mode: t.mode, selected: t.selected, angleDeg: t.angleDeg, radius: t.radius, plane: t.plane } : null;
+      rt.setTool(tool);
+    };
+    pushTool();
+    const unsubscribeTool = useSplitTool.subscribe(pushTool);
     let lastFrameRequest = scene.getState().frameRequest;
     const unsubscribe = scene.subscribe((s) => {
       push();
@@ -70,7 +84,10 @@ export function ViewportPanel() {
 
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'f' || e.key === 'F') rt.frame(scene.getState().selection);
+      const splitting = useSplitTool.getState().meshKey !== null;
+      if (splitting && e.key === 'Escape') useSplitTool.getState().cancel();
+      else if (splitting && e.key === 'Enter') void applySplitSelection();
+      else if (e.key === 'f' || e.key === 'F') rt.frame(scene.getState().selection);
       else if (e.key === 'Home') rt.frame();
       else return;
       e.preventDefault();
@@ -79,6 +96,7 @@ export function ViewportPanel() {
 
     return () => {
       unsubscribe();
+      unsubscribeTool();
       host.removeEventListener('keydown', onKey);
       rt.dispose();
     };
@@ -96,6 +114,12 @@ export function ViewportPanel() {
   return (
     <div ref={hostRef} className={styles.host} data-testid="viewport" data-gl-state={glState} tabIndex={0}>
       <canvas ref={canvasRef} className={styles.canvas} />
+      <SplitToolbar />
+      {toolShape && toolShape.length >= 4 && (
+        <svg className={splitStyles.shape} aria-hidden>
+          <polygon points={svgPoints(toolShape)} />
+        </svg>
+      )}
       {glState === 'lost' && (
         <div className={styles.pill} role="status">
           <MonitorX size={iconSize('size-icon-sm')} aria-hidden />
@@ -110,4 +134,11 @@ export function ViewportPanel() {
       )}
     </div>
   );
+}
+
+/** [x0, y0, x1, y1, …] → "x0,y0 x1,y1 …" for an SVG polygon. */
+function svgPoints(flat: readonly number[]): string {
+  const out: string[] = [];
+  for (let i = 0; i + 1 < flat.length; i += 2) out.push(`${flat[i]},${flat[i + 1]}`);
+  return out.join(' ');
 }

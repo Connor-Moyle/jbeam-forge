@@ -11,6 +11,8 @@ import { textureCaps } from '@renderer/panels/viewport/registry';
 import type { ImportSettings } from './normalize';
 import { dirOf, fileNameOf, finishImport, stageImport, type StagedImport } from './pipeline';
 import { disposeImported } from './dispose';
+import { applySplits, splitsForSource } from './applySplits';
+import type { ImportedMesh } from './normalize';
 import { EMPTY_ARR } from '@shared/empty';
 import { offerAutoClassify } from '@renderer/parts/commands';
 
@@ -54,6 +56,19 @@ function storedPath(absolutePath: string): string {
   return absolutePath;
 }
 
+/** The source's meshes with the open document's splits applied (problems are logged and surfaced once). */
+export function deriveMeshes(sourceId: string, raw: ImportedMesh[]): { meshes: ImportedMesh[]; splitsKey: string } {
+  const splits = splitsForSource(projectStore.getState().doc?.splits ?? EMPTY_ARR, sourceId);
+  const splitsKey = JSON.stringify(splits);
+  if (splits.length === 0) return { meshes: raw, splitsKey };
+  const { meshes, problems } = applySplits(raw, splits);
+  if (problems.length) {
+    logger.warn(`${problems.length} split(s) could not be applied:`, problems.join('; '));
+    useUiStore.getState().pushStatus(`${problems.length} split${problems.length === 1 ? '' : 's'} could not be re-applied: ${problems[0]}`, 'warning', 10000);
+  }
+  return { meshes, splitsKey };
+}
+
 /** Toolbar / Scene panel / wizard entry point. */
 export async function startImport(): Promise<void> {
   if (!projectStore.getState().doc) return;
@@ -94,7 +109,8 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
       status: 'ready',
       fingerprint: fingerprint(source),
       fileName: staged.fileName,
-      meshes: done.meshes,
+      raw: done.meshes,
+      ...deriveMeshes(sourceId, done.meshes),
       textures: done.textures,
       error: null,
       stats: { triangles: staged.triangles, totalMs: done.totalMs },
@@ -142,7 +158,7 @@ function stillWanted(sourceId: string, fp: string): boolean {
 async function loadFromDisk(source: Source): Promise<void> {
   const fp = fingerprint(source);
   inFlight.set(source.id, fp);
-  const base = { sourceId: source.id, fingerprint: fp, fileName: fileNameOf(source.absolutePath), meshes: [], textures: null, stats: null };
+  const base = { sourceId: source.id, fingerprint: fp, fileName: fileNameOf(source.absolutePath), raw: [], meshes: [], splitsKey: '', textures: null, stats: null };
   // Every store write checks the source still exists: an undo or project close
   // while this load runs must not leave a ghost source behind.
   const store = (s: Parameters<ReturnType<typeof useSceneStore.getState>['setSource']>[0]) => {
@@ -161,7 +177,7 @@ async function loadFromDisk(source: Source): Promise<void> {
       disposeImported(done.meshes);
       return;
     }
-    store({ ...base, status: 'ready', meshes: done.meshes, textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
+    store({ ...base, status: 'ready', raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
   } catch (err) {
     store({ ...base, status: 'error', error: errorText(err) });
   } finally {
@@ -202,6 +218,18 @@ export function useSourceSync(): void {
       void loadFromDisk(s);
     }
   }, [sources]);
+
+  // Splits changed (split, unsplit, undo/redo): re-derive the affected sources from their raw meshes.
+  const splits = useProjectStore((s) => s.doc?.splits ?? EMPTY_ARR);
+  useEffect(() => {
+    const scene = useSceneStore.getState();
+    for (const src of Object.values(scene.sources)) {
+      if (src.status !== 'ready') continue;
+      const key = JSON.stringify(splitsForSource(splits, src.sourceId));
+      if (key === src.splitsKey) continue;
+      scene.setSource({ ...src, ...deriveMeshes(src.sourceId, src.raw) });
+    }
+  }, [splits]);
 
   // Leaving the editor (project closed) cancels loads and frees all geometry.
   useEffect(

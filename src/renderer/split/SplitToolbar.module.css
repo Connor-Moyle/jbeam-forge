@@ -1,0 +1,78 @@
+.bar {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  z-index: var(--z-overlay);
+  display: flex;
+  max-width: calc(100% - var(--space-6));
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  font-size: var(--text-control);
+  transform: translateX(-50%);
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-0);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.title svg {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
+.group {
+  display: inline-flex;
+  gap: var(--space-half);
+}
+
+.control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-label);
+}
+
+.slider {
+  width: var(--size-select-max);
+}
+
+.axis {
+  width: var(--size-preset-select);
+}
+
+.value,
+.count {
+  color: var(--text-0);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.shape {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.shape polygon {
+  fill: var(--accent-dim);
+  stroke: var(--accent);
+  stroke-width: var(--border-width);
+  stroke-dasharray: 4 3;
+}

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import type { TextureReport } from '@renderer/import/textures';
-import { disposeImported } from '@renderer/import/dispose';
+import { disposeGeometries, disposeImported } from '@renderer/import/dispose';
 import { EMPTY_ARR } from '@shared/empty';
 
 /**
@@ -18,7 +18,12 @@ export interface LoadedSource {
   /** Settings/texture-folder fingerprint the meshes were built with. */
   fingerprint: string;
   fileName: string;
+  /** Meshes exactly as loaded (owned: geometry, materials, textures). */
+  raw: ImportedMesh[];
+  /** What's shown: `raw` with the document's splits applied (split geometries share raw attributes). */
   meshes: ImportedMesh[];
+  /** Fingerprint of the splits `meshes` was derived with. */
+  splitsKey: string;
   textures: TextureReport | null;
   error: string | null;
   stats: { triangles: number; totalMs: number } | null;
@@ -48,7 +53,18 @@ interface SceneState {
 }
 
 function disposeSource(s: LoadedSource | undefined): void {
-  if (s) disposeImported(s.meshes);
+  if (s) disposeImported([...s.raw, ...s.meshes]);
+}
+
+/** Free what `next` no longer uses from `prev`: everything if the raw import changed, else stale split geometries. */
+function releaseReplaced(prev: LoadedSource, next: LoadedSource): void {
+  if (prev.raw !== next.raw) {
+    disposeSource(prev);
+    return;
+  }
+  if (prev.meshes === next.meshes) return;
+  const keep = new Set<unknown>([...next.raw, ...next.meshes].map((m) => m.geometry));
+  disposeGeometries(prev.meshes, keep);
 }
 
 export const useSceneStore = create<SceneState>()((set, get) => ({
@@ -61,7 +77,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
 
   setSource: (s) => {
     const prev = get().sources[s.sourceId];
-    if (prev && prev.meshes !== s.meshes) disposeSource(prev);
+    if (prev) releaseReplaced(prev, s);
     set((st) => ({ sources: { ...st.sources, [s.sourceId]: s } }));
   },
   removeSource: (sourceId) => {

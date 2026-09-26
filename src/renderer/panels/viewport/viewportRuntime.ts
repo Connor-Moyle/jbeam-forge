@@ -5,9 +5,12 @@ import {
   DirectionalLight,
   GridHelper,
   Group,
+  DoubleSide,
   HemisphereLight,
+  MOUSE,
   Mesh,
   MeshBasicMaterial,
+  PlaneGeometry,
   PerspectiveCamera,
   Raycaster,
   Scene,
@@ -25,6 +28,9 @@ import { rlog } from '@renderer/diagnostics/logger';
 import { onTestSignal } from '@renderer/app/testBus';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import type { GpuTextureCaps } from '@renderer/import/textures';
+import { subsetGeometry } from '@renderer/import/applySplits';
+import { disposeSharingGeometry } from '@renderer/import/dispose';
+import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
 import { registerViewport } from './registry';
 
@@ -50,12 +56,48 @@ export interface ViewState {
   hover: string | null;
 }
 
+/** Face-selection split tool, as the viewport needs it (see src/renderer/split/splitTool.ts). */
+export interface ToolState {
+  meshKey: string;
+  mode: 'box' | 'lasso' | 'paint' | 'fill' | 'plane';
+  selected: readonly number[];
+  angleDeg: number;
+  radius: number;
+  plane: { axis: 'x' | 'y' | 'z'; offset: number; flip: boolean };
+}
+
+export type ToolOp = 'replace' | 'add' | 'subtract';
+
 export interface ViewportCallbacks {
   onState: (s: GlState) => void;
   onFatal: (e: Error) => void;
   onHover: (meshKey: string | null) => void;
   onPick: (meshKey: string | null, mods: { shift: boolean; ctrl: boolean }) => void;
   onDoublePick: (meshKey: string | null) => void;
+  /** Split tool: triangles picked by a box/lasso/paint/fill gesture. */
+  onToolSelect?: (triangles: number[], op: ToolOp) => void;
+  /** Split tool: the box/lasso outline being drawn (canvas px, x/y pairs), or null when done. */
+  onToolShape?: (points: number[] | null) => void;
+}
+
+const toolCaches = new WeakMap<BufferGeometry, { adjacency?: ReturnType<typeof triangleAdjacency>; centroids?: Float32Array }>();
+
+function geometryArrays(g: BufferGeometry): { positions: ArrayLike<number>; index: ArrayLike<number> } {
+  const positions = g.getAttribute('position').array;
+  if (g.index) return { positions, index: g.index.array };
+  const n = g.getAttribute('position').count;
+  const index = new Uint32Array(n - (n % 3));
+  for (let i = 0; i < index.length; i++) index[i] = i;
+  return { positions, index };
+}
+
+function toolCache(g: BufferGeometry) {
+  let c = toolCaches.get(g);
+  if (!c) {
+    c = {};
+    toolCaches.set(g, c);
+  }
+  return c;
 }
 
 /**
@@ -85,6 +127,13 @@ export class ViewportRuntime {
   private readonly hoverMaterial: MeshBasicMaterial;
   private view: ViewState = { meshes: [], hidden: {}, selection: [], hover: null };
   private pendingHover: { x: number; y: number } | null = null;
+  private tool: ToolState | null = null;
+  private toolOverlay: Mesh | null = null;
+  private toolOverlayFor: { geometry: BufferGeometry; selected: readonly number[] } | null = null;
+  private readonly toolMaterial: MeshBasicMaterial;
+  private readonly planeMaterial: MeshBasicMaterial;
+  private planeMesh: Mesh | null = null;
+  private pendingPaint: { x: number; y: number; op: ToolOp } | null = null;
   private injectedFrameErrors = 0;
 
   constructor(
@@ -111,6 +160,8 @@ export class ViewportRuntime {
 
     const accent = new Color(resolveToken('accent') || undefined);
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    this.toolMaterial = new MeshBasicMaterial({ color: new Color(resolveToken('warning') || undefined), transparent: true, opacity: 0.6, depthWrite: false, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    this.planeMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.18, depthWrite: false, side: DoubleSide });
     this.hoverMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.16, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 
     this.camera.position.set(5, 3, 7);
@@ -175,8 +226,45 @@ export class ViewportRuntime {
 
   private installPointer(canvas: HTMLCanvasElement): void {
     let down: { x: number; y: number } | null = null;
+    let drag: { mode: 'box' | 'lasso' | 'paint'; op: ToolOp; points: number[] } | null = null;
+    const local = (e: PointerEvent): [number, number] => {
+      const r = canvas.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+    const opOf = (e: PointerEvent | MouseEvent): ToolOp => (e.ctrlKey || e.metaKey ? 'subtract' : e.shiftKey ? 'add' : 'replace');
+
+    // Split tool gestures take the left button (orbit moves to the right button meanwhile).
+    this.listen(canvas, 'pointerdown', (e) => {
+      const t = this.tool;
+      if (!t || e.button !== 0 || (t.mode !== 'box' && t.mode !== 'lasso' && t.mode !== 'paint')) return;
+      const [x, y] = local(e);
+      drag = { mode: t.mode, op: t.mode === 'paint' ? (e.ctrlKey || e.metaKey ? 'subtract' : 'add') : opOf(e), points: [x, y] };
+      canvas.setPointerCapture?.(e.pointerId);
+      if (t.mode === 'paint') this.pendingPaint = { x: e.clientX, y: e.clientY, op: drag.op };
+    });
     this.listen(canvas, 'pointermove', (e) => {
-      this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
+      if (drag) {
+        const [x, y] = local(e);
+        if (drag.mode === 'box') {
+          drag.points = [drag.points[0]!, drag.points[1]!, x, y];
+          this.callbacks.onToolShape?.(rectPolygon(drag.points[0]!, drag.points[1]!, x, y));
+        } else if (drag.mode === 'lasso') {
+          const n = drag.points.length;
+          if (Math.hypot(x - drag.points[n - 2]!, y - drag.points[n - 1]!) > 3) drag.points.push(x, y);
+          this.callbacks.onToolShape?.(drag.points);
+        } else this.pendingPaint = { x: e.clientX, y: e.clientY, op: drag.op };
+        return;
+      }
+      if (!this.tool) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
+    });
+    this.listen(canvas, 'pointerup', (e) => {
+      if (!drag || e.button !== 0) return;
+      const d = drag;
+      drag = null;
+      this.callbacks.onToolShape?.(null);
+      if (d.mode === 'paint') return;
+      const polygon = d.mode === 'box' ? (d.points.length === 4 ? rectPolygon(d.points[0]!, d.points[1]!, d.points[2]!, d.points[3]!) : []) : d.points;
+      if (polygon.length >= 6) this.callbacks.onToolSelect?.(this.trianglesInScreenPolygon(polygon), d.op);
     });
     this.listen(canvas, 'pointerleave', () => {
       this.pendingHover = null;
@@ -190,9 +278,18 @@ export class ViewportRuntime {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       down = null;
       if (moved > CLICK_MAX_DRAG_PX) return; // an orbit drag, not a click
+      if (this.tool) {
+        if (this.tool.mode === 'fill') {
+          const face = this.pickToolFace(e.clientX, e.clientY);
+          if (face !== null) this.callbacks.onToolSelect?.(this.flood([face], { maxAngleDeg: this.tool.angleDeg }), opOf(e));
+        }
+        return; // clicks never change the mesh selection while splitting
+      }
       this.callbacks.onPick(this.pick(e.clientX, e.clientY), { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
     });
-    this.listen(canvas, 'dblclick', (e) => this.callbacks.onDoublePick(this.pick(e.clientX, e.clientY)));
+    this.listen(canvas, 'dblclick', (e) => {
+      if (!this.tool) this.callbacks.onDoublePick(this.pick(e.clientX, e.clientY));
+    });
   }
 
   /** Mesh key under the given client point, or null. */
@@ -209,7 +306,8 @@ export class ViewportRuntime {
       if (!g.boundingSphere) g.computeBoundingSphere();
       const sphere = new Sphere().copy(g.boundingSphere!).applyMatrix4(mesh.matrixWorld);
       if (!this.raycaster.ray.intersectsSphere(sphere)) continue;
-      if (!g.boundsTree) g.computeBoundsTree();
+      // indirect: never reorder the index — stored splits refer to triangle numbers.
+      if (!g.boundsTree) g.computeBoundsTree({ indirect: true });
       candidates.push(mesh);
     }
     const hit = this.raycaster.intersectObjects(candidates, false)[0];
@@ -239,6 +337,10 @@ export class ViewportRuntime {
     }
     for (const [key, obj] of this.meshObjects) obj.visible = !next.hidden[key];
     this.syncOverlays();
+    if (this.tool) {
+      this.syncToolOverlay();
+      this.syncPlane();
+    }
   }
 
   private syncOverlays(): void {
@@ -266,6 +368,117 @@ export class ViewportRuntime {
       o.material = mat;
       o.visible = src.visible;
     }
+  }
+
+  // ---------------------------------------------------------------- split tool
+
+  /** Enter/leave/update the face-selection tool. */
+  setTool(tool: ToolState | null): void {
+    const prev = this.tool;
+    this.tool = tool;
+    if (!!prev !== !!tool || prev?.mode !== tool?.mode) {
+      const gesture = !!tool && (tool.mode === 'box' || tool.mode === 'lasso' || tool.mode === 'paint');
+      this.controls.mouseButtons = gesture ? { LEFT: -1 as MOUSE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE } : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
+    }
+    if (tool && !prev) this.callbacks.onHover(null);
+    this.syncToolOverlay();
+    this.syncPlane();
+  }
+
+  private toolMesh(): Mesh | undefined {
+    return this.tool ? this.meshObjects.get(this.tool.meshKey) : undefined;
+  }
+
+  private pickToolFace(clientX: number, clientY: number): number | null {
+    const mesh = this.toolMesh();
+    if (!mesh) return null;
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return null;
+    this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    if (!mesh.geometry.boundsTree) mesh.geometry.computeBoundsTree({ indirect: true });
+    const hit = this.raycaster.intersectObject(mesh, false)[0];
+    return hit?.faceIndex ?? null;
+  }
+
+  private flood(seeds: number[], opts: { maxAngleDeg?: number; radius?: number }): number[] {
+    const mesh = this.toolMesh();
+    if (!mesh) return [];
+    const g = mesh.geometry;
+    const { positions, index } = geometryArrays(g);
+    const cache = toolCache(g);
+    cache.adjacency ??= triangleAdjacency(index, weldMap(positions));
+    return floodFill(positions, index, seeds, opts, cache.adjacency);
+  }
+
+  /** Triangles of the tool mesh whose centroid projects inside a canvas-space polygon (selects through the mesh). */
+  private trianglesInScreenPolygon(polygon: number[]): number[] {
+    const mesh = this.toolMesh();
+    if (!mesh) return [];
+    const g = mesh.geometry;
+    const cache = toolCache(g);
+    if (!cache.centroids) {
+      const { positions, index } = geometryArrays(g);
+      cache.centroids = triangleCentroids(positions, index);
+    }
+    const c = cache.centroids;
+    const rect = this.canvas.getBoundingClientRect();
+    this.modelRoot.updateMatrixWorld(true);
+    const projected = new Float32Array((c.length / 3) * 2);
+    const v = new Vector3();
+    for (let t = 0; t < c.length / 3; t++) {
+      v.set(c[t * 3]!, c[t * 3 + 1]!, c[t * 3 + 2]).applyMatrix4(mesh.matrixWorld).project(this.camera);
+      const behind = v.z > 1 || v.z < -1;
+      projected[t * 2] = behind ? Number.NaN : ((v.x + 1) / 2) * rect.width;
+      projected[t * 2 + 1] = behind ? Number.NaN : ((1 - v.y) / 2) * rect.height;
+    }
+    return trianglesInPolygon(projected, polygon);
+  }
+
+  private syncToolOverlay(): void {
+    const mesh = this.toolMesh();
+    const want = mesh && this.tool && this.tool.selected.length ? { geometry: mesh.geometry, selected: this.tool.selected } : null;
+    const cur = this.toolOverlayFor;
+    if (want && cur && cur.geometry === want.geometry && cur.selected === want.selected) return;
+    if (this.toolOverlay) {
+      this.overlayRoot.remove(this.toolOverlay);
+      disposeSharingGeometry(this.toolOverlay.geometry);
+      this.toolOverlay = null;
+    }
+    this.toolOverlayFor = want;
+    if (!want) return;
+    this.toolOverlay = new Mesh(subsetGeometry(want.geometry, want.selected), this.toolMaterial);
+    this.toolOverlay.renderOrder = 2;
+    this.overlayRoot.add(this.toolOverlay);
+  }
+
+  private syncPlane(): void {
+    const mesh = this.toolMesh();
+    const tool = this.tool;
+    if (!mesh || !tool || tool.mode !== 'plane') {
+      if (this.planeMesh) {
+        this.overlayRoot.remove(this.planeMesh);
+        this.planeMesh.geometry.dispose();
+        this.planeMesh = null;
+      }
+      return;
+    }
+    const g = mesh.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const size = g.boundingBox!.getSize(new Vector3());
+    const center = g.boundingBox!.getCenter(new Vector3());
+    const span = Math.max(size.x, size.y, size.z) * 1.2 || 1;
+    if (!this.planeMesh) {
+      this.planeMesh = new Mesh(new PlaneGeometry(1, 1), this.planeMaterial);
+      this.overlayRoot.add(this.planeMesh);
+    }
+    const p = this.planeMesh;
+    p.scale.set(span, span, 1);
+    p.rotation.set(0, 0, 0);
+    if (tool.plane.axis === 'x') p.rotation.y = Math.PI / 2;
+    else if (tool.plane.axis === 'y') p.rotation.x = Math.PI / 2;
+    p.position.copy(center);
+    p.position.setComponent(tool.plane.axis === 'x' ? 0 : tool.plane.axis === 'y' ? 1 : 2, tool.plane.offset);
   }
 
   /** Frame the given meshes (all visible meshes when empty). */
@@ -313,6 +526,12 @@ export class ViewportRuntime {
   }
 
   private frameTick(): void {
+    if (this.pendingPaint && this.tool?.mode === 'paint') {
+      const { x, y, op } = this.pendingPaint;
+      this.pendingPaint = null;
+      const face = this.pickToolFace(x, y);
+      if (face !== null) this.callbacks.onToolSelect?.(this.flood([face], { radius: this.tool.radius }), op);
+    }
     if (this.pendingHover) {
       const { x, y } = this.pendingHover;
       this.pendingHover = null;
@@ -344,8 +563,11 @@ export class ViewportRuntime {
         x.material?.dispose();
       });
     }
+    this.setTool(null);
     this.selectMaterial.dispose();
     this.hoverMaterial.dispose();
+    this.toolMaterial.dispose();
+    this.planeMaterial.dispose();
     this.renderer.dispose();
     // Release the GL context now rather than at GC: Chromium caps live contexts
     // (~16) and evicts the oldest, which could be a live viewport's.

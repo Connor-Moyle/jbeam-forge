@@ -187,6 +187,10 @@ export function offerAutoClassify(fileName: string, meshes: readonly Pick<Import
     fresh.map((m) => ({ key: m.key, name: m.name })),
     currentTaxonomy().classifier,
   );
+  if (proposal.parts.length === 0) {
+    useUiStore.getState().pushStatus(`No part names recognised in ${fileName}. Split or assign its meshes from the Scene tree.`, 'info', 8000);
+    return;
+  }
   const sourceIds = [...new Set(fresh.map((m) => m.key.slice(0, m.key.indexOf(':'))))];
   useClassifyUi.getState().setPending({ projectCreatedAt: doc.meta.createdAt, sourceIds, fileName, meshCount: fresh.length, proposal });
 }

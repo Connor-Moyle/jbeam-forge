@@ -463,6 +463,73 @@ const scenarios = [
     },
   },
   {
+    id: 'split',
+    name: 'split: connected pieces · undo/redo · plane-cut tool · re-applied after reopen',
+    async run({ page }) {
+      const model = join(ROOT, 'tests', 'fixtures', 'models', 'merged_boxes.obj');
+      const splitProject = join(userData, 'projects', 'split-test.jbforge');
+      const stats = () => hook(page, 'sceneStats');
+      const waitMeshes = async (n) => {
+        for (let i = 0; i < 100; i++) {
+          const st = await stats();
+          if (st.meshes === n && st.sources.every((x) => x.status === 'ready')) return st;
+          await page.waitForTimeout(100);
+        }
+        throw new Error(`expected ${n} meshes, got ${JSON.stringify(await stats())}`);
+      };
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Split Test');
+      await hook(page, 'queueDialog', [model]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').click();
+      await waitMeshes(1);
+      const tree = page.getByTestId('scene-tree');
+
+      // One click: three boxes in one object → three meshes.
+      await tree.getByText('merged', { exact: true }).click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Split into connected pieces' }).click();
+      let st = await waitMeshes(3);
+      assert(JSON.stringify(st.meshNames.sort()) === JSON.stringify(['merged', 'merged_piece2', 'merged_piece3']), `pieces named after the mesh (${st.meshNames})`);
+      await hook(page, 'runCommand', 'undo');
+      await waitMeshes(1);
+      await hook(page, 'runCommand', 'redo');
+      await waitMeshes(3);
+      await shot(page, 'split-connected');
+
+      // Face-selection tool, plane-cut mode: half of one box.
+      await tree.getByText('merged_piece2', { exact: true }).click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Split by selecting faces…' }).click();
+      await page.getByTestId('split-toolbar').waitFor();
+      await page.getByTestId('split-mode-plane').click();
+      const count = await page.getByTestId('split-count').textContent();
+      const picked = Number((count ?? '').split('/')[0].replace(/[^0-9]/g, ''));
+      assert(picked > 0 && picked < 12, `plane selects part of the box (${count})`);
+      await shot(page, 'split-plane-tool');
+      await page.getByTestId('split-apply').click();
+      await page.getByTestId('assign-search').waitFor(); // split results flow straight into assignment
+      await page.keyboard.press('Escape');
+      st = await waitMeshes(4);
+      assert(st.meshNames.includes('merged_piece2_split'), `split result present (${st.meshNames})`);
+
+      // Saved splits are re-applied when the project is reopened.
+      await hook(page, 'queueDialog', [splitProject]);
+      await page.getByTestId('toolbar-save').click();
+      for (let i = 0; i < 50 && !existsSync(splitProject); i++) await page.waitForTimeout(100);
+      const saved = JSON.parse(readFileSync(splitProject, 'utf8'));
+      assert(saved.splits.length === 3, `3 splits saved (${saved.splits.length})`);
+      await hook(page, 'runCommand', 'close');
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('recent-row').filter({ hasText: 'Split Test' }).locator('button').first().click();
+      await page.getByTestId('folders-allow').click();
+      st = await waitMeshes(4);
+      assert(st.meshNames.includes('merged_piece2_split'), 'splits re-applied after reopening');
+      await shot(page, 'split-reopened');
+      await hook(page, 'runCommand', 'close'); // leave on the home screen for the next scenario
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+    },
+  },
+  {
     id: 'smoke-model',
     name: 'local smoke model import (--model)',
     skip: () => !smokeModel,
