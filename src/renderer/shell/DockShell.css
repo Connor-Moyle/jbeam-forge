@@ -1,0 +1,83 @@
+/* dockview themed entirely from design tokens (SPEC §4.17). Global because dockview owns the DOM. */
+.forge-dock {
+  flex: 1;
+  min-height: 0;
+}
+
+.dockview-theme-forge {
+  --dv-background-color: var(--bg-0);
+  --dv-group-view-background-color: var(--bg-1);
+  --dv-paneview-header-border-color: var(--border-0);
+  --dv-paneview-active-outline-color: var(--accent);
+  --dv-separator-border: var(--border-0);
+  --dv-sash-color: transparent;
+  --dv-active-sash-color: var(--accent);
+  --dv-active-sash-transition-duration: var(--dur-fast);
+  --dv-active-sash-transition-delay: var(--dur-slow);
+
+  --dv-tabs-and-actions-container-background-color: var(--bg-2);
+  --dv-tabs-and-actions-container-height: var(--size-panel-header);
+  --dv-tabs-and-actions-container-font-size: var(--text-control);
+  --dv-tabs-container-scrollbar-color: var(--border-2);
+  --dv-tab-font-size: var(--text-control);
+  --dv-tab-margin: 0;
+  --dv-tab-divider-color: var(--border-0);
+  --dv-tab-close-icon-size: inherit;
+  --dv-tab-border-radius: 0;
+  --dv-icon-hover-background-color: var(--bg-3);
+
+  --dv-activegroup-visiblepanel-tab-background-color: var(--bg-1);
+  --dv-activegroup-visiblepanel-tab-color: var(--text-0);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--bg-2);
+  --dv-activegroup-hiddenpanel-tab-color: var(--text-1);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--bg-1);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--text-1);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--bg-2);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--text-2);
+
+  --dv-drag-over-background-color: var(--accent-dim);
+  --dv-drag-over-border-color: var(--accent);
+  --dv-drag-over-border: var(--border-width) solid var(--accent);
+  --dv-edge-dock-indicator-color: var(--accent);
+  --dv-transition-duration: var(--dur-base);
+
+  --dv-floating-box-shadow: var(--shadow-float);
+  --dv-floating-border: var(--border-width) solid var(--border-1);
+  --dv-floating-group-border: var(--border-width) solid var(--border-1);
+  --dv-floating-titlebar-height: var(--size-control-sm);
+  --dv-floating-titlebar-background-color: var(--bg-2);
+  --dv-floating-titlebar-border-bottom: var(--border-width) solid var(--border-1);
+  --dv-floating-group-dragging-opacity: var(--opacity-disabled);
+  --dv-context-menu-background-color: var(--bg-2);
+  --dv-context-menu-color: var(--text-0);
+  --dv-scrollbar-background-color: var(--border-2);
+
+  --dv-border-radius: 0;
+  --dv-spacing-padding: 0;
+  --dv-sash-border-radius: 0;
+  --dv-dropdown-border-radius: var(--radius-md);
+  --dv-overlay-z-index: var(--z-overlay);
+
+  font-family: var(--font-ui);
+  color: var(--text-0);
+}
+
+/* Panel titles: 13px (SPEC §4.17), accent underline on the active tab. */
+.dockview-theme-forge .dv-tab {
+  padding: 0 var(--space-3);
+  font-size: var(--text-panel-title);
+  font-weight: var(--weight-medium);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.dockview-theme-forge .dv-groupview.dv-active-group > .dv-tabs-and-actions-container .dv-tab.dv-active-tab {
+  box-shadow: inset 0 calc(var(--border-width-accent) * -1) 0 var(--accent);
+}
+
+.dockview-theme-forge .dv-tabs-and-actions-container {
+  border-bottom: var(--border-width) solid var(--border-0);
+}
+
+.dockview-theme-forge .dv-groupview {
+  border: none;
+}

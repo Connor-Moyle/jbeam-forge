@@ -1,0 +1,4 @@
+# Keep LF everywhere: snapshot and fixture tests compare bytes.
+* text=auto eol=lf
+*.png binary
+*.woff2 binary

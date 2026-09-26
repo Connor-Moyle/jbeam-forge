@@ -1,0 +1,109 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  background: var(--backdrop);
+}
+
+.backdrop[data-state='open'] {
+  animation: fadeIn var(--dur-base) var(--ease);
+}
+
+.backdrop[data-state='closed'] {
+  animation: fadeOut var(--dur-fast) var(--ease);
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - var(--space-8) * 2);
+  max-height: calc(100vh - var(--space-8) * 2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-modal);
+  transform: translate(-50%, -50%);
+  outline: none;
+}
+
+.modal[data-state='open'] {
+  animation: scaleIn var(--dur-base) var(--ease);
+}
+
+.modal[data-state='closed'] {
+  animation: scaleOut var(--dur-fast) var(--ease);
+}
+
+.sm {
+  width: var(--size-modal-sm);
+}
+
+.md {
+  width: var(--size-modal-md);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-4);
+}
+
+.title {
+  margin: 0;
+  color: var(--text-0);
+  font-size: var(--text-modal-title);
+  font-weight: var(--weight-semibold);
+}
+
+.description {
+  margin: 0;
+  padding: 0 var(--space-4);
+  color: var(--text-1);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--border-0);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes fadeOut {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(var(--scale-enter));
+  }
+}
+
+@keyframes scaleOut {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(var(--scale-enter));
+  }
+}

@@ -1,0 +1,76 @@
+import { join } from 'node:path';
+import { app, type BrowserWindow } from 'electron';
+import { initLogging, scoped, setDebugLogging } from './log';
+import { installMainCrashHandlers } from './crash';
+import { SettingsService } from './services/settings';
+import { LayoutService } from './services/layout';
+import { registerIpcHandlers } from './ipc/handlers';
+import { sendEvent, setTrustedUrlPredicate } from './ipc/register';
+import { buildAppMenu } from './menu';
+import { createMainWindow, hardenSessions, makeTrustedUrlPredicate } from './window';
+
+// The run-desktop harness points userData at a temp dir so tests never touch real settings.
+const userDataOverride = process.env.JBFORGE_USER_DATA;
+if (userDataOverride) app.setPath('userData', userDataOverride);
+const harness = process.env.JBFORGE_HARNESS === '1';
+const devServerUrl = process.env.ELECTRON_RENDERER_URL;
+
+initLogging({ debug: false });
+installMainCrashHandlers();
+const logger = scoped('app');
+
+let mainWindow: BrowserWindow | null = null;
+
+async function start(): Promise<void> {
+  const userData = app.getPath('userData');
+  const settings = new SettingsService(join(userData, 'settings.json'), scoped('settings'));
+  const layout = new LayoutService(join(userData, 'layouts', 'current.json'), scoped('layout'));
+  const loaded = await settings.load();
+  setDebugLogging(loaded.debugLogging);
+  logger.info(`starting JBeam Forge ${app.getVersion()} (electron ${process.versions.electron})`, harness ? '[harness]' : '');
+
+  hardenSessions();
+  setTrustedUrlPredicate(makeTrustedUrlPredicate(devServerUrl));
+  registerIpcHandlers({ settings, layout });
+  const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
+  rebuildMenu();
+
+  settings.onChange((s) => {
+    setDebugLogging(s.debugLogging);
+    rebuildMenu(); // keep the Debug Logging checkbox in sync
+    if (mainWindow) sendEvent(mainWindow.webContents, 'settings:changed', s);
+  });
+
+  mainWindow = createMainWindow({ devServerUrl, harness });
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+}
+
+// A second launch hands focus to the running instance and exits without
+// loading settings, registering IPC or creating a window. The harness skips the
+// lock so its relaunch scenario never races the previous process.
+const isPrimaryInstance = harness || app.requestSingleInstanceLock();
+
+if (!isPrimaryInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  app.on('window-all-closed', () => {
+    app.quit();
+  });
+
+  app
+    .whenReady()
+    .then(start)
+    .catch((err: unknown) => {
+      logger.error('startup failed:', err);
+      app.exit(1);
+    });
+}

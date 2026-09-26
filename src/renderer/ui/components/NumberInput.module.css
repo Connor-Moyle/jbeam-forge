@@ -1,0 +1,23 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  width: var(--size-number-input);
+}
+
+.input {
+  text-align: right;
+}
+
+.withUnit {
+  padding-right: calc(var(--space-2) + var(--space-5));
+}
+
+.unit {
+  position: absolute;
+  right: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-2);
+  font-size: var(--text-label);
+  pointer-events: none;
+}

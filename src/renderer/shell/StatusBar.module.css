@@ -1,0 +1,65 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: var(--size-status-bar);
+  padding: 0 var(--space-3);
+  border-top: var(--border-width) solid var(--border-0);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.stat {
+  white-space: nowrap;
+}
+
+.value {
+  color: var(--text-1);
+}
+
+.sep {
+  width: var(--border-width);
+  height: var(--size-icon);
+  background: var(--border-1);
+}
+
+.messageSlot {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.message {
+  max-width: var(--size-status-message);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+  animation: slideIn var(--dur-slow) var(--ease);
+}
+
+.success {
+  color: var(--success);
+}
+
+.warning {
+  color: var(--warning);
+}
+
+.danger {
+  color: var(--danger);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}

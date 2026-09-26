@@ -1,0 +1,20 @@
+.tooltip {
+  composes: surface from './Floating.module.css';
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: var(--size-tooltip-max);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-4);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-control);
+  line-height: var(--line-tight);
+  z-index: var(--z-tooltip);
+  pointer-events: none;
+}
+
+.shortcut {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  color: var(--text-2);
+}

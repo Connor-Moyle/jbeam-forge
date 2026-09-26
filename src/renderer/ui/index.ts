@@ -1,0 +1,21 @@
+/** The canonical component kit (SPEC §4.17). One component per concern — do not fork variants elsewhere. */
+export { Badge, type BadgeTone } from './components/Badge';
+export { Button, type ButtonVariant } from './components/Button';
+export { Callout, type CalloutTone } from './components/Callout';
+export { Checkbox } from './components/Checkbox';
+export { CollapsibleSection } from './components/CollapsibleSection';
+export { EmptyState } from './components/EmptyState';
+export { IconButton } from './components/IconButton';
+export { Input } from './components/Input';
+export { Modal } from './components/Modal';
+export { NumberInput } from './components/NumberInput';
+export { Popover } from './components/Popover';
+export { ScrollArea } from './components/ScrollArea';
+export { Select, type SelectOption } from './components/Select';
+export { Slider } from './components/Slider';
+export { TabPanel, Tabs, type TabItem } from './components/Tabs';
+export { Toggle } from './components/Toggle';
+export { Tooltip, TooltipProvider } from './components/Tooltip';
+export { TreeRow } from './components/TreeRow';
+export { cx } from './cx';
+export { cssVar, iconSize, numericToken, resolveToken } from './tokens';

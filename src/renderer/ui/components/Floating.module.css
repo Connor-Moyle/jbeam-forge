@@ -1,0 +1,34 @@
+/* Shared surface for floating elements (popovers, menus, select lists, tooltips). */
+.surface {
+  background: var(--bg-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  color: var(--text-0);
+  z-index: var(--z-popover);
+  transform-origin: var(--radix-popper-transform-origin);
+}
+
+.surface[data-state='open'],
+.surface[data-state='delayed-open'],
+.surface[data-state='instant-open'] {
+  animation: floatIn var(--dur-base) var(--ease);
+}
+
+.surface[data-state='closed'] {
+  animation: floatOut var(--dur-fast) var(--ease);
+}
+
+@keyframes floatIn {
+  from {
+    opacity: 0;
+    transform: scale(var(--scale-enter));
+  }
+}
+
+@keyframes floatOut {
+  to {
+    opacity: 0;
+    transform: scale(var(--scale-enter));
+  }
+}

@@ -1,0 +1,79 @@
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: var(--size-select-max);
+  height: var(--size-control);
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--text-0);
+  font-size: var(--text-control);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.trigger:hover:not(:disabled) {
+  border-color: var(--border-2);
+}
+
+.trigger:focus-visible,
+.trigger[data-state='open'] {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.trigger[data-placeholder] {
+  color: var(--text-2);
+}
+
+.trigger:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.chevron {
+  display: inline-flex;
+  color: var(--text-2);
+}
+
+.content {
+  composes: surface from './Floating.module.css';
+  min-width: var(--radix-select-trigger-width);
+  max-height: var(--radix-select-content-available-height);
+  overflow: hidden;
+}
+
+.viewport {
+  padding: var(--space-1);
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: var(--size-control);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-control);
+  cursor: pointer;
+  outline: none;
+}
+
+.item[data-highlighted] {
+  background: var(--accent-dim);
+}
+
+.item[data-disabled] {
+  opacity: var(--opacity-disabled);
+  cursor: default;
+}
+
+.indicator {
+  display: inline-flex;
+  color: var(--accent);
+}

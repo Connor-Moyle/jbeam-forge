@@ -1,0 +1,52 @@
+.gallery {
+  padding-bottom: var(--space-6);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--size-control);
+  margin: var(--space-2) 0;
+}
+
+.rowLabel {
+  flex-shrink: 0;
+  width: var(--size-number-input);
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.rowItems {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-2) 0;
+}
+
+.tabBody {
+  padding: var(--space-3);
+  color: var(--text-1);
+}
+
+.tree {
+  margin-top: var(--space-2);
+  border: var(--border-width) solid var(--border-0);
+  border-radius: var(--radius-sm);
+}
+
+.emptyBox {
+  height: calc(var(--size-empty-max) * 0.6);
+  margin-top: var(--space-2);
+  border: var(--border-width) dashed var(--border-1);
+  border-radius: var(--radius-md);
+}

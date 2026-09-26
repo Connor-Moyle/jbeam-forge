@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`.jbforge io > serializes an empty project deterministically (snapshot) 1`] = `
+"{
+  "format": "jbforge",
+  "formatVersion": 1,
+  "appVersion": "0.1.0",
+  "meta": {
+    "name": "Test Car",
+    "slug": "test_car",
+    "author": "Fatkiwi",
+    "description": "",
+    "brand": "",
+    "type": "Car",
+    "createdAt": "2026-01-02T03:04:05.000Z",
+    "modifiedAt": "2026-01-02T03:04:05.000Z"
+  },
+  "sources": [],
+  "splits": [],
+  "assignments": {},
+  "proxy": {},
+  "nodes": [],
+  "beams": [],
+  "tris": [],
+  "materials": [],
+  "hinges": [],
+  "suspension": {},
+  "powertrain": {},
+  "configs": [],
+  "variables": []
+}
+"
+`;

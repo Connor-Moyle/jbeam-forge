@@ -1,0 +1,155 @@
+/*
+ * JBeam Forge design tokens (SPEC §4.17).
+ *
+ * This is the ONLY file in the renderer allowed to contain raw colours,
+ * sizes, radii, durations or easings. Everything else references these
+ * variables; `npm run lint` (scripts/lint-tokens.mjs) enforces it.
+ */
+:root {
+  /* Surfaces: neutral, cool-tinted, darkest → lightest */
+  --bg-0: #0e0f12; /* app background, viewport clear */
+  --bg-1: #15171b; /* panels */
+  --bg-2: #1b1e23; /* panel headers, toolbar, inputs */
+  --bg-3: #22262d; /* hover, raised controls */
+  --bg-4: #2a2f38; /* active/pressed, popovers */
+
+  --border-0: #1d2026; /* hairline between panels */
+  --border-1: #2b3038; /* control borders */
+  --border-2: #3a414c; /* hover/strong borders */
+
+  --text-0: #e6e8ec; /* primary */
+  --text-1: #a4abb6; /* secondary */
+  --text-2: #6c7481; /* tertiary, disabled, placeholders */
+  --text-on-accent: #ffffff;
+
+  --accent: #4f8ef7;
+  --accent-hover: #6a9ff8;
+  --accent-press: #3d78da;
+  --accent-dim: rgba(79, 142, 247, 0.16);
+  --accent-ring: rgba(79, 142, 247, 0.5);
+
+  --success: #3fb67a;
+  --success-dim: rgba(63, 182, 122, 0.16);
+  --warning: #e0a93b;
+  --warning-dim: rgba(224, 169, 59, 0.16);
+  --danger: #e5534b;
+  --danger-hover: #ec6d66;
+  --danger-dim: rgba(229, 83, 75, 0.16);
+
+  --backdrop: rgba(5, 6, 8, 0.6);
+  --grid-major: #2c313a; /* viewport grid */
+  --grid-minor: #1c1f25;
+
+  /* Category colour dots (scene tree); extended in Phase 3 */
+  --cat-body: #4f8ef7;
+  --cat-panel: #9b7bf2;
+  --cat-mechanical: #e0a93b;
+  --cat-glass: #4cc3d9;
+  --cat-interior: #d97ab5;
+  --cat-light: #f2d45c;
+  --cat-misc: #8a93a1;
+
+  /* Spacing: 4px grid */
+  --space-0: 0;
+  --space-half: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+
+  /* Radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-full: 999px;
+
+  /* Borders */
+  --border-width: 1px;
+  --border-width-accent: 2px;
+
+  /* Shadows: floating elements ONLY (popovers, menus, modals, tooltips, pills). Panels use borders. */
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.35);
+  --focus-ring: 0 0 0 2px var(--accent-ring);
+
+  /* Motion */
+  --dur-fast: 100ms;
+  --dur-base: 160ms;
+  --dur-slow: 240ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --delay-tooltip: 300ms;
+  --scale-enter: 0.96;
+  --scale-hover: 1.15;
+
+  /* Typography */
+  --font-ui: 'Inter', system-ui, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'Cascadia Code', Consolas, monospace;
+  --text-label: 11px; /* caps labels */
+  --text-control: 12px; /* controls, body */
+  --text-panel-title: 13px;
+  --text-modal-title: 15px;
+  --text-display: 22px; /* startup screen heading */
+  --line-tight: 1.2;
+  --line-normal: 1.45;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --tracking-caps: 0.06em;
+
+  /* Component sizes */
+  --size-control: 28px;
+  --size-control-sm: 22px;
+  --size-tree-row: 26px;
+  --size-tree-indent: 14px;
+  --size-toolbar: 40px;
+  --size-panel-header: 32px;
+  --size-status-bar: 26px;
+  --size-icon: 16px;
+  --size-icon-sm: 14px;
+  --size-icon-lg: 28px;
+  --size-checkbox: 14px;
+  --size-toggle-w: 28px;
+  --size-toggle-h: 16px;
+  --size-toggle-knob: 12px;
+  --size-slider-track: 4px;
+  --size-slider-thumb: 12px;
+  --size-scrollbar: 8px;
+  --size-dot: 8px;
+  --size-divider-h: 20px;
+  --size-tooltip-max: 260px;
+  --size-popover-min: 200px;
+  --size-popover-max: 340px;
+  --size-modal-sm: 400px;
+  --size-modal-md: 560px;
+  --size-empty-max: 280px;
+  --size-number-input: 88px;
+  --size-select-max: 280px;
+  --size-status-message: 360px;
+  --size-side-panel: 280px; /* default dock side-panel width */
+  --size-side-panel-wide: 340px;
+  --size-viewport-pill: 32px;
+  --size-preset-select: 120px;
+
+  /* Layering */
+  --z-overlay: 10;
+  --z-popover: 100;
+  --z-modal: 200;
+  --z-tooltip: 300;
+
+  /* States */
+  --opacity-disabled: 0.45;
+  --opacity-ghost: 0.15;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --scale-enter: 1;
+  }
+}

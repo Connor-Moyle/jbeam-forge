@@ -1,0 +1,19 @@
+.scroll {
+  height: 100%;
+  min-height: 0;
+  scrollbar-gutter: auto;
+}
+
+.y {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.x {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.both {
+  overflow: auto;
+}

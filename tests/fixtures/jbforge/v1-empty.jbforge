@@ -1,0 +1,28 @@
+{
+  "format": "jbforge",
+  "formatVersion": 1,
+  "appVersion": "0.1.0",
+  "meta": {
+    "name": "Fixture Car",
+    "slug": "fixture_car",
+    "author": "Fatkiwi",
+    "description": "Frozen v1 fixture. Never edit: every future version must still load it.",
+    "brand": "",
+    "type": "Car",
+    "createdAt": "2026-09-26T00:00:00.000Z",
+    "modifiedAt": "2026-09-26T00:00:00.000Z"
+  },
+  "sources": [],
+  "splits": [],
+  "assignments": {},
+  "proxy": {},
+  "nodes": [],
+  "beams": [],
+  "tris": [],
+  "materials": [],
+  "hinges": [],
+  "suspension": {},
+  "powertrain": {},
+  "configs": [],
+  "variables": []
+}

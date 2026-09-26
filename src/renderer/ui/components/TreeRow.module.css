@@ -1,0 +1,107 @@
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--size-tree-row);
+  padding-right: var(--space-2);
+  color: var(--text-0);
+  font-size: var(--text-control);
+  cursor: default;
+  outline: none;
+}
+
+.row:hover {
+  background: var(--bg-3);
+}
+
+.row:focus-visible {
+  box-shadow: inset var(--focus-ring);
+}
+
+.selected,
+.selected:hover {
+  background: var(--accent-dim);
+}
+
+.selected::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--border-width-accent);
+  background: var(--accent);
+}
+
+.muted {
+  color: var(--text-2);
+}
+
+.chevron,
+.chevronSpacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--size-icon);
+  height: var(--size-icon);
+}
+
+.chevron {
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.chevron:hover {
+  color: var(--text-0);
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.dot {
+  flex-shrink: 0;
+  width: var(--size-dot);
+  height: var(--size-dot);
+  border-radius: var(--radius-full);
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--text-1);
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: inline-flex;
+  gap: var(--space-half);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+
+.row:hover .actions,
+.row:focus-within .actions,
+.selected .actions {
+  opacity: 1;
+}
