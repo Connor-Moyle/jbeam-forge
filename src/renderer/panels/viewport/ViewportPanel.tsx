@@ -9,6 +9,10 @@ import type { ImportedMesh } from '@renderer/import/normalize';
 import { ViewportRuntime, webglAvailable, type GlState, type ToolState, type ViewState } from './viewportRuntime';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
 import { SplitToolbar } from '@renderer/split/SplitToolbar';
+import { projectStore } from '@renderer/app/stores/project';
+import { useUiStore } from '@renderer/app/stores/ui';
+import { currentTaxonomy } from '@renderer/parts/taxonomy';
+import { structureData } from './structureOverlay';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
@@ -73,6 +77,21 @@ export function ViewportPanel() {
     };
     pushTool();
     const unsubscribeTool = useSplitTool.subscribe(pushTool);
+
+    // Generated structure + view toggles → runtime (rebuilt only when the structure changes).
+    let lastStructure: unknown = null;
+    const pushStructure = () => {
+      const doc = projectStore.getState().doc;
+      const key = doc ? [doc.nodes, doc.beams, doc.parts] : null;
+      if (!key || !lastStructure || (lastStructure as unknown[]).some((x, i) => x !== key[i])) {
+        lastStructure = key;
+        rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id)) : null);
+      }
+    };
+    pushStructure();
+    rt.setView(useUiStore.getState().view);
+    const unsubscribeStructure = projectStore.subscribe(pushStructure);
+    const unsubscribeView = useUiStore.subscribe((s) => rt.setView(s.view));
     let lastFrameRequest = scene.getState().frameRequest;
     const unsubscribe = scene.subscribe((s) => {
       push();
@@ -97,6 +116,8 @@ export function ViewportPanel() {
     return () => {
       unsubscribe();
       unsubscribeTool();
+      unsubscribeStructure();
+      unsubscribeView();
       host.removeEventListener('keydown', onKey);
       rt.dispose();
     };

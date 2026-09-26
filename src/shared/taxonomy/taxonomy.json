@@ -658,7 +658,7 @@
       "parent": "bumper",
       "defaultMass": 0.8,
       "nodePrefix": "th",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "towhook",
@@ -678,7 +678,7 @@
       "parent": "frame",
       "defaultMass": 12,
       "nodePrefix": "hi",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "towhitch",
@@ -1086,7 +1086,7 @@
       "parent": "windshield",
       "defaultMass": 0.3,
       "nodePrefix": "wi",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "wipers",
@@ -1104,7 +1104,7 @@
       "parent": "tailgate",
       "defaultMass": 0.2,
       "nodePrefix": "rwi",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "rear wiper"
@@ -1141,7 +1141,7 @@
       "parent": "roof",
       "defaultMass": 0.2,
       "nodePrefix": "an",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "aerial",
@@ -1159,7 +1159,7 @@
       "parent": "roof",
       "defaultMass": 5,
       "nodePrefix": "rr",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "roofrack",
@@ -1236,7 +1236,7 @@
       "parent": "tailgate",
       "defaultMass": 4,
       "nodePrefix": "swc",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "spare carrier",
@@ -1253,7 +1253,7 @@
       "parent": "body",
       "defaultMass": 10,
       "nodePrefix": "cg",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "load",
@@ -1349,7 +1349,7 @@
       "parent": "dashboard",
       "defaultMass": 2,
       "nodePrefix": "sw",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "steeringwheel",
@@ -1366,7 +1366,7 @@
       "parent": "dashboard",
       "defaultMass": 3,
       "nodePrefix": "sc",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "column",
@@ -1385,7 +1385,7 @@
       "parent": "center_console",
       "defaultMass": 1,
       "nodePrefix": "shf",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "gear stick",
@@ -1406,7 +1406,7 @@
       "parent": "center_console",
       "defaultMass": 1,
       "nodePrefix": "hb",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "parkingbrake",
@@ -1425,7 +1425,7 @@
       "parent": "floor",
       "defaultMass": 1.5,
       "nodePrefix": "pe",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "pedal",
@@ -1557,7 +1557,7 @@
       "parent": "windshield",
       "defaultMass": 0.3,
       "nodePrefix": "im",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "rearview mirror",
@@ -1648,7 +1648,7 @@
       "parent": "body",
       "defaultMass": 140,
       "nodePrefix": "e",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_block",
       "openable": false,
       "nameHints": [
         "motor",
@@ -1672,7 +1672,7 @@
       "parent": "engine",
       "defaultMass": 3,
       "nodePrefix": "ik",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "airbox",
@@ -1692,7 +1692,7 @@
       "parent": "engine",
       "defaultMass": 6,
       "nodePrefix": "tu",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "turbocharger",
@@ -1710,7 +1710,7 @@
       "parent": "engine",
       "defaultMass": 9,
       "nodePrefix": "su",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "blower",
@@ -1746,7 +1746,7 @@
       "parent": "engine",
       "defaultMass": 2,
       "nodePrefix": "em",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "mounts",
@@ -1764,7 +1764,7 @@
       "parent": "engine",
       "defaultMass": 5,
       "nodePrefix": "xm",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "header",
@@ -1782,7 +1782,7 @@
       "parent": "body",
       "defaultMass": 12,
       "nodePrefix": "x",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "downpipe",
@@ -1801,7 +1801,7 @@
       "parent": "exhaust",
       "defaultMass": 6,
       "nodePrefix": "mu",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "silencer",
@@ -1820,7 +1820,7 @@
       "parent": "radiator_support",
       "defaultMass": 7,
       "nodePrefix": "rd",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "rad",
@@ -1839,7 +1839,7 @@
       "parent": "radiator_support",
       "defaultMass": 5,
       "nodePrefix": "ic",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "fmic",
@@ -1856,7 +1856,7 @@
       "parent": "radiator_support",
       "defaultMass": 2,
       "nodePrefix": "oc",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "oil cooler"
@@ -1872,7 +1872,7 @@
       "parent": "body",
       "defaultMass": 10,
       "nodePrefix": "ft",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "fueltank",
@@ -1891,7 +1891,7 @@
       "parent": "body",
       "defaultMass": 8,
       "nodePrefix": "n2o",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "n2o",
@@ -1909,7 +1909,7 @@
       "parent": "body",
       "defaultMass": 15,
       "nodePrefix": "bt",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "accumulator"
@@ -1925,7 +1925,7 @@
       "parent": "body",
       "defaultMass": 2,
       "nodePrefix": "wt",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "watertank",
@@ -1944,7 +1944,7 @@
       "parent": "engine",
       "defaultMass": 50,
       "nodePrefix": "tx",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_block",
       "openable": false,
       "nameHints": [
         "gearbox",
@@ -1964,7 +1964,7 @@
       "parent": "transmission",
       "defaultMass": 20,
       "nodePrefix": "tc",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_block",
       "openable": false,
       "nameHints": [
         "transfercase",
@@ -2003,7 +2003,7 @@
       "parent": "subframe",
       "defaultMass": 20,
       "nodePrefix": "di",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_block",
       "openable": false,
       "nameHints": [
         "diff",
@@ -2427,7 +2427,7 @@
       "parent": "body",
       "defaultMass": 5,
       "nodePrefix": "peq",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": [
         "police",
@@ -2447,7 +2447,7 @@
       "parent": "body",
       "defaultMass": 5,
       "nodePrefix": "cu",
-      "beamPreset": "mechanical",
+      "beamPreset": "mechanical_light",
       "openable": false,
       "nameHints": []
     }

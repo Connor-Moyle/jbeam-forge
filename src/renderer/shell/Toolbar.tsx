@@ -23,6 +23,8 @@ import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { openProject, redo, saveProject, undo } from '@renderer/project/actions';
 import { startImport } from '@renderer/import/importFlow';
+import { useUiStore } from '@renderer/app/stores/ui';
+import { generateAll, useStructureUi } from '@renderer/structure/generate';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
@@ -41,16 +43,7 @@ interface PendingAction {
 
 /** Toolbar actions owned by later phases: visible so the chrome is final, inert until built. */
 const GROUPS: { id: string; label: string; actions: PendingAction[] }[] = [
-  { id: 'generate', label: 'Generate', actions: [{ icon: Wand2, label: 'Generate proxies', phase: 4 }] },
-  {
-    id: 'view',
-    label: 'View',
-    actions: [
-      { icon: Eye, label: 'Show mesh', phase: 3 },
-      { icon: ScanEye, label: 'X-ray', phase: 7 },
-      { icon: Box, label: 'Show nodes & beams', phase: 4 },
-    ],
-  },
+  { id: 'view-later', label: 'View', actions: [{ icon: ScanEye, label: 'X-ray', phase: 7 }] },
   { id: 'test', label: 'Test', actions: [{ icon: Play, label: 'Test mode', phase: 6 }] },
 ];
 
@@ -67,6 +60,10 @@ export function Toolbar() {
   const setNewModOpen = useDialogStore((s) => s.setNewModOpen);
   const undoLabel = useProjectStore((s) => s.undoStack[s.undoStack.length - 1]?.label ?? null);
   const redoLabel = useProjectStore((s) => s.redoStack[s.redoStack.length - 1]?.label ?? null);
+  const hasParts = useProjectStore((s) => (s.doc?.parts.length ?? 0) > 0);
+  const generating = useStructureUi((s) => s.busy);
+  const view = useUiStore((s) => s.view);
+  const toggleView = useUiStore((s) => s.toggleView);
 
   return (
     <header className={styles.toolbar} role="toolbar" aria-label="Main toolbar">
@@ -82,6 +79,15 @@ export function Toolbar() {
         <span className={styles.divider} aria-hidden />
         <IconButton icon={Undo2} label={undoLabel ? `Undo ${undoLabel}` : 'Nothing to undo'} shortcut="Ctrl+Z" disabled={!undoLabel} onClick={undo} />
         <IconButton icon={Redo2} label={redoLabel ? `Redo ${redoLabel}` : 'Nothing to redo'} shortcut="Ctrl+Y" disabled={!redoLabel} onClick={redo} />
+      </div>
+      <div className={styles.group} role="group" aria-label="Generate">
+        <span className={styles.divider} aria-hidden />
+        <IconButton icon={Wand2} label={hasParts ? 'Generate structure for all parts' : 'Generate structure (assign meshes to parts first)'} disabled={!hasParts || generating} onClick={() => void generateAll()} data-testid="toolbar-generate" />
+      </div>
+      <div className={styles.group} role="group" aria-label="View">
+        <span className={styles.divider} aria-hidden />
+        <IconButton icon={Eye} label={view.mesh ? 'Hide mesh' : 'Show mesh'} active={view.mesh} onClick={() => toggleView('mesh')} data-testid="toolbar-view-mesh" />
+        <IconButton icon={Box} label={view.structure ? 'Hide nodes & beams' : 'Show nodes & beams'} active={view.structure} onClick={() => toggleView('structure')} data-testid="toolbar-view-structure" />
       </div>
       {GROUPS.map((g) => (
         <div key={g.id} className={styles.group} role="group" aria-label={g.label}>

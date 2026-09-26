@@ -106,6 +106,72 @@ export const PartSchema = z.object({
   constructionMaterial: z.enum(CONSTRUCTION_MATERIALS),
 });
 
+// ---------------------------------------------------------------- structure (Phase 4)
+// Tightened from always-empty placeholders (no migration needed, see VERSIONING RULE).
+
+const Vec3 = z.tuple([z.number(), z.number(), z.number()]);
+export const NODE_ID = /^[A-Za-z][A-Za-z0-9_]*$/;
+export const BEAM_KINDS = ['edge', 'brace', 'attach'] as const;
+export const PROXY_MODE_VALUES = ['decimate', 'hull', 'box', 'cylinder'] as const;
+export const BRACING_VALUES = ['none', 'light', 'standard', 'heavy'] as const;
+export const ATTACHMENT_STYLE_VALUES = ['bolted', 'clipped', 'rivets', 'welded'] as const;
+
+/** A jbeam node, BeamNG space. */
+export const StructNodeSchema = z.object({
+  id: z.string().regex(NODE_ID),
+  partId: z.string().min(1),
+  pos: Vec3,
+  /** kg */
+  weight: z.number().positive(),
+  /** Moved/edited by hand: regeneration keeps it (Phase 7). */
+  manual: z.boolean().optional(),
+});
+
+/** A beam between two node ids. Values come from the part's preset (edge/brace) or attachment style (attach) at export. */
+export const StructBeamSchema = z.object({
+  id1: z.string().min(1),
+  id2: z.string().min(1),
+  partId: z.string().min(1),
+  kind: z.enum(BEAM_KINDS),
+});
+
+/** A collision triangle (outward winding). */
+export const StructTriSchema = z.object({
+  ids: z.tuple([z.string().min(1), z.string().min(1), z.string().min(1)]),
+  partId: z.string().min(1),
+});
+
+export const PartProxySchema = z.object({
+  mode: z.enum(PROXY_MODE_VALUES),
+  /** 0..1 within the kind's vertex budget. */
+  detail: z.number().min(0).max(1),
+  symmetry: z.boolean(),
+  maxEdge: z.number().nonnegative(),
+  minEdge: z.number().nonnegative(),
+  inset: z.number().nonnegative(),
+  bracing: z.enum(BRACING_VALUES),
+  attachment: z.enum(ATTACHMENT_STYLE_VALUES),
+  /** Target mass override (kg); null = taxonomy default × construction material. */
+  massKg: z.number().positive().nullable(),
+  /** Override of the kind's structure role (own proxy / ride on parent / suspension-built). */
+  role: z.enum(['own', 'rides', 'suspension']).optional(),
+});
+
+export const RefNodesSchema = z.object({
+  ref: z.string(),
+  back: z.string(),
+  left: z.string(),
+  up: z.string(),
+  leftCorner: z.string(),
+  rightCorner: z.string(),
+});
+
+export const ProxySectionSchema = z.object({
+  /** partId → generation settings (present once a part has been generated or tuned). */
+  parts: z.record(z.string(), PartProxySchema).default({}),
+  refNodes: RefNodesSchema.nullable().default(null),
+});
+
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
@@ -122,10 +188,10 @@ export const ProjectV3Schema = z.object({
   /** meshKeys the user chose to ignore (not exported). */
   ignoredMeshes: z.array(z.string()),
   customTaxonomy: z.array(CustomTaxonomyEntry),
-  proxy: placeholderMap, // Phase 4: settings + cached proxy geometry
-  nodes: placeholderList, // Phase 4
-  beams: placeholderList, // Phase 4
-  tris: placeholderList, // Phase 4
+  proxy: ProxySectionSchema,
+  nodes: z.array(StructNodeSchema),
+  beams: z.array(StructBeamSchema),
+  tris: z.array(StructTriSchema),
   materials: placeholderList, // Phase 8
   hinges: placeholderList, // Phase 9
   suspension: placeholderMap, // Phase 10
@@ -143,3 +209,8 @@ export type Part = z.infer<typeof PartSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];
+export type StructNode = z.infer<typeof StructNodeSchema>;
+export type StructBeam = z.infer<typeof StructBeamSchema>;
+export type StructTri = z.infer<typeof StructTriSchema>;
+export type PartProxy = z.infer<typeof PartProxySchema>;
+export type RefNodes = z.infer<typeof RefNodesSchema>;

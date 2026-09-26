@@ -17,6 +17,7 @@ import { useSceneStore } from './stores/scene';
 import { registerTestHooks } from './testHooks';
 import { loadUserTaxonomy } from '@renderer/parts/taxonomy';
 import { offerAutoClassify } from '@renderer/parts/commands';
+import { useStructureUi } from '@renderer/structure/generate';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
 
@@ -47,6 +48,47 @@ function AppEffects() {
             assigned: Object.keys(d?.assignments ?? {}).length,
             ignored: d?.ignoredMeshes.length ?? 0,
             activePart: useSceneStore.getState().activePart,
+          };
+        },
+        structureState: () => {
+          const d = projectStore.getState().doc;
+          if (!d) return null;
+          const ids = new Set(d.nodes.map((n) => n.id));
+          const dangling = d.beams.filter((b) => !ids.has(b.id1) || !ids.has(b.id2)).length + d.tris.filter((t) => t.ids.some((id) => !ids.has(id))).length;
+          const reports = Object.values(useStructureUi.getState().reports);
+          return {
+            nodes: d.nodes.length,
+            beams: d.beams.length,
+            tris: d.tris.length,
+            massKg: Math.round(d.nodes.reduce((m, n) => m + n.weight, 0) * 10) / 10,
+            // Unique vehicle-wide, except variants of one slot, which share names (only one is ever installed).
+            uniqueIds: (() => {
+              const slot = (partId: string) => d.parts.find((p) => p.id === partId)?.variantOf ?? partId;
+              const owner = new Map<string, string>();
+              for (const n of d.nodes) {
+                const s2 = slot(n.partId);
+                if (owner.has(n.id) && owner.get(n.id) !== s2) return false;
+                owner.set(n.id, s2);
+              }
+              return true;
+            })(),
+            dangling,
+            refNodes: d.proxy.refNodes,
+            byKind: { edge: d.beams.filter((b) => b.kind === 'edge').length, brace: d.beams.filter((b) => b.kind === 'brace').length, attach: d.beams.filter((b) => b.kind === 'attach').length },
+            stability: { ok: reports.filter((r) => r.stability.verdict === 'ok').length, marginal: reports.filter((r) => r.stability.verdict === 'marginal').length, unstable: reports.filter((r) => r.stability.verdict === 'unstable').length },
+            generatedParts: reports.length,
+            unstableKinds: Object.entries(
+              reports
+                .filter((r) => r.stability.verdict !== 'ok')
+                .reduce<Record<string, number>>((acc, r) => {
+                  const p = d.parts.find((x) => x.id === r.partId);
+                  const k = `${p?.taxonomyId ?? '?'}:${r.stability.verdict}:${r.vertices}n:${r.massKg}kg:${r.stability.worst.toFixed(1)}`;
+                  acc[k] = (acc[k] ?? 0) + 1;
+                  return acc;
+                }, {}),
+            )
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 40),
           };
         },
         offerAutoClassify: () => {

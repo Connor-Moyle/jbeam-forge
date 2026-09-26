@@ -14,7 +14,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 type Axis = 'none' | 'fr' | 'lr' | 'corner';
-type Preset = 'structure_stiff' | 'panel_metal' | 'panel_plastic' | 'trim_light' | 'glass_brittle' | 'mechanical' | 'tyre_rubber';
+type Preset = 'structure_stiff' | 'panel_metal' | 'panel_plastic' | 'trim_light' | 'glass_brittle' | 'mechanical' | 'mechanical_light' | 'mechanical_block' | 'tyre_rubber';
 type Row = [string, string, string, string, Axis, string | null, number, string, Preset, boolean, string[]];
 
 const BODY = 'Body & Structure';
@@ -69,8 +69,8 @@ const rows: Row[] = [
   ['canard', 'Canard', AERO, 'Aero', 'lr', 'bumper', 0.4, 'cn', 'panel_plastic', false, ['canards', 'dive plane']],
   ['mudflap', 'Mud flap', AERO, 'Aero', 'corner', 'body', 0.4, 'mf', 'panel_plastic', false, ['mudflaps', 'mud guard', 'splash guard']],
   ['skidplate', 'Skid plate', AERO, 'Aero', 'fr', 'body', 4, 'sk', 'panel_metal', false, ['skid plate', 'sump guard', 'bash plate', 'underbody protection', 'protection']],
-  ['tow_hook', 'Tow hook', AERO, 'Aero', 'fr', 'bumper', 0.8, 'th', 'mechanical', false, ['towhook', 'tow eye', 'tow strap', 'shackle', 'recovery point']],
-  ['tow_hitch', 'Tow hitch', AERO, 'Aero', 'none', 'frame', 12, 'hi', 'mechanical', false, ['towhitch', 'tow bar', 'towbar', 'receiver', 'hitch']],
+  ['tow_hook', 'Tow hook', AERO, 'Aero', 'fr', 'bumper', 0.8, 'th', 'mechanical_light', false, ['towhook', 'tow eye', 'tow strap', 'shackle', 'recovery point']],
+  ['tow_hitch', 'Tow hitch', AERO, 'Aero', 'none', 'frame', 12, 'hi', 'mechanical_light', false, ['towhitch', 'tow bar', 'towbar', 'receiver', 'hitch']],
   ['roof_scoop', 'Roof scoop', AERO, 'Aero', 'none', 'roof', 1, 'rsc', 'panel_plastic', false, ['roofscoop', 'scoop']],
   ['hood_scoop', 'Hood scoop', AERO, 'Aero', 'none', 'hood', 1, 'hsc', 'panel_plastic', false, ['bonnet scoop']],
 
@@ -98,62 +98,62 @@ const rows: Row[] = [
   ['grille', 'Grille', TRIM, 'Trim', 'none', 'bumper', 1, 'gr', 'panel_plastic', false, ['grill', 'front grille', 'kidney']],
   ['mirror', 'Side mirror', TRIM, 'Trim', 'lr', 'door', 0.8, 'mi', 'panel_plastic', true, ['wing mirror', 'door mirror', 'side mirror']],
   ['door_handle', 'Door handle', TRIM, 'Trim', 'corner', 'door', 0.2, 'dh', 'trim_light', false, ['handle', 'door pull']],
-  ['wiper', 'Wiper', TRIM, 'Trim', 'lr', 'windshield', 0.3, 'wi', 'mechanical', false, ['wipers', 'wiper arm', 'windshield wiper']],
-  ['rear_wiper', 'Rear wiper', TRIM, 'Trim', 'none', 'tailgate', 0.2, 'rwi', 'mechanical', false, ['rear wiper']],
+  ['wiper', 'Wiper', TRIM, 'Trim', 'lr', 'windshield', 0.3, 'wi', 'mechanical_light', false, ['wipers', 'wiper arm', 'windshield wiper']],
+  ['rear_wiper', 'Rear wiper', TRIM, 'Trim', 'none', 'tailgate', 0.2, 'rwi', 'mechanical_light', false, ['rear wiper']],
   ['badge', 'Badge', TRIM, 'Trim', 'fr', 'body', 0.05, 'bg', 'trim_light', false, ['emblem', 'logo', 'lettering', 'script', 'decal', 'decals']],
-  ['antenna', 'Antenna', TRIM, 'Trim', 'none', 'roof', 0.2, 'an', 'mechanical', false, ['aerial', 'rallyantenna', 'radio antenna']],
-  ['roof_rack', 'Roof rack', TRIM, 'Trim', 'none', 'roof', 5, 'rr', 'mechanical', false, ['roofrack', 'roof bars', 'roofbars', 'rails', 'cargo rack']],
+  ['antenna', 'Antenna', TRIM, 'Trim', 'none', 'roof', 0.2, 'an', 'mechanical_light', false, ['aerial', 'rallyantenna', 'radio antenna']],
+  ['roof_rack', 'Roof rack', TRIM, 'Trim', 'none', 'roof', 5, 'rr', 'mechanical_light', false, ['roofrack', 'roof bars', 'roofbars', 'rails', 'cargo rack']],
   ['snorkel', 'Snorkel', TRIM, 'Trim', 'none', 'fender', 1.5, 'sn', 'panel_plastic', false, ['air snorkel']],
   ['sunstrip', 'Sun strip', TRIM, 'Trim', 'none', 'windshield', 0.1, 'sst', 'trim_light', false, ['sun strip', 'windshield banner', 'visor strip']],
   ['trim', 'Trim piece', TRIM, 'Trim', 'none', 'body', 0.3, 'tr', 'trim_light', false, ['moulding', 'molding', 'chrome', 'garnish', 'cladding', 'pillar trim', 'stripe', 'stripes']],
-  ['spare_wheel_carrier', 'Spare wheel carrier', TRIM, 'Trim', 'none', 'tailgate', 4, 'swc', 'mechanical', false, ['spare carrier', 'spare wheel mount']],
-  ['cargo', 'Cargo / load', TRIM, 'Trim', 'none', 'body', 10, 'cg', 'mechanical', false, ['load', 'cargo box', 'straps', 'strap', 'luggage']],
+  ['spare_wheel_carrier', 'Spare wheel carrier', TRIM, 'Trim', 'none', 'tailgate', 4, 'swc', 'mechanical_light', false, ['spare carrier', 'spare wheel mount']],
+  ['cargo', 'Cargo / load', TRIM, 'Trim', 'none', 'body', 10, 'cg', 'mechanical_light', false, ['load', 'cargo box', 'straps', 'strap', 'luggage']],
 
   // ---- Interior
   ['dashboard', 'Dashboard', INTERIOR, 'Interior', 'none', 'body', 12, 'da', 'trim_light', false, ['dash', 'instrument panel']],
   ['gauges', 'Gauge cluster', INTERIOR, 'Interior', 'none', 'dashboard', 1, 'ga', 'trim_light', false, ['gauge', 'cluster', 'instrument cluster', 'speedo', 'tacho', 'needle', 'dials']],
   ['center_console', 'Center console', INTERIOR, 'Interior', 'none', 'dashboard', 3, 'cc', 'trim_light', false, ['console', 'centre console', 'armrest']],
   ['radio', 'Radio / head unit', INTERIOR, 'Interior', 'none', 'dashboard', 1, 'ra', 'trim_light', false, ['head unit', 'stereo', 'nav', 'screen']],
-  ['steering_wheel', 'Steering wheel', INTERIOR, 'Interior', 'none', 'dashboard', 2, 'sw', 'mechanical', false, ['steeringwheel', 'wheel steering']],
-  ['steering_column', 'Steering column', INTERIOR, 'Interior', 'none', 'dashboard', 3, 'sc', 'mechanical', false, ['column', 'column shroud', 'signalstalk', 'wiperstalk']],
-  ['shifter', 'Shifter', INTERIOR, 'Interior', 'none', 'center_console', 1, 'shf', 'mechanical', false, ['gear stick', 'gearstick', 'gear lever', 'knob', 'paddles', 'shift boot']],
-  ['handbrake', 'Handbrake', INTERIOR, 'Interior', 'none', 'center_console', 1, 'hb', 'mechanical', false, ['parkingbrake', 'parking brake', 'e brake', 'ebrake']],
-  ['pedals', 'Pedals', INTERIOR, 'Interior', 'none', 'floor', 1.5, 'pe', 'mechanical', false, ['pedal', 'brakepedal', 'gaspedal', 'clutchpedal', 'pedal box']],
+  ['steering_wheel', 'Steering wheel', INTERIOR, 'Interior', 'none', 'dashboard', 2, 'sw', 'mechanical_light', false, ['steeringwheel', 'wheel steering']],
+  ['steering_column', 'Steering column', INTERIOR, 'Interior', 'none', 'dashboard', 3, 'sc', 'mechanical_light', false, ['column', 'column shroud', 'signalstalk', 'wiperstalk']],
+  ['shifter', 'Shifter', INTERIOR, 'Interior', 'none', 'center_console', 1, 'shf', 'mechanical_light', false, ['gear stick', 'gearstick', 'gear lever', 'knob', 'paddles', 'shift boot']],
+  ['handbrake', 'Handbrake', INTERIOR, 'Interior', 'none', 'center_console', 1, 'hb', 'mechanical_light', false, ['parkingbrake', 'parking brake', 'e brake', 'ebrake']],
+  ['pedals', 'Pedals', INTERIOR, 'Interior', 'none', 'floor', 1.5, 'pe', 'mechanical_light', false, ['pedal', 'brakepedal', 'gaspedal', 'clutchpedal', 'pedal box']],
   ['seat', 'Seat', INTERIOR, 'Seats', 'corner', 'floor', 15, 'se', 'trim_light', false, ['seats', 'bucket seat', 'bench']],
   ['rear_seat', 'Rear bench', INTERIOR, 'Seats', 'none', 'floor', 20, 'rse', 'trim_light', false, ['rear seat', 'back seat', 'bench seat', 'rear bench']],
   ['seatbelt', 'Seat belt', INTERIOR, 'Seats', 'corner', 'seat', 0.3, 'sb', 'trim_light', false, ['belt', 'harness']],
   ['door_card', 'Door card', INTERIOR, 'Interior', 'corner', 'door', 2, 'dc', 'trim_light', false, ['doorpanel', 'door panel', 'door trim', 'doorcard']],
   ['window_switch', 'Window switch', INTERIOR, 'Interior', 'corner', 'door_card', 0.1, 'wsw', 'trim_light', false, ['button', 'buttons', 'switch', 'switches', 'window button']],
   ['headliner', 'Headliner', INTERIOR, 'Interior', 'none', 'roof', 3, 'hli', 'trim_light', false, ['roof lining', 'sunvisor', 'sunvisors', 'sun visor']],
-  ['interior_mirror', 'Interior mirror', INTERIOR, 'Interior', 'none', 'windshield', 0.3, 'im', 'mechanical', false, ['rearview mirror', 'rear view mirror']],
+  ['interior_mirror', 'Interior mirror', INTERIOR, 'Interior', 'none', 'windshield', 0.3, 'im', 'mechanical_light', false, ['rearview mirror', 'rear view mirror']],
   ['carpet', 'Carpet', INTERIOR, 'Interior', 'fr', 'floor', 2, 'ca', 'trim_light', false, ['floor mat', 'mats', 'trunkcarpet']],
   ['parcel_shelf', 'Parcel shelf', INTERIOR, 'Interior', 'none', 'body', 2, 'ps', 'trim_light', false, ['package tray', 'rear shelf', 'cargo cover']],
   ['trunk_trim', 'Trunk trim', INTERIOR, 'Interior', 'none', 'body', 3, 'tt', 'trim_light', false, ['trunkpanel', 'trunk panel', 'boot trim', 'cargo area']],
   ['interior_trim', 'Interior trim', INTERIOR, 'Interior', 'none', 'body', 5, 'it', 'trim_light', false, ['interior', 'pillar', 'kick panel', 'partition']],
 
   // ---- Mechanical: engine & ancillaries
-  ['engine', 'Engine', MECH, 'Engine', 'none', 'body', 140, 'e', 'mechanical', false, ['motor', 'block', 'boxer', 'flat four', 'inline', 'v6', 'v8', 'pulley', 'belt']],
-  ['intake', 'Intake', MECH, 'Engine', 'none', 'engine', 3, 'ik', 'mechanical', false, ['airbox', 'air filter', 'airfilter', 'cold air', 'intake manifold']],
-  ['turbo', 'Turbocharger', MECH, 'Engine', 'none', 'engine', 6, 'tu', 'mechanical', false, ['turbocharger', 'turbo charger', 'wastegate']],
-  ['supercharger', 'Supercharger', MECH, 'Engine', 'none', 'engine', 9, 'su', 'mechanical', false, ['blower', 'roots', 'twin screw']],
+  ['engine', 'Engine', MECH, 'Engine', 'none', 'body', 140, 'e', 'mechanical_block', false, ['motor', 'block', 'boxer', 'flat four', 'inline', 'v6', 'v8', 'pulley', 'belt']],
+  ['intake', 'Intake', MECH, 'Engine', 'none', 'engine', 3, 'ik', 'mechanical_light', false, ['airbox', 'air filter', 'airfilter', 'cold air', 'intake manifold']],
+  ['turbo', 'Turbocharger', MECH, 'Engine', 'none', 'engine', 6, 'tu', 'mechanical_light', false, ['turbocharger', 'turbo charger', 'wastegate']],
+  ['supercharger', 'Supercharger', MECH, 'Engine', 'none', 'engine', 9, 'su', 'mechanical_light', false, ['blower', 'roots', 'twin screw']],
   ['engine_cover', 'Engine cover', MECH, 'Engine', 'none', 'engine', 1, 'ecv', 'panel_plastic', false, ['heatshield', 'heat shield', 'engine shroud']],
-  ['engine_mount', 'Engine mount', MECH, 'Engine', 'none', 'engine', 2, 'em', 'mechanical', false, ['mounts', 'motor mount', 'mount']],
-  ['exhaust_manifold', 'Exhaust manifold', MECH, 'Exhaust', 'none', 'engine', 5, 'xm', 'mechanical', false, ['header', 'headers', 'manifold']],
-  ['exhaust', 'Exhaust', MECH, 'Exhaust', 'none', 'body', 12, 'x', 'mechanical', false, ['downpipe', 'midpipe', 'catalytic', 'resonator']],
-  ['muffler', 'Muffler', MECH, 'Exhaust', 'none', 'exhaust', 6, 'mu', 'mechanical', false, ['silencer', 'tip', 'exhaust tip', 'backbox']],
-  ['radiator', 'Radiator', MECH, 'Cooling', 'none', 'radiator_support', 7, 'rd', 'mechanical', false, ['rad', 'fan', 'cooling', 'coolant']],
-  ['intercooler', 'Intercooler', MECH, 'Cooling', 'none', 'radiator_support', 5, 'ic', 'mechanical', false, ['fmic', 'charge cooler']],
-  ['oil_cooler', 'Oil cooler', MECH, 'Cooling', 'none', 'radiator_support', 2, 'oc', 'mechanical', false, ['oil cooler']],
-  ['fuel_tank', 'Fuel tank', MECH, 'Fuel', 'none', 'body', 10, 'ft', 'mechanical', false, ['fueltank', 'gas tank', 'petrol tank', 'fuel cell']],
-  ['nitrous', 'Nitrous bottle', MECH, 'Fuel', 'none', 'body', 8, 'n2o', 'mechanical', false, ['n2o', 'nos', 'bottle']],
-  ['battery', 'Battery', MECH, 'Electrical', 'none', 'body', 15, 'bt', 'mechanical', false, ['accumulator']],
-  ['washer_tank', 'Washer tank', MECH, 'Electrical', 'none', 'body', 2, 'wt', 'mechanical', false, ['watertank', 'water tank', 'washer fluid', 'reservoir']],
+  ['engine_mount', 'Engine mount', MECH, 'Engine', 'none', 'engine', 2, 'em', 'mechanical_light', false, ['mounts', 'motor mount', 'mount']],
+  ['exhaust_manifold', 'Exhaust manifold', MECH, 'Exhaust', 'none', 'engine', 5, 'xm', 'mechanical_light', false, ['header', 'headers', 'manifold']],
+  ['exhaust', 'Exhaust', MECH, 'Exhaust', 'none', 'body', 12, 'x', 'mechanical_light', false, ['downpipe', 'midpipe', 'catalytic', 'resonator']],
+  ['muffler', 'Muffler', MECH, 'Exhaust', 'none', 'exhaust', 6, 'mu', 'mechanical_light', false, ['silencer', 'tip', 'exhaust tip', 'backbox']],
+  ['radiator', 'Radiator', MECH, 'Cooling', 'none', 'radiator_support', 7, 'rd', 'mechanical_light', false, ['rad', 'fan', 'cooling', 'coolant']],
+  ['intercooler', 'Intercooler', MECH, 'Cooling', 'none', 'radiator_support', 5, 'ic', 'mechanical_light', false, ['fmic', 'charge cooler']],
+  ['oil_cooler', 'Oil cooler', MECH, 'Cooling', 'none', 'radiator_support', 2, 'oc', 'mechanical_light', false, ['oil cooler']],
+  ['fuel_tank', 'Fuel tank', MECH, 'Fuel', 'none', 'body', 10, 'ft', 'mechanical_light', false, ['fueltank', 'gas tank', 'petrol tank', 'fuel cell']],
+  ['nitrous', 'Nitrous bottle', MECH, 'Fuel', 'none', 'body', 8, 'n2o', 'mechanical_light', false, ['n2o', 'nos', 'bottle']],
+  ['battery', 'Battery', MECH, 'Electrical', 'none', 'body', 15, 'bt', 'mechanical_light', false, ['accumulator']],
+  ['washer_tank', 'Washer tank', MECH, 'Electrical', 'none', 'body', 2, 'wt', 'mechanical_light', false, ['watertank', 'water tank', 'washer fluid', 'reservoir']],
 
   // ---- Mechanical: driveline
-  ['transmission', 'Transmission', MECH, 'Driveline', 'none', 'engine', 50, 'tx', 'mechanical', false, ['gearbox', 'transaxle', 'trans', 'clutch', 'bellhousing']],
-  ['transfer_case', 'Transfer case', MECH, 'Driveline', 'none', 'transmission', 20, 'tc', 'mechanical', false, ['transfercase', 'transfer box', 'awd']],
+  ['transmission', 'Transmission', MECH, 'Driveline', 'none', 'engine', 50, 'tx', 'mechanical_block', false, ['gearbox', 'transaxle', 'trans', 'clutch', 'bellhousing']],
+  ['transfer_case', 'Transfer case', MECH, 'Driveline', 'none', 'transmission', 20, 'tc', 'mechanical_block', false, ['transfercase', 'transfer box', 'awd']],
   ['driveshaft', 'Driveshaft', MECH, 'Driveline', 'fr', 'body', 8, 'ds', 'mechanical', false, ['propshaft', 'prop shaft', 'drive shaft', 'ujoint', 'u joint', 'cardan']],
-  ['differential', 'Differential', MECH, 'Driveline', 'fr', 'subframe', 20, 'di', 'mechanical', false, ['diff', 'dif', 'cdiff', 'final drive', 'rear end', 'lsd']],
+  ['differential', 'Differential', MECH, 'Driveline', 'fr', 'subframe', 20, 'di', 'mechanical_block', false, ['diff', 'dif', 'cdiff', 'final drive', 'rear end', 'lsd']],
   ['halfshaft', 'Halfshaft', MECH, 'Driveline', 'corner', 'differential', 5, 'hs', 'mechanical', false, ['half shaft', 'axle shaft', 'cv shaft', 'driveshaft side', 'axle boot', 'cv boot']],
   ['axle', 'Solid axle', MECH, 'Driveline', 'fr', 'frame', 60, 'ax', 'mechanical', false, ['live axle', 'beam axle', 'axle housing']],
 
@@ -181,8 +181,8 @@ const rows: Row[] = [
 
   // ---- Misc
   ['license_plate', 'License plate', MISC, 'Misc', 'fr', 'bumper', 0.4, 'lpl', 'trim_light', false, ['plate', 'licenseplate', 'number plate', 'numberplate', 'license']],
-  ['police_equipment', 'Police equipment', MISC, 'Misc', 'none', 'body', 5, 'peq', 'mechanical', false, ['police', 'laptop', 'radar', 'push bar', 'partition']],
-  ['custom', 'Custom part', MISC, 'Misc', 'none', 'body', 5, 'cu', 'mechanical', false, []],
+  ['police_equipment', 'Police equipment', MISC, 'Misc', 'none', 'body', 5, 'peq', 'mechanical_light', false, ['police', 'laptop', 'radar', 'push bar', 'partition']],
+  ['custom', 'Custom part', MISC, 'Misc', 'none', 'body', 5, 'cu', 'mechanical_light', false, []],
 ];
 
 const entries = rows.map(([id, label, category, subcategory, axis, parent, defaultMass, nodePrefix, beamPreset, openable, nameHints]) => ({

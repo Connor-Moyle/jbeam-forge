@@ -9,7 +9,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 1 | Foundations — scaffold, design tokens + component kit, logging/error boundaries, dockview shell, .jbforge versioning/migrations | — | done |
 | 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | done |
 | 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | done |
-| 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | not started |
+| 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | done |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | not started |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | not started |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | not started |
@@ -22,6 +22,56 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | not started |
 
 ## Phase log
+
+### Phase 4 — Proxy generation (done)
+
+Plan recorded here: you asked me to keep going without stopping, so no approval pause. Built in three steps: **4a** proxy engine · **4b** derivation · **4c** UI.
+
+**Ground truth first:**
+- New `npm run study-structure -- sunburst2` measures the official Sunburst's structure (aggregates only): beam presets per part kind, node weights, beam lengths, attachment beams, breakGroups, node naming, and parts without own nodes.
+- It also calibrates the stability predictor. Findings and design are in **`docs/proxy-generation.md`**.
+- Where SPEC §4.4's remembered numbers differ, the measurement wins:
+  - the body shell spring is 1.2e6 (SPEC said 2–4M, which is suspension);
+  - light nodes are normal (the warning is at 0.25 kg, not 0.5);
+  - ω·Δt limits come from official content (ok ≤ 2.5, unstable > 4), not the textbook < 2.
+
+**4a — Proxy engine** (`src/shared/proxy/`, pure, unit-tested):
+- **Shapes:**
+  - meshoptimizer decimation (WASM; border-locked when the budget allows, then unlocked, pruned, vertex-clustered, and finally a hull, so budgets always hold);
+  - convex hull (three's ConvexHull, then decimated);
+  - PCA box and cylinder fits.
+- **Quality pass:** sliver/duplicate removal, short-edge collapse, conforming long-edge subdivision (longest first, capped), coherent outward winding, inset along normals.
+- **Symmetry:** left half → mirror → weld seam, giving exact l/r twins.
+- **CSP:** gains `'wasm-unsafe-eval'` (WebAssembly compilation only, no JS eval).
+
+**4b — Derivation:**
+- **Nodes:** vertices → nodes named `<prefix><fore tag><n><l|r>`. Mirror twins share `n`, ids are unique vehicle-wide, and variants of one slot share names.
+- **Beams and triangles:** edges → beams, faces → collision triangles.
+- **Bending braces:** opposite vertices of adjacent triangles; heavy density adds volumetric links.
+- **Weights:** spread evenly from the part's target mass (taxonomy × construction material, overridable).
+- **Measured beam presets:** a new `mechanical_block` for engine/gearbox/diff and `mechanical_light` for radiators, exhausts and tanks.
+- **Attachment styles:** bolted/clipped/rivets/welded, measured.
+  - Children attach to their parent's nearest nodes; openables get none (hinges, Phase 9).
+  - Parts far from their parent attach minimally, with a warning.
+- **Structure roles:** parts that ride on their parent (106 official examples) or that the suspension builds (Phase 10) get no proxy.
+- **Mass-capped node counts**, a stability predictor with concrete fixes, and refNodes placed on the body.
+- **Schema:** `nodes`/`beams`/`tris`/`proxy` got real schemas. They were always-empty placeholders, so no migration was needed. New projects write `proxy: {parts: {}, refNodes: null}`.
+
+**4c — UI:**
+- **Toolbar:** Generate (all parts), plus View toggles for mesh and nodes & beams (persisted).
+- **Inspector → Structure:** role, proxy mode, a Detail slider with live node/beam/triangle counts (runs the real build), bracing, attachment, target mass, symmetry, advanced (min feature, max beam, inset), stability verdict, warnings, Generate/Regenerate/Clear.
+- **Viewport:** instanced node spheres and colour-coded beam lines.
+- **Status bar:** live nodes / beams / collision triangles / kg.
+- Deleting or merging a part drops its structure. Generation is one undo step.
+
+**Whole-Sunburst result** (every part and variant):
+- 196 parts with own structure → **2,480 nodes, 11,180 beams, 3,227 triangles in 2.2 s**. The official car has 2,773 nodes across all variants.
+- **0 unstable, 1 marginal.**
+- The first run found 100 unstable parts and 13.5 s. Fixes: structure roles, mass caps, the light-mechanical preset, fragmented-mesh fallbacks, and plain-copy generation.
+
+**Tests:** 426 unit tests. The harness has 17 scenarios (new: generate body/engine/bumper from the merged-boxes fixture, overlay, view toggles, status bar, undo/redo). The Sunburst smoke test now generates the whole car and asserts unique ids and zero dangling references.
+
+**Carried to later phases:** refNodes and nodes are editable in Phase 7; riders' flexbodies use the parent's node group at export (Phase 5); suspension-role parts are built in Phase 10.
 
 ### Phase 3 — Import + taxonomy (done)
 
@@ -176,7 +226,7 @@ Decisions recorded with you:
 
 **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 225/225 ✔ · `npm run run-desktop` 9/9 ✔ (new: BeamNG auto-detect + Settings modal against a fake install) · `npm run jbeam:corpus` 5062/5062 ✔. No in-game gate: export output is unchanged.
 
-**Next:** Phase 3 — Import + taxonomy.
+**Next:** Phase 5 — Export v1 + in-game gate.
 
 
 ### Phase 1 — Foundations (done 2026-09-26)

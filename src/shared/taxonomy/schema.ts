@@ -24,7 +24,7 @@ export const POSITIONS_BY_AXIS: Record<PositionAxis, readonly string[]> = {
   corner: ['FL', 'FR', 'RL', 'RR'],
 };
 
-export const BEAM_PRESETS = ['structure_stiff', 'panel_metal', 'panel_plastic', 'trim_light', 'glass_brittle', 'mechanical', 'tyre_rubber'] as const;
+export const BEAM_PRESETS = ['structure_stiff', 'panel_metal', 'panel_plastic', 'trim_light', 'glass_brittle', 'mechanical', 'mechanical_light', 'mechanical_block', 'tyre_rubber'] as const;
 
 const ID = /^[a-z][a-z0-9_]*$/;
 

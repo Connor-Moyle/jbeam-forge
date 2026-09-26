@@ -32,6 +32,7 @@ import { subsetGeometry } from '@renderer/import/applySplits';
 import { disposeSharingGeometry } from '@renderer/import/dispose';
 import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
+import { StructureOverlay, type StructureData } from './structureOverlay';
 import { registerViewport } from './registry';
 
 // three-mesh-bvh: BVH-accelerated raycasting for all point-picking (SPEC §2).
@@ -134,6 +135,7 @@ export class ViewportRuntime {
   private readonly planeMaterial: MeshBasicMaterial;
   private planeMesh: Mesh | null = null;
   private pendingPaint: { x: number; y: number; op: ToolOp } | null = null;
+  private readonly structure = new StructureOverlay();
   private injectedFrameErrors = 0;
 
   constructor(
@@ -157,6 +159,8 @@ export class ViewportRuntime {
     // BeamNG space (Z up) → view space (Y up). Overlays share the same frame.
     this.modelRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.overlayRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.structure.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.scene.add(this.structure.root);
 
     const accent = new Color(resolveToken('accent') || undefined);
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -370,6 +374,29 @@ export class ViewportRuntime {
     }
   }
 
+  // ---------------------------------------------------------------- structure + view toggles
+
+  /** Generated nodes/beams (BeamNG space), or null to clear. */
+  setStructure(data: StructureData | null): void {
+    let radius = 0.012;
+    if (data && data.nodePositions.length) {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = 1; i < data.nodePositions.length; i += 3) {
+        lo = Math.min(lo, data.nodePositions[i]!);
+        hi = Math.max(hi, data.nodePositions[i]!);
+      }
+      radius = Math.min(0.03, Math.max(0.006, (hi - lo) * 0.0035)); // scale with vehicle length
+    }
+    this.structure.set(data, radius);
+  }
+
+  setView(view: { mesh: boolean; structure: boolean }): void {
+    this.modelRoot.visible = view.mesh;
+    this.overlayRoot.visible = view.mesh;
+    this.structure.root.visible = view.structure;
+  }
+
   // ---------------------------------------------------------------- split tool
 
   /** Enter/leave/update the face-selection tool. */
@@ -564,6 +591,7 @@ export class ViewportRuntime {
       });
     }
     this.setTool(null);
+    this.structure.dispose();
     this.selectMaterial.dispose();
     this.hoverMaterial.dispose();
     this.toolMaterial.dispose();

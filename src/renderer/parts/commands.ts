@@ -6,6 +6,7 @@ import type { ImportedMesh } from '@renderer/import/normalize';
 import { proposeParts, type Proposal } from '@shared/taxonomy/classify';
 import type { TaxonomyEntry } from '@shared/taxonomy/schema';
 import * as ops from '@shared/parts/ops';
+import { removePartStructure } from '@shared/proxy/generate';
 import { currentTaxonomy, saveUserEntry } from './taxonomy';
 
 /**
@@ -89,12 +90,30 @@ export function reparentPart(partId: string, parentId: string | null): boolean {
   return true;
 }
 
+/** Deleting (or merging away) a part also drops its generated structure and settings. */
 export function deletePart(partId: string): void {
-  projectStore.getState().execute({ label: 'Delete part', apply: (d) => ops.deletePart(d, partId) });
+  projectStore.getState().execute({
+    label: 'Delete part',
+    apply: (d) => {
+      removePartStructure(d, partId);
+      delete d.proxy.parts[partId];
+      ops.deletePart(d, partId);
+    },
+  });
 }
 
 export function mergeParts(targetId: string, sourceIds: readonly string[]): void {
-  projectStore.getState().execute({ label: `Merge ${plural(sourceIds.length + 1, 'part')}`, apply: (d) => ops.mergeParts(d, targetId, sourceIds) });
+  projectStore.getState().execute({
+    label: `Merge ${plural(sourceIds.length + 1, 'part')}`,
+    apply: (d) => {
+      for (const id of sourceIds) {
+        if (id === targetId) continue;
+        removePartStructure(d, id);
+        delete d.proxy.parts[id];
+      }
+      ops.mergeParts(d, targetId, sourceIds);
+    },
+  });
 }
 
 export function updatePart(partId: string, patch: ops.PartDetails, label = 'Edit part'): void {

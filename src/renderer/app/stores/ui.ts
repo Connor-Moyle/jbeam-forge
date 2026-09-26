@@ -15,9 +15,18 @@ export interface StatusMessage {
   tone: StatusTone;
 }
 
+export interface ViewToggles {
+  /** Imported meshes visible. */
+  mesh: boolean;
+  /** Generated nodes and beams drawn over the model. */
+  structure: boolean;
+}
+
 interface UiState {
   /** Remembered open/closed state of CollapsibleSections, by section id. */
   collapsed: Record<string, boolean>;
+  view: ViewToggles;
+  toggleView: (key: keyof ViewToggles) => void;
   status: StatusMessage | null;
   setCollapsed: (id: string, collapsed: boolean) => void;
   pushStatus: (text: string, tone?: StatusTone, ttlMs?: number) => void;
@@ -32,6 +41,8 @@ export const useUiStore = create<UiState>()(
   persist(
     (set, get) => ({
       collapsed: {},
+      view: { mesh: true, structure: true },
+      toggleView: (key) => set((s) => ({ view: { ...s.view, [key]: !s.view[key] } })),
       status: null,
       setCollapsed: (id, collapsed) => {
         if (get().collapsed[id] === collapsed) return;
@@ -51,7 +62,7 @@ export const useUiStore = create<UiState>()(
       name: 'jbforge.ui',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ collapsed: s.collapsed }),
+      partialize: (s) => ({ collapsed: s.collapsed, view: s.view }),
     },
   ),
 );

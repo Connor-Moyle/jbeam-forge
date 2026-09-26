@@ -28,6 +28,8 @@ const PRESET_LABELS: Record<(typeof BEAM_PRESETS)[number], string> = {
   trim_light: 'Light trim',
   glass_brittle: 'Glass',
   mechanical: 'Mechanical',
+  mechanical_light: 'Light mechanical (radiator, exhaust, tank)',
+  mechanical_block: 'Mechanical block (engine, gearbox)',
   tyre_rubber: 'Tyre rubber',
 };
 

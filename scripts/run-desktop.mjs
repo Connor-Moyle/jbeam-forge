@@ -530,6 +530,71 @@ const scenarios = [
     },
   },
   {
+    id: 'generate',
+    name: 'generate structure: body/engine/bumper · overlay · view toggles · undo/redo',
+    async run({ page }) {
+      const model = join(ROOT, 'tests', 'fixtures', 'models', 'merged_boxes.obj');
+      const stats = () => hook(page, 'sceneStats');
+      const waitMeshes = async (n) => {
+        for (let i = 0; i < 100; i++) {
+          const st = await stats();
+          if (st.meshes === n && st.sources.every((x) => x.status === 'ready')) return st;
+          await page.waitForTimeout(100);
+        }
+        throw new Error(`expected ${n} meshes, got ${JSON.stringify(await stats())}`);
+      };
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Generate Test');
+      await hook(page, 'queueDialog', [model]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').click();
+      await waitMeshes(1);
+      const tree = page.getByTestId('scene-tree');
+      await tree.getByText('merged', { exact: true }).click({ button: 'right' });
+      await page.getByRole('menuitem', { name: 'Split into connected pieces' }).click();
+      await waitMeshes(3);
+      const assign = async (mesh, query, position) => {
+        await tree.getByText(mesh, { exact: true }).click();
+        await page.getByTestId('scene-assign').click();
+        await page.getByTestId('assign-search').fill(query);
+        await page.getByTestId('assign-search').press('Enter');
+        if (position) await page.getByTestId(`assign-pos-${position}`).click();
+        await page.getByTestId('assign-confirm').click();
+      };
+      await assign('merged', 'body shell');
+      await assign('merged_piece2', 'engine');
+      await assign('merged_piece3', 'bumper', 'F');
+      await page.getByTestId('toolbar-generate').click();
+      let st;
+      for (let i = 0; i < 100; i++) {
+        st = await hook(page, 'structureState');
+        if (st?.nodes > 0) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.nodes > 0 && st.generatedParts === 3, `3 parts generated (${JSON.stringify(st)})`);
+      assert(st.uniqueIds && st.dangling === 0, 'node ids unique, every beam/triangle references a node');
+      assert(st.byKind.attach > 0 && st.byKind.edge > 0, `edges and attachments present (${JSON.stringify(st.byKind)})`);
+      assert(st.refNodes && Object.values(st.refNodes).every(Boolean), 'refNodes placed on the body');
+      const bar = await page.getByTestId('status-bar').textContent();
+      assert(bar.includes(`${st.nodes} nodes`), `status bar shows node count (${bar})`);
+      await tree.getByText('Body shell').click();
+      await page.getByTestId('structure-summary').waitFor();
+      await shot(page, 'generate-structure');
+      await page.getByTestId('toolbar-view-mesh').click();
+      await page.waitForTimeout(150);
+      await shot(page, 'generate-structure-only');
+      await page.getByTestId('toolbar-view-mesh').click();
+      await hook(page, 'runCommand', 'undo');
+      assert((await hook(page, 'structureState')).nodes === 0, 'undo removes the generated structure');
+      await hook(page, 'runCommand', 'redo');
+      assert((await hook(page, 'structureState')).nodes === st.nodes, 'redo restores it');
+      await hook(page, 'runCommand', 'close');
+      await page.getByTestId('unsaved-discard').click();
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+    },
+  },
+  {
     id: 'smoke-model',
     name: 'local smoke model import (--model)',
     skip: () => !smokeModel,
@@ -564,6 +629,18 @@ const scenarios = [
       smokeReport.classify = { ...summary, parts: ps.parts.length, assigned: ps.assigned };
       await page.waitForTimeout(300);
       await shot(page, 'smoke-model-parts');
+      const genStarted = Date.now();
+      await page.getByTestId('toolbar-generate').click();
+      let gs;
+      for (let i = 0; i < 1200; i++) {
+        gs = await hook(page, 'structureState');
+        if (gs?.generatedParts > 0) break;
+        await page.waitForTimeout(100);
+      }
+      smokeReport.structure = { ...gs, wallMs: Date.now() - genStarted, refNodes: undefined };
+      assert(gs.uniqueIds && gs.dangling === 0, `smoke structure consistent (${JSON.stringify(gs)})`);
+      await page.waitForTimeout(300);
+      await shot(page, 'smoke-model-structure');
       await page.getByTestId('scene-filter').fill('door');
       await page.waitForTimeout(200);
       await shot(page, 'smoke-model-filtered');

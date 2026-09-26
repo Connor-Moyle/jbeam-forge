@@ -21,7 +21,10 @@ exports[`.jbforge io > serializes an empty project deterministically (snapshot) 
   "assignments": {},
   "ignoredMeshes": [],
   "customTaxonomy": [],
-  "proxy": {},
+  "proxy": {
+    "parts": {},
+    "refNodes": null
+  },
   "nodes": [],
   "beams": [],
   "tris": [],

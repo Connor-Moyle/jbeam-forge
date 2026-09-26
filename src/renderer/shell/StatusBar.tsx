@@ -1,11 +1,14 @@
 import { useUiStore } from '@renderer/app/stores/ui';
+import { useMemo } from 'react';
 import { useSceneStore } from '@renderer/app/stores/scene';
+import { useProjectStore } from '@renderer/app/stores/project';
+import { EMPTY_ARR } from '@shared/empty';
 import { cx } from '@renderer/ui/cx';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS } from './presets';
 import styles from './StatusBar.module.css';
 
-/** Counters are placeholders until geometry exists (Phase 4). */
+/** Structure totals (live with edits); "tris" are collision triangles once structure exists, else visible mesh triangles. */
 const STATS = [
   { id: 'nodes', label: 'nodes' },
   { id: 'beams', label: 'beams' },
@@ -21,13 +24,21 @@ export function StatusBar() {
     for (const src of Object.values(s.sources)) for (const m of src.meshes) if (!s.hidden[m.key]) n += m.triangles;
     return n;
   });
-  const values: Partial<Record<(typeof STATS)[number]['id'], string>> = { tris: triangles ? triangles.toLocaleString() : undefined };
+  const nodes = useProjectStore((s) => s.doc?.nodes);
+  const beams = useProjectStore((s) => s.doc?.beams.length ?? 0);
+  const collisionTris = useProjectStore((s) => s.doc?.tris.length ?? 0);
+  const mass = useMemo(() => (nodes ?? EMPTY_ARR).reduce((m, n) => m + n.weight, 0), [nodes]);
+  const hasStructure = (nodes?.length ?? 0) > 0;
+  const values: Partial<Record<(typeof STATS)[number]['id'], string>> = hasStructure
+    ? { nodes: nodes!.length.toLocaleString(), beams: beams.toLocaleString(), tris: collisionTris.toLocaleString(), mass: mass.toFixed(1) }
+    : { tris: triangles ? triangles.toLocaleString() : undefined };
+  const labels: Partial<Record<(typeof STATS)[number]['id'], string>> = hasStructure ? {} : { tris: 'mesh tris' };
 
   return (
     <footer className={styles.bar} data-testid="status-bar">
       {STATS.map((s) => (
         <span key={s.id} className={styles.stat} data-stat={s.id}>
-          <span className={styles.value}>{values[s.id] ?? '—'}</span> {s.label}
+          <span className={styles.value}>{values[s.id] ?? '—'}</span> {labels[s.id] ?? s.label}
         </span>
       ))}
       <span className={styles.sep} aria-hidden />
