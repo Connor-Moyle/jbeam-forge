@@ -13,6 +13,8 @@ asar: true
 extraResources:
   - from: packs/materials
     to: materials-pack
+  - from: packs/objects
+    to: objects-pack
 win:
   icon: build/icon.png
   target:

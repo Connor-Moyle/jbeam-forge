@@ -1,6 +1,18 @@
 import type { Settings, SettingsPatch } from './settings-schema';
 import type { MaterialDef } from './materials/schema';
 
+/** A ready-made object (brake caliper, disc, gauge…) from the objects pack. */
+export interface ObjectItem {
+  id: string;
+  name: string;
+  category: string;
+  group: string;
+  /** Mesh file (absolute). */
+  mesh: string;
+  /** Its material, textures absolute. */
+  material: MaterialDef;
+}
+
 /** A material saved to the user's library. */
 export interface LibraryItem {
   id: string;
@@ -111,6 +123,8 @@ export interface InvokeContract {
   'materials:library': { req: undefined; res: LibraryItem[] };
   /** The material pack that ships with the app (read-only). */
   'materials:pack': { req: undefined; res: LibraryItem[] };
+  /** The objects pack that ships with the app. */
+  'objects:list': { req: undefined; res: ObjectItem[] };
   'materials:saveToLibrary': { req: { name: string; category: string; def: MaterialDef }; res: LibraryItem[] };
   'materials:removeFromLibrary': { req: { id: string }; res: LibraryItem[] };
   'materials:exportJbmat': { req: { name: string; category: string; def: MaterialDef }; res: string | null };
@@ -181,6 +195,7 @@ export const INVOKE_CHANNELS = [
   'materials:pickTexture',
   'materials:library',
   'materials:pack',
+  'objects:list',
   'materials:saveToLibrary',
   'materials:removeFromLibrary',
   'materials:exportJbmat',

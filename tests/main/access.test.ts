@@ -33,6 +33,7 @@ function project(sources: Partial<Source>[]): Project {
       format: 'dae',
       import: { scale: 1, upAxis: '+y', forwardAxis: '+z' },
       textureDirs: s.textureDirs ?? [],
+      placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 },
       addedAt: '2026-01-01T00:00:00.000Z',
     })),
   };

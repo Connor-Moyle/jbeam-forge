@@ -5,6 +5,7 @@ import { ZipFile } from 'yazl';
 import { createWriteStream, type Dirent } from 'node:fs';
 import { MaterialDefSchema, TEXTURE_SLOTS, type MaterialDef } from '@shared/materials/schema';
 import { describeError, type Logger } from '@shared/logger';
+import type { ObjectItem } from '@shared/ipc-contract';
 import { safeJoin, withZip } from '../beamng/zip';
 import { atomicWrite } from './atomicWrite';
 
@@ -217,5 +218,39 @@ export async function loadBundledPack(dir: string, logger: Logger): Promise<Libr
     }
   }
   logger.info(`material pack: ${items.length} materials from`, dir);
+  return items;
+}
+
+const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), group: z.string(), mesh: z.string().min(1), material: MaterialDefSchema, source: z.string().optional() });
+
+/** The objects pack shipped with the app: every <Group>/<Category>/<Name>/object.json under `dir`, paths made absolute. */
+export async function loadBundledObjects(dir: string, logger: Logger): Promise<ObjectItem[]> {
+  const found: string[] = [];
+  const walk = async (d: string, depth: number): Promise<void> => {
+    if (depth > 5) return;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) await walk(join(d, e.name), depth + 1);
+      else if (e.name === 'object.json') found.push(join(d, e.name));
+    }
+  };
+  await walk(dir, 0);
+  const items: ObjectItem[] = [];
+  for (const file of found.sort()) {
+    try {
+      const o = ObjectFileSchema.parse(JSON.parse(await readFile(file, 'utf8')));
+      const folder = dirname(file);
+      const id = `obj_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 80);
+      items.push({ id, name: o.name, category: o.category, group: o.group, mesh: join(folder, o.mesh), material: mapPaths({ ...o.material, id: `${id}_mat` }, (p) => join(folder, p)) });
+    } catch (err) {
+      logger.warn('objects pack: skipped', file, describeError(err).message);
+    }
+  }
+  logger.info(`objects pack: ${items.length} objects from`, dir);
   return items;
 }

@@ -4,7 +4,7 @@ import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
 import { UserTaxonomyService } from './services/userTaxonomy';
-import { loadBundledPack, MaterialLibraryService } from './services/materialLibrary';
+import { loadBundledObjects, loadBundledPack, MaterialLibraryService } from './services/materialLibrary';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
 import { ProjectFiles } from './services/projectFiles';
@@ -53,7 +53,10 @@ async function start(): Promise<void> {
   const packDir = app.isPackaged ? join(process.resourcesPath, 'materials-pack') : join(app.getAppPath(), 'packs', 'materials');
   projects.grantRoot(packDir);
   const materialPack = loadBundledPack(packDir, scoped('materials'));
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, harness });
+  const objectsDir = app.isPackaged ? join(process.resourcesPath, 'objects-pack') : join(app.getAppPath(), 'packs', 'objects');
+  projects.grantRoot(objectsDir);
+  const objectPack = loadBundledObjects(objectsDir, scoped('objects'));
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 

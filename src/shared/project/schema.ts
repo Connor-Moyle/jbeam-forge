@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 7;
+export const CURRENT_PROJECT_VERSION = 8;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -60,6 +60,15 @@ export const AXES = ['+x', '-x', '+y', '-y', '+z', '-z'] as const;
 export const CONSTRUCTION_MATERIALS = ['steel', 'aluminium', 'carbon', 'fibreglass', 'plastic'] as const;
 
 /** A mesh file the project was built from. Geometry is re-read on open, never stored. */
+/** A model's placement in BeamNG space: metres, degrees about X/Y/Z (applied X, then Y, then Z), uniform scale. */
+export const PlacementSchema = z.object({
+  position: z.tuple([z.number(), z.number(), z.number()]),
+  rotation: z.tuple([z.number(), z.number(), z.number()]),
+  scale: z.number().positive(),
+});
+export type Placement = z.infer<typeof PlacementSchema>;
+export const IDENTITY_PLACEMENT: Placement = { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 };
+
 export const SourceSchema = z.object({
   id: z.string().min(1),
   /** Relative to the project file's folder (forward slashes) when possible. */
@@ -77,6 +86,8 @@ export const SourceSchema = z.object({
   }),
   /** Extra folders searched for this source's textures ("Locate folder…"). */
   textureDirs: z.array(z.string().min(1)),
+  /** Where the model sits on the car, after its import conversion (moving a library caliper onto a hub). */
+  placement: PlacementSchema,
   addedAt: z.iso.datetime(),
 });
 
@@ -179,9 +190,9 @@ export const ProxySectionSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV7Schema = z.object({
+export const ProjectV8Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(7),
+  formatVersion: z.literal(8),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -210,7 +221,7 @@ export const ProjectV7Schema = z.object({
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV7Schema;
+export const ProjectSchema = ProjectV8Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

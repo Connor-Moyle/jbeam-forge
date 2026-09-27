@@ -74,6 +74,14 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...doc, formatVersion: 7, hinges: [] };
     },
   },
+  {
+    from: 7,
+    describe: 'model placement (Source.placement)',
+    migrate: (doc) => {
+      const sources: unknown[] = Array.isArray(doc.sources) ? (doc.sources as unknown[]) : [];
+      return { ...doc, formatVersion: 8, sources: sources.map((s) => (typeof s === 'object' && s !== null ? { ...s, placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 } } : s)) };
+    },
+  },
 ];
 
 export class MigrationError extends Error {

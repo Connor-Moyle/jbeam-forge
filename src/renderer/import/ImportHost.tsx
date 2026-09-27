@@ -4,6 +4,7 @@ import { LibraryDialog } from '@renderer/materials/LibraryDialog';
 import { RenameMeshDialog } from '@renderer/parts/RenameMeshDialog';
 import { iconSize } from '@renderer/ui/tokens';
 import { ImportDialog } from './ImportDialog';
+import { PlacementDialog } from './PlacementDialog';
 import { ClassifyDialog } from '@renderer/parts/ClassifyDialog';
 import { AssignDialog } from '@renderer/parts/AssignDialog';
 import { CustomPartDialog } from '@renderer/parts/CustomPartDialog';
@@ -21,6 +22,7 @@ export function ImportHost() {
       <ClassifyDialog />
       <AssignDialog />
       <RenameMeshDialog />
+      <PlacementDialog />
       <LibraryDialog />
       <MergeDialog />
       <CustomPartDialog />

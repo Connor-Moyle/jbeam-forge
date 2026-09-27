@@ -1,14 +1,17 @@
 import {
+  Box3,
   BoxGeometry,
   CanvasTexture,
   Color,
   CylinderGeometry,
   DirectionalLight,
+  Group,
   Mesh,
   PerspectiveCamera,
   PlaneGeometry,
   PMREMGenerator,
   Scene,
+  Sphere,
   SphereGeometry,
   SRGBColorSpace,
   TorusKnotGeometry,
@@ -22,6 +25,9 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import type { MaterialDef } from '@shared/materials/schema';
 import { resolveToken } from '@renderer/ui/tokens';
 import { materialFor, texturesReady } from './runtime';
+import type { SourceFormat } from '@shared/project/schema';
+import { call } from '@renderer/diagnostics/ipc';
+import { loadIntoLoaderSpace } from '@renderer/import/loaders';
 
 /**
  * Material previews: a live stage for the Materials editor (orbit it, pick a
@@ -179,6 +185,21 @@ let thumbRenderer: { renderer: WebGLRenderer; parts: ReturnType<typeof makeScene
 const thumbs = new Map<string, Promise<string>>();
 let queue: Promise<unknown> = Promise.resolve();
 
+/** The one offscreen renderer every thumbnail uses (made on first need). */
+function ensureThumbRenderer(): NonNullable<typeof thumbRenderer> {
+  if (!thumbRenderer) {
+    const canvas = document.createElement('canvas');
+    canvas.width = THUMB;
+    canvas.height = THUMB;
+    const renderer = new WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    renderer.setSize(THUMB, THUMB, false);
+    const parts = makeScene(renderer);
+    parts.scene.background = backgroundTexture('studio');
+    thumbRenderer = { renderer, parts, shape: 'sphere' };
+  }
+  return thumbRenderer;
+}
+
 function thumbKey(def: MaterialDef, shape: PreviewShape): string {
   const { id: _id, name: _name, origin: _origin, ...look } = def;
   return `${shape}:${JSON.stringify(look)}`;
@@ -195,17 +216,7 @@ export function materialThumbnail(def: MaterialDef, shape: PreviewShape = 'spher
   if (known) return known;
   const job = queue.then(async () => {
     await texturesReady(def);
-    if (!thumbRenderer) {
-      const canvas = document.createElement('canvas');
-      canvas.width = THUMB;
-      canvas.height = THUMB;
-      const renderer = new WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-      renderer.setSize(THUMB, THUMB, false);
-      const parts = makeScene(renderer);
-      parts.scene.background = backgroundTexture('studio');
-      thumbRenderer = { renderer, parts, shape: 'sphere' };
-    }
-    const t = thumbRenderer;
+    const t = ensureThumbRenderer();
     if (t.shape !== shape) {
       t.parts.mesh.geometry.dispose();
       t.parts.mesh.geometry = shapeGeometry(shape);
@@ -219,4 +230,51 @@ export function materialThumbnail(def: MaterialDef, shape: PreviewShape = 'spher
   queue = job.catch(() => undefined);
   thumbs.set(key, job);
   return job;
+}
+
+// ---------------------------------------------------------------- object thumbnails
+
+const objectThumbs = new Map<string, Promise<string | null>>();
+
+/**
+ * A rendered preview of a library object (PNG data URL): its mesh loaded with
+ * the importer's own loaders, dressed in its material, framed to fit.
+ */
+export function objectThumbnail(item: { id: string; mesh: string; material: MaterialDef }): Promise<string | null> {
+  const known = objectThumbs.get(item.id);
+  if (known) return known;
+  const job = queue.then(async () => {
+    const ext = item.mesh.slice(item.mesh.lastIndexOf('.') + 1).toLowerCase() as SourceFormat;
+    const bytes = await call('import:readFile', { path: item.mesh });
+    const { root } = await loadIntoLoaderSpace(ext, bytes, item.mesh, () => Promise.resolve(null));
+    await texturesReady(item.material);
+    const material = materialFor(item.material);
+    root.traverse((o) => {
+      if (o instanceof Mesh) o.material = material;
+    });
+    // Three-quarter view of whatever the object is, sized to fill the frame.
+    root.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(root);
+    const sphere = box.getBoundingSphere(new Sphere());
+    root.position.sub(sphere.center);
+    const holder = new Group();
+    holder.add(root);
+    holder.scale.setScalar(1.25 / (sphere.radius || 1));
+    holder.rotation.set(0.35, -0.75, 0);
+    const t = ensureThumbRenderer();
+    t.parts.mesh.visible = false;
+    t.parts.scene.add(holder);
+    t.renderer.render(t.parts.scene, t.parts.camera);
+    const url = t.renderer.domElement.toDataURL('image/png');
+    t.parts.scene.remove(holder);
+    t.parts.mesh.visible = true;
+    holder.traverse((o) => {
+      if (o instanceof Mesh) (o.geometry as BufferGeometry).dispose();
+    });
+    return url;
+  });
+  const safe = job.catch(() => null);
+  queue = safe;
+  objectThumbs.set(item.id, safe);
+  return safe;
 }

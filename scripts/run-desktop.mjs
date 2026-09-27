@@ -294,7 +294,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 7 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 8 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -352,7 +352,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 7 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 8 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -770,8 +770,55 @@ const scenarios = [
       const matsJson = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       assert(Object.values(matsJson).some((m) => m.Stages?.[0]?.roughnessFactor === 0.27 && m.version === 1.5), `edited material exported (${JSON.stringify(matsJson).slice(0, 300)})`);
       assert(matsJson.generate_test_chrome?.Stages?.[0]?.metallicFactor === 1, `library preset exported (${Object.keys(matsJson)})`);
+
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();
+
+      // Objects library (bundled locally in packs/objects): thumbnails render and an object comes in with its material.
+      if (existsSync(join(ROOT, 'packs', 'objects'))) {
+        await page.getByTestId('toggle-objects').click();
+        await page.getByTestId('objects-panel').waitFor();
+        let cards = 0;
+        for (let i = 0; i < 100 && cards < 20; i++) {
+          cards = await page.getByTestId('object-card').count();
+          await page.waitForTimeout(100);
+        }
+        assert(cards >= 20, `objects pack listed (${cards})`);
+        await page.getByLabel('Search objects').fill('brembo');
+        await page.waitForTimeout(4000); // meshes and textures load for the thumbnails
+        await shot(page, 'objects-panel');
+        const before = await hook(page, 'sceneStats');
+        const materialsBefore = await hook(page, 'materialCount');
+        const keysBefore = new Set((await hook(page, 'meshBounds')).map((m) => m.key));
+        await page.getByTestId('object-add').first().click();
+        for (let i = 0; i < 100; i++) {
+          if ((await hook(page, 'sceneStats')).meshes > before.meshes) break;
+          await page.waitForTimeout(100);
+        }
+        if (await page.getByTestId('classify-skip').isVisible().catch(() => false)) await page.getByTestId('classify-skip').click();
+        assert((await hook(page, 'sceneStats')).meshes > before.meshes && (await hook(page, 'materialCount')) === materialsBefore + 1, 'object added with its material');
+        await shot(page, 'object-added');
+        // Move it with the Placement dialog: the geometry follows at once, and undo puts it back.
+        const centreX = async () => {
+          const own = (await hook(page, 'meshBounds')).filter((m) => !keysBefore.has(m.key));
+          return own.reduce((sum, m) => sum + (m.min[0] + m.max[0]) / 2, 0) / own.length;
+        };
+        const x0 = await centreX();
+        await page.getByTestId('scene-source-row').last().click({ button: 'right' });
+        await page.getByRole('menuitem', { name: 'Placement…' }).click();
+        await page.getByLabel('Position X').fill('1.5');
+        await page.getByLabel('Position X').press('Enter');
+        await page.waitForTimeout(200);
+        const x1 = await centreX();
+        assert(Math.abs(x1 - x0 - 1.5) < 0.01, `object moved 1.5 m along X (${x0.toFixed(3)} → ${x1.toFixed(3)})`);
+        await shot(page, 'object-placed');
+        await page.getByTestId('placement-done').click();
+        await hook(page, 'runCommand', 'undo');
+        await page.waitForTimeout(200);
+        assert(Math.abs((await centreX()) - x0) < 0.01, 'undo moves the object back');
+        await hook(page, 'runCommand', 'undo');
+        await page.getByTestId('toggle-objects').click();
+      }
 
       // Test Mode: live sim runs, scenarios report, exit restores the normal view.
       await page.getByTestId('toolbar-test').click();

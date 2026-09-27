@@ -22,7 +22,7 @@ const MESHES = [mesh('car_body', 0, 0), mesh('car_glass_a', 0.8, -1), mesh('car_
 
 beforeEach(() => {
   const doc = createEmptyProject({ name: 'Test', slug: 'test' }, '0.1.0', new Date('2026-01-01T00:00:00Z'));
-  doc.sources.push({ id: 'src', path: 'car.dae', absolutePath: 'C:/car.dae', format: 'dae', import: { scale: 1, upAxis: '+z', forwardAxis: '-y' }, textureDirs: [], addedAt: '2026-01-01T00:00:00.000Z' });
+  doc.sources.push({ id: 'src', path: 'car.dae', absolutePath: 'C:/car.dae', format: 'dae', import: { scale: 1, upAxis: '+z', forwardAxis: '-y' }, textureDirs: [], placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 }, addedAt: '2026-01-01T00:00:00.000Z' });
   projectStore.getState().load(doc, 'C:/test.jbforge');
   useSceneStore.getState().clear();
   useSceneStore.getState().setSource({ sourceId: 'src', status: 'ready', fingerprint: 'x', fileName: 'car.dae', raw: MESHES, meshes: MESHES, splitsKey: '[]', textures: null, error: null, stats: null });

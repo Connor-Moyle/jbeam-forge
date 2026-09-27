@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { Placement } from '@shared/project/schema';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import type { TextureReport } from '@renderer/import/textures';
 import { disposeGeometries, disposeImported } from '@renderer/import/dispose';
@@ -15,6 +16,8 @@ export type SourceStatus = 'loading' | 'ready' | 'error' | 'missing';
 export interface LoadedSource {
   sourceId: string;
   status: SourceStatus;
+  /** Placement the loaded geometry currently has (moved in place when the document's changes). */
+  placement?: Placement;
   /** Settings/texture-folder fingerprint the meshes were built with. */
   fingerprint: string;
   fileName: string;

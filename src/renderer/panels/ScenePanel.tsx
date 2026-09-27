@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Pencil, Search, Tag, Trash2, Undo2, Unlink, WandSparkles } from 'lucide-react';
+import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Move3d, Pencil, Search, Tag, Trash2, Undo2, Unlink, WandSparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore, type LoadedSource } from '@renderer/app/stores/scene';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { locateTextures, startImport } from '@renderer/import/importFlow';
+import { usePlacementUi } from '@renderer/import/PlacementDialog';
 import * as cmd from '@renderer/parts/commands';
 import { useAssignUi } from '@renderer/parts/assignUi';
 import { isSplitResult, splitCentreLine, splitConnected, unsplit, useSplitTool } from '@renderer/split/splitTool';
@@ -88,27 +89,31 @@ function SourcesSection({ sourceIds }: { sourceIds: readonly string[] }) {
 function SourceRow({ source }: { source: LoadedSource }) {
   const missing = source.textures?.missing.length ?? 0;
   const unsupported = source.textures?.unsupported.length ?? 0;
+  const openPlacement = usePlacementUi((s) => s.open);
+  const items: ContextMenuItem[] = [{ label: 'Placement…', icon: Move3d, disabled: source.status !== 'ready', onSelect: () => openPlacement(source.sourceId) }];
   return (
-    <div data-source-id={source.sourceId}>
-      <TreeRow
-        depth={0}
-        icon={FileBox}
-        label={
-          <span className={styles.sourceLabel}>
-            {source.fileName}
-            {source.status === 'loading' && <Badge>loading…</Badge>}
-            {(source.status === 'error' || source.status === 'missing') && <Badge tone="danger">{source.status === 'missing' ? 'file missing' : 'failed'}</Badge>}
-          </span>
-        }
-        count={source.meshes.length}
-        actions={missing + unsupported > 0 ? <TextureIssues source={source} /> : undefined}
-      />
-      {source.error && (
-        <Callout tone="danger" className={styles.sourceError}>
-          {source.error}
-        </Callout>
-      )}
-    </div>
+    <ContextMenu items={items}>
+      <div data-source-id={source.sourceId} data-testid="scene-source-row">
+        <TreeRow
+          depth={0}
+          icon={FileBox}
+          label={
+            <span className={styles.sourceLabel}>
+              {source.fileName}
+              {source.status === 'loading' && <Badge>loading…</Badge>}
+              {(source.status === 'error' || source.status === 'missing') && <Badge tone="danger">{source.status === 'missing' ? 'file missing' : 'failed'}</Badge>}
+            </span>
+          }
+          count={source.meshes.length}
+          actions={missing + unsupported > 0 ? <TextureIssues source={source} /> : undefined}
+        />
+        {source.error && (
+          <Callout tone="danger" className={styles.sourceError}>
+            {source.error}
+          </Callout>
+        )}
+      </div>
+    </ContextMenu>
   );
 }
 

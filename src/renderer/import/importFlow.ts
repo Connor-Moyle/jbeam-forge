@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
+import { IDENTITY_PLACEMENT } from '@shared/project/schema';
+import { samePlacement } from '@shared/placement';
+import { applyPlacement } from './placement';
 import { planSeed, seedMaterials } from '@renderer/materials/seed';
+import type { MaterialDef } from '@shared/materials/schema';
 import { registerImportedTextures } from '@renderer/materials/runtime';
 import { produce } from 'immer';
 import { legacyKeyMap, remapMeshKeys } from '@shared/mesh/legacyKeys';
@@ -91,8 +95,12 @@ export async function startImport(): Promise<void> {
   }
 }
 
-/** Import dialog confirmed: finish, show, then record the source (undoable). */
-export async function confirmImport(staged: StagedImport, settings: ImportSettings): Promise<void> {
+/**
+ * Import dialog confirmed: finish, show, then record the source (undoable).
+ * `material` puts one ready-made material on every mesh (objects from the
+ * library) instead of importing the file's own. Returns the new source id.
+ */
+export async function confirmImport(staged: StagedImport, settings: ImportSettings, opts: { material?: MaterialDef; classify?: boolean } = {}): Promise<string | null> {
   const ui = useImportUi.getState();
   ui.setStaged(null);
   ui.setBusy(`Importing ${staged.fileName}…`);
@@ -105,12 +113,14 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
       format: staged.format,
       import: { scale: settings.scale, upAxis: settings.upAxis, forwardAxis: settings.forwardAxis },
       textureDirs: [],
+      placement: IDENTITY_PLACEMENT,
       addedAt: new Date().toISOString(),
     };
     const done = await finishImport(staged, sourceId, settings, EMPTY_ARR, textureCaps());
     useSceneStore.getState().setSource({
       sourceId,
       status: 'ready',
+      placement: IDENTITY_PLACEMENT,
       fingerprint: fingerprint(source),
       fileName: staged.fileName,
       raw: done.meshes,
@@ -121,7 +131,7 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
     });
     registerImportedTextures(done.meshes);
     const doc = projectStore.getState().doc;
-    const seed = doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
+    const seed = opts.material ? objectSeed(doc?.materials ?? [], opts.material, done.meshes) : doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
     projectStore.getState().execute({
       label: `Import ${staged.fileName}`,
       apply: (d) => {
@@ -131,7 +141,7 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
       },
     });
     useSceneStore.getState().requestFrame();
-    offerAutoClassify(staged.fileName, done.meshes);
+    if (opts.classify !== false) offerAutoClassify(staged.fileName, done.meshes);
     const missing = done.textures.missing.length;
     useUiStore
       .getState()
@@ -139,12 +149,25 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
         `Imported ${staged.fileName}: ${done.meshes.length} meshes, ${staged.triangles.toLocaleString()} triangles in ${(done.totalMs / 1000).toFixed(1)} s${missing ? ` · ${missing} textures missing` : ''}`,
         missing ? 'warning' : 'success',
       );
+    return sourceId;
   } catch (err) {
     logger.error('import failed:', errorText(err));
     void useDialogStore.getState().showAlert('Could not import model', errorText(err));
+    return null;
   } finally {
     ui.setBusy(null);
   }
+}
+
+/** One library material for every mesh (and every slot) of an added object. */
+function objectSeed(existing: readonly MaterialDef[], material: MaterialDef, meshes: readonly ImportedMesh[]): { materials: MaterialDef[]; slots: Record<string, string[]> } {
+  const taken = new Set(existing.map((m) => m.name.toLowerCase()));
+  let name = material.name;
+  for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${material.name}_${i}`;
+  const def: MaterialDef = { ...material, id: `mat_${crypto.randomUUID().slice(0, 8)}`, name, origin: null };
+  const slots: Record<string, string[]> = {};
+  for (const m of meshes) slots[m.key] = (Array.isArray(m.material) ? m.material : [m.material]).map(() => def.id);
+  return { materials: [def], slots };
 }
 
 /** "Locate folder…" for a source's missing textures (undoable; re-runs the import). */
@@ -193,7 +216,8 @@ async function loadFromDisk(source: Source): Promise<void> {
     }
     if (source.format === 'fbx') adoptLegacyFbxKeys(source.id, done.meshes);
     registerImportedTextures(done.meshes);
-    store({ ...base, status: 'ready', raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
+    applyPlacement(done.meshes, IDENTITY_PLACEMENT, source.placement);
+    store({ ...base, status: 'ready', placement: source.placement, raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
     seedMaterials(source.id, done.meshes); // projects from before materials existed
   } catch (err) {
     store({ ...base, status: 'error', error: errorText(err) });
@@ -233,6 +257,17 @@ export function useSourceSync(): void {
       const fp = fingerprint(s);
       if ((loaded && loaded.fingerprint === fp) || inFlight.get(s.id) === fp) continue;
       void loadFromDisk(s);
+    }
+  }, [sources]);
+
+  // Placement changed (moved in the Placement dialog, undo/redo): move the loaded geometry, no reload.
+  useEffect(() => {
+    const scene = useSceneStore.getState();
+    for (const s of sources) {
+      const loaded = scene.sources[s.id];
+      if (loaded?.status !== 'ready' || !loaded.placement || samePlacement(loaded.placement, s.placement)) continue;
+      applyPlacement(loaded.raw, loaded.placement, s.placement);
+      scene.setSource({ ...loaded, placement: s.placement, ...deriveMeshes(s.id, loaded.raw) });
     }
   }, [sources]);
 
