@@ -22,6 +22,10 @@ export const SettingsSchema = z.object({
   autoRenameMeshes: z.boolean(),
   /** Drop numbered leftovers from part display names ("Hood (2)" → "Hood"). */
   autoRenameDisplayNames: z.boolean(),
+  /** Your own material folders, scanned into the library at startup. */
+  materialFolders: z.array(z.string().min(1)).max(20),
+  /** Your own object folders (meshes: calipers, gauges…), scanned at startup. */
+  objectFolders: z.array(z.string().min(1)).max(20),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -35,6 +39,8 @@ export const DEFAULT_SETTINGS: Settings = {
   focusGhostOpacity: 0.12,
   autoRenameMeshes: true,
   autoRenameDisplayNames: true,
+  materialFolders: [],
+  objectFolders: [],
 };
 
 /** Fields the renderer may change. `version` is owned by the main process. */

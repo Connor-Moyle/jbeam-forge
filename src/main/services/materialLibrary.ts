@@ -189,7 +189,7 @@ export class MaterialLibraryService {
  * <Category>/<Name>/material.json under `dir`, with its texture paths made
  * absolute. Skips anything that doesn't parse rather than failing the lot.
  */
-export async function loadBundledPack(dir: string, logger: Logger): Promise<LibraryItem[]> {
+export async function loadBundledPack(dir: string, logger: Logger, prefix = 'pack'): Promise<LibraryItem[]> {
   const found: string[] = [];
   const walk = async (d: string, depth: number): Promise<void> => {
     if (depth > 4) return;
@@ -210,7 +210,7 @@ export async function loadBundledPack(dir: string, logger: Logger): Promise<Libr
     try {
       const parsed = JbmatSchema.parse(JSON.parse(await readFile(file, 'utf8')));
       const folder = dirname(file);
-      const id = `pack_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 64);
+      const id = `${prefix}_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 64);
       const def = mapPaths({ ...parsed.def, id }, (p) => join(folder, p));
       items.push(LibraryItemSchema.parse({ id, name: parsed.name, category: parsed.category, savedAt: '', def }));
     } catch (err) {
@@ -224,7 +224,7 @@ export async function loadBundledPack(dir: string, logger: Logger): Promise<Libr
 const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), group: z.string(), mesh: z.string().min(1), material: MaterialDefSchema.nullable(), source: z.string().optional(), credit: z.string().optional() });
 
 /** The objects pack shipped with the app: every <Group>/<Category>/<Name>/object.json under `dir`, paths made absolute. */
-export async function loadBundledObjects(dir: string, logger: Logger): Promise<ObjectItem[]> {
+export async function loadBundledObjects(dir: string, logger: Logger, prefix = 'obj'): Promise<ObjectItem[]> {
   const found: string[] = [];
   const walk = async (d: string, depth: number): Promise<void> => {
     if (depth > 5) return;
@@ -245,7 +245,7 @@ export async function loadBundledObjects(dir: string, logger: Logger): Promise<O
     try {
       const o = ObjectFileSchema.parse(JSON.parse(await readFile(file, 'utf8')));
       const folder = dirname(file);
-      const id = `obj_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 80);
+      const id = `${prefix}_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 80);
       items.push({ id, name: o.name, category: o.category, group: o.group, mesh: join(folder, o.mesh), material: o.material && mapPaths({ ...o.material, id: `${id}_mat` }, (p) => join(folder, p)), credit: o.credit ?? null });
     } catch (err) {
       logger.warn('objects pack: skipped', file, describeError(err).message);

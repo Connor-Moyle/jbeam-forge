@@ -35,7 +35,9 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "author": null,
   "focusGhostOpacity": 0.12,
   "autoRenameMeshes": true,
-  "autoRenameDisplayNames": true
+  "autoRenameDisplayNames": true,
+  "materialFolders": [],
+  "objectFolders": []
 }
 "
 `;

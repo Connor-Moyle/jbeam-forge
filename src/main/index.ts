@@ -4,6 +4,7 @@ import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
 import { UserTaxonomyService } from './services/userTaxonomy';
+import { UserLibrary } from './library/userLibrary';
 import { loadBundledObjects, loadBundledPack, MaterialLibraryService } from './services/materialLibrary';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
@@ -56,17 +57,34 @@ async function start(): Promise<void> {
   const objectsDir = app.isPackaged ? join(process.resourcesPath, 'objects-pack') : join(app.getAppPath(), 'packs', 'objects');
   projects.grantRoot(objectsDir);
   const objectPack = loadBundledObjects(objectsDir, scoped('objects'));
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, kn5Cache: join(userData, 'kn5-textures'), harness });
+  // Your own library folders: scanned in the background once the window is up (see below).
+  const userLibrary = new UserLibrary(join(userData, 'library-scan'), scoped('library'), (dir) => projects.grantRoot(dir));
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, userLibrary, kn5Cache: join(userData, 'kn5-textures'), harness });
+  const scanLibrary = () => {
+    const s = settings.get();
+    if (!s.materialFolders.length && !s.objectFolders.length && !userLibrary.items.folders.length) return;
+    void userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders }).then(() => {
+      const { folders, scanning } = userLibrary.items;
+      if (mainWindow && !mainWindow.isDestroyed()) sendEvent(mainWindow.webContents, 'library:changed', { folders, scanning });
+    });
+  };
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 
+  let libraryFolders = JSON.stringify([settings.get().materialFolders, settings.get().objectFolders]);
   settings.onChange((s) => {
     setDebugLogging(s.debugLogging);
+    const folders = JSON.stringify([s.materialFolders, s.objectFolders]);
+    if (folders !== libraryFolders) {
+      libraryFolders = folders;
+      scanLibrary();
+    }
     rebuildMenu(); // keep the Debug Logging checkbox in sync
     if (mainWindow) sendEvent(mainWindow.webContents, 'settings:changed', s);
   });
 
   mainWindow = createMainWindow({ devServerUrl, harness });
+  mainWindow.webContents.once('did-finish-load', scanLibrary);
   mainWindow.on('closed', () => {
     mainWindow = null;
   });

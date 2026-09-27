@@ -12,6 +12,7 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { useUiStore } from '@renderer/app/stores/ui';
+import { LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
 import styles from './SettingsModal.module.css';
 
 const VALIDATE_DEBOUNCE_MS = 250;
@@ -39,6 +40,9 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const [ghost, setGhost] = useState(settings.focusGhostOpacity);
   const [autoMeshNames, setAutoMeshNames] = useState(settings.autoRenameMeshes);
   const [autoDisplayNames, setAutoDisplayNames] = useState(settings.autoRenameDisplayNames);
+  const [materialFolders, setMaterialFolders] = useState(settings.materialFolders);
+  const [objectFolders, setObjectFolders] = useState(settings.objectFolders);
+  const [libraryStatus, rescan] = useLibraryStatus();
   const [check, setCheck] = useState<Check>(() => {
     const initial = (settings.beamngInstallDir ?? '').trim();
     return initial ? { state: 'checking', forDir: initial } : { state: 'idle' };
@@ -109,6 +113,8 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
     if (autoMeshNames !== settings.autoRenameMeshes) patch.autoRenameMeshes = autoMeshNames;
     if (autoDisplayNames !== settings.autoRenameDisplayNames) patch.autoRenameDisplayNames = autoDisplayNames;
     if (dirChanged) patch.beamngInstallDir = trimmedDir || null;
+    if (JSON.stringify(materialFolders) !== JSON.stringify(settings.materialFolders)) patch.materialFolders = materialFolders;
+    if (JSON.stringify(objectFolders) !== JSON.stringify(settings.objectFolders)) patch.objectFolders = objectFolders;
     if (Object.keys(patch).length === 0) {
       onClose();
       return;
@@ -167,6 +173,19 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               {settings.beamngUserDir ?? 'Not found'}
             </span>
           </Field>
+        </FieldGroup>
+
+        <FieldGroup title="Library folders">
+          <p className={styles.help}>
+            Folders of your own materials and meshes. They&rsquo;re scanned when JBeam Forge starts (and when you save changes here), named consistently, and added to the Material library and the Objects panel. Only folders that changed are scanned again.
+          </p>
+          <Field label="Materials">
+            <LibraryFolderList kind="materials" folders={materialFolders} onChange={setMaterialFolders} status={libraryStatus} />
+          </Field>
+          <Field label="Objects">
+            <LibraryFolderList kind="objects" folders={objectFolders} onChange={setObjectFolders} status={libraryStatus} />
+          </Field>
+          <ScanNow status={libraryStatus} onScan={rescan} />
         </FieldGroup>
 
         <FieldGroup title="Viewport">

@@ -1,6 +1,11 @@
 import type { Settings, SettingsPatch } from './settings-schema';
 import type { MaterialDef } from './materials/schema';
 
+export interface LibraryStatus {
+  scanning: boolean;
+  folders: { kind: 'materials' | 'objects'; folder: string; count: number; error: string | null }[];
+}
+
 /** An Assetto Corsa car folder as read by main (src/main/import/acCar.ts). */
 export interface AcCarInfo {
   folder: string;
@@ -134,6 +139,10 @@ export interface InvokeContract {
   'import:pickTextureDir': { req: undefined; res: string | null };
   /** Pick an Assetto Corsa car folder and read it (model, skins, data files). */
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
+  /** Your library folders: what each one gave, and whether a scan is running. */
+  'library:status': { req: undefined; res: LibraryStatus };
+  /** Scan your library folders again now. */
+  'library:rescan': { req: undefined; res: LibraryStatus };
   /** Save a texture baked from a kn5's materials next to its extracted textures; returns its path. */
   'kn5:saveBaked': { req: { kn5Path: string; name: string; bytes: Uint8Array }; res: string };
   /** Pick an image for a material slot; its folder becomes readable. */
@@ -180,6 +189,8 @@ export interface EventContract {
   'settings:changed': Settings;
   'status:message': { text: string; tone: 'info' | 'success' | 'warning' | 'danger' };
   'menu:command': { command: AppCommand };
+  /** Your library folders were scanned: reload the material pack and objects lists. */
+  'library:changed': LibraryStatus;
 }
 
 export type InvokeChannel = keyof InvokeContract;
@@ -211,6 +222,8 @@ export const INVOKE_CHANNELS = [
   'import:resolveTextures',
   'import:pickTextureDir',
   'ac:pickCar',
+  'library:status',
+  'library:rescan',
   'kn5:saveBaked',
   'materials:pickTexture',
   'materials:library',
@@ -238,6 +251,7 @@ export const EVENT_CHANNELS = [
   'settings:changed',
   'status:message',
   'menu:command',
+  'library:changed',
 ] as const satisfies readonly EventChannel[];
 
 /** API surface exposed on `window.forge` by the preload script. */

@@ -26,6 +26,8 @@ import { useEditStore } from '@renderer/structure/editStore';
 import { splitCentreLine } from '@renderer/split/splitTool';
 import { installNamingRules, renameFromParts } from '@renderer/parts/naming';
 import { mirrorPartners } from '@shared/structure/edit';
+import { useObjects } from '@renderer/panels/ObjectsPanel';
+import { useLibrary } from '@renderer/materials/LibraryDialog';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
 
@@ -36,6 +38,20 @@ function AppEffects() {
 
   useEffect(() => window.forge.on('status:message', ({ text, tone }) => pushStatus(text, tone, 8000)), [pushStatus]);
   useEffect(() => window.forge.on('menu:command', ({ command }) => runAppCommand(command)), []);
+  // Your library folders were scanned: pick up what they added.
+  useEffect(
+    () =>
+      window.forge.on('library:changed', ({ folders }) => {
+        void useObjects.getState().reload();
+        void call('materials:pack').then((pack) => useLibrary.getState().setPack(pack));
+        const count = (kind: string) => folders.filter((f) => f.kind === kind).reduce((n, f) => n + f.count, 0);
+        const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+        const failed = folders.filter((f) => f.error).length;
+        const found = `${plural(count('materials'), 'material')}, ${plural(count('objects'), 'object')}`;
+        if (folders.length) pushStatus(failed ? `Library folders: ${found}; ${plural(failed, 'folder')} could not be read` : `Library folders: ${found}`, failed ? 'warning' : 'success');
+      }),
+    [pushStatus],
+  );
   useEffect(() => void loadUserTaxonomy(), []);
   useEffect(() => installNamingRules(), []);
 

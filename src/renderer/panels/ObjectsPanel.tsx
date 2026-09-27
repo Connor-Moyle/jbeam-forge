@@ -17,13 +17,14 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import styles from './ObjectsPanel.module.css';
 
-/** The bundled objects (loaded once). */
-const useObjects = create<{ items: ObjectItem[] | null; load: () => Promise<void> }>()((set, get) => ({
+/** The bundled objects plus your scanned folders (loaded once, again after a library scan). */
+export const useObjects = create<{ items: ObjectItem[] | null; load: () => Promise<void>; reload: () => Promise<void> }>()((set, get) => ({
   items: null,
   load: async () => {
     if (get().items) return;
     set({ items: await call('objects:list') });
   },
+  reload: async () => set({ items: await call('objects:list') }),
 }));
 
 const ALL = '__all__';

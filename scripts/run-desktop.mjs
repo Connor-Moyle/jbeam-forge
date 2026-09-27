@@ -170,6 +170,30 @@ const scenarios = [
       await page.getByTestId('open-settings').click();
       await page.getByTestId('settings-modal').waitFor();
       assert(await page.getByRole('switch', { name: 'Debug logging' }).isChecked(), 'modal reflects saved settings');
+
+      // Library folders: add one of each, save, and the scan adds them to the library.
+      const libFixtures = join(ROOT, 'tests', 'fixtures', 'library');
+      await hook(page, 'queueDialog', [join(libFixtures, 'materials')]);
+      await page.getByTestId('library-folders-materials').getByRole('button', { name: 'Add folder' }).click();
+      await hook(page, 'queueDialog', [join(libFixtures, 'objects')]);
+      await page.getByTestId('library-folders-objects').getByRole('button', { name: 'Add folder' }).click();
+      await page.getByTestId('settings-save').click();
+      await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
+      const invoke = (channel) => page.evaluate(async (c) => (await window.forge.invoke(c)).value, channel);
+      let lib;
+      for (let i = 0; i < 300; i++) {
+        lib = await invoke('library:status');
+        if (!lib.scanning && lib.folders.length === 2) break;
+        await page.waitForTimeout(100);
+      }
+      assert(lib.folders.length === 2 && lib.folders.every((f) => f.count === 1 && !f.error), `library folders scanned (${JSON.stringify(lib)})`);
+      assert((await invoke('materials:pack')).some((m) => m.name === 'Test Steel' && m.category === 'Metals'), 'scanned material in the library');
+      assert((await invoke('objects:list')).some((o) => o.name === 'Test 01' && o.category === 'Brake Calipers'), 'scanned object in the objects list');
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByTestId('library-folders-objects').getByText('1 objects').waitFor();
+      await page.waitForTimeout(300);
+      await shot(page, 'settings-library-folders');
       await page.keyboard.press('Escape');
       await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
     },

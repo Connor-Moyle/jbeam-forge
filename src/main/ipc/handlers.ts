@@ -22,6 +22,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { kn5TextureDir } from '../import/kn5Textures';
 import { readAcCar } from '../import/acCar';
+import type { UserLibrary } from '../library/userLibrary';
 import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
 
@@ -50,6 +51,7 @@ export interface HandlerServices {
   materialPack: Promise<LibraryItem[]>;
   /** The bundled objects pack. */
   objectPack: Promise<ObjectItem[]>;
+  userLibrary: UserLibrary;
   /** Where textures embedded in kn5 files are extracted. */
   kn5Cache: string;
   harness: boolean;
@@ -388,8 +390,15 @@ export function registerIpcHandlers(services: HandlerServices): void {
 
   const LibraryEntry = z.object({ name: z.string().min(1).max(100), category: z.string().max(60), def: MaterialDefSchema });
   registerInvoke('materials:library', () => materialLibrary.get());
-  registerInvoke('materials:pack', () => materialPack);
-  registerInvoke('objects:list', () => objectPack);
+  registerInvoke('materials:pack', async () => [...(await materialPack), ...services.userLibrary.items.materials]);
+  registerInvoke('objects:list', async () => [...(await objectPack), ...services.userLibrary.items.objects]);
+  const libraryStatus = () => ({ scanning: services.userLibrary.items.scanning, folders: services.userLibrary.items.folders });
+  registerInvoke('library:status', libraryStatus);
+  registerInvoke('library:rescan', async () => {
+    const s = settings.get();
+    await services.userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders });
+    return libraryStatus();
+  });
   registerInvoke('materials:saveToLibrary', ({ name, category, def }) => materialLibrary.add(name, category, def), LibraryEntry);
   registerInvoke('materials:removeFromLibrary', ({ id }) => materialLibrary.remove(id), z.object({ id: z.string().min(1).max(64) }));
   registerInvoke(
