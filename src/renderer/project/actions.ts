@@ -75,7 +75,7 @@ async function restoreHistory(path: string, text: string): Promise<void> {
     const history = saved ? parseSavedHistory(saved) : null;
     if (!history || history.projectHash !== (await sha256(text))) return;
     const state = projectStore.getState();
-    if (state.filePath !== path || state.undoStack.length) return; // something changed while we read it
+    if (state.filePath !== path || state.undoStack.length || isDirty(state)) return; // something changed while we read it
     state.restoreHistory(history);
     logger.info(`restored ${history.undo.length} undo step(s) for`, path);
   } catch (err) {

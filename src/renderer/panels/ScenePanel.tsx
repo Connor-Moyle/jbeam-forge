@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Search, Tag, Trash2, Undo2, Unlink } from 'lucide-react';
+import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Pencil, Search, Tag, Trash2, Undo2, Unlink, WandSparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore, type LoadedSource } from '@renderer/app/stores/scene';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -23,6 +23,8 @@ import { cx } from '@renderer/ui/cx';
 import { ancestorIds, buildSceneTree, subtreeIds, type MeshInfo, type PartNode } from '@shared/parts/tree';
 import { groupInfo, groupItems, type TreeItem } from '@shared/parts/grouping';
 import { exitFocus, focusPart } from '@renderer/parts/focus';
+import { renameFromParts } from '@renderer/parts/naming';
+import { useRenameMeshUi } from '@renderer/parts/RenameMeshDialog';
 import { positionLabel } from '@shared/parts/ops';
 import { POSITIONS_BY_AXIS } from '@shared/taxonomy/schema';
 import type { Part } from '@shared/project/schema';
@@ -131,7 +133,12 @@ function PartTree({ query }: { query: string }) {
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const meshes = useMemo(() => Object.values(sources).flatMap((s) => s.meshes.map((m) => ({ key: m.key, name: m.name, triangles: m.triangles }))), [sources]);
+  const meshNames = useProjectStore((s) => s.doc?.meshNames);
+  // Friendly names (after parts or typed) drive the tree and search; the original stays on hover.
+  const meshes = useMemo(
+    () => Object.values(sources).flatMap((s) => s.meshes.map((m) => ({ key: m.key, name: meshNames?.[m.key]?.name ?? m.name, original: m.name, triangles: m.triangles }))),
+    [sources, meshNames],
+  );
   const tree = useMemo(() => buildSceneTree(parts, assignments ?? {}, ignoredMeshes, meshes, query), [parts, assignments, ignoredMeshes, meshes, query]);
   const selected = useMemo(() => new Set(selection), [selection]);
 
@@ -285,6 +292,7 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
     { label: 'Focus', icon: Focus, onSelect: () => focusPart(part.id) },
     { label: 'Select meshes', icon: Boxes, onSelect: () => selectPart(part.id, own) },
     { label: 'Duplicate as variant', icon: Copy, onSelect: () => void cmd.duplicateAsVariant(part.id) },
+    { label: 'Rename meshes from their parts', icon: WandSparkles, onSelect: renameFromParts },
     { label: 'Move to top level', icon: CornerLeftUp, disabled: !part.parentPartId, onSelect: () => void cmd.reparentPart(part.id, null) },
     {
       type: 'submenu',
@@ -360,6 +368,9 @@ function MeshRow({ row, ctx }: { row: Extract<Row, { type: 'mesh' }>; ctx: RowCo
     { label: 'Unassign', icon: Unlink, disabled: row.partId === null, onSelect: () => cmd.unassign(targets()) },
     row.ignored ? { label: 'Restore', icon: Undo2, onSelect: () => cmd.setIgnored(targets(), false) } : { label: 'Ignore (not exported)', icon: Ban, onSelect: () => cmd.setIgnored(targets(), true) },
     { type: 'separator' },
+    { label: 'Rename…', icon: Pencil, onSelect: () => useRenameMeshUi.getState().open(mesh.key) },
+    { label: 'Rename meshes from their parts', icon: WandSparkles, onSelect: renameFromParts },
+    { type: 'separator' },
     { label: 'Split into connected pieces', icon: Shapes, onSelect: () => void splitConnected(mesh.key) },
     { label: 'Split at the centre line (left/right)', icon: FlipHorizontal2, onSelect: () => void splitCentreLine(targets()) },
     { label: 'Split by selecting faces…', icon: Scissors, onSelect: () => useSplitTool.getState().start(mesh.key) },
@@ -380,7 +391,11 @@ function MeshRow({ row, ctx }: { row: Extract<Row, { type: 'mesh' }>; ctx: RowCo
       >
         <TreeRow
           depth={row.depth}
-          label={<span className={styles.meshLabel}>{mesh.name}</span>}
+          label={
+            <span className={styles.meshLabel} title={mesh.original && mesh.original !== mesh.name ? `Originally ${mesh.original}` : undefined}>
+              {mesh.name}
+            </span>
+          }
           count={mesh.triangles}
           selected={isSelected}
           muted={row.ignored || !!hidden[mesh.key]}

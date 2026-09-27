@@ -53,6 +53,11 @@ export const MIGRATIONS: readonly Migration[] = [
       };
     },
   },
+  {
+    from: 4,
+    describe: 'friendly mesh names (meshNames)',
+    migrate: (doc) => ({ ...doc, formatVersion: 5, meshNames: {} }),
+  },
 ];
 
 export class MigrationError extends Error {

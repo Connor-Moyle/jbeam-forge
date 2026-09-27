@@ -18,6 +18,10 @@ export const SettingsSchema = z.object({
   author: z.string().max(100).nullable(),
   /** Focus mode: how visible the rest of the car stays (0 = hidden, 1 = solid). */
   focusGhostOpacity: z.number().min(0).max(1),
+  /** Name meshes after the part they're assigned to (typed names are never touched). */
+  autoRenameMeshes: z.boolean(),
+  /** Drop numbered leftovers from part display names ("Hood (2)" → "Hood"). */
+  autoRenameDisplayNames: z.boolean(),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -29,6 +33,8 @@ export const DEFAULT_SETTINGS: Settings = {
   beamngUserDir: null,
   author: null,
   focusGhostOpacity: 0.12,
+  autoRenameMeshes: true,
+  autoRenameDisplayNames: true,
 };
 
 /** Fields the renderer may change. `version` is owned by the main process. */

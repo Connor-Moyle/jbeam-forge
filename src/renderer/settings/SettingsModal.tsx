@@ -37,6 +37,8 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const [dir, setDir] = useState(settings.beamngInstallDir ?? '');
   const [debug, setDebug] = useState(settings.debugLogging);
   const [ghost, setGhost] = useState(settings.focusGhostOpacity);
+  const [autoMeshNames, setAutoMeshNames] = useState(settings.autoRenameMeshes);
+  const [autoDisplayNames, setAutoDisplayNames] = useState(settings.autoRenameDisplayNames);
   const [check, setCheck] = useState<Check>(() => {
     const initial = (settings.beamngInstallDir ?? '').trim();
     return initial ? { state: 'checking', forDir: initial } : { state: 'idle' };
@@ -104,6 +106,8 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
     const patch: SettingsPatch = {};
     if (debug !== settings.debugLogging) patch.debugLogging = debug;
     if (ghost !== settings.focusGhostOpacity) patch.focusGhostOpacity = ghost;
+    if (autoMeshNames !== settings.autoRenameMeshes) patch.autoRenameMeshes = autoMeshNames;
+    if (autoDisplayNames !== settings.autoRenameDisplayNames) patch.autoRenameDisplayNames = autoDisplayNames;
     if (dirChanged) patch.beamngInstallDir = trimmedDir || null;
     if (Object.keys(patch).length === 0) {
       onClose();
@@ -169,6 +173,13 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
           <Field label="Focus mode: other parts" hint="How much of the rest of the car stays visible while you work on one part. 0% hides it.">
             <Slider value={ghost} onChange={setGhost} min={0} max={0.6} step={0.02} format={(v) => `${Math.round(v * 100)}%`} aria-label="Focus mode ghost opacity" />
           </Field>
+        </FieldGroup>
+
+        <FieldGroup title="Naming">
+          <Toggle checked={autoMeshNames} onChange={setAutoMeshNames} label="Auto-rename meshes" />
+          <p className={styles.help}>Name each mesh after the part it&rsquo;s assigned to (rear_left_halfshaft, rear_left_halfshaft_2…). Names you type yourself are never changed.</p>
+          <Toggle checked={autoDisplayNames} onChange={setAutoDisplayNames} label="Auto-rename display names" />
+          <p className={styles.help}>Drop numbered leftovers from in-game part names, so &ldquo;Hood (2)&rdquo; becomes &ldquo;Hood&rdquo;.</p>
         </FieldGroup>
 
         <FieldGroup title="Diagnostics">

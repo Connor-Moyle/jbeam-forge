@@ -15,7 +15,7 @@ import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } 
 import { getLogFolder, scoped } from '../log';
 import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
 import { resolveTextureRefs } from '../import/textures';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
@@ -173,6 +173,21 @@ export function registerIpcHandlers(services: HandlerServices): void {
       return r;
     },
     ExportBundleSchema,
+  );
+  registerInvoke(
+    'export:saveModel',
+    async ({ suggestedName, format, data }, event) => {
+      const filters = format === 'glb' ? [{ name: 'glTF binary (.glb)', extensions: ['glb'] }] : [{ name: 'COLLADA (.dae)', extensions: ['dae'] }];
+      const picked = await pickSaveFile(event.sender, { title: 'Export model', defaultPath: suggestedName, filters });
+      if (!picked) return null;
+      const path = picked.toLowerCase().endsWith(`.${format}`) ? picked : `${picked}.${format}`;
+      const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      await writeFile(path, bytes);
+      lastExport = path;
+      logger.info(`exported model ${path} (${bytes.byteLength} bytes)`);
+      return { path, bytes: bytes.byteLength };
+    },
+    z.object({ suggestedName: z.string().min(1).max(255), format: z.enum(['glb', 'dae']), data: z.union([z.instanceof(Uint8Array), z.string()]) }),
   );
   registerInvoke('export:reveal', () => {
     if (lastExport) shell.showItemInFolder(lastExport);

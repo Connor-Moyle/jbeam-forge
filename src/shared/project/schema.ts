@@ -12,7 +12,7 @@ import { z } from 'zod';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 4;
+export const CURRENT_PROJECT_VERSION = 5;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -176,9 +176,9 @@ export const ProxySectionSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV4Schema = z.object({
+export const ProjectV5Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(4),
+  formatVersion: z.literal(5),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -188,6 +188,8 @@ export const ProjectV4Schema = z.object({
   assignments: z.record(z.string(), z.string()),
   /** meshKeys the user chose to ignore (not exported). */
   ignoredMeshes: z.array(z.string()),
+  /** meshKey → friendly name shown and exported instead of the original; `manual` = typed by hand (never auto-renamed). */
+  meshNames: z.record(z.string(), z.object({ name: z.string().min(1), manual: z.boolean() })),
   customTaxonomy: z.array(CustomTaxonomyEntry),
   proxy: ProxySectionSchema,
   nodes: z.array(StructNodeSchema),
@@ -201,7 +203,7 @@ export const ProjectV4Schema = z.object({
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV4Schema;
+export const ProjectSchema = ProjectV5Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

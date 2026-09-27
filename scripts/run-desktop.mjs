@@ -22,6 +22,8 @@ const TIMEOUT = 15_000;
 const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split(',');
 // Optional local smoke model (never committed), e.g. --model=scratch/test-models/sunburst2/sunburst2.dae
 const smokeModel = process.argv.find((a) => a.startsWith('--model='))?.slice(8);
+// Optional local project someone assigned by hand (opened read-only: never saved), e.g. --project="Template Car/hirochi_sunburst_6.jbforge"
+const userProject = process.argv.find((a) => a.startsWith('--project='))?.slice(10);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(ROOT, 'artifacts', 'run-desktop', stamp);
 const userData = mkdtempSync(join(tmpdir(), 'jbforge-harness-'));
@@ -292,7 +294,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 4 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 5 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -350,7 +352,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 4 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 5 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -745,6 +747,53 @@ const scenarios = [
     },
   },
   {
+    id: 'user-project',
+    name: 'local hand-assigned project: rename from parts · export model (--project)',
+    skip: () => !userProject,
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      const original = readFileSync(join(ROOT, userProject), 'utf8');
+      await hook(page, 'queueDialog', [join(ROOT, userProject)]);
+      await hook(page, 'runCommand', 'open');
+      if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      let st;
+      for (let i = 0; i < 1200; i++) {
+        // The folder permission prompt can come up any time during loading.
+        if (await page.getByTestId('folders-allow').isVisible().catch(() => false)) await page.getByTestId('folders-allow').click();
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 0 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.meshes > 100, `project's model loaded (${st.meshes} meshes)`);
+      await hook(page, 'renameFromParts');
+      const names = await hook(page, 'meshNameList');
+      const parts = await hook(page, 'partNames');
+      assert(names.includes('rear_left_halfshaft') && names.includes('rear_left_halfshaft_2'), `meshes named after parts (${names.slice(0, 12).join(', ')}…)`);
+      assert(!parts.some((n) => /\(\d+\)$/.test(n)), `display names tidied (${parts.filter((n) => /\(\d+\)$/.test(n)).join(', ')})`);
+      await page.getByTestId('scene-filter').fill('halfshaft');
+      await page.waitForTimeout(200);
+      await shot(page, 'user-project-renamed');
+      await page.getByTestId('scene-filter').fill('');
+      // Export the model both ways and check the files carry the new names.
+      const glbPath = join(outDir, 'user-project.glb');
+      const daePath = join(outDir, 'user-project.dae');
+      await hook(page, 'queueDialog', [glbPath]);
+      await hook(page, 'runCommand', 'exportModelGlb');
+      for (let i = 0; i < 300 && !existsSync(glbPath); i++) await page.waitForTimeout(100);
+      const glb = readFileSync(glbPath);
+      assert(glb.toString('latin1', 0, 4) === 'glTF', 'wrote a binary glTF');
+      const gltfJson = glb.toString('utf8', 20, 20 + glb.readUInt32LE(12));
+      assert(gltfJson.includes('"rear_left_halfshaft_2"') && gltfJson.includes('"rear_left_halfshaft"'), 'glb meshes carry the new names');
+      await hook(page, 'queueDialog', [daePath]);
+      await hook(page, 'runCommand', 'exportModelDae');
+      for (let i = 0; i < 300 && !existsSync(daePath); i++) await page.waitForTimeout(100);
+      const dae = readFileSync(daePath, 'utf8');
+      assert(dae.includes('name="rear_left_halfshaft_2"'), 'dae nodes carry the new names');
+      assert(readFileSync(join(ROOT, userProject), 'utf8') === original, 'the project file itself was not touched');
+      userReport = { meshes: st.meshes, named: names.length, glbBytes: glb.length, daeBytes: dae.length };
+    },
+  },
+  {
     id: 'smoke-model',
     name: 'local smoke model import (--model)',
     skip: () => !smokeModel,
@@ -817,6 +866,7 @@ const scenarios = [
   },
 ];
 let smokeReport = null;
+let userReport = null;
 
 function unexpectedLogErrors() {
   const logFile = join(userData, 'logs', 'main.log');
@@ -853,6 +903,8 @@ const badLog = unexpectedLogErrors();
 
 console.log(`\nrun-desktop — screenshots in ${outDir}\n`);
 for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.ms !== undefined ? ` (${r.ms} ms)` : ''}${r.error ? `\n      ${r.error}` : ''}`);
+if (userReport) console.log(`
+user project: ${JSON.stringify(userReport)}`);
 if (smokeReport) console.log(`
 smoke model: ${JSON.stringify(smokeReport, null, 2)}`);
 if (badConsole.length) console.log(`FAIL  renderer console errors:\n      ${badConsole.join('\n      ')}`);

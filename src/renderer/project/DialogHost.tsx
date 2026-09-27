@@ -2,6 +2,8 @@ import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { Button } from '@renderer/ui/components/Button';
 import { Modal } from '@renderer/ui/components/Modal';
 import { NewModWizard } from '@renderer/home/NewModWizard';
+import { SettingsModal } from '@renderer/settings/SettingsModal';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import styles from './DialogHost.module.css';
 
 /** Renders the app-level blocking dialogs requested through useDialogStore. */
@@ -14,9 +16,13 @@ export function DialogHost() {
   const answerUnsaved = useDialogStore((s) => s.answerUnsaved);
   const dismissAlert = useDialogStore((s) => s.dismissAlert);
   const setNewModOpen = useDialogStore((s) => s.setNewModOpen);
+  const settingsOpen = useDialogStore((s) => s.settingsOpen);
+  const setSettingsOpen = useDialogStore((s) => s.setSettingsOpen);
+  const settings = useSettingsStore((s) => s.settings);
 
   return (
     <>
+      {settingsOpen && settings && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
       {unsaved && (
         <Modal
           open

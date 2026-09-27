@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo } from 'react';
 import { Copy, FileCode } from 'lucide-react';
 import { buildJbeamFiles } from '@shared/export/jbeam';
 import { exportMeshNames } from '@shared/export/files';
+import { withMeshNames } from '@shared/parts/meshNames';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { allMeshes, useSceneStore } from '@renderer/app/stores/scene';
 import { useSettingsStore } from '@renderer/app/stores/settings';
@@ -29,7 +30,7 @@ export function JbeamPreviewPanel() {
     if (!deferredDoc || !activePart) return null;
     const part = deferredDoc.parts.find((p) => p.id === activePart);
     if (!part) return null;
-    const meshNames = exportMeshNames(deferredDoc, allMeshes(sources));
+    const meshNames = exportMeshNames(deferredDoc, withMeshNames(deferredDoc, allMeshes(sources)));
     return buildJbeamFiles(deferredDoc, currentTaxonomy(), { meshNames, author: author || deferredDoc.meta.author }).find((f) => f.part === part.name) ?? null;
   }, [deferredDoc, activePart, sources, author]);
 

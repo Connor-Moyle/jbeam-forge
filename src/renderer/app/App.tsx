@@ -24,6 +24,7 @@ import { offerAutoClassify } from '@renderer/parts/commands';
 import { useStructureUi } from '@renderer/structure/generate';
 import { useEditStore } from '@renderer/structure/editStore';
 import { splitCentreLine } from '@renderer/split/splitTool';
+import { installNamingRules, renameFromParts } from '@renderer/parts/naming';
 import { mirrorPartners } from '@shared/structure/edit';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
@@ -36,6 +37,7 @@ function AppEffects() {
   useEffect(() => window.forge.on('status:message', ({ text, tone }) => pushStatus(text, tone, 8000)), [pushStatus]);
   useEffect(() => window.forge.on('menu:command', ({ command }) => runAppCommand(command)), []);
   useEffect(() => void loadUserTaxonomy(), []);
+  useEffect(() => installNamingRules(), []);
 
   // run-desktop harness hooks available on every screen (home and editor).
   useEffect(
@@ -161,6 +163,9 @@ function AppEffects() {
           };
         },
         splitCentreLine: (keys: string[]) => splitCentreLine(keys),
+        renameFromParts: () => renameFromParts(),
+        meshNameList: () => Object.values(projectStore.getState().doc?.meshNames ?? {}).map((e) => e.name),
+        partNames: () => (projectStore.getState().doc?.parts ?? []).map((p) => p.displayName),
         /** Every mesh's name, triangle count and BeamNG-space bounds (for studying real models). */
         meshBounds: () =>
           Object.values(useSceneStore.getState().sources).flatMap((src) =>

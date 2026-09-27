@@ -35,6 +35,16 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: command('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: command('saveAs') },
         { type: 'separator' },
+        {
+          label: 'Export Model',
+          submenu: [
+            { label: 'glTF binary (.glb) — for Blender…', click: command('exportModelGlb') },
+            { label: 'COLLADA (.dae) — BeamNG-ready…', click: command('exportModelDae') },
+          ],
+        },
+        { type: 'separator' },
+        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: command('settings') },
+        { type: 'separator' },
         { label: 'Close Project', click: command('close') },
         { type: 'separator' },
         { role: 'quit' },

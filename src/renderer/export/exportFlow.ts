@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { withMeshNames } from '@shared/parts/meshNames';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import { projectStore } from '@renderer/app/stores/project';
@@ -66,7 +67,7 @@ export function prepareExport(): PreparedExport | null {
   const author = useSettingsStore.getState().settings?.author || doc.meta.author;
   const sources = Object.values(useSceneStore.getState().sources);
   const formatOf = new Map(doc.sources.map((s) => [s.id, s.format]));
-  const allMeshes = sources.flatMap((s) => s.meshes);
+  const allMeshes = withMeshNames(doc, sources.flatMap((s) => s.meshes));
   const meshNames = exportMeshNames(doc, allMeshes);
   const exported = allMeshes.filter((m) => meshNames.has(m.key));
 

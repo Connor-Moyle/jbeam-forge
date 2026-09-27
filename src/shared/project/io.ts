@@ -129,6 +129,7 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     parts: [],
     assignments: {},
     ignoredMeshes: [],
+    meshNames: {},
     customTaxonomy: [],
     proxy: { parts: {}, refNodes: null },
     nodes: [],

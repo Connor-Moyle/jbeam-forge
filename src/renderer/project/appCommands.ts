@@ -3,6 +3,7 @@ import { projectStore } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } from './actions';
 import { startImport } from '@renderer/import/importFlow';
+import { exportModel } from '@renderer/export/modelExport';
 import { useEditStore } from '@renderer/structure/editStore';
 import { selectAll } from '@renderer/structure/editCommands';
 
@@ -52,6 +53,15 @@ export function runAppCommand(command: AppCommand): void {
       break;
     case 'shortcuts':
       useDialogStore.getState().setShortcutsOpen(true);
+      break;
+    case 'settings':
+      useDialogStore.getState().setSettingsOpen(true);
+      break;
+    case 'exportModelGlb':
+      if (projectStore.getState().doc) void exportModel('glb');
+      break;
+    case 'exportModelDae':
+      if (projectStore.getState().doc) void exportModel('dae');
       break;
   }
 }

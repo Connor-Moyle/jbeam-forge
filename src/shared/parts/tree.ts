@@ -5,6 +5,8 @@ import type { Part } from '../project/schema';
 export interface MeshInfo {
   key: string;
   name: string;
+  /** The name in the source file, when a friendlier one is shown. */
+  original?: string;
   triangles: number;
 }
 

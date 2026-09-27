@@ -20,7 +20,6 @@ import {
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
 import { PRESET_IDS, type PresetId } from '@shared/layout-schema';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -32,7 +31,6 @@ import { generateAll, useStructureUi } from '@renderer/structure/generate';
 import { useEditStore } from '@renderer/structure/editStore';
 import { openExport } from '@renderer/export/exportFlow';
 import { startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
-import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { Select } from '@renderer/ui/components/Select';
@@ -63,7 +61,7 @@ export function Toolbar() {
   const testing = useSim((s) => s.active);
   const hasStructure = useProjectStore((s) => (s.doc?.nodes.length ?? 0) > 0);
   const settings = useSettingsStore((s) => s.settings);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const setSettingsOpen = useDialogStore((s) => s.setSettingsOpen);
   const setNewModOpen = useDialogStore((s) => s.setNewModOpen);
   const undoLabel = useProjectStore((s) => s.undoStack[s.undoStack.length - 1]?.label ?? null);
   const redoLabel = useProjectStore((s) => s.redoStack[s.redoStack.length - 1]?.label ?? null);
@@ -144,7 +142,6 @@ export function Toolbar() {
         </Button>
         <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
       </div>
-      {settingsOpen && settings && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
     </header>
   );
 }

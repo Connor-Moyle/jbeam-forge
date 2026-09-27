@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { produce } from 'immer';
+import { legacyKeyMap, remapMeshKeys } from '@shared/mesh/legacyKeys';
 import { create } from 'zustand';
 import type { Source } from '@shared/project/schema';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
@@ -177,6 +179,7 @@ async function loadFromDisk(source: Source): Promise<void> {
       disposeImported(done.meshes);
       return;
     }
+    if (source.format === 'fbx') adoptLegacyFbxKeys(source.id, done.meshes);
     store({ ...base, status: 'ready', raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
   } catch (err) {
     store({ ...base, status: 'error', error: errorText(err) });
@@ -239,4 +242,25 @@ export function useSourceSync(): void {
     },
     [],
   );
+}
+
+/**
+ * Projects saved before 0.7.1 knew FBX meshes by their sanitised names
+ * ("Circle087" for "Circle.087"). Move those references to the real names
+ * before the scene is built. It's a one-time upgrade of the document, so it
+ * isn't an undo step; the project shows as unsaved, and any undo history
+ * saved with the old names is dropped rather than replayed onto new keys.
+ */
+function adoptLegacyFbxKeys(sourceId: string, meshes: readonly { name: string }[]): void {
+  const state = projectStore.getState();
+  if (!state.doc) return;
+  const map = legacyKeyMap(state.doc, sourceId, meshes.map((m) => m.name));
+  if (!map.size) return;
+  projectStore.setState((s) => ({
+    doc: s.doc && produce(s.doc, (d) => remapMeshKeys(d, map)),
+    undoStack: [],
+    redoStack: [],
+    savedStateId: null,
+  }));
+  logger.info(`updated ${map.size} mesh reference(s) from pre-0.7.1 FBX names`);
 }

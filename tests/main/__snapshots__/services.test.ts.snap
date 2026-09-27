@@ -33,7 +33,9 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "beamngInstallDir": null,
   "beamngUserDir": null,
   "author": null,
-  "focusGhostOpacity": 0.12
+  "focusGhostOpacity": 0.12,
+  "autoRenameMeshes": true,
+  "autoRenameDisplayNames": true
 }
 "
 `;

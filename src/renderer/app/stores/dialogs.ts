@@ -39,6 +39,8 @@ interface DialogState {
   setPaletteOpen: (open: boolean) => void;
   shortcutsOpen: boolean;
   setShortcutsOpen: (open: boolean) => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
 }
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
@@ -81,4 +83,6 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   shortcutsOpen: false,
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+  settingsOpen: false,
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
 }));

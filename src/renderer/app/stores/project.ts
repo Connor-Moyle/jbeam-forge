@@ -107,6 +107,20 @@ export function parseSavedHistory(text: string): SavedHistory | null {
 
 let nextEntryId = 1;
 
+/**
+ * Follow-up rules that run inside every command, in the same undo step
+ * (e.g. renaming meshes after their part when one is reassigned).
+ */
+const documentHooks: ((draft: Draft<Project>) => void)[] = [];
+
+export function addDocumentHook(hook: (draft: Draft<Project>) => void): () => void {
+  documentHooks.push(hook);
+  return () => {
+    const i = documentHooks.indexOf(hook);
+    if (i >= 0) documentHooks.splice(i, 1);
+  };
+}
+
 export function currentStateId(s: Pick<ProjectState, 'undoStack'>): number {
   return s.undoStack.length ? s.undoStack[s.undoStack.length - 1]!.id : 0;
 }
@@ -130,7 +144,10 @@ export function createProjectStore(): StoreApi<ProjectState> {
     execute: (command) => {
       const { doc } = get();
       if (!doc) throw new Error(`Cannot run "${command.label}" without an open project`);
-      const [next, patches, inverse] = produceWithPatches(doc, command.apply);
+      const [next, patches, inverse] = produceWithPatches(doc, (draft) => {
+        command.apply(draft);
+        for (const hook of documentHooks) hook(draft);
+      });
       if (patches.length === 0) return false;
       set((s) => ({
         doc: next,

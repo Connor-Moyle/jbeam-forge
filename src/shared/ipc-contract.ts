@@ -108,6 +108,8 @@ export interface InvokeContract {
   'export:install': { req: ExportBundle; res: { path: string; bytes: number } };
   /** Save the exported mod as a zip (save dialog); null when cancelled. */
   'export:zip': { req: ExportBundle; res: { path: string; bytes: number } | null };
+  /** Save a re-exported model (.glb binary or .dae text) wherever the user picks. */
+  'export:saveModel': { req: { suggestedName: string; format: 'glb' | 'dae'; data: Uint8Array | string }; res: { path: string; bytes: number } | null };
   /** Reveal the last export in Explorer. */
   'export:reveal': { req: undefined; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
@@ -116,7 +118,7 @@ export interface InvokeContract {
 }
 
 /** Commands the native menu forwards to the renderer. */
-export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts'] as const;
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'settings', 'exportModelGlb', 'exportModelDae'] as const;
 export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */
@@ -164,6 +166,7 @@ export const INVOKE_CHANNELS = [
   'taxonomy:saveUser',
   'export:install',
   'export:zip',
+  'export:saveModel',
   'export:reveal',
 ] as const satisfies readonly InvokeChannel[];
 

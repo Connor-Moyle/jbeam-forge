@@ -8,10 +8,12 @@ import { useUiStore } from '@renderer/app/stores/ui';
 import { redo, saveProject, undo } from '@renderer/project/actions';
 import { startImport } from '@renderer/import/importFlow';
 import { openExport } from '@renderer/export/exportFlow';
+import { exportModel } from '@renderer/export/modelExport';
 import { generateAll } from '@renderer/structure/generate';
 import { startTestMode } from '@renderer/sim/simSession';
 import { useEditStore } from '@renderer/structure/editStore';
 import { exitFocus, focusPart } from '@renderer/parts/focus';
+import { renameFromParts } from '@renderer/parts/naming';
 import { Input } from '@renderer/ui/components/Input';
 import { Modal } from '@renderer/ui/components/Modal';
 import { cx } from '@renderer/ui/cx';
@@ -63,10 +65,14 @@ function PaletteBody({ close }: { close: () => void }) {
         },
       },
       { id: 'export', label: 'Export mod…', group: 'Action', run: () => openExport() },
+      { id: 'export-glb', label: 'Export model as .glb (for Blender)…', group: 'Action', run: () => void exportModel('glb') },
+      { id: 'export-dae', label: 'Export model as .dae…', group: 'Action', run: () => void exportModel('dae') },
+      { id: 'settings', label: 'Settings…', group: 'Action', hint: 'Ctrl+,', run: () => useDialogStore.getState().setSettingsOpen(true) },
       { id: 'mesh', label: view.mesh ? 'Hide mesh' : 'Show mesh', group: 'Action', run: () => useUiStore.getState().toggleView('mesh') },
       { id: 'structure', label: view.structure ? 'Hide nodes & beams' : 'Show nodes & beams', group: 'Action', run: () => useUiStore.getState().toggleView('structure') },
       { id: 'xray', label: view.xray ? 'X-ray off' : 'X-ray on', group: 'Action', run: () => useUiStore.getState().toggleView('xray') },
       !!useSceneStore.getState().focus && { id: 'unfocus', label: 'Leave focus mode', group: 'Action', hint: 'Esc', run: () => void exitFocus() },
+      hasParts && { id: 'rename-meshes', label: 'Rename meshes from their parts', group: 'Action', run: renameFromParts },
       { id: 'undo', label: 'Undo', group: 'Action', hint: 'Ctrl+Z', run: undo },
       { id: 'redo', label: 'Redo', group: 'Action', hint: 'Ctrl+Y', run: redo },
       { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Action', hint: 'F1', run: () => useDialogStore.getState().setShortcutsOpen(true) },
