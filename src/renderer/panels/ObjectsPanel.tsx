@@ -10,6 +10,7 @@ import { call } from '@renderer/diagnostics/ipc';
 import { confirmImport } from '@renderer/import/importFlow';
 import { defaultSettings, stageImport } from '@renderer/import/pipeline';
 import { objectThumbnail } from '@renderer/materials/preview';
+import { isCornerObject, placeAtCorner, usePlaceUi } from '@renderer/objects/placeObject';
 import { Button } from '@renderer/ui/components/Button';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
 import { Input } from '@renderer/ui/components/Input';
@@ -30,13 +31,13 @@ export const useObjects = create<{ items: ObjectItem[] | null; load: () => Promi
 const ALL = '__all__';
 
 /** Add a library object to the project: its mesh comes in as a model with the object's material on it. */
-export async function addObject(item: ObjectItem): Promise<string | null> {
+export async function addObject(item: ObjectItem, announce = true, classify = true): Promise<string | null> {
   const format = item.mesh.slice(item.mesh.lastIndexOf('.') + 1).toLowerCase() as SourceFormat;
   const staged = await stageImport(item.mesh, format);
   const slug = `${item.category} ${item.name}`.toLowerCase().replace(/[^a-z0-9]+/g, '_');
   // Objects with their own materials (kn5) keep them; the rest get the pack's ready-made one.
-  const id = await confirmImport(staged, defaultSettings(format), item.material ? { material: { ...item.material, name: slug } } : { gameMaterials: item.gameMaterials });
-  if (id) useUiStore.getState().pushStatus(`Added ${item.name} (${item.category}). Right-click it in the Scene tree’s models list and choose Placement… to move it into position.`, 'success', 8000);
+  const id = await confirmImport(staged, defaultSettings(format), item.material ? { material: { ...item.material, name: slug }, classify } : { gameMaterials: item.gameMaterials, classify });
+  if (id && announce) useUiStore.getState().pushStatus(`Added ${item.name} (${item.category}). Move it with the arrows (M) or the Inspector’s Mesh section.`, 'success', 8000);
   return id;
 }
 
@@ -75,7 +76,7 @@ export function ObjectsPanel() {
                 {item.name}
               </span>
               <span className={styles.category}>{item.credit ? `${item.category} · by ${item.credit}` : item.category}</span>
-              <Button size="sm" icon={Plus} disabled={!hasProject} onClick={() => void addObject(item)} data-testid="object-add">
+              <Button size="sm" icon={Plus} disabled={!hasProject} onClick={() => (isCornerObject(item) ? usePlaceUi.getState().ask(item) : void addObject(item, false).then((id) => id && placeAtCorner(id, 'unsure')))} data-testid="object-add">
                 Add
               </Button>
             </li>

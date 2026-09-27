@@ -820,6 +820,10 @@ const scenarios = [
         const materialsBefore = await hook(page, 'materialCount');
         const keysBefore = new Set((await hook(page, 'meshBounds')).map((m) => m.key));
         await page.getByTestId('object-add').first().click();
+        // Calipers ask which corner; "not sure" leaves it where it came in.
+        await page.getByTestId('place-object').waitFor();
+        await shot(page, 'object-where');
+        await page.getByTestId('place-unsure').click();
         for (let i = 0; i < 100; i++) {
           if ((await hook(page, 'sceneStats')).meshes > before.meshes) break;
           await page.waitForTimeout(100);
@@ -862,6 +866,23 @@ const scenarios = [
         await shot(page, 'mesh-mirrored');
         await hook(page, 'runCommand', 'undo');
         await hook(page, 'runCommand', 'undo');
+        await page.waitForTimeout(200);
+
+        // "All four corners": the object and three copies, left/right mirrored, front/rear apart.
+        const before4 = new Set((await hook(page, 'meshBounds')).map((m) => m.key));
+        await page.getByTestId('object-add').nth(1).click();
+        await page.getByTestId('place-all').click();
+        let four = [];
+        for (let i = 0; i < 100 && four.length < 4; i++) {
+          four = (await hook(page, 'meshBounds')).filter((m) => !before4.has(m.key));
+          await page.waitForTimeout(100);
+        }
+        const centres = four.map((m) => [(m.min[0] + m.max[0]) / 2, (m.min[1] + m.max[1]) / 2]);
+        const xs = centres.map((c) => c[0]);
+        const ys = centres.map((c) => c[1]);
+        assert(four.length === 4 && Math.min(...xs) < -0.2 && Math.max(...xs) > 0.2 && Math.max(...ys) - Math.min(...ys) > 0.5, `object at all four corners (${JSON.stringify(centres.map((c) => c.map((v) => +v.toFixed(2))))})`);
+        await shot(page, 'object-four-corners');
+        for (let i = 0; i < 3; i++) await hook(page, 'runCommand', 'undo');
         await page.waitForTimeout(200);
         await hook(page, 'runCommand', 'undo');
         // kn5 dashes bring their own materials and textures.

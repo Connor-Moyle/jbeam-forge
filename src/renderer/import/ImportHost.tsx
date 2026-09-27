@@ -6,6 +6,7 @@ import { iconSize } from '@renderer/ui/tokens';
 import { ImportDialog } from './ImportDialog';
 import { PlacementDialog } from './PlacementDialog';
 import { AcImportDialog } from './AcImportDialog';
+import { PlaceObjectDialog } from '@renderer/objects/PlaceObjectDialog';
 import { ClassifyDialog } from '@renderer/parts/ClassifyDialog';
 import { AssignDialog } from '@renderer/parts/AssignDialog';
 import { CustomPartDialog } from '@renderer/parts/CustomPartDialog';
@@ -25,6 +26,7 @@ export function ImportHost() {
       <RenameMeshDialog />
       <PlacementDialog />
       <AcImportDialog />
+      <PlaceObjectDialog />
       <LibraryDialog />
       <MergeDialog />
       <CustomPartDialog />
