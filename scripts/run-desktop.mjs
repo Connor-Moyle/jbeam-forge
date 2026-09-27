@@ -467,6 +467,13 @@ const scenarios = [
       await row.locator('button').first().click();
       await ctx.page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       assert((await hook(ctx.page, 'projectState')).filePath === projectFile, 'reopened the saved project');
+      let reopened = await hook(ctx.page, 'projectState');
+      for (let i = 0; i < 30 && reopened.undo === 0; i++) {
+        await ctx.page.waitForTimeout(100);
+        reopened = await hook(ctx.page, 'projectState');
+      }
+      assert(reopened.undo > 0 && !reopened.dirty, `undo history came back with the project (${reopened.undo} steps, dirty ${reopened.dirty})`);
+      assert(existsSync(`${projectFile}.history`), 'history saved next to the project');
       // The fixture model lives outside the project folder: reading it needs consent first.
       await ctx.page.getByTestId('folders-allow').waitFor();
       await shot(ctx.page, 'folder-consent');

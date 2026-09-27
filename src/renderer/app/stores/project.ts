@@ -21,7 +21,7 @@ export interface Command {
   apply: (draft: Draft<Project>) => void;
 }
 
-interface HistoryEntry {
+export interface HistoryEntry {
   id: number;
   label: string;
   patches: Patch[];
@@ -53,6 +53,56 @@ export interface ProjectState {
    * creating history.
    */
   markSaved: (filePath: string, stateId: number, update?: (draft: Draft<Project>) => void) => void;
+  /** Put back undo/redo history saved with the project (right after load; the document is the saved state). */
+  restoreHistory: (history: SavedHistory) => void;
+}
+
+/** Undo/redo history as written next to a project file. */
+export interface SavedHistory {
+  version: 1;
+  /** SHA-256 of the project text this history ends at; anything else and it doesn't apply. */
+  projectHash: string;
+  undo: HistoryEntry[];
+  redo: HistoryEntry[];
+}
+
+/** Keep saved history to what's useful and fast to load. */
+const MAX_SAVED_ENTRIES = 300;
+const MAX_SAVED_CHARS = 32 * 1024 * 1024;
+
+/**
+ * The history to save with the document as it was at history position
+ * `stateId`. Edits made while the save was in flight aren't in the file, so
+ * the saved history stops at `stateId` (and only keeps redo when nothing was
+ * edited since). Null when that position is no longer in the stack.
+ */
+export function historyForSave(s: Pick<ProjectState, 'undoStack' | 'redoStack'>, stateId: number, projectHash: string): string | null {
+  const at = stateId === 0 ? 0 : s.undoStack.findIndex((e) => e.id === stateId) + 1;
+  if (stateId !== 0 && at === 0) return null;
+  const redo = at === s.undoStack.length ? s.redoStack : [];
+  let undo = s.undoStack.slice(0, at).slice(-MAX_SAVED_ENTRIES);
+  let text = JSON.stringify({ version: 1, projectHash, undo, redo } satisfies SavedHistory);
+  // Drop the oldest steps until it fits; one big generate step can be most of it.
+  while (text.length > MAX_SAVED_CHARS && undo.length > 0) {
+    undo = undo.slice(Math.ceil(undo.length / 4));
+    text = JSON.stringify({ version: 1, projectHash, undo, redo } satisfies SavedHistory);
+  }
+  return text;
+}
+
+export function parseSavedHistory(text: string): SavedHistory | null {
+  try {
+    const h = JSON.parse(text) as Partial<SavedHistory>;
+    const entryOk = (e: unknown) => {
+      const x = e as Partial<HistoryEntry>;
+      return typeof x?.id === 'number' && typeof x.label === 'string' && Array.isArray(x.patches) && Array.isArray(x.inverse);
+    };
+    if (h.version !== 1 || typeof h.projectHash !== 'string' || !Array.isArray(h.undo) || !Array.isArray(h.redo)) return null;
+    if (!h.undo.every(entryOk) || !h.redo.every(entryOk)) return null;
+    return h as SavedHistory;
+  } catch {
+    return null;
+  }
 }
 
 let nextEntryId = 1;
@@ -104,6 +154,13 @@ export function createProjectStore(): StoreApi<ProjectState> {
       if (!doc || !entry) return null;
       set((s) => ({ doc: applyPatches(doc, entry.patches), redoStack: s.redoStack.slice(0, -1), undoStack: [...s.undoStack, entry] }));
       return entry.label;
+    },
+
+    restoreHistory: (history) => {
+      const ids = [...history.undo, ...history.redo].map((e) => e.id);
+      nextEntryId = Math.max(nextEntryId, ...ids, 0) + 1;
+      const top = history.undo[history.undo.length - 1]?.id ?? 0;
+      set({ undoStack: history.undo, redoStack: history.redo, savedStateId: top });
     },
 
     markSaved: (filePath, stateId, update) => {

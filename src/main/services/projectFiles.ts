@@ -4,6 +4,12 @@ import { parseProject } from '@shared/project/io';
 import { atomicWrite } from './atomicWrite';
 
 const MAX_PROJECT_BYTES = 256 * 1024 * 1024;
+const MAX_HISTORY_BYTES = 64 * 1024 * 1024;
+
+/** Undo history lives next to the project: car.jbforge → car.jbforge.history. */
+export function historyPath(projectPath: string): string {
+  return `${projectPath}.history`;
+}
 
 export class AccessError extends Error {
   readonly code = 'EACCES';
@@ -67,6 +73,24 @@ export class ProjectFiles {
     await atomicWrite(path, text);
     return { name: project.meta.name, slug: project.meta.slug };
   }
+}
+
+/** Undo history for a granted project; null when there is none (or it's too big to be worth reading). */
+export async function readHistory(files: ProjectFiles, projectPath: string): Promise<string | null> {
+  if (!files.isFileGranted(projectPath)) throw new AccessError('History is only read for projects opened through the app');
+  try {
+    const path = historyPath(projectPath);
+    if ((await stat(path)).size > MAX_HISTORY_BYTES) return null;
+    return await readFile(path, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+export async function writeHistory(files: ProjectFiles, projectPath: string, text: string): Promise<void> {
+  if (!files.isFileGranted(projectPath)) throw new AccessError('History is only written next to projects saved through the app');
+  if (Buffer.byteLength(text) > MAX_HISTORY_BYTES) return;
+  await atomicWrite(historyPath(projectPath), text);
 }
 
 /** Ensure a chosen save path ends in .jbforge. */

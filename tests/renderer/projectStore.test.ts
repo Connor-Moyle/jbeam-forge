@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createEmptyProject } from '../../src/shared/project/io';
-import { createProjectStore, currentStateId, isDirty } from '../../src/renderer/app/stores/project';
+import { createProjectStore, currentStateId, historyForSave, isDirty, parseSavedHistory } from '../../src/renderer/app/stores/project';
 
 const doc = () => createEmptyProject({ name: 'Test', slug: 'test' }, '0.1.0', new Date('2026-01-01T00:00:00Z'));
 
@@ -102,5 +102,43 @@ describe('project store', () => {
   it('refuses commands without an open project', () => {
     const s = createProjectStore();
     expect(() => s.getState().execute({ label: 'x', apply: () => undefined })).toThrow(/without an open project/);
+  });
+});
+
+describe('undo history saved with the project', () => {
+  it('round-trips: reopening the saved document brings back undo and redo', () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    for (let i = 1; i <= 3; i++) s.getState().execute({ label: `rename ${i}`, apply: (d) => void (d.meta.name = `Name ${i}`) });
+    s.getState().undo(); // "rename 3" is now redo
+    const saved = s.getState().doc!;
+    const text = historyForSave(s.getState(), currentStateId(s.getState()), 'hash')!;
+
+    const reopened = createProjectStore();
+    reopened.getState().load(saved, 'x.jbforge');
+    reopened.getState().restoreHistory(parseSavedHistory(text)!);
+    expect(isDirty(reopened.getState())).toBe(false);
+    expect(reopened.getState().undo()).toBe('rename 2');
+    expect(reopened.getState().doc!.meta.name).toBe('Name 1');
+    reopened.getState().redo();
+    expect(reopened.getState().redo()).toBe('rename 3');
+    expect(reopened.getState().doc!.meta.name).toBe('Name 3');
+  });
+
+  it('stops at the saved position when edits happened during the save', () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    s.getState().execute({ label: 'a', apply: (d) => void (d.meta.name = 'A') });
+    const at = currentStateId(s.getState());
+    s.getState().execute({ label: 'b', apply: (d) => void (d.meta.name = 'B') });
+    const h = parseSavedHistory(historyForSave(s.getState(), at, 'hash')!)!;
+    expect(h.undo.map((e) => e.label)).toEqual(['a']);
+    expect(h.redo).toEqual([]);
+  });
+
+  it('rejects anything that is not a saved history', () => {
+    expect(parseSavedHistory('{"version":2}')).toBeNull();
+    expect(parseSavedHistory('nope')).toBeNull();
+    expect(parseSavedHistory('{"version":1,"projectHash":"h","undo":[{"id":"x"}],"redo":[]}')).toBeNull();
   });
 });

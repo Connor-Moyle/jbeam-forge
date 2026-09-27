@@ -8,7 +8,7 @@ import type { SettingsService } from '../services/settings';
 import type { UserTaxonomyService } from '../services/userTaxonomy';
 import type { LayoutService } from '../services/layout';
 import type { RecentService } from '../services/recent';
-import { AccessError, withProjectExtension, type ProjectFiles } from '../services/projectFiles';
+import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
 import type { BeamngService } from '../beamng/service';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
 import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
@@ -251,6 +251,16 @@ export function registerIpcHandlers(services: HandlerServices): void {
       return undefined;
     },
     z.object({ path: z.string().min(1).max(4096) }),
+  );
+
+  registerInvoke('project:readHistory', ({ path }) => readHistory(projects, path), z.object({ path: z.string().min(1).max(4096) }));
+  registerInvoke(
+    'project:writeHistory',
+    async ({ path, text }) => {
+      await writeHistory(projects, path, text);
+      return undefined;
+    },
+    z.object({ path: z.string().min(1).max(4096), text: z.string() }),
   );
 
   registerInvoke('recent:list', () => recent.list());

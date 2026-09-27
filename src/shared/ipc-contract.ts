@@ -76,6 +76,9 @@ export interface InvokeContract {
   'project:saveAs': { req: { text: string; suggestedName: string; thumbnail?: string | null }; res: string | null };
   /** Consent: let the opened project read its pending folders (remembered per project). */
   'project:allowFolders': { req: { path: string }; res: undefined };
+  /** Undo history saved next to a project (JSON text), or null. */
+  'project:readHistory': { req: { path: string }; res: string | null };
+  'project:writeHistory': { req: { path: string; text: string }; res: undefined };
   'recent:list': { req: undefined; res: RecentProject[] };
   'recent:remove': { req: { path: string }; res: undefined };
   /** Reveal a recent/granted file in Explorer. */
@@ -155,6 +158,8 @@ export const INVOKE_CHANNELS = [
   'import:pickTextureDir',
   'import:locateSource',
   'project:allowFolders',
+  'project:readHistory',
+  'project:writeHistory',
   'taxonomy:getUser',
   'taxonomy:saveUser',
   'export:install',

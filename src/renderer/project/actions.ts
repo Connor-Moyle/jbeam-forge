@@ -1,7 +1,7 @@
 import { createEmptyProject, parseProject, ProjectLoadError, serializeProject, type NewProjectMeta } from '@shared/project/io';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
-import { currentStateId, isDirty, projectStore } from '@renderer/app/stores/project';
+import { currentStateId, historyForSave, isDirty, parseSavedHistory, projectStore } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { captureThumbnail } from '@renderer/panels/viewport/registry';
@@ -56,8 +56,41 @@ async function consentToFolders(file: ProjectFile): Promise<void> {
 
 function loadFromFile(file: ProjectFile): boolean {
   const ok = loadFromText(file.path, file.text);
-  if (ok) void consentToFolders(file).catch(() => undefined);
+  if (ok) {
+    void consentToFolders(file).catch(() => undefined);
+    void restoreHistory(file.path, file.text);
+  }
   return ok;
+}
+
+async function sha256(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Undo history saved with the project comes back, but only onto the exact file it was saved with. */
+async function restoreHistory(path: string, text: string): Promise<void> {
+  try {
+    const saved = await call('project:readHistory', { path });
+    const history = saved ? parseSavedHistory(saved) : null;
+    if (!history || history.projectHash !== (await sha256(text))) return;
+    const state = projectStore.getState();
+    if (state.filePath !== path || state.undoStack.length) return; // something changed while we read it
+    state.restoreHistory(history);
+    logger.info(`restored ${history.undo.length} undo step(s) for`, path);
+  } catch (err) {
+    logger.warn('could not restore undo history:', errorMessage(err));
+  }
+}
+
+/** Best effort: a project always saves even if its history can't. */
+async function saveHistory(path: string, text: string, stateId: number): Promise<void> {
+  try {
+    const history = historyForSave(projectStore.getState(), stateId, await sha256(text));
+    if (history) await call('project:writeHistory', { path, text: history });
+  } catch (err) {
+    logger.warn('could not save undo history:', errorMessage(err));
+  }
 }
 
 function loadFromText(path: string, text: string): boolean {
@@ -112,6 +145,7 @@ export async function saveProject(): Promise<boolean> {
   try {
     await call('project:save', { path: filePath, text: prepared.text, thumbnail: captureThumbnail() });
     projectStore.getState().markSaved(filePath, prepared.stateId, (d) => void (d.meta.modifiedAt = prepared.stamp));
+    await saveHistory(filePath, prepared.text, prepared.stateId);
     status('Saved', 'success');
     return true;
   } catch (err) {
@@ -128,6 +162,7 @@ export async function saveProjectAs(): Promise<boolean> {
     const path = await call('project:saveAs', { text: prepared.text, suggestedName: `${doc.meta.slug}.jbforge`, thumbnail: captureThumbnail() });
     if (!path) return false;
     projectStore.getState().markSaved(path, prepared.stateId, (d) => void (d.meta.modifiedAt = prepared.stamp));
+    await saveHistory(path, prepared.text, prepared.stateId);
     status(`Saved as ${path}`, 'success');
     return true;
   } catch (err) {

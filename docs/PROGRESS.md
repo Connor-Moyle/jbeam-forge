@@ -79,6 +79,14 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 - **Topology:** **B** chains the picked nodes with beams in the order picked (beams across parts become attachments), **M** merges nodes into the first one picked (centre position, summed weight, references follow, collapsed beams and triangles dropped), and **D** splits selected beams at the midpoint.
 - **Regenerating keeps hand-moved nodes:** each one takes the place of the regenerated node with the same id, or else the nearest one within 15 cm, and inherits its beams. Anything further away stays as it is, with a warning.
 
+**Power tools:**
+- **Ctrl+K command palette:** type a part name to focus it, or run any action, panel or layout.
+- **F1 keyboard shortcut sheet.**
+- **jbeam panel:** the exact text Export writes for the selected part, updating live.
+- **Balance:** F/R and L/R weight split in the status bar, with the centre of gravity in its tooltip and as a marker in the viewport. Front/rear is measured about the structure's middle until there are axles.
+
+**Undo survives saving:** saving writes the undo/redo history next to the project (`car.jbforge.history`). It keeps the last 300 steps, trimmed to about 32 MB, and is stamped with a SHA-256 of the saved text. Reopening restores it only when the project file is byte-for-byte the one it was saved with, so edits made elsewhere never replay onto the wrong document.
+
 **Automatic prices and weights** (`npm run study-prices`):
 - Every part of the 28 official cars and 10 trucks was classified with our own classifier. For each kind the study records its in-game price (`information.value`) and its node-weight sum.
 - Taxonomy defaults now use the median wherever there are enough samples: at least 3 prices or 5 masses.
