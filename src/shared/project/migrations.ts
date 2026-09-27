@@ -113,6 +113,12 @@ export const MIGRATIONS: readonly Migration[] = [
     // The variables placeholder was always empty.
     migrate: (doc) => ({ ...doc, formatVersion: 13, variables: [] }),
   },
+  {
+    from: 13,
+    describe: 'vehicle configurations',
+    // The configs placeholder was always empty.
+    migrate: (doc) => ({ ...doc, formatVersion: 14, configs: [] }),
+  },
 ];
 
 export class MigrationError extends Error {

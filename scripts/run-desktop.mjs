@@ -323,7 +323,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 13 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 14 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -381,7 +381,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 13 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 14 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -777,6 +777,19 @@ const scenarios = [
       assert(Object.values(mm).filter((names) => names.includes('chrome')).length >= 2, `dropped material applied to the engine too (${JSON.stringify(mm)} ${engineKeys})`);
       await hook(page, 'applyPreset', 'modelling');
 
+      // Configurations: a second version of the car with the front bumper left off.
+      await page.getByTestId('toggle-configs').click();
+      await page.getByTestId('configs-panel').waitFor();
+      await page.getByTestId('config-add').click();
+      await page.getByTestId('config-name').fill('Stripped');
+      await page.getByLabel('Front bumper part').click();
+      await page.getByRole('option', { name: '(empty)' }).click();
+      await page.getByTestId('config-preview').click();
+      await page.waitForTimeout(400);
+      await shot(page, 'config-stripped');
+      await page.getByTestId('config-preview').click();
+      await page.getByTestId('toggle-configs').click();
+
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
@@ -789,6 +802,8 @@ const scenarios = [
       for (const f of ['generate_test.dae', 'generate_test.jbeam', 'generate_test_body.jbeam', 'generate_test_engine.jbeam', 'generate_test_bumper_F.jbeam', 'info.json', 'default.pc', 'info_default.json', 'main.materials.json', 'default.jpg']) {
         assert(files.includes(f), `exported ${f} (got ${files.join(', ')})`);
       }
+      const stripped = JSON.parse(readFileSync(join(vdir, 'stripped.pc'), 'utf8'));
+      assert(stripped.parts.generate_test_bumper_F === '' && existsSync(join(vdir, 'info_stripped.json')), `stripped.pc exported (${JSON.stringify(stripped)})`);
       const pc = JSON.parse(readFileSync(join(vdir, 'default.pc'), 'utf8'));
       assert(pc.format === 2 && pc.model === 'generate_test' && pc.parts.generate_test_body === 'generate_test_body', `default.pc (${JSON.stringify(pc)})`);
       const dae = readFileSync(join(vdir, 'generate_test.dae'), 'utf8');

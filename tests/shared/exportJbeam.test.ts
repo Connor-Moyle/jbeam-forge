@@ -10,6 +10,7 @@ import type { ProxyMesh } from '../../src/shared/proxy/mesh';
 import { generateStructure } from '../../src/shared/proxy/generate';
 import { buildJbeamFiles, flexGroupOf } from '../../src/shared/export/jbeam';
 import { defaultConfig, exportMeshNames, infoJson, materialsJson } from '../../src/shared/export/files';
+import { configFileName, configInfoJson, includedParts, resolveConfig, slotChoices } from '../../src/shared/export/configs';
 import { validateExport } from '../../src/shared/export/validate';
 import { parseJbeam, isJbeamObject, type JbeamObject } from '../../src/shared/jbeam/parse';
 import { readTable } from '../../src/shared/jbeam/tables';
@@ -128,9 +129,28 @@ describe('jbeam export', () => {
     const ws = [...files.values()].find((p) => p.flexbodies && readTable(p.flexbodies).records.some((r) => r.values.mesh === wsMesh))!;
     const flex = readTable(ws.flexbodies!).records.find((r) => r.values.mesh === wsMesh)!;
     expect(flex.options).toMatchObject({ deformMaterialBase: 'test_glass', deformMaterialDamaged: 'test_glass_dmg' });
-    expect(String(flex.options.deformGroup)).toMatch(/_break$/);
+    expect(flex.options.deformGroup).toEqual(expect.stringMatching(/_break$/));
     const beams = readTable(ws.beams!).records;
     expect(beams.some((r) => r.options.deformGroup === flex.options.deformGroup && r.options.deformationTriggerRatio === 0.02)).toBe(true);
+  });
+
+  it('resolves configurations: slots, overrides, empty slots and what ends up on the car', () => {
+    const { doc } = carProject();
+    const slots = slotChoices(doc, tax);
+    expect(slots.map((s) => [s.slotType, s.depth, s.options.map((o) => o.name)])).toEqual([
+      ['test_body', 0, ['test_body']],
+      ['test_hood', 1, ['test_hood']],
+      ['test_bumper_F', 1, ['test_bumper_F', 'test_bumper_F_race']],
+      ['test_badge_R', 1, ['test_badge_R']],
+    ]);
+    expect(resolveConfig(doc, tax, null)).toEqual(defaultConfig(doc, tax));
+    const race = { id: 'c1', name: 'Race Spec!', description: 'Lighter', type: 'Custom', parts: { test_bumper_F: 'test_bumper_F_race', test_badge_R: '' }, vars: { $test_body_mass: 0.8 } };
+    const pc = resolveConfig(doc, tax, race);
+    expect(pc.parts).toMatchObject({ test_bumper_F: 'test_bumper_F_race', test_badge_R: '' });
+    expect(pc.vars).toEqual({ $test_body_mass: 0.8 });
+    expect([...includedParts(doc, tax, pc)].sort()).toEqual(['p_body', 'p_bumper_race', 'p_hood']);
+    expect(configFileName(race)).toBe('race_spec');
+    expect(configInfoJson(doc, tax, pc, race)).toMatchObject({ Configuration: 'Race Spec!', 'Config Type': 'Custom', Description: 'Lighter' });
   });
 
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {

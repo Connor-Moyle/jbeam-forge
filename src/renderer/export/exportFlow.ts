@@ -10,9 +10,11 @@ import { capturePreview } from '@renderer/panels/viewport/registry';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle } from '@shared/ipc-contract';
 import { buildJbeamFiles, damagedMaterialName } from '@shared/export/jbeam';
+import type { Project } from '@shared/project/schema';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
-import { configInfo, DEFAULT_CONFIG, defaultConfig, exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
+import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
+import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
 import { collectMaterials, createTextureNamer, projectMaterialExport } from './materials';
@@ -144,18 +146,27 @@ export function prepareExport(): PreparedExport | null {
   }
   const meshMaterials = new Map(daeMeshes.map((dm) => [dm.name, dm.materials]));
   const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data, glowMap, meshMaterials });
-  const pc = defaultConfig(doc, tax);
   const root = `vehicles/${slug}`;
+  // The default configuration, then every one made in the Configurations panel: a .pc, its info and a preview each.
+  const configs = [null, ...doc.configs];
+  const taken = new Set<string>();
+  const configFiles: ExportBundle['files'] = [];
+  for (const config of configs) {
+    let file = configFileName(config);
+    for (let i = 2; taken.has(file); i++) file = `${configFileName(config)}_${i}`;
+    taken.add(file);
+    const pc = resolveConfig(doc, tax, config);
+    configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config), null, 2)}\n` });
+    const preview = capturePreviewOf(doc, includedParts(doc, tax, pc));
+    if (preview) configFiles.push({ path: `${root}/${file}.jpg`, base64: base64FromDataUrl(preview) });
+  }
   const files: ExportBundle['files'] = [
     { path: `${root}/${slug}.dae`, text: dae },
     ...jbeams.map((j) => ({ path: `${root}/${j.file}`, text: j.text })),
     { path: `${root}/main.materials.json`, text: `${JSON.stringify(materialJsonAll, null, 2)}\n` },
     { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author), null, 2)}\n` },
-    { path: `${root}/${DEFAULT_CONFIG}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` },
-    { path: `${root}/info_${DEFAULT_CONFIG}.json`, text: `${JSON.stringify(configInfo(doc, tax, pc), null, 2)}\n` },
+    ...configFiles,
   ];
-  const preview = capturePreview();
-  if (preview) files.push({ path: `${root}/${DEFAULT_CONFIG}.jpg`, base64: base64FromDataUrl(preview) });
 
   const exportedSources = new Set(exported.map((m) => m.sourceId));
   const missingTextures = sources.filter((s) => exportedSources.has(s.sourceId)).flatMap((s) => (s.textures?.missing ?? []).map((ref) => ({ material: s.fileName, ref })));
@@ -171,6 +182,19 @@ export function prepareExport(): PreparedExport | null {
     report,
     summary: { parts: doc.parts.length, meshes: exported.length, nodes: doc.nodes.length, beams: doc.beams.length, textures: mats.copies.length, daeBytes: dae.length },
   };
+}
+
+/** A preview picture with only these parts' meshes showing (the rest hidden for the capture, then put back). */
+function capturePreviewOf(doc: Pick<Project, 'assignments'>, parts: ReadonlySet<string>): string | null {
+  const scene = useSceneStore.getState();
+  const before = scene.hidden;
+  const hide = Object.keys(doc.assignments).filter((k) => !parts.has(doc.assignments[k]!) && !before[k]);
+  if (hide.length) scene.setHidden(hide, true);
+  try {
+    return capturePreview();
+  } finally {
+    if (hide.length) scene.setHidden(hide, false);
+  }
 }
 
 export async function openExport(): Promise<void> {

@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 13;
+export const CURRENT_PROJECT_VERSION = 14;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -289,9 +289,26 @@ export const TuningVarSchema = z.object({
   default: z.number().positive(),
 });
 
-export const ProjectV13Schema = z.object({
+/**
+ * A vehicle configuration (v14, Phase 13), like the game's .pc files: which
+ * part each slot takes where it differs from the default (an empty string
+ * leaves the slot empty), and values for the settings adjustable in game.
+ */
+export const VehicleConfigSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string(),
+  /** Factory, Custom, Police… (the game's "Config Type"). */
+  type: z.string(),
+  /** slot type → part name ('' = empty). */
+  parts: z.record(z.string(), z.string()),
+  /** jbeam variable ($hood_mass…) → value. */
+  vars: z.record(z.string(), z.number()),
+});
+
+export const ProjectV14Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(13),
+  formatVersion: z.literal(14),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -325,12 +342,13 @@ export const ProjectV13Schema = z.object({
   suspension: placeholderMap, // Phase 10
   /** Engine and gearbox (v12, Phase 11). */
   powertrain: PowertrainSchema,
-  configs: placeholderList, // Phase 13
+  /** Vehicle configurations beyond the default (v14, Phase 13). */
+  configs: z.array(VehicleConfigSchema),
   /** Settings adjustable in the game's tuning menu (v13, Phase 12). */
   variables: z.array(TuningVarSchema),
 });
 
-export const ProjectSchema = ProjectV13Schema;
+export const ProjectSchema = ProjectV14Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -342,6 +360,7 @@ export type MeshCopy = z.infer<typeof MeshCopySchema>;
 export type Axle = z.infer<typeof AxleSchema>;
 export type FittedSet = z.infer<typeof FittedSetSchema>;
 export type TuningVar = z.infer<typeof TuningVarSchema>;
+export type VehicleConfig = z.infer<typeof VehicleConfigSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];
