@@ -35,6 +35,10 @@ interface DialogState {
   showAlert: (title: string, message: string) => Promise<void>;
   dismissAlert: () => void;
   setNewModOpen: (open: boolean) => void;
+  paletteOpen: boolean;
+  setPaletteOpen: (open: boolean) => void;
+  shortcutsOpen: boolean;
+  setShortcutsOpen: (open: boolean) => void;
 }
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
@@ -73,4 +77,8 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
     pending?.resolve();
   },
   setNewModOpen: (newModOpen) => set({ newModOpen }),
+  paletteOpen: false,
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+  shortcutsOpen: false,
+  setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
 }));

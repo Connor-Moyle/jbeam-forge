@@ -3,6 +3,8 @@ import { projectStore } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } from './actions';
 import { startImport } from '@renderer/import/importFlow';
+import { useEditStore } from '@renderer/structure/editStore';
+import { selectAll } from '@renderer/structure/editCommands';
 
 function isEditableTarget(el: Element | null): boolean {
   if (!el) return false;
@@ -40,6 +42,16 @@ export function runAppCommand(command: AppCommand): void {
     case 'redo':
       if (isEditableTarget(document.activeElement)) document.execCommand('redo');
       else redo();
+      break;
+    case 'selectAll':
+      if (!isEditableTarget(document.activeElement) && useEditStore.getState().active) selectAll();
+      else document.execCommand('selectAll');
+      break;
+    case 'palette':
+      useDialogStore.getState().setPaletteOpen(true);
+      break;
+    case 'shortcuts':
+      useDialogStore.getState().setShortcutsOpen(true);
       break;
   }
 }

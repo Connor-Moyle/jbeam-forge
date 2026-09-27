@@ -51,7 +51,10 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { role: 'selectAll' },
+        // In edit mode this selects every node; in text fields it selects the text.
+        { label: 'Select All', accelerator: 'CmdOrCtrl+A', click: command('selectAll') },
+        { type: 'separator' },
+        { label: 'Command Palette…', accelerator: 'CmdOrCtrl+K', click: command('palette') },
       ],
     },
     {
@@ -78,6 +81,8 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
     {
       label: 'Help',
       submenu: [
+        { label: 'Keyboard Shortcuts', accelerator: 'F1', click: command('shortcuts') },
+        { type: 'separator' },
         {
           label: 'Open Log Folder',
           click: () => {

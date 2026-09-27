@@ -1,0 +1,38 @@
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0 0 var(--space-2);
+  color: var(--text-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.list {
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+}
+
+.key {
+  flex: none;
+  width: var(--size-shortcut-key);
+  color: var(--text-0);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+.what {
+  margin: 0;
+  color: var(--text-1);
+  font-size: var(--text-control);
+}

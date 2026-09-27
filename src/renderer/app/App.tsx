@@ -4,6 +4,8 @@ import { DockShell } from '@renderer/shell/DockShell';
 import { ShellProvider, useShell } from '@renderer/shell/ShellContext';
 import { StatusBar } from '@renderer/shell/StatusBar';
 import { Toolbar } from '@renderer/shell/Toolbar';
+import { CommandPalette } from '@renderer/shell/CommandPalette';
+import { ShortcutsModal } from '@renderer/shell/ShortcutsModal';
 import { HomeScreen } from '@renderer/home/HomeScreen';
 import { DialogHost } from '@renderer/project/DialogHost';
 import { ImportHost } from '@renderer/import/ImportHost';
@@ -209,6 +211,8 @@ function Editor() {
       <Toolbar />
       <DockShell />
       <StatusBar />
+      <CommandPalette />
+      <ShortcutsModal />
     </div>
   );
 }

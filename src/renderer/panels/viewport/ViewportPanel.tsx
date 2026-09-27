@@ -8,6 +8,7 @@ import { startImport } from '@renderer/import/importFlow';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import { ViewportRuntime, webglAvailable, type EditView, type GlState, type ToolState, type ViewState } from './viewportRuntime';
 import { useEditStore } from '@renderer/structure/editStore';
+import { massBalance } from '@shared/structure/balance';
 import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
 import { EditToolbar } from '@renderer/structure/EditToolbar';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
@@ -120,7 +121,10 @@ export function ViewportPanel() {
         const structureChanged = !lastStructure || (lastStructure as unknown[]).slice(0, 5).some((x, i) => x !== key?.[i]);
         lastStructure = key;
         const only = focus?.partId ? new Set(focus.parts) : undefined;
-        if (structureChanged) rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id), only, edit.preview) : null);
+        if (structureChanged) {
+          rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id), only, edit.preview) : null);
+          rt.setCog(doc ? (massBalance(doc.nodes)?.cog ?? null) : null);
+        }
         rt.setEdit(doc && edit.active ? editView(doc, only, edit) : null);
       }
     };
@@ -262,7 +266,7 @@ function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
   const ctrl = e.ctrlKey || e.metaKey;
   if (e.key === 'Delete' || e.key === 'Backspace') deleteSelection();
   else if (ctrl && (e.key === 'a' || e.key === 'A')) selectAll();
-  else if (ctrl && (e.key === 'i' || e.key === 'I')) invertSelection();
+  else if (!ctrl && (e.key === 'i' || e.key === 'I')) invertSelection();
   else if (!ctrl && (e.key === 'l' || e.key === 'L')) selectConnected();
   else if (!ctrl && (e.key === 'b' || e.key === 'B')) connectSelection();
   else if (!ctrl && (e.key === 'm' || e.key === 'M')) mergeSelection();

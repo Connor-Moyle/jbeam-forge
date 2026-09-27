@@ -125,6 +125,9 @@
   --size-dot: 8px;
   --size-divider-h: 20px;
   --size-tooltip-max: 260px;
+  --size-palette-list: 360px;
+  --size-palette-group: 52px;
+  --size-shortcut-key: 190px;
   --size-popover-min: 200px;
   --size-popover-max: 340px;
   --size-modal-sm: 400px;

@@ -10,6 +10,7 @@ import {
   MOUSE,
   Mesh,
   Object3D,
+  OctahedronGeometry,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
@@ -191,6 +192,8 @@ export class ViewportRuntime {
   private readonly gizmo: TransformControls;
   private gizmoStart: Vector3 | null = null;
   private gizmoHot = false;
+  /** Centre-of-gravity marker, drawn with the structure. */
+  private readonly cog: Mesh;
   private injectedFrameErrors = 0;
 
   constructor(
@@ -228,6 +231,10 @@ export class ViewportRuntime {
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     this.toolMaterial = new MeshBasicMaterial({ color: new Color(resolveToken('warning') || undefined), transparent: true, opacity: 0.6, depthWrite: false, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.planeMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.18, depthWrite: false, side: DoubleSide });
+    this.cog = new Mesh(new OctahedronGeometry(1), new MeshBasicMaterial({ color: new Color(resolveToken('warning') || undefined), depthTest: false, transparent: true, opacity: 0.9 }));
+    this.cog.renderOrder = 7;
+    this.cog.visible = false;
+    this.structure.root.add(this.cog);
     this.hoverMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.16, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
     this.ghostMaterial = new MeshStandardMaterial({ color: new Color(resolveToken('text-1') || undefined), roughness: 0.9, metalness: 0, transparent: true, opacity: 0.12, depthWrite: false, side: DoubleSide });
 
@@ -558,6 +565,14 @@ export class ViewportRuntime {
       radius = Math.min(0.03, Math.max(0.006, (hi - lo) * 0.0035)); // scale with vehicle length
     }
     this.structure.set(data, radius);
+  }
+
+  /** Centre of gravity (BeamNG space), or null to hide the marker. */
+  setCog(pos: [number, number, number] | null): void {
+    this.cog.visible = !!pos;
+    if (!pos) return;
+    this.cog.position.set(pos[0], pos[1], pos[2]);
+    this.cog.scale.setScalar(this.structure.nodeRadius * 3.5);
   }
 
   /** Harness-only comparison overlay in a neutral colour. */
@@ -984,6 +999,8 @@ export class ViewportRuntime {
     this.gizmo.getHelper().removeFromParent();
     this.gizmo.dispose();
     this.editOverlay.dispose();
+    this.cog.geometry.dispose();
+    (this.cog.material as MeshBasicMaterial).dispose();
     // Only what this viewport created: imported geometry/materials belong to the scene store
     // (the viewport remounts on every layout change while the meshes live on).
     for (const o of this.owned) {

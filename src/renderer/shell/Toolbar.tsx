@@ -2,6 +2,7 @@ import {
   Box,
   Download,
   Eye,
+  FileCode,
   FilePlus,
   FlaskConical,
   FileInput,
@@ -127,6 +128,7 @@ export function Toolbar() {
           <IconButton icon={LayoutGrid} label="Component kit (dev)" onClick={() => togglePanel('kit-gallery')} data-testid="toggle-kit" />
         )}
         <IconButton icon={FlaskConical} label="Test results panel" onClick={() => togglePanel('test-results')} />
+        <IconButton icon={FileCode} label="jbeam preview panel" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
         <Select<PresetId>
           aria-label="Layout preset"
           value={preset}

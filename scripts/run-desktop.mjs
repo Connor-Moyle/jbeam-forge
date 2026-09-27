@@ -422,6 +422,18 @@ const scenarios = [
       await page.getByTestId('focus-exit').click();
       st = await parts();
       assert(st.focus === null, 'pill button leaves focus mode');
+
+      // Command palette: type a part name, Enter focuses it.
+      await hook(page, 'runCommand', 'palette');
+      await page.getByTestId('palette-input').fill('side mirror');
+      await shot(page, 'command-palette');
+      await page.getByTestId('palette-input').press('Enter');
+      st = await parts();
+      assert(st.focus?.partId === mirror.id, `palette focused the mirror (${JSON.stringify(st.focus)})`);
+      await page.getByTestId('focus-exit').click();
+      await hook(page, 'runCommand', 'shortcuts');
+      assert(await page.getByTestId('shortcuts').isVisible(), 'shortcut sheet opens');
+      await page.keyboard.press('Escape');
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).parts.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
@@ -606,6 +618,14 @@ const scenarios = [
       await page.waitForTimeout(150);
       await shot(page, 'generate-structure-only');
       await page.getByTestId('toolbar-view-mesh').click();
+      assert(/F\/R \d+\/\d+ · L\/R \d+\/\d+/.test(await page.locator('[data-stat=balance]').textContent()), 'status bar shows the weight split');
+      // jbeam preview shows the selected part's exported text.
+      await page.getByTestId('toggle-jbeam-preview').click();
+      await page.getByTestId('jbeam-preview').waitFor();
+      const jbeamText = await page.getByTestId('jbeam-preview').textContent();
+      assert(jbeamText.includes('generate_test_body.jbeam') && jbeamText.includes('"nodes"') && jbeamText.includes('"slotType"'), 'jbeam preview shows the body part');
+      await shot(page, 'jbeam-preview');
+      await page.getByTestId('toggle-jbeam-preview').click();
       await hook(page, 'runCommand', 'undo');
       assert((await hook(page, 'structureState')).nodes === 0, 'undo removes the generated structure');
       await hook(page, 'runCommand', 'redo');
