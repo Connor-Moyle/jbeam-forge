@@ -6,6 +6,7 @@ import { writeTable, type WritableRecord } from '../jbeam/tables';
 import { materialDefaults } from '../parts/materials';
 import { ATTACHMENT_VALUES, BEAM_PRESET_VALUES, type BeamPresetId, type BeamValues } from '../proxy/presets';
 import { partRole, partSettings } from '../proxy/generate';
+import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -100,16 +101,14 @@ function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamP
 }
 
 function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES): WritableValue[] {
-  const p = BEAM_PRESET_VALUES[preset];
   const a = ATTACHMENT_VALUES[attachStyle];
-  const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: 1.1 };
+  const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: DEFORM_LIMIT_EXPANSION };
   const order = { edge: 0, brace: 1, attach: 2 } as const;
   const sorted = [...beams].sort((x, y) => order[x.kind] - order[y.kind]);
   const records: WritableRecord[] = sorted.map((b) => {
     const values = { 'id1:': b.id1, 'id2:': b.id2 };
-    if (b.kind === 'attach') return { values, options: { ...common, ...beamOptions(a), ...(a.breakGroup ? { breakGroup: `${part.name}_attach` } : {}) } };
-    const spring = b.kind === 'brace' ? Math.round(p.beamSpring * p.braceSpringFactor) : p.beamSpring;
-    return { values, options: { ...common, ...beamOptions({ ...p, beamSpring: spring }) } };
+    const v = beamPhysics(b.kind, preset, attachStyle, part.name);
+    return { values, options: { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}) } };
   });
   const comments = new Map<number, string>();
   const firstBrace = sorted.findIndex((b) => b.kind === 'brace');

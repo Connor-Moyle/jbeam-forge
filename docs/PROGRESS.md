@@ -21,6 +21,26 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 13 | Config Manager v2 + previews | — | not started |
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | not started |
 
+## Roadmap from your feedback (2026-09-27)
+
+You asked to continue past the Phase 5 in-game gate. It stays open: every export-affecting phase still needs your in-game check. Each request below is assigned to the phase that builds it:
+
+| Your request | Phase |
+|---|---|
+| Node/beam generation still not accurate enough: revisit | 7 (editing suite); proxy tuning continues |
+| Selected part focus: all other parts transparent (a setting) | 7 (Part Focus Mode) |
+| Slot menus broken into logical categories (Main body → Doors → Front doors → Front right door → FR door card) | 7 (scene tree grouping) + 13 |
+| Auto-import every material and texture; export them in BeamNG's format | 8 |
+| Materials tab: extreme adjustment and creation, full PBR plus everything BeamNG's material system supports, a library of presets | 8 |
+| Hinges: location, pivot range, speed, latch position, handle/button trigger | 9 |
+| Suspension: a default library imported from **every** BeamNG vehicle's suspension; place any number of axles/steering sets (trucks with 2 steered front axles + 3 rear axles…); swap any suspension part's mesh for your own | 10 |
+| Engine builder: multiple engines, block mesh, NA/turbo/supercharger with their own meshes, animated parts (fans, pulleys), displacement, dyno chart, every official engine sound with preview, run the engine in-app through the rev range, all audio controls BeamNG offers (pitch, whine, backfire…) | 11 |
+| Tuning parts: ECUs, bottom ends, turbos, exhausts, flywheels, nitrous, camshafts, pistons…, each with every adjustable setting (weight, power/torque added, torque/HP limits before breaking, thermals, max RPM…) | 11 + 12 |
+| Gearbox and driveline builders in the same style | 11 |
+| Per-setting "adjustable in game" tick box with min/max | 12 |
+| Weights and prices automated to BeamNG-sensible values, user-adjustable | 7 (derived defaults) + 13 (rollups) |
+| Part selector laid out like BeamNG's in-game parts menu, so modders see how it will look | 13 |
+
 ## Phase log
 
 ### Phase 5 — Export v1 + in-game gate (built; waiting for your in-game test)

@@ -8,3 +8,8 @@ coverage/
 .DS_Store
 .claude/settings.local.json
 scratch/
+
+# Local-only instruction/spec copies (never published)
+SPEC.md
+docs/SPEC.md
+.claude/

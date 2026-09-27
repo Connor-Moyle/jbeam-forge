@@ -8,7 +8,7 @@ import { runSmokeWorker } from '@renderer/diagnostics/workerRelay';
 import { registerTestHooks } from '@renderer/app/testHooks';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { emitTestSignal } from '@renderer/app/testBus';
-import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, togglePanel as toggle } from './presets';
+import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, showPanel as show, togglePanel as toggle } from './presets';
 import { PANELS, isPanelId, type PanelId } from './panelRegistry';
 
 const logger = rlog('shell');
@@ -23,6 +23,8 @@ export interface ShellApi {
   applyPreset: (preset: PresetId) => void;
   resetLayout: () => void;
   togglePanel: (id: PanelId) => void;
+  /** Open or focus a panel (never closes). */
+  showPanel: (id: PanelId) => void;
 }
 
 const ShellContext = createContext<ShellApi | null>(null);
@@ -90,6 +92,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
 
   const togglePanel = useCallback((id: PanelId) => {
     if (apiRef.current) toggle(apiRef.current, id);
+  }, []);
+  const showPanel = useCallback((id: PanelId) => {
+    if (apiRef.current) show(apiRef.current, id);
   }, []);
 
   const attach = useCallback(
@@ -173,8 +178,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<ShellApi>(
-    () => ({ ready, preset, devMode, attach, applyPreset, resetLayout, togglePanel }),
-    [ready, preset, devMode, attach, applyPreset, resetLayout, togglePanel],
+    () => ({ ready, preset, devMode, attach, applyPreset, resetLayout, togglePanel, showPanel }),
+    [ready, preset, devMode, attach, applyPreset, resetLayout, togglePanel, showPanel],
   );
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;

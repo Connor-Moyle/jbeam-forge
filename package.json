@@ -24,7 +24,8 @@
     "study-structure": "tsx --tsconfig tsconfig.node.json scripts/study-structure.ts",
     "lint-mod": "tsx --tsconfig tsconfig.node.json scripts/lint-mod.ts",
     "proxy-bench": "tsx --tsconfig tsconfig.test-web.json scripts/web/proxy-bench.ts",
-    "dump-reference": "tsx --tsconfig tsconfig.node.json scripts/dump-reference-structure.ts"
+    "dump-reference": "tsx --tsconfig tsconfig.node.json scripts/dump-reference-structure.ts",
+    "bench:solver": "tsx --tsconfig tsconfig.node.json scripts/bench-solver.ts"
   },
   "engines": {
     "node": ">=22"
