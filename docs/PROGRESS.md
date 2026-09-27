@@ -13,7 +13,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | done (0.7.0) |
-| 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | in progress |
+| 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | done (0.8.0); UV/AO in 0.8.x |
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | not started |
 | 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | not started |
 | 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | not started |
@@ -48,12 +48,13 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.8.0 | Phase 8: materials in the project, full editor, 34 presets + personal library + .jbmat, duplicate merge, drag-and-drop |
 | 0.7.1 | Friendly mesh names from parts, model re-export (.glb/.dae), centre-line split, name-vs-position check, fix for pre-0.7.1 FBX projects |
 | 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
 
 ## Phase log
 
-### Phase 8 — Materials (in progress)
+### Phase 8 — Materials (done, 0.8.0)
 
 **Studied first:** 2,179 materials from the stock vehicles. All are format 1.5 with four "Stages", and most do their work in stage 0. Paint puts a colour palette mask with clear coat and an orange-peel detail normal on layer 0, with the real textures on layer 1. Glass is translucent PreMulAlpha with shadows off.
 
@@ -85,7 +86,17 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 - **`.jbmat` sharing:** a zip of `material.json` plus `textures/`. Importing unpacks it into the library with zip-slip-safe paths.
 - **The library dialog:** Presets / My library, search, apply to the selected meshes or add to the project, share, remove, and import a `.jbmat`. The editor has Save to library and Share.
 
-**Next:** 8c: merging duplicates (Aluminum-1 / Aluminum-1.001…), drag-and-drop onto meshes, BeamNG's shared game materials, paint slots.
+**8c — merge and drag-and-drop (done):**
+- **Merge duplicates:** materials with identical settings and textures are grouped.
+  - Names that are only copies of each other (Aluminum-1 / Aluminum-1.001, Chrome_02, "Glass copy") merge with confidence.
+  - Identical materials with unrelated names are offered, unticked.
+  - Chained merges resolve to the one kept.
+  - On the Sunburst6 FBX: 53 → 42 materials from the confident merges alone. Its FBX materials carry so little data that Chrome, redGlass, Grey_Plastic and friends look identical, which is exactly why those stay unticked.
+- **Drag and drop:** drag a material from the list onto a mesh or part row in the Scene tree (a part takes it on all its meshes), or onto a mesh in the viewport (onto the whole selection if the mesh is part of it).
+- **Game materials:** type a BeamNG material name in the editor and nothing is exported for it; the DAE references it by name.
+- **Paint:** the paint switch on a material, with the palette mask (R/G/B = paint slots 1/2/3) on layer 1.
+
+**Carried to 0.8.x:** UV island view, auto-unwrap and projection, AO baking, the viewport's single-channel views (roughness/metallic/normals/UV checker), a game-wheel picker (it fits better with suspension in Phase 10), and a list of the game's shared materials to pick from.
 
 ### Phase 7 — Editing suite (done, 0.7.0)
 

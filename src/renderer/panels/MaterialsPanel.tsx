@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BookmarkPlus, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
+import { BookmarkPlus, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
+import { useMergeUi } from '@renderer/materials/MergeDialog';
 import { saveToLibrary, shareMaterial, useLibrary } from '@renderer/materials/LibraryDialog';
 import { EMPTY_ARR } from '@shared/empty';
 import { BLEND_OPS, TEXTURE_SLOTS, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
@@ -83,12 +84,26 @@ export function MaterialsPanel() {
       <div className={styles.listHeader}>
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${materials.length} materials`} aria-label="Search materials" />
         <IconButton icon={Library} label="Material library" size="sm" onClick={() => useLibrary.getState().setOpen(true)} data-testid="material-library" />
+        <IconButton icon={Combine} label="Merge duplicate materials" size="sm" onClick={() => useMergeUi.getState().setOpen(true)} data-testid="material-merge" />
         <IconButton icon={Plus} label="New material" size="sm" onClick={() => void mc.createMaterial()} data-testid="material-new" />
       </div>
       <ScrollArea className={styles.list}>
         <ul className={styles.items} role="listbox" aria-label="Materials">
           {shown.map((m) => (
-            <li key={m.id} role="option" aria-selected={m.id === selected} className={cx(styles.item, m.id === selected && styles.active)} onClick={() => select(m.id)} data-testid="material-row">
+            <li
+              key={m.id}
+              role="option"
+              aria-selected={m.id === selected}
+              className={cx(styles.item, m.id === selected && styles.active)}
+              onClick={() => select(m.id)}
+              draggable
+              onDragStart={(e) => {
+                e.dataTransfer.setData(mc.MIME_MATERIAL, m.id);
+                e.dataTransfer.effectAllowed = 'copy';
+              }}
+              title="Drag onto a mesh in the viewport or the Scene tree"
+              data-testid="material-row"
+            >
               <Swatch def={m} />
               <span className={styles.name}>{m.name}</span>
               {m.paint && <Badge>paint</Badge>}

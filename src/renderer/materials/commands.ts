@@ -7,6 +7,9 @@ import { create } from 'zustand';
 
 /** Undoable material edits. Each call is one history entry. */
 
+/** Drag-and-drop type for a material dragged from the Materials panel. */
+export const MIME_MATERIAL = 'application/x-jbf-material';
+
 /** Which material the Materials panel is editing, and which layer. */
 export const useMaterialUi = create<{ selected: string | null; layer: number; select: (id: string | null) => void; setLayer: (i: number) => void }>()((set) => ({
   selected: null,

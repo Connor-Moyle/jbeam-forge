@@ -24,6 +24,7 @@ import { ancestorIds, buildSceneTree, subtreeIds, type MeshInfo, type PartNode }
 import { groupInfo, groupItems, type TreeItem } from '@shared/parts/grouping';
 import { exitFocus, focusPart } from '@renderer/parts/focus';
 import { renameFromParts } from '@renderer/parts/naming';
+import { assignMaterial, MIME_MATERIAL } from '@renderer/materials/commands';
 import { useRenameMeshUi } from '@renderer/parts/RenameMeshDialog';
 import { positionLabel } from '@shared/parts/ops';
 import { POSITIONS_BY_AXIS } from '@shared/taxonomy/schema';
@@ -239,8 +240,9 @@ interface RowContext {
   toggle: (id: string) => void;
 }
 
-function readDrag(e: DragEvent): { part: string | null; meshes: string[] } {
+function readDrag(e: DragEvent): { part: string | null; meshes: string[]; material: string | null } {
   const part = e.dataTransfer.getData(MIME_PART) || null;
+  const material = e.dataTransfer.getData(MIME_MATERIAL) || null;
   const raw = e.dataTransfer.getData(MIME_MESHES);
   let meshes: string[] = [];
   try {
@@ -248,15 +250,15 @@ function readDrag(e: DragEvent): { part: string | null; meshes: string[] } {
   } catch {
     meshes = [];
   }
-  return { part, meshes };
+  return { part, meshes, material };
 }
 
-function dropProps(id: string, ctx: RowContext, onDrop: (d: { part: string | null; meshes: string[] }) => void) {
+function dropProps(id: string, ctx: RowContext, onDrop: (d: { part: string | null; meshes: string[]; material: string | null }) => void, accept: readonly string[] = [MIME_PART, MIME_MESHES, MIME_MATERIAL]) {
   return {
     onDragOver: (e: DragEvent) => {
-      if (!e.dataTransfer.types.includes(MIME_PART) && !e.dataTransfer.types.includes(MIME_MESHES)) return;
+      if (!accept.some((t) => e.dataTransfer.types.includes(t))) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
+      e.dataTransfer.dropEffect = e.dataTransfer.types.includes(MIME_MATERIAL) ? 'copy' : 'move';
       if (ctx.dropTarget !== id) ctx.setDropTarget(id);
     },
     onDragLeave: () => ctx.dropTarget === id && ctx.setDropTarget(null),
@@ -281,7 +283,12 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
   const subtreeMeshes = () => subtreeIds(ctx.parts, part.id).flatMap((id) => ctx.partMeshes.get(id) ?? []);
   const allHidden = own.length > 0 && own.every((k) => hidden[k]);
 
-  const onDrop = ({ part: dragged, meshes }: { part: string | null; meshes: string[] }) => {
+  const onDrop = ({ part: dragged, meshes, material }: { part: string | null; meshes: string[]; material: string | null }) => {
+    if (material) {
+      // A material dropped on a part goes on all of its meshes.
+      assignMaterial(material, subtreeMeshes());
+      return;
+    }
     if (dragged && dragged !== part.id) {
       if (!cmd.reparentPart(dragged, part.id)) pushStatus('Can’t move a part inside its own child.', 'warning');
     } else if (meshes.length) cmd.assignToPart(meshes, part.id);
@@ -388,6 +395,8 @@ function MeshRow({ row, ctx }: { row: Extract<Row, { type: 'mesh' }>; ctx: RowCo
         }}
         onMouseEnter={() => setHover(mesh.key)}
         onMouseLeave={() => hover === mesh.key && setHover(null)}
+        {...dropProps(mesh.key, ctx, ({ material }) => material && assignMaterial(material, targets()), [MIME_MATERIAL])}
+        className={cx(ctx.dropTarget === mesh.key && styles.dropTarget)}
       >
         <TreeRow
           depth={row.depth}

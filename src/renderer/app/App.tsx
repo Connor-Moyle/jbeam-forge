@@ -164,6 +164,13 @@ function AppEffects() {
         },
         splitCentreLine: (keys: string[]) => splitCentreLine(keys),
         renameFromParts: () => renameFromParts(),
+        /** meshKey → the names of the project materials it uses. */
+        meshMaterials: () => {
+          const d = projectStore.getState().doc;
+          const names = new Map((d?.materials ?? []).map((m) => [m.id, m.name]));
+          return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
+        },
+        materialCount: () => projectStore.getState().doc?.materials.length ?? 0,
         meshNameList: () => Object.values(projectStore.getState().doc?.meshNames ?? {}).map((e) => e.name),
         partNames: () => (projectStore.getState().doc?.parts ?? []).map((p) => p.displayName),
         /** Every mesh's name, triangle count and BeamNG-space bounds (for studying real models). */

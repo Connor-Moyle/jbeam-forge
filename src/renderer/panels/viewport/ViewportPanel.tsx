@@ -12,6 +12,7 @@ import { massBalance } from '@shared/structure/balance';
 import type { MaterialDef } from '@shared/materials/schema';
 import type { Material } from 'three';
 import { materialFor, useTextureVersion } from '@renderer/materials/runtime';
+import { assignMaterial, MIME_MATERIAL } from '@renderer/materials/commands';
 import { slotsOf } from '@renderer/materials/seed';
 import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
 import { EditToolbar } from '@renderer/structure/EditToolbar';
@@ -190,6 +191,25 @@ export function ViewportPanel() {
     };
     host.addEventListener('keydown', onKey);
 
+    // Drop a material from the Materials panel onto a mesh (onto the whole selection if it's part of it).
+    const onDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer?.types.includes(MIME_MATERIAL)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      scene.getState().setHover(rt.pick(e.clientX, e.clientY));
+    };
+    const onDrop = (e: DragEvent) => {
+      const material = e.dataTransfer?.getData(MIME_MATERIAL);
+      if (!material) return;
+      e.preventDefault();
+      const key = rt.pick(e.clientX, e.clientY);
+      if (!key) return;
+      const selection = scene.getState().selection;
+      assignMaterial(material, selection.includes(key) ? selection : [key]);
+    };
+    host.addEventListener('dragover', onDragOver);
+    host.addEventListener('drop', onDrop);
+
     return () => {
       unsubscribe();
       unsubscribeTool();
@@ -200,6 +220,8 @@ export function ViewportPanel() {
       unsubscribeTextures();
       unsubscribeSim();
       host.removeEventListener('keydown', onKey);
+      host.removeEventListener('dragover', onDragOver);
+      host.removeEventListener('drop', onDrop);
       rt.dispose();
     };
     // Runtime is created once per mount; state changes must not recreate it.

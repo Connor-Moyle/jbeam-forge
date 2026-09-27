@@ -1,4 +1,5 @@
 import { Loader } from 'lucide-react';
+import { MergeDialog } from '@renderer/materials/MergeDialog';
 import { LibraryDialog } from '@renderer/materials/LibraryDialog';
 import { RenameMeshDialog } from '@renderer/parts/RenameMeshDialog';
 import { iconSize } from '@renderer/ui/tokens';
@@ -21,6 +22,7 @@ export function ImportHost() {
       <AssignDialog />
       <RenameMeshDialog />
       <LibraryDialog />
+      <MergeDialog />
       <CustomPartDialog />
       <ExportDialog />
       {staged && <ImportDialog staged={staged} onCancel={() => setStaged(null)} onConfirm={(settings) => void confirmImport(staged, settings)} />}

@@ -720,6 +720,11 @@ const scenarios = [
       await shot(page, 'material-library');
       await page.getByTestId('library-apply').first().click();
       assert((await page.getByTestId('material-row').count()) >= 2, 'preset added as a project material');
+      // Drag a material from the list onto a part in the tree: all its meshes take it.
+      await page.getByTestId('material-row').filter({ hasText: 'chrome' }).dragTo(page.getByTestId('scene-tree').getByText('Engine', { exact: true }));
+      const mm = await hook(page, 'meshMaterials');
+      const engineKeys = Object.keys(mm).filter((k) => /engine/i.test(k) || mm[k].includes('chrome'));
+      assert(Object.values(mm).filter((names) => names.includes('chrome')).length >= 2, `dropped material applied to the engine too (${JSON.stringify(mm)} ${engineKeys})`);
       await hook(page, 'applyPreset', 'modelling');
 
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
@@ -818,9 +823,17 @@ const scenarios = [
       await hook(page, 'applyPreset', 'materials');
       await page.getByTestId('materials-panel').waitFor();
       const materialRows = await page.getByTestId('material-row').count();
+      // Real-world duplicates (Aluminum-1, Aluminum-1.001…): merge them.
+      await page.getByTestId('material-merge').click();
+      const groups = await page.getByTestId('duplicate-groups').locator('li').count();
+      await shot(page, 'user-project-duplicates');
+      const beforeMerge = await hook(page, 'materialCount');
+      if (groups) await page.getByTestId('merge-materials').click();
+      else await page.keyboard.press('Escape');
+      const afterMerge = await hook(page, 'materialCount');
       await page.waitForTimeout(1500); // textures load in the background
       await shot(page, 'user-project-materials');
-      userReport = { meshes: st.meshes, named: names.length, materials: materialRows, glbBytes: glb.length, daeBytes: dae.length };
+      userReport = { meshes: st.meshes, named: names.length, materials: materialRows, duplicateGroups: groups, materialsAfterMerge: afterMerge, beforeMerge, glbBytes: glb.length, daeBytes: dae.length };
     },
   },
   {
