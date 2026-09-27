@@ -48,6 +48,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.8.4 | Library folders scanned at startup (your own materials and objects); 1,030 suspension/brake/steering parts cut from your BeamNG install into the objects library |
 | 0.8.3 | Assetto Corsa import: kn5 models, whole car folders (skins, data/ or data.acd, ui, extension), Reference car panel, painted liveries; kn5 dashes in the objects library |
 | 0.8.2 | Objects library (58 calipers and discs, rendered previews, separate download); model placement (position/rotation/scale) |
 | 0.8.1 | Materials pack built in (284 materials from the user's library, consistent names, textures) + separate pack download; viewport reflections; pack import |
@@ -83,7 +84,20 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
   - The **Reference car panel** shows the spec sheet (mass, weight split, wheelbase, track, tyres, power/torque curve peaks clipped at the limiter, gearing, diff, brakes, steering) and every file. The skin can be switched there.
 - Tested on the user's E30 (306 meshes, 1.24M triangles, 65 textures, 3.7 s) and the MX5 Cup (livery matches its preview).
 
-**Next:** scanning library folders at startup, suspension meshes from the local BeamNG install into the objects library, and objects offered when picking a suspension (Phase 10).
+**Library folders (0.8.4):**
+- Settings → Library folders lists your own material and object folders.
+  - They're scanned at startup, when the list changes, or on Scan now, with the pack builders' rules. That code moved to `src/main/library/` and is shared with the scripts.
+  - Each folder is scanned in a worker thread into `userData/library-scan/`, and scanned again only when its files change (a path+size+date fingerprint).
+- `three` is now bundled into the main process: electron-builder strips `examples/` from packaged dependencies, which removed the EXRLoader.
+
+**BeamNG parts (0.8.4):**
+- With the install folder set, every stock vehicle's jbeam is read for suspension-area parts (slot types → Front/Rear Suspension, Springs & Dampers, Brakes, Steering, Sway Bars, Axles & Differentials, Strut Braces, Hubcaps).
+- Each part's flexbody nodes are cut from the car's DAE (or common.zip's) into a small DAE with plain materials that keep the game's material names. Tuned variants with the same meshes are merged.
+- Vehicle names come from the game's English translations ("ETK 800-Series").
+- The current game gives 1,030 objects in about 20 s, cached in `userData/library-scan/beamng` and redone when the vehicle zips change. Nothing is redistributed.
+- Added parts reference the game's materials by name (`gameMaterial`), so exports use the real ones.
+
+**Next:** objects offered when picking a suspension (Phase 10), then the rest of Phase 9 (hinge wizard).
 
 ### Phase 8 — Materials (done, 0.8.0)
 
