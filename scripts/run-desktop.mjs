@@ -713,6 +713,13 @@ const scenarios = [
       await rough.press('Enter');
       await page.waitForTimeout(200);
       await shot(page, 'materials-panel');
+      // Library: put the Chrome preset on the selected body mesh.
+      await page.getByTestId('scene-tree').getByText('Front bumper').click();
+      await page.getByTestId('material-library').click();
+      await page.getByLabel('Search the library').fill('chrome');
+      await shot(page, 'material-library');
+      await page.getByTestId('library-apply').first().click();
+      assert((await page.getByTestId('material-row').count()) >= 2, 'preset added as a project material');
       await hook(page, 'applyPreset', 'modelling');
 
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
@@ -736,6 +743,7 @@ const scenarios = [
       assert(existsSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test', 'jbforge-export.json')), 'export marker written');
       const matsJson = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       assert(Object.values(matsJson).some((m) => m.Stages?.[0]?.roughnessFactor === 0.27 && m.version === 1.5), `edited material exported (${JSON.stringify(matsJson).slice(0, 300)})`);
+      assert(matsJson.generate_test_chrome?.Stages?.[0]?.metallicFactor === 1, `library preset exported (${Object.keys(matsJson)})`);
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();
 

@@ -4,6 +4,7 @@ import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
 import { UserTaxonomyService } from './services/userTaxonomy';
+import { MaterialLibraryService } from './services/materialLibrary';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
 import { ProjectFiles } from './services/projectFiles';
@@ -45,7 +46,10 @@ async function start(): Promise<void> {
   await trust.load();
   const userTaxonomy = new UserTaxonomyService(join(userData, 'user-taxonomy.json'), scoped('taxonomy'));
   await userTaxonomy.load();
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, harness });
+  const materialLibrary = new MaterialLibraryService(join(userData, 'material-library'), scoped('materials'));
+  await materialLibrary.load();
+  projects.grantRoot(materialLibrary.root); // its texture copies load like any other texture
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 

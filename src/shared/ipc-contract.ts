@@ -1,4 +1,14 @@
 import type { Settings, SettingsPatch } from './settings-schema';
+import type { MaterialDef } from './materials/schema';
+
+/** A material saved to the user's library. */
+export interface LibraryItem {
+  id: string;
+  name: string;
+  category: string;
+  savedAt: string;
+  def: MaterialDef;
+}
 import type { StoredLayout } from './layout-schema';
 import type { BeamngDetection, InstallValidation } from './beamng';
 import type { SourceFormat } from './project/schema';
@@ -98,6 +108,12 @@ export interface InvokeContract {
   'import:pickTextureDir': { req: undefined; res: string | null };
   /** Pick an image for a material slot; its folder becomes readable. */
   'materials:pickTexture': { req: undefined; res: string | null };
+  'materials:library': { req: undefined; res: LibraryItem[] };
+  'materials:saveToLibrary': { req: { name: string; category: string; def: MaterialDef }; res: LibraryItem[] };
+  'materials:removeFromLibrary': { req: { id: string }; res: LibraryItem[] };
+  'materials:exportJbmat': { req: { name: string; category: string; def: MaterialDef }; res: string | null };
+  /** Pick a .jbmat and add it to the library; null when cancelled. */
+  'materials:importJbmat': { req: undefined; res: LibraryItem[] | null };
   /** Find a project's source file on disk (relative path, absolute path, next to the project). */
   'import:locateSource': { req: { projectPath: string | null; path: string; absolutePath: string }; res: string | null };
   /** run-desktop harness only (registered only in harness mode): scripted dialog answers. */
@@ -161,6 +177,11 @@ export const INVOKE_CHANNELS = [
   'import:resolveTextures',
   'import:pickTextureDir',
   'materials:pickTexture',
+  'materials:library',
+  'materials:saveToLibrary',
+  'materials:removeFromLibrary',
+  'materials:exportJbmat',
+  'materials:importJbmat',
   'import:locateSource',
   'project:allowFolders',
   'project:readHistory',

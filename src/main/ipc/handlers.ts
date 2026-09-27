@@ -6,6 +6,8 @@ import { parseProject } from '@shared/project/io';
 import { TaxonomyEntrySchema } from '@shared/taxonomy/schema';
 import type { SettingsService } from '../services/settings';
 import type { UserTaxonomyService } from '../services/userTaxonomy';
+import type { MaterialLibraryService } from '../services/materialLibrary';
+import { MaterialDefSchema } from '@shared/materials/schema';
 import type { LayoutService } from '../services/layout';
 import type { RecentService } from '../services/recent';
 import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
@@ -40,6 +42,7 @@ export interface HandlerServices {
   windowState: WindowState;
   trust: FolderTrust;
   userTaxonomy: UserTaxonomyService;
+  materialLibrary: MaterialLibraryService;
   harness: boolean;
 }
 
@@ -59,7 +62,7 @@ function describeProject(text: string): { name: string; slug: string } | null {
 }
 
 export function registerIpcHandlers(services: HandlerServices): void {
-  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy } = services;
+  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary } = services;
   /** Folders each opened project wants but the user hasn't allowed yet. */
   const pendingByProject = new Map<string, string[]>();
 
@@ -345,6 +348,26 @@ export function registerIpcHandlers(services: HandlerServices): void {
     const dir = await pickDirectory(event.sender, { title: 'Locate the folder containing the missing textures' });
     if (dir) projects.grantRoot(dir);
     return dir;
+  });
+
+  const LibraryEntry = z.object({ name: z.string().min(1).max(100), category: z.string().max(60), def: MaterialDefSchema });
+  registerInvoke('materials:library', () => materialLibrary.get());
+  registerInvoke('materials:saveToLibrary', ({ name, category, def }) => materialLibrary.add(name, category, def), LibraryEntry);
+  registerInvoke('materials:removeFromLibrary', ({ id }) => materialLibrary.remove(id), z.object({ id: z.string().min(1).max(64) }));
+  registerInvoke(
+    'materials:exportJbmat',
+    async ({ name, category, def }, event) => {
+      const picked = await pickSaveFile(event.sender, { title: 'Share material', defaultPath: `${name}.jbmat`, filters: [{ name: 'JBeam Forge material (.jbmat)', extensions: ['jbmat'] }] });
+      if (!picked) return null;
+      const path = picked.toLowerCase().endsWith('.jbmat') ? picked : `${picked}.jbmat`;
+      await materialLibrary.exportJbmat(path, name, category, def);
+      return path;
+    },
+    LibraryEntry,
+  );
+  registerInvoke('materials:importJbmat', async (_req, event) => {
+    const path = await pickOpenFile(event.sender, { title: 'Import material', filters: [{ name: 'JBeam Forge material (.jbmat)', extensions: ['jbmat'] }], properties: ['openFile'] });
+    return path ? materialLibrary.importJbmat(path) : null;
   });
 
   registerInvoke('materials:pickTexture', async (_req, event) => {

@@ -72,7 +72,20 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 - The Materials layout shows the Inspector under the Materials panel.
 - Export Model uses the project materials too.
 
-**Next:** 8b preset library and saved materials (`.jbmat`), then 8c merging duplicates (Aluminum-1 / Aluminum-1.001…), drag-and-drop, game materials and paint slots.
+**8b — library (done):**
+- **34 built-in presets:**
+  - Paints: gloss, metallic, pearl, matte, satin. These use the stock paint layout: a clear-coated paint layer over a base.
+  - Metals: chrome, brushed/polished aluminium, bare/dark steel, cast iron, gold anodised, burnt titanium.
+  - Plastics, rubber and carbon.
+  - Glass and lenses: clear/tinted glass, headlight, taillight and indicator lenses, mirror.
+  - Interior: leather, fabric, alcantara, carpet, soft-touch dash.
+  - Lamp glows.
+  - Values follow the stock materials.
+- **Your library:** saved in `userData/material-library` with its own copies of the textures, so an item outlives its project.
+- **`.jbmat` sharing:** a zip of `material.json` plus `textures/`. Importing unpacks it into the library with zip-slip-safe paths.
+- **The library dialog:** Presets / My library, search, apply to the selected meshes or add to the project, share, remove, and import a `.jbmat`. The editor has Save to library and Share.
+
+**Next:** 8c: merging duplicates (Aluminum-1 / Aluminum-1.001…), drag-and-drop onto meshes, BeamNG's shared game materials, paint slots.
 
 ### Phase 7 — Editing suite (done, 0.7.0)
 

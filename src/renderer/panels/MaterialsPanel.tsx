@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, FolderOpen, Palette, Plus, Trash2, X } from 'lucide-react';
+import { BookmarkPlus, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
+import { saveToLibrary, shareMaterial, useLibrary } from '@renderer/materials/LibraryDialog';
 import { EMPTY_ARR } from '@shared/empty';
 import { BLEND_OPS, TEXTURE_SLOTS, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
 import { fuzzyScore } from '@shared/fuzzy';
@@ -74,13 +75,14 @@ export function MaterialsPanel() {
   const current = materials.find((m) => m.id === selected);
 
   if (!materials.length) {
-    return <EmptyState icon={Palette} message="No materials yet. Import a model and its materials and textures come in automatically." action={{ label: 'New material', icon: Plus, onClick: () => void mc.createMaterial() }} />;
+    return <EmptyState icon={Palette} message="No materials yet. Import a model and its materials and textures come in automatically." action={{ label: 'Open the library', icon: Library, onClick: () => useLibrary.getState().setOpen(true) }} />;
   }
 
   return (
     <div className={styles.panel} data-testid="materials-panel">
       <div className={styles.listHeader}>
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${materials.length} materials`} aria-label="Search materials" />
+        <IconButton icon={Library} label="Material library" size="sm" onClick={() => useLibrary.getState().setOpen(true)} data-testid="material-library" />
         <IconButton icon={Plus} label="New material" size="sm" onClick={() => void mc.createMaterial()} data-testid="material-new" />
       </div>
       <ScrollArea className={styles.list}>
@@ -125,6 +127,8 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
           Apply to {selection.length || ''} selected
         </Button>
         <IconButton icon={Copy} label="Duplicate" size="sm" onClick={() => void mc.duplicateMaterial(def.id)} />
+        <IconButton icon={BookmarkPlus} label="Save to your library" size="sm" onClick={() => void saveToLibrary(def)} data-testid="material-save-library" />
+        <IconButton icon={Share2} label="Share as a .jbmat file" size="sm" onClick={() => void shareMaterial(def)} />
         <IconButton icon={Trash2} label={used ? `Delete (its ${used} meshes go back to their imported look)` : 'Delete'} size="sm" onClick={() => mc.deleteMaterial(def.id, null)} />
       </div>
 
