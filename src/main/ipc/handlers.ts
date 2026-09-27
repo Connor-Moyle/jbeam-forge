@@ -7,6 +7,7 @@ import { TaxonomyEntrySchema } from '@shared/taxonomy/schema';
 import type { SettingsService } from '../services/settings';
 import type { UserTaxonomyService } from '../services/userTaxonomy';
 import type { MaterialLibraryService } from '../services/materialLibrary';
+import type { LibraryItem } from '@shared/ipc-contract';
 import { MaterialDefSchema } from '@shared/materials/schema';
 import type { LayoutService } from '../services/layout';
 import type { RecentService } from '../services/recent';
@@ -43,6 +44,8 @@ export interface HandlerServices {
   trust: FolderTrust;
   userTaxonomy: UserTaxonomyService;
   materialLibrary: MaterialLibraryService;
+  /** The bundled material pack (loaded in the background at startup). */
+  materialPack: Promise<LibraryItem[]>;
   harness: boolean;
 }
 
@@ -62,7 +65,7 @@ function describeProject(text: string): { name: string; slug: string } | null {
 }
 
 export function registerIpcHandlers(services: HandlerServices): void {
-  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary } = services;
+  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack } = services;
   /** Folders each opened project wants but the user hasn't allowed yet. */
   const pendingByProject = new Map<string, string[]>();
 
@@ -352,6 +355,7 @@ export function registerIpcHandlers(services: HandlerServices): void {
 
   const LibraryEntry = z.object({ name: z.string().min(1).max(100), category: z.string().max(60), def: MaterialDefSchema });
   registerInvoke('materials:library', () => materialLibrary.get());
+  registerInvoke('materials:pack', () => materialPack);
   registerInvoke('materials:saveToLibrary', ({ name, category, def }) => materialLibrary.add(name, category, def), LibraryEntry);
   registerInvoke('materials:removeFromLibrary', ({ id }) => materialLibrary.remove(id), z.object({ id: z.string().min(1).max(64) }));
   registerInvoke(

@@ -4,7 +4,7 @@ import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
 import { SettingsService } from './services/settings';
 import { UserTaxonomyService } from './services/userTaxonomy';
-import { MaterialLibraryService } from './services/materialLibrary';
+import { loadBundledPack, MaterialLibraryService } from './services/materialLibrary';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
 import { ProjectFiles } from './services/projectFiles';
@@ -49,7 +49,11 @@ async function start(): Promise<void> {
   const materialLibrary = new MaterialLibraryService(join(userData, 'material-library'), scoped('materials'));
   await materialLibrary.load();
   projects.grantRoot(materialLibrary.root); // its texture copies load like any other texture
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, harness });
+  // The material pack that ships with the app (bundled as a resource; the repo's packs/ folder in development).
+  const packDir = app.isPackaged ? join(process.resourcesPath, 'materials-pack') : join(app.getAppPath(), 'packs', 'materials');
+  projects.grantRoot(packDir);
+  const materialPack = loadBundledPack(packDir, scoped('materials'));
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 

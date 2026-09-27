@@ -26,6 +26,8 @@
 }
 
 .swatch {
+  position: relative;
+  overflow: hidden;
   flex: none;
   width: var(--size-control);
   height: var(--size-control);
@@ -61,4 +63,17 @@
 
 .empty {
   padding: var(--space-3) var(--space-2);
+}
+
+.thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category {
+  width: var(--size-select-max);
+  flex: none;
 }

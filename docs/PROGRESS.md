@@ -48,6 +48,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.8.1 | Materials pack built in (284 materials from the user's library, consistent names, textures) + separate pack download; viewport reflections; pack import |
 | 0.8.0 | Phase 8: materials in the project, full editor, 34 presets + personal library + .jbmat, duplicate merge, drag-and-drop |
 | 0.7.1 | Friendly mesh names from parts, model re-export (.glb/.dae), centre-line split, name-vs-position check, fix for pre-0.7.1 FBX projects |
 | 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
@@ -95,6 +96,15 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 - **Drag and drop:** drag a material from the list onto a mesh or part row in the Scene tree (a part takes it on all its meshes), or onto a mesh in the viewport (onto the whole selection if the mesh is part of it).
 - **Game materials:** type a BeamNG material name in the editor and nothing is exported for it; the DAE references it by name.
 - **Paint:** the paint switch on a material, with the palette mask (R/G/B = paint slots 1/2/3) on layer 1.
+
+**Materials pack (0.8.1):**
+- `npm run build-material-pack -- "Materials Libary"` scans the user's material folder.
+  - MaterialX files give the values and texture roles; otherwise roles come from file names (Poly Haven, ambientCG, BeamNG-style `_nm`/`_nmp`).
+  - Names are made consistent: spelling, title case, Aluminium, Matte. Textures are renamed `<material>_<role>`.
+  - EXR is converted to PNG, a folder of colour-only images (flags) becomes one material per image, and grilles become alpha cut-outs.
+  - It writes `MATERIALS.md`, listing every file used or skipped.
+- Output: `packs/materials/` (bundled into the installer as `resources/materials-pack`) and `release/JBeam-Forge-Materials-<version>.zip` (a separate release download).
+- The app reads the bundled pack at startup as a read-only "Materials pack" library tab.
 
 **Carried to 0.8.x:** UV island view, auto-unwrap and projection, AO baking, the viewport's single-channel views (roughness/metallic/normals/UV checker), a game-wheel picker (it fits better with suspension in Phase 10), and a list of the game's shared materials to pick from.
 

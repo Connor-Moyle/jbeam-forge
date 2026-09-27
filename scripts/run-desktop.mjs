@@ -716,6 +716,21 @@ const scenarios = [
       // Library: put the Chrome preset on the selected body mesh.
       await page.getByTestId('scene-tree').getByText('Front bumper').click();
       await page.getByTestId('material-library').click();
+      // The bundled materials pack (built locally into packs/materials; shipped inside the installer).
+      if (existsSync(join(ROOT, 'packs', 'materials'))) {
+        const packTab = page.getByRole('tab', { name: /Materials pack/ });
+        let packCount = 0;
+        for (let i = 0; i < 100 && packCount < 50; i++) {
+          packCount = Number((await packTab.textContent())?.match(/\((\d+)\)/)?.[1] ?? 0);
+          await page.waitForTimeout(100);
+        }
+        assert(packCount >= 50, `bundled material pack listed (${packCount})`);
+        await page.getByLabel('Search the library').fill('carbon fiber 03');
+        await page.waitForTimeout(800); // thumbnails load as rows appear
+        await shot(page, 'material-pack');
+        await page.getByLabel('Search the library').fill('');
+      }
+      await page.getByRole('tab', { name: /Presets/ }).click();
       await page.getByLabel('Search the library').fill('chrome');
       await shot(page, 'material-library');
       await page.getByTestId('library-apply').first().click();

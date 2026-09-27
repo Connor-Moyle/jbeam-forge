@@ -109,6 +109,8 @@ export interface InvokeContract {
   /** Pick an image for a material slot; its folder becomes readable. */
   'materials:pickTexture': { req: undefined; res: string | null };
   'materials:library': { req: undefined; res: LibraryItem[] };
+  /** The material pack that ships with the app (read-only). */
+  'materials:pack': { req: undefined; res: LibraryItem[] };
   'materials:saveToLibrary': { req: { name: string; category: string; def: MaterialDef }; res: LibraryItem[] };
   'materials:removeFromLibrary': { req: { id: string }; res: LibraryItem[] };
   'materials:exportJbmat': { req: { name: string; category: string; def: MaterialDef }; res: string | null };
@@ -178,6 +180,7 @@ export const INVOKE_CHANNELS = [
   'import:pickTextureDir',
   'materials:pickTexture',
   'materials:library',
+  'materials:pack',
   'materials:saveToLibrary',
   'materials:removeFromLibrary',
   'materials:exportJbmat',

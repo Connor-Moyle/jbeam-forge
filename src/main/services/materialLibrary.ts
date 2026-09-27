@@ -1,8 +1,8 @@
-import { copyFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { basename, join } from 'node:path';
+import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, relative } from 'node:path';
 import { z } from 'zod';
 import { ZipFile } from 'yazl';
-import { createWriteStream } from 'node:fs';
+import { createWriteStream, type Dirent } from 'node:fs';
 import { MaterialDefSchema, TEXTURE_SLOTS, type MaterialDef } from '@shared/materials/schema';
 import { describeError, type Logger } from '@shared/logger';
 import { safeJoin, withZip } from '../beamng/zip';
@@ -181,4 +181,41 @@ export class MaterialLibraryService {
       return { items, added: added.length, skipped };
     });
   }
+}
+
+/**
+ * The material pack shipped with the app (read-only): every
+ * <Category>/<Name>/material.json under `dir`, with its texture paths made
+ * absolute. Skips anything that doesn't parse rather than failing the lot.
+ */
+export async function loadBundledPack(dir: string, logger: Logger): Promise<LibraryItem[]> {
+  const found: string[] = [];
+  const walk = async (d: string, depth: number): Promise<void> => {
+    if (depth > 4) return;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(d, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.isDirectory()) await walk(join(d, e.name), depth + 1);
+      else if (e.name === 'material.json') found.push(join(d, e.name));
+    }
+  };
+  await walk(dir, 0);
+  const items: LibraryItem[] = [];
+  for (const file of found.sort()) {
+    try {
+      const parsed = JbmatSchema.parse(JSON.parse(await readFile(file, 'utf8')));
+      const folder = dirname(file);
+      const id = `pack_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 64);
+      const def = mapPaths({ ...parsed.def, id }, (p) => join(folder, p));
+      items.push(LibraryItemSchema.parse({ id, name: parsed.name, category: parsed.category, savedAt: '', def }));
+    } catch (err) {
+      logger.warn('material pack: skipped', file, describeError(err).message);
+    }
+  }
+  logger.info(`material pack: ${items.length} materials from`, dir);
+  return items;
 }

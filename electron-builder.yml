@@ -9,6 +9,10 @@ files:
   - package.json
   - '!**/*.map'
 asar: true
+# The material pack ships inside the app (built with npm run build-material-pack).
+extraResources:
+  - from: packs/materials
+    to: materials-pack
 win:
   icon: build/icon.png
   target:

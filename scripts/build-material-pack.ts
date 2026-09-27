@@ -40,6 +40,11 @@ const SPELLING: [RegExp, string][] = [
   [/\bcarpaint\b/gi, 'Car Paint'],
   [/\bdash ?board\b/gi, 'Dashboard'],
   [/\bcomposits\b/gi, 'Composites'],
+  [/\bstic?hed\b/gi, 'Stitched'],
+  [/\bstic?hing\b/gi, 'Stitching'],
+  [/\bshinny\b/gi, 'Shiny'],
+  [/\brough ish\b/gi, 'Rough-ish'],
+  [/\bgrills?\b/gi, 'Grille'],
 ];
 const SMALL_WORDS = new Set(['and', 'of', 'the', 'with', 'on']);
 
@@ -49,7 +54,15 @@ export function niceName(raw: string): string {
   const fixed = SPELLING.reduce((t, [re, to]) => t.replace(re, to), spaced);
   return fixed
     .split(' ')
-    .map((w, i) => (/^\d+$/.test(w) ? w.padStart(2, '0') : i > 0 && SMALL_WORDS.has(w.toLowerCase()) ? w.toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()))
+    .map((w, i) =>
+      /^\d+$/.test(w)
+        ? w.padStart(2, '0')
+        : /^[A-Z]{2,3}$/.test(w) && i > 0
+          ? w // short codes stay in capitals (Flag GB)
+          : i > 0 && SMALL_WORDS.has(w.toLowerCase())
+            ? w.toLowerCase()
+            : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(),
+    )
     .join(' ');
 }
 const slugOf = (name: string) => name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
@@ -112,7 +125,7 @@ const clamp = (v: number) => Math.min(1, Math.max(0, v));
 // ---------------------------------------------------------------- file-name conventions
 
 const ROLES: [TextureSlot, RegExp][] = [
-  ['normalMap', /(normal|nor_gl|norgl|_nm\b|normasl|_n\.)/i],
+  ['normalMap', /(normal|nor_gl|norgl|_nm\b|_nmp|normasl|_n\.)/i],
   ['roughnessMap', /rough/i],
   ['metallicMap', /metal|metel/i],
   ['ambientOcclusionMap', /ambientocclusion|occlusion|_ao\b/i],
@@ -138,6 +151,14 @@ function roleText(name: string, siblings: readonly string[]): string {
   if (siblings.length < 2) prefix = '';
   const tail = name.slice(prefix.length) || name;
   return tail.replace(/([_\-. ]?(\d+k|\d+|png|jpg|gl))+$/i, (m) => (/gl$/i.test(m) ? '_gl' : ''));
+}
+
+/** What one texture file is, among its siblings (undefined = no recognisable role). */
+function roleOf(file: string, siblings: readonly string[]): TextureSlot | undefined {
+  const name = basename(file, extname(file));
+  if (SKIP.test(name)) return undefined;
+  const text = roleText(name, siblings.map((f) => basename(f, extname(f))));
+  return (ROLES.find(([, re]) => re.test(`_${text}`)) ?? ROLES.find(([, re]) => re.test(name)))?.[0];
 }
 
 function guessRoles(files: readonly string[]): Partial<Record<TextureSlot, string>> {
@@ -226,11 +247,11 @@ function walk(dir: string): string[] {
   });
 }
 
-function build(folder: string, files: string[], mtlxPath: string | null): Built {
+function build(folder: string, files: string[], mtlxPath: string | null, over?: { name: string; category: string }): Built {
   const rel = relative(root, folder).split(/[\\/]/);
   const top = rel[0]!;
-  const category = CATEGORY_NAMES[top.toLowerCase()] ?? niceName(top);
-  const name = niceName(mtlxPath && rel.length === 1 ? basename(mtlxPath, '.mtlx') : rel[rel.length - 1]!);
+  const category = over?.category ?? CATEGORY_NAMES[top.toLowerCase()] ?? niceName(top);
+  const name = over?.name ?? niceName(mtlxPath && rel.length === 1 ? basename(mtlxPath, '.mtlx') : rel[rel.length - 1]!);
   const images = files.filter((f) => IMAGE.has(extname(f).toLowerCase()));
   const byBase = new Map(images.map((f) => [basename(f).toLowerCase(), f]));
   const mtlx = mtlxPath ? readMtlx(mtlxPath) : null;
@@ -265,6 +286,8 @@ function build(folder: string, files: string[], mtlxPath: string | null): Built 
     layer.maps[slot] = entry;
   }
 
+  // Grilles and meshes are see-through cut-outs (their colour textures carry the holes in alpha).
+  const cutout = /grille|mesh/i.test(name) && !!maps.baseColorMap;
   const transmission = num(v.transmission, cat === 'glass' ? 1 : 0);
   const glass = transmission > 0.5;
   const paint = cat === 'paint';
@@ -275,6 +298,9 @@ function build(folder: string, files: string[], mtlxPath: string | null): Built 
     translucent: glass,
     blend: glass ? 'PreMulAlpha' : 'None',
     castShadows: !glass,
+    alphaTest: cutout,
+    alphaRef: cutout ? 128 : 0,
+    doubleSided: cutout,
   });
   MaterialDefSchema.parse(def);
   const usedFiles = new Set(Object.values(maps));
@@ -294,15 +320,27 @@ const built: Built[] = [];
 for (const [folder, files] of [...folders].sort(([a], [b]) => a.localeCompare(b))) {
   const mtlxFiles = files.filter((f) => extname(f).toLowerCase() === '.mtlx');
   const images = files.filter((f) => IMAGE.has(extname(f).toLowerCase()));
+  const rel = relative(root, folder).split(/[\\/]/);
+  const roles = images.map((f) => roleOf(f, images));
+  // A folder of stand-alone colour textures (flags, decals) is one material per image, not one material.
+  const collection = images.length >= 4 && roles.every((r) => r === 'baseColorMap' || r === undefined);
+  const looseInCategory = rel.length === 1 && !mtlxFiles.length && images.length > 0;
   if (!images.length && mtlxFiles.length) {
     // A lone MaterialX (no textures): a parametric material, one per file.
     for (const m of mtlxFiles) built.push(build(folder, [], m));
+  } else if (collection || looseInCategory) {
+    const category = collection && rel.length > 1 ? niceName(rel[rel.length - 1]!) : (CATEGORY_NAMES[rel[0]!.toLowerCase()] ?? niceName(rel[0]!));
+    for (const img of images) {
+      const stem = basename(img, extname(img)).replace(/[_\- ]?(diff(use)?|basecolou?r|colou?r|albedo|col)$/i, '');
+      built.push(build(folder, [img], null, { name: niceName(stem), category }));
+    }
   } else if (images.length) built.push(build(folder, files, mtlxFiles[0] ?? null));
 }
 
 // Output: the zip for the app, plus the same layout unpacked next to it for browsing.
 mkdirSync(dirname(out), { recursive: true });
-const folderOut = out.replace(/\.zip$/, '');
+// The unpacked copy is also what the installer bundles (electron-builder extraResources).
+const folderOut = resolve('packs', 'materials');
 rmSync(folderOut, { recursive: true, force: true });
 const zip = new ZipFile();
 const put = (entry: string, data: Buffer | string) => {
