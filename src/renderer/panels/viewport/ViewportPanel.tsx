@@ -13,6 +13,7 @@ import { projectStore } from '@renderer/app/stores/project';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { structureData } from './structureOverlay';
+import { dragNode, onSimFrame } from '@renderer/sim/simSession';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
@@ -45,6 +46,7 @@ export function ViewportPanel() {
         onDoublePick: (key) => runtime?.frame(key ? [key] : []),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
+        onSimDrag: (node, target) => dragNode(node, target),
       });
     } catch (err) {
       reportError('viewport init failed', err);
@@ -92,6 +94,8 @@ export function ViewportPanel() {
     rt.setView(useUiStore.getState().view);
     const unsubscribeStructure = projectStore.subscribe(pushStructure);
     const unsubscribeView = useUiStore.subscribe((s) => rt.setView(s.view));
+    // Test Mode frames straight from the sim session (60 Hz, outside React).
+    const unsubscribeSim = onSimFrame((frame) => rt.setLive(frame));
     let lastFrameRequest = scene.getState().frameRequest;
     const unsubscribe = scene.subscribe((s) => {
       push();
@@ -118,6 +122,7 @@ export function ViewportPanel() {
       unsubscribeTool();
       unsubscribeStructure();
       unsubscribeView();
+      unsubscribeSim();
       host.removeEventListener('keydown', onKey);
       rt.dispose();
     };

@@ -95,9 +95,19 @@ export class Solver {
   gravityOn = true;
   obstacles: Obstacle[] = [];
   divergence: Divergence | null = null;
+  /** Stiff springs holding nodes to fixed points (jack stands, test rigs). */
+  anchors: { node: number; point: [number, number, number]; stiffness: number; damping: number }[] = [];
   /** External per-node forces (N), e.g. a drag spring or a yank. Cleared by the caller. */
   readonly extForce: Float64Array;
   readonly dt: number;
+  /**
+   * Integration sub-steps per 2000 Hz step. Plain symplectic Euler goes
+   * unstable once a node's ω·Δt passes 2; BeamNG copes with official content up
+   * to ~3.4, so the sandbox integrates finer instead of flagging valid cars.
+   * Forces and beam values are unchanged — only the time step is subdivided.
+   */
+  readonly substeps: number;
+  private readonly h: number;
   private readonly g: number;
   private readonly groundZ: number;
   private readonly kg: number;
@@ -123,6 +133,16 @@ export class Solver {
     this.extForce = new Float64Array(this.n * 3);
     this.invMass = new Float64Array(this.n);
     for (let i = 0; i < this.n; i++) this.invMass[i] = model.mass[i]! > 0 ? 1 / model.mass[i]! : 0;
+    // Conservative per-node bound ω ≈ √(2·Σk/m) (Gershgorin); symplectic Euler needs ω·h < 2 — aim for 1.6.
+    const springSum = new Float64Array(this.n);
+    for (let b = 0; b < model.beamA.length; b++) {
+      springSum[model.beamA[b]!]! += model.spring[b]!;
+      springSum[model.beamB[b]!]! += model.spring[b]!;
+    }
+    let omega = 0;
+    for (let i = 0; i < this.n; i++) if (model.mass[i]! > 0) omega = Math.max(omega, Math.sqrt((2 * springSum[i]!) / model.mass[i]!));
+    this.substeps = Math.min(16, Math.max(1, Math.ceil((omega * this.dt) / 1.6)));
+    this.h = this.dt / this.substeps;
     this.rest = new Float64Array(this.m);
     this.rest0 = new Float64Array(this.m);
     for (let b = 0; b < this.m; b++) {
@@ -177,9 +197,13 @@ export class Solver {
   step(count = 1): boolean {
     if (this.divergence) return false;
     const { x, v, f, rest, rest0, model, invMass } = this;
-    const dt = this.dt;
-    for (let s = 0; s < count; s++) {
+    const dt = this.h;
+    for (let s = 0; s < count * this.substeps; s++) {
       f.set(this.extForce);
+      for (const a of this.anchors) {
+        const i = a.node * 3;
+        for (let k = 0; k < 3; k++) f[i + k]! += a.stiffness * (a.point[k]! - x[i + k]!) - a.damping * v[i + k]!;
+      }
       if (this.gravityOn) for (let i = 0; i < this.n; i++) f[i * 3 + 2]! += model.mass[i]! * this.g;
       for (let b = 0; b < this.m; b++) {
         if (this.broken[b]) continue;
@@ -235,6 +259,8 @@ export class Solver {
         }
         for (const o of this.obstacles) this.obstacleContact(i, o, m);
       }
+      // Poles are thinner than node spacing: beams must collide too, or the car slips between nodes.
+      for (const o of this.obstacles) if (o.kind === 'pole') this.poleBeamContact(o);
       // Symplectic Euler.
       for (let i = 0; i < this.n; i++) {
         const w = invMass[i]!;
@@ -245,8 +271,9 @@ export class Solver {
         x[i * 3 + 1]! += v[i * 3 + 1]! * dt;
         x[i * 3 + 2]! += v[i * 3 + 2]! * dt;
       }
+      if ((s + 1) % this.substeps !== 0) continue;
       this.steps++;
-      // Divergence: the first node to exceed the speed limit is the offender.
+      // Divergence (checked once per 2000 Hz step): the first node to exceed the speed limit is the offender.
       for (let i = 0; i < this.n; i++) {
         const sp = Math.hypot(v[i * 3]!, v[i * 3 + 1]!, v[i * 3 + 2]!);
         if (!(sp < this.divergeSpeed)) {
@@ -269,7 +296,7 @@ export class Solver {
     if (ts < 1e-6) return;
     const mu = this.model.friction[i]!;
     // Kinetic friction, capped so it cannot reverse the sliding direction within one step.
-    const maxF = (ts * this.model.mass[i]!) / this.dt;
+    const maxF = (ts * this.model.mass[i]!) / this.h;
     const Ff = Math.min(mu * N, maxF);
     f[i * 3]! -= (Ff * tx) / ts;
     f[i * 3 + 1]! -= (Ff * ty) / ts;
@@ -305,6 +332,40 @@ export class Solver {
     this.f[i * 3]! += N * nx;
     this.f[i * 3 + 1]! += N * ny;
     this.friction(i, N, nx, ny, 0);
+  }
+
+  /** Beam-segment vs vertical pole: push the segment out, split between its two nodes by position along it. */
+  private poleBeamContact(o: Obstacle): void {
+    const { x, v, f, model } = this;
+    const r = o.radius ?? 0.15;
+    for (let b = 0; b < this.m; b++) {
+      if (this.broken[b]) continue;
+      const a = model.beamA[b]!;
+      const c = model.beamB[b]!;
+      if (!model.collide[a] || !model.collide[c]) continue;
+      const ax = x[a * 3]!;
+      const ay = x[a * 3 + 1]!;
+      const dx = x[c * 3]! - ax;
+      const dy = x[c * 3 + 1]! - ay;
+      const len2 = dx * dx + dy * dy;
+      if (len2 < 1e-12) continue;
+      const t = Math.max(0, Math.min(1, ((o.x - ax) * dx + (o.y - ay) * dy) / len2));
+      if (t <= 0 || t >= 1) continue; // end points are handled as node contacts
+      const px = ax + dx * t - o.x;
+      const py = ay + dy * t - o.y;
+      const d = Math.hypot(px, py);
+      if (d >= r || d < 1e-9) continue;
+      const nx = px / d;
+      const ny = py / d;
+      const depth = r - d;
+      const mEff = model.mass[a]! * (1 - t) + model.mass[c]! * t;
+      const vn = (v[a * 3]! * (1 - t) + v[c * 3]! * t) * nx + (v[a * 3 + 1]! * (1 - t) + v[c * 3 + 1]! * t) * ny;
+      const N = Math.max(0, this.kg * mEff * depth - this.cg * mEff * vn);
+      f[a * 3]! += N * nx * (1 - t);
+      f[a * 3 + 1]! += N * ny * (1 - t);
+      f[c * 3]! += N * nx * t;
+      f[c * 3 + 1]! += N * ny * t;
+    }
   }
 
   /** Mean node position (for scenario metrics). */

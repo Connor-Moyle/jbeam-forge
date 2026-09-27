@@ -611,6 +611,26 @@ const scenarios = [
       assert(existsSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test', 'jbforge-export.json')), 'export marker written');
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();
+
+      // Test Mode: live sim runs, scenarios report, exit restores the normal view.
+      await page.getByTestId('toolbar-test').click();
+      await page.getByTestId('test-panel').waitFor();
+      await page.getByTestId('sim-run').click();
+      await page.waitForTimeout(1200);
+      const statsText = await page.getByTestId('sim-stats').textContent();
+      const simulated = Number(statsText.match(/([\d.]+) s simulated/)?.[1] ?? 0);
+      assert(simulated > 0.3, `live sim advanced (${statsText})`);
+      await shot(page, 'test-mode-live');
+      await page.getByTestId('sim-pause').click();
+      await page.getByTestId('scenario-drop').click();
+      await page.getByTestId('sim-result').waitFor({ timeout: 60_000 });
+      const dropText = await page.getByTestId('sim-result').textContent();
+      assert(/Dropped 1 m/.test(dropText), `drop scenario reported (${dropText})`);
+      await page.getByTestId('scenario-pole').click();
+      await page.waitForFunction(() => /km\/h into a pole/.test(document.querySelector('[data-testid=sim-result]')?.textContent ?? ''), null, { timeout: 60_000 });
+      await shot(page, 'test-mode-crash');
+      await page.getByTestId('sim-exit').click();
+      await page.getByTestId('test-panel').waitFor({ state: 'detached' });
       await hook(page, 'runCommand', 'close');
       await page.getByTestId('unsaved-discard').click();
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');

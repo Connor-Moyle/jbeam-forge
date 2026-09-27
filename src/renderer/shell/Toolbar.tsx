@@ -12,6 +12,7 @@ import {
   Redo2,
   ScanEye,
   Settings,
+  Square,
   Undo2,
   Wand2,
   type LucideIcon,
@@ -26,6 +27,7 @@ import { startImport } from '@renderer/import/importFlow';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { generateAll, useStructureUi } from '@renderer/structure/generate';
 import { openExport } from '@renderer/export/exportFlow';
+import { startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
@@ -44,7 +46,6 @@ interface PendingAction {
 /** Toolbar actions owned by later phases: visible so the chrome is final, inert until built. */
 const GROUPS: { id: string; label: string; actions: PendingAction[] }[] = [
   { id: 'view-later', label: 'View', actions: [{ icon: ScanEye, label: 'X-ray', phase: 7 }] },
-  { id: 'test', label: 'Test', actions: [{ icon: Play, label: 'Test mode', phase: 6 }] },
 ];
 
 const PRESET_OPTIONS = PRESET_IDS.map((id) => ({ value: id, label: PRESET_LABELS[id] }));
@@ -54,7 +55,9 @@ function pendingLabel(a: PendingAction): string {
 }
 
 export function Toolbar() {
-  const { preset, applyPreset, togglePanel, devMode } = useShell();
+  const { preset, applyPreset, togglePanel, showPanel, devMode } = useShell();
+  const testing = useSim((s) => s.active);
+  const hasStructure = useProjectStore((s) => (s.doc?.nodes.length ?? 0) > 0);
   const settings = useSettingsStore((s) => s.settings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const setNewModOpen = useDialogStore((s) => s.setNewModOpen);
@@ -88,6 +91,20 @@ export function Toolbar() {
         <span className={styles.divider} aria-hidden />
         <IconButton icon={Eye} label={view.mesh ? 'Hide mesh' : 'Show mesh'} active={view.mesh} onClick={() => toggleView('mesh')} data-testid="toolbar-view-mesh" />
         <IconButton icon={Box} label={view.structure ? 'Hide nodes & beams' : 'Show nodes & beams'} active={view.structure} onClick={() => toggleView('structure')} data-testid="toolbar-view-structure" />
+      </div>
+      <div className={styles.group} role="group" aria-label="Test">
+        <span className={styles.divider} aria-hidden />
+        <IconButton
+          icon={testing ? Square : Play}
+          label={testing ? 'Leave Test Mode' : hasStructure ? 'Test Mode: run the physics sandbox' : 'Test Mode (generate structure first)'}
+          active={testing}
+          disabled={!testing && !hasStructure}
+          onClick={() => {
+            if (testing) stopTestMode();
+            else if (startTestMode()) showPanel('test-results');
+          }}
+          data-testid="toolbar-test"
+        />
       </div>
       {GROUPS.map((g) => (
         <div key={g.id} className={styles.group} role="group" aria-label={g.label}>

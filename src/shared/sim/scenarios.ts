@@ -23,6 +23,8 @@ export interface ScenarioResult {
   beamPlastic: Float32Array;
   /** Final positions (for display). */
   positions: Float32Array;
+  /** Rigid obstacles the scenario used (drawn in the viewport). */
+  obstacles: Obstacle[];
   summary: string[];
 }
 
@@ -48,6 +50,7 @@ function finish(s: Solver, scenario: ScenarioId, seconds: number, start: Float64
     beamStress: stress,
     beamPlastic: plastic,
     positions: Float32Array.from(s.x),
+    obstacles: s.obstacles.map((o) => ({ ...o })),
     summary,
   };
 }
@@ -77,10 +80,54 @@ function run(s: Solver, seconds: number): void {
   for (let done = 0; done < steps; done += chunk) if (!s.step(Math.min(chunk, steps - done))) return;
 }
 
-/** Settle on the ground under gravity: sag heatmap (how far each node drops relative to the start pose). */
-export function settle(model: SimModel, seconds = 2): ScenarioResult {
+/**
+ * Four jack stands under the wheel positions (about 18 % from the front and 20 %
+ * from the rear, ±35 % of the width): the lowest nodes near each point are held
+ * by stiff springs. Until suspension exists (Phase 10) this is how a body is
+ * supported, so a settle measures chassis flex, not the car lying on its skirts.
+ */
+export function standNodes(s: Solver): number[] {
+  const { lo, hi } = bounds(s);
+  const L = hi[1]! - lo[1]!;
+  const W = hi[0]! - lo[0]!;
+  const H = hi[2]! - lo[2]!;
+  const cx = (lo[0]! + hi[0]!) / 2;
+  const targets: [number, number][] = [
+    [cx + 0.35 * W, lo[1]! + 0.18 * L],
+    [cx - 0.35 * W, lo[1]! + 0.18 * L],
+    [cx + 0.35 * W, hi[1]! - 0.2 * L],
+    [cx - 0.35 * W, hi[1]! - 0.2 * L],
+  ];
+  const picked: number[] = [];
+  for (const [tx, ty] of targets) {
+    let best = -1;
+    let bd = Infinity;
+    for (let i = 0; i < s.n; i++) {
+      if (picked.includes(i) || s.model.mass[i] === 0) continue;
+      const z = s.x[i * 3 + 2]!;
+      if (z > lo[2]! + 0.4 * H) continue; // low nodes only (sills, floor)
+      const d = Math.hypot(s.x[i * 3]! - tx, s.x[i * 3 + 1]! - ty) + (z - lo[2]!) * 0.5;
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    if (best >= 0) picked.push(best);
+  }
+  return picked;
+}
+
+/** Settle under gravity: sag heatmap (how far each node drops relative to the start pose). */
+export function settle(model: SimModel, seconds = 2, supports: 'stands' | 'ground' = 'stands'): ScenarioResult {
   const s = new Solver(model);
-  placeOnGround(s, 0.005);
+  placeOnGround(s, supports === 'stands' ? 0.3 : 0.005);
+  if (supports === 'stands') {
+    for (const node of standNodes(s)) {
+      // Stiff enough to carry the car, soft enough to stay stable at 2000 Hz for light nodes.
+      const m = model.mass[node]!;
+      s.anchors.push({ node, point: [s.x[node * 3]!, s.x[node * 3 + 1]!, s.x[node * 3 + 2]!], stiffness: Math.min(5e6, 2e6 * Math.max(0.5, m)), damping: 4000 });
+    }
+  }
   const start = Float64Array.from(s.x);
   run(s, seconds);
   const summary: string[] = [];
@@ -93,7 +140,7 @@ export function settle(model: SimModel, seconds = 2): ScenarioResult {
       maxNode = model.nodeIds[i]!;
     }
   }
-  summary.push(`Max sag ${(maxSag * 1000).toFixed(0)} mm at ${maxNode || '—'}; kinetic energy at the end ${s.kineticEnergy().toFixed(1)} J.`);
+  summary.push(`${supports === 'stands' ? 'On four stands under the wheel positions' : 'Resting on the ground'}: max sag ${(maxSag * 1000).toFixed(0)} mm at ${maxNode || '—'}; kinetic energy at the end ${s.kineticEnergy().toFixed(1)} J.`);
   if (s.breakLog.length) summary.push(`${s.breakLog.length} beam(s) broke just from sitting still: they are far too weak.`);
   return finish(s, 'settle', seconds, start, summary);
 }
@@ -190,7 +237,6 @@ export function crash(model: SimModel, kind: 'pole' | 'wall' | 'offset', kmh = 5
   const after = bounds(s);
   const crush = hi[1]! - lo[1]! - (after.hi[1]! - after.lo[1]!);
   const labels = { pole: 'pole', wall: 'full-width wall', offset: '40 % offset barrier' } as const;
-  return finish(s, `crash-${kind}` as ScenarioId, seconds, start, [
-    `${kmh} km/h into a ${labels[kind]}: front crushed ${(crush * 1000).toFixed(0)} mm, ${s.breakLog.length} beam(s) broke.`,
-  ]);
+  const crushText = crush > 0.005 ? `front crushed ${(crush * 1000).toFixed(0)} mm` : 'no lasting crush (it sprang back)';
+  return finish(s, `crash-${kind}` as ScenarioId, seconds, start, [`${kmh} km/h into a ${labels[kind]}: ${crushText}, ${s.breakLog.length} beam(s) broke.`]);
 }

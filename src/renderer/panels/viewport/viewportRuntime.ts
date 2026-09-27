@@ -32,7 +32,7 @@ import { subsetGeometry } from '@renderer/import/applySplits';
 import { disposeSharingGeometry } from '@renderer/import/dispose';
 import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
-import { StructureOverlay, type StructureData } from './structureOverlay';
+import { LiveOverlay, StructureOverlay, type StructureData } from './structureOverlay';
 import { registerViewport } from './registry';
 
 // three-mesh-bvh: BVH-accelerated raycasting for all point-picking (SPEC §2).
@@ -79,6 +79,16 @@ export interface ViewportCallbacks {
   onToolSelect?: (triangles: number[], op: ToolOp) => void;
   /** Split tool: the box/lasso outline being drawn (canvas px, x/y pairs), or null when done. */
   onToolShape?: (points: number[] | null) => void;
+  /** Test Mode: a node is being dragged towards `target` (BeamNG space); null = released. */
+  onSimDrag?: (node: number | null, target: [number, number, number]) => void;
+}
+
+/** What the live physics view needs from a frame. */
+export interface LiveView {
+  model: { beamA: Uint32Array; beamB: Uint32Array; mass: Float64Array };
+  positions: Float32Array;
+  stress: Float32Array;
+  obstacles?: { kind: 'pole' | 'wall'; x: number; y: number; radius?: number; nx?: number; ny?: number; halfWidth?: number }[];
 }
 
 const toolCaches = new WeakMap<BufferGeometry, { adjacency?: ReturnType<typeof triangleAdjacency>; centroids?: Float32Array }>();
@@ -137,6 +147,11 @@ export class ViewportRuntime {
   private pendingPaint: { x: number; y: number; op: ToolOp } | null = null;
   private readonly structure = new StructureOverlay();
   private readonly reference = new StructureOverlay();
+  private readonly live = new LiveOverlay();
+  private liveView: LiveView | null = null;
+  private liveFramedFor: unknown = null;
+  private viewToggles = { mesh: true, structure: true };
+  private simDrag: { node: number; depth: number } | null = null;
   private injectedFrameErrors = 0;
 
   constructor(
@@ -162,7 +177,8 @@ export class ViewportRuntime {
     this.overlayRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.structure.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.reference.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
-    this.scene.add(this.structure.root, this.reference.root);
+    this.live.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.scene.add(this.structure.root, this.reference.root, this.live.root);
 
     const accent = new Color(resolveToken('accent') || undefined);
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -243,6 +259,31 @@ export class ViewportRuntime {
       return [e.clientX - r.left, e.clientY - r.top];
     };
     const opOf = (e: PointerEvent | MouseEvent): ToolOp => (e.ctrlKey || e.metaKey ? 'subtract' : e.shiftKey ? 'add' : 'replace');
+
+    // Test Mode: grab the nearest node with the left button and pull it around.
+    this.listen(canvas, 'pointerdown', (e) => {
+      const view = this.liveView;
+      if (!view || e.button !== 0 || this.tool) return;
+      this.live.root.updateMatrixWorld(true);
+      const [x, y] = local(e);
+      const node = this.live.pickNode((a, b, c) => this.projectLive(a, b, c), view.positions, x, y);
+      if (node === null) return;
+      const p = view.positions;
+      const depth = new Vector3(p[node * 3], p[node * 3 + 1], p[node * 3 + 2]).applyMatrix4(this.live.root.matrixWorld).project(this.camera).z;
+      this.simDrag = { node, depth };
+      this.controls.enabled = false;
+      canvas.setPointerCapture?.(e.pointerId);
+      this.callbacks.onSimDrag?.(node, this.dragTarget(e.clientX, e.clientY, depth));
+    });
+    this.listen(canvas, 'pointermove', (e) => {
+      if (this.simDrag) this.callbacks.onSimDrag?.(this.simDrag.node, this.dragTarget(e.clientX, e.clientY, this.simDrag.depth));
+    });
+    this.listen(canvas, 'pointerup', () => {
+      if (!this.simDrag) return;
+      this.simDrag = null;
+      this.controls.enabled = true;
+      this.callbacks.onSimDrag?.(null, [0, 0, 0]);
+    });
 
     // Split tool gestures take the left button (orbit moves to the right button meanwhile).
     this.listen(canvas, 'pointerdown', (e) => {
@@ -422,9 +463,72 @@ export class ViewportRuntime {
   }
 
   setView(view: { mesh: boolean; structure: boolean }): void {
-    this.modelRoot.visible = view.mesh;
-    this.overlayRoot.visible = view.mesh;
-    this.structure.root.visible = view.structure;
+    this.viewToggles = view;
+    this.applyVisibility();
+  }
+
+  /** Test Mode draws the solver's structure; the static mesh/structure step aside (the sim doesn't bend them). */
+  private applyVisibility(): void {
+    const live = !!this.liveView;
+    this.modelRoot.visible = this.viewToggles.mesh && !live;
+    this.overlayRoot.visible = this.viewToggles.mesh && !live;
+    this.structure.root.visible = this.viewToggles.structure && !live;
+    this.live.root.visible = live;
+  }
+
+  /** Live physics frame, or null to leave Test Mode. */
+  setLive(view: LiveView | null): void {
+    const wasLive = !!this.liveView;
+    this.liveView = view;
+    this.live.update(view?.model ?? null, view?.positions ?? null, view?.stress ?? null, this.structureRadius(view?.positions));
+    this.live.setObstacles(view?.obstacles, 1.6);
+    if (!!view !== wasLive) this.applyVisibility();
+    if (view && this.liveFramedFor !== view.model) {
+      this.liveFramedFor = view.model;
+      this.frameLive();
+    }
+    if (!view) this.liveFramedFor = null;
+  }
+
+  private structureRadius(positions: Float32Array | undefined): number {
+    if (!positions || positions.length < 6) return 0.012;
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 1; i < positions.length; i += 3) {
+      lo = Math.min(lo, positions[i]!);
+      hi = Math.max(hi, positions[i]!);
+    }
+    return Math.min(0.03, Math.max(0.006, (hi - lo) * 0.0035));
+  }
+
+  private frameLive(): void {
+    this.live.root.updateMatrixWorld(true);
+    const box = new Box3().setFromObject(this.live.root);
+    if (box.isEmpty()) return;
+    const sphere = box.getBoundingSphere(new Sphere());
+    const fov = (this.camera.fov * Math.PI) / 180;
+    const distance = Math.max(0.5, (sphere.radius * FRAME_PADDING) / Math.sin(fov / 2));
+    const dir = new Vector3().subVectors(this.camera.position, this.controls.target).normalize();
+    this.controls.target.copy(sphere.center);
+    this.camera.position.copy(sphere.center).addScaledVector(dir, distance);
+    this.controls.update();
+  }
+
+  /** Canvas-pixel projection of a BeamNG-space point (null when behind the camera). */
+  private projectLive(x: number, y: number, z: number): [number, number] | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const v = new Vector3(x, y, z).applyMatrix4(this.live.root.matrixWorld).project(this.camera);
+    if (v.z > 1 || v.z < -1) return null;
+    return [((v.x + 1) / 2) * rect.width, ((1 - v.y) / 2) * rect.height];
+  }
+
+  /** The point under the cursor at the grabbed node's depth, in BeamNG space. */
+  private dragTarget(clientX: number, clientY: number, depth: number): [number, number, number] {
+    const rect = this.canvas.getBoundingClientRect();
+    const ndc = new Vector3(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1, depth);
+    const world = ndc.unproject(this.camera);
+    const local = this.live.root.worldToLocal(world);
+    return [local.x, local.y, local.z];
   }
 
   // ---------------------------------------------------------------- split tool
@@ -623,6 +727,7 @@ export class ViewportRuntime {
     this.setTool(null);
     this.structure.dispose();
     this.reference.dispose();
+    this.live.dispose();
     this.selectMaterial.dispose();
     this.hoverMaterial.dispose();
     this.toolMaterial.dispose();

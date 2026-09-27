@@ -78,6 +78,33 @@ try {
     }
     await page.getByTestId('toolbar-view-mesh').click();
   }
+  if (process.argv.includes('--dump-sim')) {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(join(ROOT, 'scratch', 'sim-model.json'), JSON.stringify(await hook(page, 'dumpSimModel')));
+    console.log('sim model → scratch/sim-model.json');
+  }
+  if (process.argv.includes('--sim')) {
+    await page.getByTestId('toolbar-test').click();
+    await page.getByTestId('test-panel').waitFor();
+    const issues = (await page.getByTestId('sim-issues').count()) ? await page.getByTestId('sim-issues').innerText() : 'none';
+    console.log('pre-checks:', issues.replaceAll(String.fromCharCode(10), ' | '));
+    for (const [id, label] of [
+      ['scenario-settle', 'settle'],
+      ['scenario-drop', 'drop'],
+      ['scenario-pole', 'pole'],
+    ]) {
+      await page.getByTestId(id).click();
+      // The buttons are disabled while a scenario runs; wait for them to come back.
+      await page.waitForFunction((tid) => !document.querySelector(`[data-testid=${tid}]`)?.hasAttribute('disabled'), id, { timeout: 180_000, polling: 100 });
+      await page.waitForTimeout(100);
+      console.log(`${label}:`, (await page.getByTestId('sim-result').innerText()).replaceAll(String.fromCharCode(10), ' | '));
+      if (await page.getByTestId('sim-broken').count()) console.log('   broken:', (await page.getByTestId('sim-broken').innerText()).replaceAll(String.fromCharCode(10), ' | '));
+      await page.getByTestId('viewport').screenshot({ path: join(out, `sim-${label}.png`) });
+    }
+    await page.getByTestId('sim-run').click();
+    await page.waitForTimeout(2000);
+    console.log('live:', await page.getByTestId('sim-stats').innerText());
+  }
   console.log(`screenshots → ${out}`);
 } finally {
   await app.close();

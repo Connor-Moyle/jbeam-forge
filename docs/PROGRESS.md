@@ -11,7 +11,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | done |
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | done |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
-| 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | not started |
+| 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | not started |
 | 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | not started |
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | not started |
@@ -42,6 +42,58 @@ You asked to continue past the Phase 5 in-game gate. It stays open: every export
 | Part selector laid out like BeamNG's in-game parts menu, so modders see how it will look | 13 |
 
 ## Phase log
+
+### Phase 6 — Physics sandbox (done)
+
+**Semantics checked against BeamNG's beam documentation:**
+- `beamSpring` (N/m) and `beamDamp` (N/m/s).
+- `beamDeform` (N): the force at which a beam permanently deforms.
+- `beamStrength` (N): the force at which it breaks.
+- `deformLimit` / `deformLimitExpansion`: plastic change as a ratio of the original length.
+- `SUPPORT`: compression only.
+- `breakGroup`: one beam breaking breaks the whole group.
+
+**Solver** (`src/shared/sim/solver.ts`, flat typed arrays):
+- Symplectic Euler at 2,000 Hz.
+- Beam values come from the same function the exporter uses (`proxy/beamValues.ts`), so the sandbox and the jbeam can't drift apart.
+- Plastic yield with limits; breaking with breakGroup propagation; support beams.
+- Ground plane with penalty contact and Coulomb friction.
+- Rigid obstacles: poles collide with beams as well as nodes, so a car can't slip between nodes; walls.
+- Mass 0 = fixed node; anchors (jack stands); external forces (dragging, yanks).
+- Divergence detection with the first offending node.
+- Deterministic, and never mutates the authored data (reset restores it exactly).
+
+**Adaptive sub-stepping:** found by running the Sunburst structure.
+- Light panel nodes on stiff beams (0.31 kg on 6 MN/m, ω·Δt ≈ 2.2) sit inside the range BeamNG handles in official content, but they blow up a plain 2,000 Hz Euler integrator from round-off alone (1e-13 m/s grew to 100 m/s in 40 steps).
+- The solver now picks sub-steps from the stiffest node (√(2Σk/m)·h ≤ 1.6). Forces and values are unchanged; only integration is finer.
+
+**Worker:** runs the solver in real time or slow motion, streams positions and per-beam stress as transferable buffers, runs scenarios on demand, and logs through the worker log relay.
+
+**Scenarios:**
+- Settle on four jack stands under the wheel positions, with a sag report. Without suspension a car otherwise rests on its skirts and tears them off.
+- 1 m drop and 20° corner drop.
+- Attachment yank: does the selected part come off at its breakGroup or tear its own skin?
+- 50 km/h (adjustable) crashes into a pole, a full-width wall and a 40% offset barrier, with front-crush measurement.
+
+**Static pre-checks** (instant, no simulation): orphans, near-orphans, disconnected islands, zero-length and duplicate beams, and the calibrated stability predictor.
+
+**Test Mode UI:**
+- Toolbar Test Mode button.
+- Test panel: run/pause/reset, speed (1×, ½×, 0.1×), gravity toggle, live simulated time, achieved real-time factor and broken count, divergence banner, scenario buttons, results with broken beams grouped by part (click to select the part), and pre-checks.
+- A standing note that the sandbox checks structure and is not BeamNG's solver.
+- Viewport: live structure coloured by stress (green → yellow → red, broken beams hidden); drag a node with the left mouse button; obstacles drawn.
+
+**Sunburst body-shell check** (`node scripts/visual-structure.mjs --sim`, 556 nodes / 2,819 beams):
+- Settles on stands and comes to rest.
+- 1 m drop: nothing breaks.
+- 50 km/h pole: 329 mm of front crush.
+- Live at 1.00× real time.
+
+**Tests:** 460 unit tests (solver physics, plasticity, breakGroups, support beams, ground and friction, pole tunnelling, sub-stepping, divergence, determinism, scenarios, pre-checks). The harness generate scenario now also runs Test Mode, a drop and a pole crash.
+
+**Benchmark** (`npm run bench:solver`): 2,000 nodes / 21,736 beams on a stiff lattice needing two sub-steps runs at 0.74× real time; typical cars (hundreds of nodes) run in real time.
+
+**Later phases:** a hinge swing test (Phase 9) and a suspension drop (Phase 10) plug into the same scenario runner.
 
 ### Phase 5 — Export v1 + in-game gate (built; waiting for your in-game test)
 
@@ -293,7 +345,7 @@ Decisions recorded with you:
 
 **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 225/225 ✔ · `npm run run-desktop` 9/9 ✔ (new: BeamNG auto-detect + Settings modal against a fake install) · `npm run jbeam:corpus` 5062/5062 ✔. No in-game gate: export output is unchanged.
 
-**Next:** your in-game test of `test` (Phase 5 gate), then Phase 6: physics sandbox.
+**Next:** Phase 7: editing suite, focus mode, and category-grouped part slots.
 
 
 ### Phase 1 — Foundations (done 2026-09-26)

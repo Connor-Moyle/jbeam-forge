@@ -167,6 +167,37 @@ describe('scenarios', () => {
   });
 });
 
+describe('sub-stepping', () => {
+  it('stays still with light nodes on stiff beams (plain 2000 Hz Euler would blow up from round-off)', () => {
+    // A strip of 0.3 kg nodes on 6 MN/m of beams each: ω·Δt ≈ 2.2 per node, like a generated fender.
+    const nodes: [number, number, number][] = [];
+    const beams: [number, number][] = [];
+    for (let i = 0; i < 12; i++) nodes.push([i * 0.3, 0, 1], [i * 0.3, 0.3, 1]);
+    for (let i = 0; i < 12; i++) {
+      beams.push([i * 2, i * 2 + 1]);
+      if (i < 11) beams.push([i * 2, i * 2 + 2], [i * 2 + 1, i * 2 + 3], [i * 2, i * 2 + 3], [i * 2 + 1, i * 2 + 2]);
+    }
+    const mdl = model(nodes, beams, { mass: 0.3, spring: 1_500_000, damp: 60 });
+    const s = new Solver(mdl, { gravity: 0 });
+    expect(s.substeps).toBeGreaterThan(1);
+    s.v[2] = 1e-9; // a round-off-sized nudge
+    s.step(400);
+    expect(s.divergence).toBeNull();
+    expect(s.kineticEnergy()).toBeLessThan(1e-6);
+  });
+});
+
+describe('obstacles', () => {
+  it('a pole stops a cube driven into it (no tunnelling at 50 km/h)', () => {
+    const c = crash(cube(0.3), 'pole', 50, 0.3);
+    const p = c.obstacles[0]!;
+    let minY = Infinity;
+    for (let i = 0; i < c.positions.length; i += 3) minY = Math.min(minY, c.positions[i + 1]!);
+    // Without the pole the cube would travel ~4 m forward (−Y); it must end up still in front of the pole.
+    expect(minY).toBeGreaterThan(p.y - (p.radius ?? 0.15) - 0.1);
+  });
+});
+
 describe('precheck', () => {
   it('finds orphans, islands, duplicates, zero-length and unstable nodes', () => {
     const mdl = model(

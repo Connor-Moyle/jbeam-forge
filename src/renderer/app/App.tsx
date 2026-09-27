@@ -16,7 +16,8 @@ import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
 import { registerTestHooks } from './testHooks';
 import { emitTestSignal } from './testBus';
-import { loadUserTaxonomy } from '@renderer/parts/taxonomy';
+import { currentTaxonomy, loadUserTaxonomy } from '@renderer/parts/taxonomy';
+import { buildSimModel } from '@shared/sim/model';
 import { offerAutoClassify } from '@renderer/parts/commands';
 import { useStructureUi } from '@renderer/structure/generate';
 import type { AppCommand } from '@shared/ipc-contract';
@@ -114,6 +115,16 @@ function AppEffects() {
           const d = projectStore.getState().doc;
           const keys = Object.values(s.sources).flatMap((src) => src.meshes.map((m) => m.key)).filter((k) => !d?.assignments[k]);
           s.setHidden(keys, true);
+        },
+        /** Debug: the simulated model as plain arrays (for offline solver investigation). */
+        dumpSimModel: () => {
+          const d = projectStore.getState().doc;
+          if (!d) return null;
+          const m = buildSimModel(d, currentTaxonomy());
+          const plain: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(m)) plain[k] = ArrayBuffer.isView(v) ? Array.from(v as unknown as ArrayLike<number>, (x) => (Number.isFinite(x) ? x : 1e30)) : v;
+          plain.partNames = Object.fromEntries(d.parts.map((p) => [p.id, p.displayName]));
+          return plain;
         },
         offerAutoClassify: () => {
           const meshes = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);
