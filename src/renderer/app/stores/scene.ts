@@ -36,8 +36,10 @@ interface SceneState {
   hover: string | null;
   /** Part picked in the tree (Inspector subject); cleared by plain mesh selection. */
   activePart: string | null;
-  /** Changed to ask the viewport to frame meshes (empty keys = everything). */
-  frameRequest: { id: number; keys: readonly string[] };
+  /** Changed to ask the viewport to frame meshes (empty keys = everything); glide animates the camera. */
+  frameRequest: { id: number; keys: readonly string[]; glide?: boolean };
+  /** Focus mode: these meshes stay solid, everything else is ghosted. null = off. */
+  focus: FocusState | null;
 
   setSource: (s: LoadedSource) => void;
   removeSource: (sourceId: string) => void;
@@ -49,7 +51,16 @@ interface SceneState {
   /** Select a part: its meshes become the selection and it becomes the active part. */
   selectPart: (partId: string | null, meshKeys: readonly string[]) => void;
   setHidden: (meshKeys: readonly string[], hidden: boolean) => void;
-  requestFrame: (keys?: readonly string[]) => void;
+  requestFrame: (keys?: readonly string[], glide?: boolean) => void;
+  setFocus: (focus: FocusState | null) => void;
+}
+
+export interface FocusState {
+  /** The focused part (null when focusing loose meshes). */
+  partId: string | null;
+  /** The part and everything attached to it. */
+  parts: readonly string[];
+  meshKeys: readonly string[];
 }
 
 function disposeSource(s: LoadedSource | undefined): void {
@@ -74,6 +85,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   hover: null,
   activePart: null,
   frameRequest: { id: 0, keys: EMPTY_ARR },
+  focus: null,
 
   setSource: (s) => {
     const prev = get().sources[s.sourceId];
@@ -96,7 +108,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   },
   clear: () => {
     for (const s of Object.values(get().sources)) disposeSource(s);
-    set({ sources: {}, hidden: {}, selection: EMPTY_ARR, hover: null, activePart: null });
+    set({ sources: {}, hidden: {}, selection: EMPTY_ARR, hover: null, activePart: null, focus: null });
   },
   toggleHidden: (key) =>
     set((st) => {
@@ -128,7 +140,8 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
       }
       return { selection: current.size ? [...current] : EMPTY_ARR, activePart: null };
     }),
-  requestFrame: (keys = EMPTY_ARR) => set((st) => ({ frameRequest: { id: st.frameRequest.id + 1, keys } })),
+  requestFrame: (keys = EMPTY_ARR, glide = false) => set((st) => ({ frameRequest: { id: st.frameRequest.id + 1, keys, glide } })),
+  setFocus: (focus) => set({ focus }),
 }));
 
 /** All loaded meshes, source order preserved. Pure helper for derived views (use with useMemo). */

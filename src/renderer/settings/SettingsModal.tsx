@@ -8,6 +8,7 @@ import { Callout } from '@renderer/ui/components/Callout';
 import { Field, FieldGroup } from '@renderer/ui/components/Field';
 import { Input } from '@renderer/ui/components/Input';
 import { Modal } from '@renderer/ui/components/Modal';
+import { Slider } from '@renderer/ui/components/Slider';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -35,6 +36,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const dirId = useId();
   const [dir, setDir] = useState(settings.beamngInstallDir ?? '');
   const [debug, setDebug] = useState(settings.debugLogging);
+  const [ghost, setGhost] = useState(settings.focusGhostOpacity);
   const [check, setCheck] = useState<Check>(() => {
     const initial = (settings.beamngInstallDir ?? '').trim();
     return initial ? { state: 'checking', forDir: initial } : { state: 'idle' };
@@ -101,6 +103,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const save = () => {
     const patch: SettingsPatch = {};
     if (debug !== settings.debugLogging) patch.debugLogging = debug;
+    if (ghost !== settings.focusGhostOpacity) patch.focusGhostOpacity = ghost;
     if (dirChanged) patch.beamngInstallDir = trimmedDir || null;
     if (Object.keys(patch).length === 0) {
       onClose();
@@ -159,6 +162,12 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
             <span className={styles.readonly} data-testid="beamng-user-dir">
               {settings.beamngUserDir ?? 'Not found'}
             </span>
+          </Field>
+        </FieldGroup>
+
+        <FieldGroup title="Viewport">
+          <Field label="Focus mode: other parts" hint="How much of the rest of the car stays visible while you work on one part. 0% hides it.">
+            <Slider value={ghost} onChange={setGhost} min={0} max={0.6} step={0.02} format={(v) => `${Math.round(v * 100)}%`} aria-label="Focus mode ghost opacity" />
           </Field>
         </FieldGroup>
 

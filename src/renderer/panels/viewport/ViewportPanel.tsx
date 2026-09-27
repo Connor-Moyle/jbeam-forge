@@ -9,11 +9,15 @@ import type { ImportedMesh } from '@renderer/import/normalize';
 import { ViewportRuntime, webglAvailable, type GlState, type ToolState, type ViewState } from './viewportRuntime';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
 import { SplitToolbar } from '@renderer/split/SplitToolbar';
-import { projectStore } from '@renderer/app/stores/project';
+import { projectStore, useProjectStore } from '@renderer/app/stores/project';
+import { DEFAULT_SETTINGS } from '@shared/settings-schema';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame } from '@renderer/sim/simSession';
+import { useSettingsStore } from '@renderer/app/stores/settings';
+import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
+import { Focus, X } from 'lucide-react';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
@@ -43,7 +47,7 @@ export function ViewportPanel() {
           }
           scene.getState().select([key], mods.ctrl ? 'toggle' : mods.shift ? 'add' : 'replace');
         },
-        onDoublePick: (key) => runtime?.frame(key ? [key] : []),
+        onDoublePick: (key) => focusMesh(key),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
         onSimDrag: (node, target) => dragNode(node, target),
@@ -66,7 +70,7 @@ export function ViewportPanel() {
         meshesSource = s.sources;
         meshes = allMeshes(s.sources);
       }
-      const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover };
+      const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover, focus: s.focus?.meshKeys ?? null };
       rt.sync(view);
     };
     push();
@@ -84,24 +88,33 @@ export function ViewportPanel() {
     let lastStructure: unknown = null;
     const pushStructure = () => {
       const doc = projectStore.getState().doc;
-      const key = doc ? [doc.nodes, doc.beams, doc.parts] : null;
+      const focus = scene.getState().focus;
+      const key = doc ? [doc.nodes, doc.beams, doc.parts, focus] : null;
       if (!key || !lastStructure || (lastStructure as unknown[]).some((x, i) => x !== key[i])) {
         lastStructure = key;
-        rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id)) : null);
+        const only = focus?.partId ? new Set(focus.parts) : undefined;
+        rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id), only) : null);
       }
     };
     pushStructure();
     rt.setView(useUiStore.getState().view);
-    const unsubscribeStructure = projectStore.subscribe(pushStructure);
+    const unsubscribeStructure = projectStore.subscribe(() => {
+      refreshFocus();
+      pushStructure();
+    });
+    const ghost = () => rt.setGhostOpacity(useSettingsStore.getState().settings?.focusGhostOpacity ?? DEFAULT_SETTINGS.focusGhostOpacity);
+    ghost();
+    const unsubscribeSettings = useSettingsStore.subscribe(ghost);
     const unsubscribeView = useUiStore.subscribe((s) => rt.setView(s.view));
     // Test Mode frames straight from the sim session (60 Hz, outside React).
     const unsubscribeSim = onSimFrame((frame) => rt.setLive(frame));
     let lastFrameRequest = scene.getState().frameRequest;
     const unsubscribe = scene.subscribe((s) => {
       push();
+      pushStructure();
       if (s.frameRequest !== lastFrameRequest) {
         lastFrameRequest = s.frameRequest;
-        rt.frame(s.frameRequest.keys);
+        rt.frame(s.frameRequest.keys, s.frameRequest.glide);
       }
     });
 
@@ -110,8 +123,11 @@ export function ViewportPanel() {
       const splitting = useSplitTool.getState().meshKey !== null;
       if (splitting && e.key === 'Escape') useSplitTool.getState().cancel();
       else if (splitting && e.key === 'Enter') void applySplitSelection();
-      else if (e.key === 'f' || e.key === 'F') rt.frame(scene.getState().selection);
-      else if (e.key === 'Home') rt.frame();
+      else if (e.key === 'f' || e.key === 'F') {
+        if (!focusSelection()) rt.frame(scene.getState().selection);
+      } else if (e.key === 'Escape') {
+        if (!exitFocus()) return;
+      } else if (e.key === 'Home') rt.frame();
       else return;
       e.preventDefault();
     };
@@ -121,6 +137,7 @@ export function ViewportPanel() {
       unsubscribe();
       unsubscribeTool();
       unsubscribeStructure();
+      unsubscribeSettings();
       unsubscribeView();
       unsubscribeSim();
       host.removeEventListener('keydown', onKey);
@@ -141,6 +158,7 @@ export function ViewportPanel() {
     <div ref={hostRef} className={styles.host} data-testid="viewport" data-gl-state={glState} tabIndex={0}>
       <canvas ref={canvasRef} className={styles.canvas} />
       <SplitToolbar />
+      <FocusPill />
       {toolShape && toolShape.length >= 4 && (
         <svg className={splitStyles.shape} aria-hidden>
           <polygon points={svgPoints(toolShape)} />
@@ -167,4 +185,24 @@ function svgPoints(flat: readonly number[]): string {
   const out: string[] = [];
   for (let i = 0; i + 1 < flat.length; i += 2) out.push(`${flat[i]},${flat[i + 1]}`);
   return out.join(' ');
+}
+
+/** "Focused on Hood" with a way out, while Focus Mode is on. */
+function FocusPill() {
+  const focus = useSceneStore((s) => s.focus);
+  const name = useProjectStore((s) => (focus?.partId ? s.doc?.parts.find((p) => p.id === focus.partId)?.displayName : undefined));
+  if (!focus) return null;
+  const label = name ?? `${focus.meshKeys.length} mesh${focus.meshKeys.length === 1 ? '' : 'es'}`;
+  return (
+    <div className={styles.focusPill} role="status" data-testid="focus-pill">
+      <Focus size={iconSize('size-icon-sm')} aria-hidden />
+      <span>
+        Focused on <strong>{label}</strong>
+      </span>
+      <span className={styles.focusHint}>Esc to leave</span>
+      <button type="button" className={styles.focusClose} onClick={() => exitFocus()} aria-label="Leave focus mode" data-testid="focus-exit">
+        <X size={iconSize('size-icon-sm')} aria-hidden />
+      </button>
+    </div>
+  );
 }

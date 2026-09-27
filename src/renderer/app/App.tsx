@@ -50,6 +50,7 @@ function AppEffects() {
             assigned: Object.keys(d?.assignments ?? {}).length,
             ignored: d?.ignoredMeshes.length ?? 0,
             activePart: useSceneStore.getState().activePart,
+            focus: useSceneStore.getState().focus,
           };
         },
         structureState: () => {

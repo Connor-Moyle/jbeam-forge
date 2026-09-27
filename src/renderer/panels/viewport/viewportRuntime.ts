@@ -10,6 +10,7 @@ import {
   MOUSE,
   Mesh,
   MeshBasicMaterial,
+  MeshStandardMaterial,
   PlaneGeometry,
   PerspectiveCamera,
   Raycaster,
@@ -55,6 +56,8 @@ export interface ViewState {
   hidden: Readonly<Record<string, true>>;
   selection: readonly string[];
   hover: string | null;
+  /** Focus mode: only these meshes stay solid (null = off). */
+  focus: readonly string[] | null;
 }
 
 /** Face-selection split tool, as the viewport needs it (see src/renderer/split/splitTool.ts). */
@@ -136,7 +139,11 @@ export class ViewportRuntime {
   private readonly overlays = new Map<string, Mesh>();
   private readonly selectMaterial: MeshBasicMaterial;
   private readonly hoverMaterial: MeshBasicMaterial;
-  private view: ViewState = { meshes: [], hidden: {}, selection: [], hover: null };
+  /** Focus mode's ghost: one shared see-through material for everything out of focus. */
+  private readonly ghostMaterial: MeshStandardMaterial;
+  private focusSet: ReadonlySet<string> | null = null;
+  private glide: { fromTarget: Vector3; toTarget: Vector3; fromPos: Vector3; toPos: Vector3; start: number; ms: number } | null = null;
+  private view: ViewState = { meshes: [], hidden: {}, selection: [], hover: null, focus: null };
   private pendingHover: { x: number; y: number } | null = null;
   private tool: ToolState | null = null;
   private toolOverlay: Mesh | null = null;
@@ -185,6 +192,7 @@ export class ViewportRuntime {
     this.toolMaterial = new MeshBasicMaterial({ color: new Color(resolveToken('warning') || undefined), transparent: true, opacity: 0.6, depthWrite: false, side: DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.planeMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.18, depthWrite: false, side: DoubleSide });
     this.hoverMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.16, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    this.ghostMaterial = new MeshStandardMaterial({ color: new Color(resolveToken('text-1') || undefined), roughness: 0.9, metalness: 0, transparent: true, opacity: 0.12, depthWrite: false, side: DoubleSide });
 
     this.camera.position.set(5, 3, 7);
     this.controls = new OrbitControls(this.camera, canvas);
@@ -362,7 +370,9 @@ export class ViewportRuntime {
       if (!g.boundsTree) g.computeBoundsTree({ indirect: true });
       candidates.push(mesh);
     }
-    const hit = this.raycaster.intersectObjects(candidates, false)[0];
+    const focus = this.focusSet;
+    const inFocus = focus ? candidates.filter((m) => focus.has(m.userData.meshKey as string)) : candidates;
+    const hit = this.raycaster.intersectObjects(inFocus, false)[0] ?? (focus ? this.raycaster.intersectObjects(candidates, false)[0] : undefined);
     return (hit?.object.userData.meshKey as string | undefined) ?? null;
   }
 
@@ -383,16 +393,35 @@ export class ViewportRuntime {
         const obj = new Mesh(m.geometry, m.material);
         obj.name = m.name;
         obj.userData.meshKey = m.key;
+        obj.userData.material = m.material;
         this.meshObjects.set(m.key, obj);
         this.modelRoot.add(obj);
       }
     }
     for (const [key, obj] of this.meshObjects) obj.visible = !next.hidden[key];
+    if (next.focus !== prev.focus || next.meshes !== prev.meshes) this.applyFocus();
     this.syncOverlays();
     if (this.tool) {
       this.syncToolOverlay();
       this.syncPlane();
     }
+  }
+
+  /** Swap out-of-focus meshes to the ghost material (and back). */
+  private applyFocus(): void {
+    const focus = this.view.focus ? new Set(this.view.focus) : null;
+    this.focusSet = focus;
+    for (const [key, obj] of this.meshObjects) {
+      const ghost = !!focus && !focus.has(key);
+      obj.material = ghost ? this.ghostMaterial : (obj.userData.material as Mesh['material']);
+      obj.renderOrder = ghost ? 2 : 0; // ghosts draw after the solid part so it shows through
+    }
+  }
+
+  /** Focus mode ghost opacity (0 hides the rest of the car). */
+  setGhostOpacity(opacity: number): void {
+    this.ghostMaterial.opacity = opacity;
+    this.ghostMaterial.visible = opacity > 0.001;
   }
 
   private syncOverlays(): void {
@@ -642,8 +671,8 @@ export class ViewportRuntime {
     p.position.setComponent(tool.plane.axis === 'x' ? 0 : tool.plane.axis === 'y' ? 1 : 2, tool.plane.offset);
   }
 
-  /** Frame the given meshes (all visible meshes when empty). */
-  frame(keys: readonly string[] = []): void {
+  /** Frame the given meshes (all visible meshes when empty); glide eases the camera there instead of jumping. */
+  frame(keys: readonly string[] = [], glide = false): void {
     const box = new Box3();
     const targets = keys.length ? keys.map((k) => this.meshObjects.get(k)).filter((m): m is Mesh => !!m) : [...this.meshObjects.values()].filter((m) => m.visible);
     this.modelRoot.updateMatrixWorld(true);
@@ -654,12 +683,31 @@ export class ViewportRuntime {
     const distance = Math.max(0.5, (sphere.radius * FRAME_PADDING) / Math.sin(fov / 2));
     const dir = new Vector3().subVectors(this.camera.position, this.controls.target).normalize();
     if (dir.lengthSq() === 0) dir.set(0.6, 0.35, 0.72).normalize();
-    this.controls.target.copy(sphere.center);
-    this.camera.position.copy(sphere.center).addScaledVector(dir, distance);
+    const toPos = sphere.center.clone().addScaledVector(dir, distance);
+    this.camera.near = Math.max(0.01, Math.min(this.camera.near, distance / 200));
+    this.camera.far = Math.max(this.camera.far, distance * 50);
+    this.camera.updateProjectionMatrix();
+    if (glide) {
+      this.glide = { fromTarget: this.controls.target.clone(), toTarget: sphere.center.clone(), fromPos: this.camera.position.clone(), toPos, start: performance.now(), ms: 450 };
+      return;
+    }
+    this.glide = null;
     this.camera.near = Math.max(0.01, distance / 200);
     this.camera.far = distance * 50;
     this.camera.updateProjectionMatrix();
+    this.controls.target.copy(sphere.center);
+    this.camera.position.copy(toPos);
     this.controls.update();
+  }
+
+  private stepGlide(): void {
+    const g = this.glide;
+    if (!g) return;
+    const t = Math.min(1, (performance.now() - g.start) / g.ms);
+    const e = t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2; // ease in-out cubic
+    this.controls.target.lerpVectors(g.fromTarget, g.toTarget, e);
+    this.camera.position.lerpVectors(g.fromPos, g.toPos, e);
+    if (t >= 1) this.glide = null;
   }
 
   textureCaps(): GpuTextureCaps {
@@ -698,6 +746,7 @@ export class ViewportRuntime {
       this.pendingHover = null;
       this.callbacks.onHover(this.pick(x, y));
     }
+    this.stepGlide();
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   }
@@ -730,6 +779,7 @@ export class ViewportRuntime {
     this.live.dispose();
     this.selectMaterial.dispose();
     this.hoverMaterial.dispose();
+    this.ghostMaterial.dispose();
     this.toolMaterial.dispose();
     this.planeMaterial.dispose();
     this.renderer.dispose();

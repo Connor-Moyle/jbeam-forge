@@ -55,6 +55,15 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 
 **Grouped scene tree:** children of each part are gathered into Doors, Glass, Lights, Interior, Engine and so on. Corner families with four or more parts split again into front and rear (Doors → Front doors → Front left door). A group only exists when it would hold at least two parts, and groups open by themselves when they hold the selection or a search hit.
 
+**Focus mode:**
+- Double-click a part (in the tree or the viewport), press **F** with it selected, or use the focus icon on its tree row.
+- The part and everything attached to it stays solid (a door keeps its glass, card and handles). The rest of the car turns into a see-through ghost, and the camera glides to the part.
+- The structure overlay only shows the focused parts' nodes and beams.
+- A root part like the body shell focuses on its own, since the whole car hangs off it.
+- Clicks go to the focused part first, so the ghost never gets in the way. Double-clicking a ghosted part jumps straight to it.
+- **Esc**, the pill's close button or double-clicking empty space leaves focus.
+- Ghost opacity is in Settings → Viewport (0–60%, default 12%; 0 hides the rest).
+
 **Automatic prices and weights** (`npm run study-prices`):
 - Every part of the 28 official cars and 10 trucks was classified with our own classifier. For each kind the study records its in-game price (`information.value`) and its node-weight sum.
 - Taxonomy defaults now use the median wherever there are enough samples: at least 3 prices or 5 masses.

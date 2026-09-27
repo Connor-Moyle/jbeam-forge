@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { AlertTriangle, Ban, Boxes, Combine, Copy, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, FileInput, FolderSearch, Merge, Search, Tag, Trash2, Undo2, Unlink } from 'lucide-react';
+import { AlertTriangle, Ban, Boxes, Combine, Copy, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Search, Tag, Trash2, Undo2, Unlink } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore, type LoadedSource } from '@renderer/app/stores/scene';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -22,6 +22,7 @@ import { TreeRow } from '@renderer/ui/components/TreeRow';
 import { cx } from '@renderer/ui/cx';
 import { ancestorIds, buildSceneTree, subtreeIds, type MeshInfo, type PartNode } from '@shared/parts/tree';
 import { groupInfo, groupItems, type TreeItem } from '@shared/parts/grouping';
+import { exitFocus, focusPart } from '@renderer/parts/focus';
 import { positionLabel } from '@shared/parts/ops';
 import { POSITIONS_BY_AXIS } from '@shared/taxonomy/schema';
 import type { Part } from '@shared/project/schema';
@@ -267,8 +268,8 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
   const hidden = useSceneStore((s) => s.hidden);
   const selectPart = useSceneStore((s) => s.selectPart);
   const setHidden = useSceneStore((s) => s.setHidden);
-  const requestFrame = useSceneStore((s) => s.requestFrame);
   const pushStatus = useUiStore((s) => s.pushStatus);
+  const focused = useSceneStore((s) => s.focus?.partId === part.id);
   const own = ctx.partMeshes.get(part.id) ?? EMPTY_ARR;
   const subtreeMeshes = () => subtreeIds(ctx.parts, part.id).flatMap((id) => ctx.partMeshes.get(id) ?? []);
   const allHidden = own.length > 0 && own.every((k) => hidden[k]);
@@ -281,6 +282,7 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
 
   const siblingsOfKind = ctx.parts.filter((p) => p.taxonomyId === part.taxonomyId && p.id !== part.id);
   const items: ContextMenuItem[] = [
+    { label: 'Focus', icon: Focus, onSelect: () => focusPart(part.id) },
     { label: 'Select meshes', icon: Boxes, onSelect: () => selectPart(part.id, own) },
     { label: 'Duplicate as variant', icon: Copy, onSelect: () => void cmd.duplicateAsVariant(part.id) },
     { label: 'Move to top level', icon: CornerLeftUp, disabled: !part.parentPartId, onSelect: () => void cmd.reparentPart(part.id, null) },
@@ -324,11 +326,13 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
           muted={allHidden}
           onSelect={() => selectPart(part.id, own)}
           onActivate={() => selectPart(part.id, own)}
-          onDoubleClick={() => {
-            selectPart(part.id, own);
-            requestFrame(subtreeMeshes());
-          }}
-          actions={<IconButton icon={allHidden ? EyeOff : Eye} label={allHidden ? 'Show' : 'Hide'} size="sm" onClick={() => setHidden(subtreeMeshes(), !allHidden)} />}
+          onDoubleClick={() => focusPart(part.id)}
+          actions={
+            <>
+              <IconButton icon={Focus} label={focused ? 'Leave focus' : 'Focus'} size="sm" onClick={() => (focused ? exitFocus() : focusPart(part.id))} data-testid="part-focus" />
+              <IconButton icon={allHidden ? EyeOff : Eye} label={allHidden ? 'Show' : 'Hide'} size="sm" onClick={() => setHidden(subtreeMeshes(), !allHidden)} />
+            </>
+          }
         />
       </div>
     </ContextMenu>

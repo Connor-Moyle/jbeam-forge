@@ -32,7 +32,8 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "debugLogging": true,
   "beamngInstallDir": null,
   "beamngUserDir": null,
-  "author": null
+  "author": null,
+  "focusGhostOpacity": 0.12
 }
 "
 `;

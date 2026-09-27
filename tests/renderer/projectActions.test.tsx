@@ -135,7 +135,7 @@ describe('NewModWizard', () => {
         <NewModWizard onClose={() => undefined} />
       </TooltipProvider>,
     );
-    act(() => useSettingsStore.setState({ settings: { version: 1, debugLogging: false, beamngInstallDir: null, beamngUserDir: null, author: 'Fatkiwi' } }));
+    act(() => useSettingsStore.setState({ settings: { version: 1, debugLogging: false, beamngInstallDir: null, beamngUserDir: null, author: 'Fatkiwi', focusGhostOpacity: 0.12 } }));
     expect(screen.getByTestId('newmod-author')).toHaveValue('Fatkiwi');
     await userEvent.type(screen.getByTestId('newmod-name'), 'Car');
     await userEvent.click(screen.getByTestId('newmod-create'));

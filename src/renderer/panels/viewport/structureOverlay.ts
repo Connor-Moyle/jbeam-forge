@@ -29,7 +29,8 @@ const CATEGORY_TOKEN: Record<string, Parameters<typeof resolveToken>[0]> = {
 };
 
 /** Flatten the document's structure into GPU-ready arrays. */
-export function structureData(doc: Pick<Project, 'nodes' | 'beams' | 'parts'>, entry: (id: string) => TaxonomyEntry | undefined): StructureData {
+/** `only`: focus mode draws just these parts' nodes and beams (their attachment beams included). */
+export function structureData(doc: Pick<Project, 'nodes' | 'beams' | 'parts'>, entry: (id: string) => TaxonomyEntry | undefined, only?: ReadonlySet<string>): StructureData {
   const colorOf = new Map<string, Color>();
   const partColor = (partId: string) => {
     let c = colorOf.get(partId);
@@ -42,10 +43,11 @@ export function structureData(doc: Pick<Project, 'nodes' | 'beams' | 'parts'>, e
   };
   const attach = new Color(resolveToken('warning') || undefined);
   const pos = new Map<string, [number, number, number]>();
-  const nodePositions = new Float32Array(doc.nodes.length * 3);
-  const nodeColors = new Float32Array(doc.nodes.length * 3);
-  doc.nodes.forEach((n, i) => {
-    pos.set(n.id, n.pos);
+  for (const n of doc.nodes) pos.set(n.id, n.pos);
+  const nodes = only ? doc.nodes.filter((n) => only.has(n.partId)) : doc.nodes;
+  const nodePositions = new Float32Array(nodes.length * 3);
+  const nodeColors = new Float32Array(nodes.length * 3);
+  nodes.forEach((n, i) => {
     nodePositions.set(n.pos, i * 3);
     const c = partColor(n.partId);
     nodeColors.set([c.r, c.g, c.b], i * 3);
@@ -53,6 +55,7 @@ export function structureData(doc: Pick<Project, 'nodes' | 'beams' | 'parts'>, e
   const beamPositions: number[] = [];
   const beamColors: number[] = [];
   for (const b of doc.beams) {
+    if (only && !only.has(b.partId)) continue;
     const a = pos.get(b.id1);
     const c = pos.get(b.id2);
     if (!a || !c) continue;

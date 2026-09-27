@@ -401,6 +401,27 @@ const scenarios = [
       await hook(page, 'runCommand', 'undo'); // un-reparent the mirror
       st = await parts();
       assert(st.parts.find((p) => p.id === mirror.id).parentPartId !== wheel.id, 'undo restores the old parent');
+
+      // Focus mode: double-click a part in the tree, everything else ghosts, Esc leaves.
+      await page.locator(`[data-part-id="${wheel.id}"]`).getByText(wheel.displayName, { exact: true }).dblclick();
+      st = await parts();
+      assert(st.focus?.partId === wheel.id && st.activePart === wheel.id && st.focus.meshKeys.length > 0, `double-click focuses the wheel (${JSON.stringify(st.focus)})`);
+      assert(await page.getByTestId('focus-pill').isVisible(), 'focus pill shows');
+      await page.waitForTimeout(600); // camera glide
+      await shot(page, 'focus-mode');
+      await page.getByTestId('viewport').focus();
+      await page.keyboard.press('Escape');
+      st = await parts();
+      assert(st.focus === null && !(await page.getByTestId('focus-pill').isVisible()), 'Esc leaves focus mode');
+      // The body shell stands alone (it would otherwise bring the whole car); F focuses the selection.
+      await tree.getByText('Main body').click();
+      await page.getByTestId('viewport').focus();
+      await page.keyboard.press('f');
+      st = await parts();
+      assert(st.focus?.partId === body.id && st.focus.parts.length === 1, `F focuses the selected root part on its own (${JSON.stringify(st.focus)})`);
+      await page.getByTestId('focus-exit').click();
+      st = await parts();
+      assert(st.focus === null, 'pill button leaves focus mode');
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).parts.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
@@ -686,6 +707,15 @@ const scenarios = [
       await page.getByTestId('scene-filter').fill('door');
       await page.waitForTimeout(200);
       await shot(page, 'smoke-model-filtered');
+      // Focus mode on a real door: its glass, card and handles stay solid, the car ghosts.
+      const door = (await hook(page, 'partsState')).parts.find((p) => p.taxonomyId === 'door' && p.position === 'FL' && !p.variantOf);
+      if (door) {
+        await page.locator(`[data-part-id="${door.id}"]`).getByText(door.displayName, { exact: true }).dblclick();
+        await page.waitForTimeout(700);
+        await shot(page, 'smoke-focus-door');
+        const f = (await hook(page, 'partsState')).focus;
+        smokeReport.focus = { part: door.displayName, parts: f?.parts.length, meshes: f?.meshKeys.length };
+      }
     },
   },
 ];

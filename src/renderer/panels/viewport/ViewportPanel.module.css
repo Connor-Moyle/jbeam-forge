@@ -41,3 +41,51 @@ button.pill {
 button.pill:hover {
   border-color: var(--accent);
 }
+
+/* Focus Mode indicator, bottom centre so it never covers the split toolbar */
+.focusPill {
+  position: absolute;
+  bottom: var(--space-3);
+  left: 50%;
+  z-index: var(--z-overlay);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-viewport-pill);
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border: var(--border-width) solid var(--accent);
+  border-radius: var(--radius-full);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-float);
+  color: var(--text-1);
+  font-size: var(--text-control);
+  transform: translateX(-50%);
+}
+
+.focusPill strong {
+  color: var(--text-0);
+  font-weight: var(--weight-semibold);
+}
+
+.focusHint {
+  color: var(--text-2);
+}
+
+.focusClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-full);
+  background: none;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.focusClose:hover {
+  background: var(--bg-3);
+  color: var(--text-0);
+}
