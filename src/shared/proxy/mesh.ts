@@ -8,6 +8,8 @@ import { weldMap } from '../mesh/split';
 export interface ProxyMesh {
   positions: Float32Array;
   index: Uint32Array;
+  /** Beams that are not triangle edges (surface remesher: region contacts, island ties). */
+  extraEdges?: [number, number][];
 }
 
 export function vertexCount(m: ProxyMesh): number {
@@ -23,6 +25,14 @@ export function edges(m: ProxyMesh): [number, number][] {
   const seen = new Set<number>();
   const n = vertexCount(m);
   const out: [number, number][] = [];
+  for (const [a, b] of m.extraEdges ?? []) {
+    if (a === b) continue;
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    if (seen.has(lo * n + hi)) continue;
+    seen.add(lo * n + hi);
+    out.push([lo, hi]);
+  }
   for (let t = 0; t < m.index.length; t += 3) {
     for (let k = 0; k < 3; k++) {
       const a = m.index[t + k]!;

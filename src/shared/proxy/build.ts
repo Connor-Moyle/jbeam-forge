@@ -1,9 +1,10 @@
 import { faceCount, vertexCount, type ProxyMesh } from './mesh';
 import { collapseShortEdges, orientOutward, removeDegenerate, subdivideLongEdges } from './quality';
 import { convexHull, decimate, fitBox, fitCylinder } from './shapes';
-import { leftHalf, mirrorHalf, straddlesCentre } from './symmetry';
+import { isMirrorSymmetric, leftHalf, mirrorGraph, mirrorHalf } from './symmetry';
+import { remeshSurface } from './remesh';
 
-export const PROXY_MODES = ['decimate', 'hull', 'box', 'cylinder'] as const;
+export const PROXY_MODES = ['surface', 'decimate', 'hull', 'box', 'cylinder'] as const;
 export type ProxyMode = (typeof PROXY_MODES)[number];
 
 export interface ProxyBuildSettings {
@@ -66,11 +67,13 @@ export function insetShell(m: ProxyMesh, distance: number): ProxyMesh {
   const n = vertexNormals(m);
   const p = Float32Array.from(m.positions);
   for (let i = 0; i < p.length; i++) p[i]! -= n[i]! * distance;
-  return { positions: p, index: m.index };
+  return { positions: p, index: m.index, extraEdges: m.extraEdges };
 }
 
 function shape(input: ProxyMesh, s: ProxyBuildSettings, target: number): ProxyMesh {
   switch (s.mode) {
+    case 'surface':
+      return remeshSurface(input, { targetVertices: target });
     case 'decimate':
       // Leave ~40% of the budget for long-edge subdivision: evener spacing than decimating straight to budget.
       return decimate(input, s.maxEdge > 0 ? Math.max(4, Math.round(target * 0.6)) : target);
@@ -94,9 +97,15 @@ function clean(m: ProxyMesh, s: ProxyBuildSettings, target: number, hardCap: num
 /** Build a part's proxy from its (BeamNG-space) render geometry. Requires `await meshoptReady` for decimate/hull. */
 export function buildProxy(input: ProxyMesh, s: ProxyBuildSettings): ProxyBuildResult {
   const started = performance.now();
-  const mirrored = s.symmetry && s.mode === 'decimate' && straddlesCentre(input.positions);
+  const mirrored = s.symmetry && (s.mode === 'decimate' || s.mode === 'surface') && isMirrorSymmetric(input.positions);
   let mesh: ProxyMesh;
-  if (mirrored) {
+  if (s.mode === 'surface') {
+    // Even spacing on the surface already: no collapse/subdivide pass (it would undo the evenness).
+    const cap = s.maxVertices ?? Infinity;
+    mesh = mirrored
+      ? mirrorGraph(remeshSurface(leftHalf(input), { targetVertices: Math.min(Math.ceil(s.targetVertices / 2), Math.ceil(cap / 2)) }), Math.max(s.minEdge / 2, 0.01))
+      : remeshSurface(input, { targetVertices: Math.min(s.targetVertices, cap) });
+  } else if (mirrored) {
     const target = Math.ceil(s.targetVertices / 2);
     const half = clean(shape(leftHalf(input), s, target), s, target, Math.ceil((s.maxVertices ?? Infinity) / 2));
     mesh = mirrorHalf(half, Math.max(s.minEdge / 2, 0.005));

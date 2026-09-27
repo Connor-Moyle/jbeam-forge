@@ -135,3 +135,41 @@ Each taxonomy kind therefore has a **role**, and it can be overridden per part i
 
 - **Fragmented meshes** (light housings, dashboards made of hundreds of islands) resist edge collapse. The decimator falls back to vertex clustering, then to a convex hull, so budgets always hold.
 - **Generation runs on a plain copy** of the document and commits as one undoable assignment. Running inside an immer draft was ~6× slower.
+
+## Revision: surface remeshing (measured against the official jbeam)
+
+**Why:** you reported that generated nodes and beams didn't follow the mesh. Decimation keeps whichever edges survive collapsing. On real car meshes (overlapping skins, many islands, long thin triangles) it gave irregular blobs, and its fallbacks (clustering, hulls) made shapes worse or left parts empty.
+
+**Measuring it:**
+- `npm run proxy-bench -- sunburst2 [--verbose] [--parts=door,hood]` feeds the meshes each **official part's flexbodies** use (131 parts) to our generator, using the official part's mass.
+- It compares the result against the mesh and against the official nodes and beams. Only aggregates are printed; the geometry cache stays in `scratch/`.
+- Visual check: `node scripts/visual-structure.mjs --tag=<name>` drives the app and screenshots our structure, the mesh, and the **official structure drawn in the same viewport** (`npm run dump-reference` produces it).
+
+**The new default for shells** (body, panels, bumpers, glass, trim, and hardware such as tanks, exhausts and engine blocks) is the `surface` mode (`src/shared/proxy/remesh.ts`), a Voronoi/ACVD-style remesher:
+1. Densify the surface (about 40 samples per node).
+2. Seed nodes along **feature lines** first (open boundaries and creases over 35°: panel outlines, window openings, sills), then fill the rest by farthest-point sampling.
+3. Lloyd relaxation (4 iterations), with feature nodes sliding only along their lines.
+4. Beams where regions touch; collision triangles where three regions meet in a mesh triangle, with winding taken from the mesh.
+5. Islands are tied together, so fragmented meshes stay one structure.
+6. Symmetric parts are generated on the left half, mirrored into exact twins, and tied across the centre line. Symmetry now requires a real mirror match (90% of sampled points have a partner within 2% of the part's size), not just spanning X = 0. An asymmetric skid plate was being mirrored into metal that doesn't exist.
+
+**Heavy bracing on bodies now adds a cage,** as official bodies have: every off-centre node ties to its mirror twin (a width beam), with X-diagonals to its neighbours' twins.
+
+**Budgets** moved toward the official counts (body 110–290, panels 14–38, bumpers 16–34, glass 6–14, hardware 10–22). With surface placement the shape holds at lower counts.
+
+**Results over 131 official Sunburst parts** (medians; distances divided by each part's size; lower is better):
+
+| | Before (decimate) | After (surface) | Official jbeam |
+|---|---:|---:|---:|
+| Parts that came out empty | 10 | **0** | — |
+| Coverage (p90 mesh → nearest node), ratio to official | 1.21 | **0.63** | 1.00 |
+| Parts with coverage > 25 % worse than official | 55 | **2** | — |
+| Node fidelity (mean node → mesh) | 0.008 | 0.008 | 0.024 |
+| Outline (p90 feature line → node), ratio to official | — | **0.66** | 1.00 |
+| Beams off the surface (p90 midpoint → mesh) | — | 0.026 | 0.075 |
+| Beam-length variation (CV) | — | **0.23** | 0.37 |
+| Node count, ratio to official | 1.11 | 1.40 | 1.00 |
+
+- Example: a rear door's coverage went from 0.219 to 0.066, against the official 0.117. Hulls were replaced for concave hardware (turbo intakes 0.159 → 0.074, official 0.121).
+- The regenerated `test` mod (default config) has 1,343 nodes, 5,471 beams and 235 flexbodies, and lints with no errors.
+- **Still different from official:** official bodies place nodes in rows along the car's design lines with long cage beams through the cabin. Ours is an even skin net plus a mirror cage. Stiffness tuning against BeamNG itself needs your in-game test.

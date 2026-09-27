@@ -136,6 +136,7 @@ export class ViewportRuntime {
   private planeMesh: Mesh | null = null;
   private pendingPaint: { x: number; y: number; op: ToolOp } | null = null;
   private readonly structure = new StructureOverlay();
+  private readonly reference = new StructureOverlay();
   private injectedFrameErrors = 0;
 
   constructor(
@@ -160,7 +161,8 @@ export class ViewportRuntime {
     this.modelRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.overlayRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.structure.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
-    this.scene.add(this.structure.root);
+    this.reference.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.scene.add(this.structure.root, this.reference.root);
 
     const accent = new Color(resolveToken('accent') || undefined);
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -213,6 +215,11 @@ export class ViewportRuntime {
         if (signal.type === 'gl-lose') this.renderer.forceContextLoss();
         else if (signal.type === 'gl-restore') this.renderer.forceContextRestore();
         else if (signal.type === 'gl-frame-errors') this.injectedFrameErrors = signal.count;
+        else if (signal.type === 'reference-structure') this.setReference(signal.nodes, signal.beams);
+        else if (signal.type === 'view-from') {
+          this.camera.position.copy(this.controls.target).add(new Vector3(...signal.dir));
+          this.frame();
+        }
       }),
     );
     this.disposers.push(registerViewport({ capture: (w, h) => this.capture(w, h), textureCaps: () => this.textureCaps() }));
@@ -389,6 +396,29 @@ export class ViewportRuntime {
       radius = Math.min(0.03, Math.max(0.006, (hi - lo) * 0.0035)); // scale with vehicle length
     }
     this.structure.set(data, radius);
+  }
+
+  /** Harness-only comparison overlay in a neutral colour. */
+  private setReference(nodes: { id: string; pos: [number, number, number] }[] | null, beams: [string, string][]): void {
+    if (!nodes) {
+      this.reference.set(null, 0);
+      return;
+    }
+    const c = new Color(resolveToken('text-0') || undefined);
+    const byId = new Map(nodes.map((n) => [n.id, n.pos]));
+    const bp: number[] = [];
+    for (const [a, b] of beams) {
+      const pa = byId.get(a);
+      const pb = byId.get(b);
+      if (pa && pb) bp.push(...pa, ...pb);
+    }
+    const data: StructureData = {
+      nodePositions: new Float32Array(nodes.flatMap((n) => n.pos)),
+      nodeColors: new Float32Array(nodes.flatMap(() => [c.r, c.g, c.b])),
+      beamPositions: new Float32Array(bp),
+      beamColors: new Float32Array((bp.length / 3) * 3).fill(0.85),
+    };
+    this.reference.set(data, 0.012);
   }
 
   setView(view: { mesh: boolean; structure: boolean }): void {
@@ -592,6 +622,7 @@ export class ViewportRuntime {
     }
     this.setTool(null);
     this.structure.dispose();
+    this.reference.dispose();
     this.selectMaterial.dispose();
     this.hoverMaterial.dispose();
     this.toolMaterial.dispose();

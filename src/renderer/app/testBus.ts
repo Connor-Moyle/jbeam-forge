@@ -7,7 +7,11 @@ export type TestSignal =
   | { type: 'crash-panel'; panelId: string }
   | { type: 'gl-lose' }
   | { type: 'gl-restore' }
-  | { type: 'gl-frame-errors'; count: number };
+  | { type: 'gl-frame-errors'; count: number }
+  /** Point the camera from this direction (view space, Y up) and frame everything. */
+  | { type: 'view-from'; dir: [number, number, number] }
+  /** Draw a reference structure (e.g. an official vehicle's nodes/beams) for visual comparison; null clears. */
+  | { type: 'reference-structure'; nodes: { id: string; pos: [number, number, number] }[] | null; beams: [string, string][] };
 
 type Listener = (signal: TestSignal) => void;
 const listeners = new Set<Listener>();

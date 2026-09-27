@@ -15,6 +15,7 @@ import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
 import { registerTestHooks } from './testHooks';
+import { emitTestSignal } from './testBus';
 import { loadUserTaxonomy } from '@renderer/parts/taxonomy';
 import { offerAutoClassify } from '@renderer/parts/commands';
 import { useStructureUi } from '@renderer/structure/generate';
@@ -90,6 +91,29 @@ function AppEffects() {
               .sort((a, b) => b[1] - a[1])
               .slice(0, 40),
           };
+        },
+        viewFrom: (dir: [number, number, number]) => emitTestSignal({ type: 'view-from', dir }),
+        setReferenceStructure: (ref: { nodes: { id: string; pos: [number, number, number] }[]; beams: [string, string][] } | null) =>
+          emitTestSignal({ type: 'reference-structure', nodes: ref?.nodes ?? null, beams: ref?.beams ?? [] }),
+        /** Keep only the given parts' base parts (by taxonomy id), dropping everything else (visual checks). */
+        keepOnlyKinds: (kinds: string[]) =>
+          projectStore.getState().execute({
+            label: 'Keep only kinds',
+            apply: (d) => {
+              const keep = new Set(d.parts.filter((p) => kinds.includes(p.taxonomyId) && !p.variantOf).map((p) => p.id));
+              d.parts = d.parts.filter((p) => keep.has(p.id));
+              for (const k of Object.keys(d.assignments)) if (!keep.has(d.assignments[k]!)) delete d.assignments[k];
+              for (const p of d.parts) if (p.parentPartId && !keep.has(p.parentPartId)) p.parentPartId = null;
+              d.nodes = d.nodes.filter((n) => keep.has(n.partId));
+              d.beams = d.beams.filter((b) => keep.has(b.partId));
+              d.tris = d.tris.filter((t) => keep.has(t.partId));
+            },
+          }),
+        hideUnassigned: () => {
+          const s = useSceneStore.getState();
+          const d = projectStore.getState().doc;
+          const keys = Object.values(s.sources).flatMap((src) => src.meshes.map((m) => m.key)).filter((k) => !d?.assignments[k]);
+          s.setHidden(keys, true);
         },
         offerAutoClassify: () => {
           const meshes = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);

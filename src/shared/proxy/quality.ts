@@ -187,5 +187,5 @@ export function orientOutward(m: ProxyMesh): ProxyMesh {
     const sub: ProxyMesh = { positions: m.positions, index: new Uint32Array(comp.flatMap((t) => [idx[t * 3]!, idx[t * 3 + 1]!, idx[t * 3 + 2]!])) };
     if (signedVolume(sub) < 0) for (const t of comp) flip(t);
   }
-  return { positions: m.positions, index: idx };
+  return { positions: m.positions, index: idx, extraEdges: m.extraEdges };
 }

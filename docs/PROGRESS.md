@@ -25,6 +25,8 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 
 ### Phase 5 — Export v1 + in-game gate (built; waiting for your in-game test)
 
+**Node/beam generation revised** (your feedback: the structure didn't follow the mesh). Measured against the official Sunburst jbeam with the new `proxy-bench` and the in-app official-structure overlay. A new `surface` remesher is now the default for shells, with feature-line nodes, a cross-car cage on bodies, and real symmetry tests. Across 131 official parts: empty parts 10 → 0, coverage vs official 1.21× → 0.63×, parts clearly worse than official 55 → 2. Details and the full table are in `docs/proxy-generation.md`. The `test` mod was regenerated (1,343 nodes, lint clean).
+
 **Ground truth:** read from the official Sunburst's jbeam, materials and DAE:
 - part sections, and the option rows on nodes, beams and triangles (`groundModel` metal/plastic/glass);
 - the main part with its `coreSlot` body, and the body's `refNodes` and `cameraExternal`;

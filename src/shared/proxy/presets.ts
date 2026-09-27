@@ -83,18 +83,18 @@ export function kindDefaults(entry: TaxonomyEntry): KindDefaults {
   const base = { bracing: 'standard' as BracingDensity, attachment, role: 'own' as StructureRole };
   if (entry.beamPreset === 'tyre_rubber' || SUSPENSION_SUBCATEGORIES.has(entry.subcategory) || SUSPENSION_IDS.has(entry.id)) return { ...base, role: 'suspension', mode: 'cylinder', budget: [4, 8] };
   if (RIDERS.has(entry.id)) return { ...base, role: 'rides', mode: 'decimate', budget: [4, 8], bracing: 'none' };
-  if (entry.id === 'body' || entry.id === 'frame' || entry.id === 'cab') return { ...base, mode: 'decimate', budget: [150, 350], bracing: 'heavy' };
-  if (entry.beamPreset === 'glass_brittle') return { ...base, mode: 'decimate', budget: [8, 16], bracing: 'light' };
+  if (entry.id === 'body' || entry.id === 'frame' || entry.id === 'cab') return { ...base, mode: 'surface', budget: [110, 290], bracing: 'heavy' };
+  if (entry.beamPreset === 'glass_brittle') return { ...base, mode: 'surface', budget: [6, 14], bracing: 'light' };
   // Official blocks: few heavy nodes (transaxle ≤ 4 nodes at 30 kg, engine ~15 kg nodes).
-  if (entry.beamPreset === 'mechanical_block') return { ...base, mode: 'hull', budget: [8, 16], bracing: 'heavy' };
+  if (entry.beamPreset === 'mechanical_block') return { ...base, mode: 'surface', budget: [8, 16], bracing: 'heavy' };
   if (CYLINDERS.has(entry.id)) return { ...base, mode: 'cylinder', budget: [8, 12] };
-  if (HULLS.has(entry.id)) return { ...base, mode: 'hull', budget: [12, 24] };
-  if (entry.subcategory === 'Bumpers') return { ...base, mode: 'decimate', budget: [20, 36] };
-  if (entry.subcategory === 'Rollcage') return { ...base, mode: 'decimate', budget: [24, 60] };
-  if (entry.beamPreset === 'trim_light') return { ...base, mode: 'decimate', budget: [8, 20], bracing: 'light' };
-  if (entry.beamPreset === 'panel_metal' || entry.beamPreset === 'panel_plastic') return { ...base, mode: 'decimate', budget: [24, 40] };
-  if (entry.beamPreset === 'structure_stiff') return { ...base, mode: 'decimate', budget: [16, 40] };
-  return { ...base, mode: 'hull', budget: [12, 24] };
+  if (HULLS.has(entry.id)) return { ...base, mode: 'surface', budget: [10, 22] };
+  if (entry.subcategory === 'Bumpers') return { ...base, mode: 'surface', budget: [16, 34] };
+  if (entry.subcategory === 'Rollcage') return { ...base, mode: 'surface', budget: [24, 60] };
+  if (entry.beamPreset === 'trim_light') return { ...base, mode: 'surface', budget: [8, 20], bracing: 'light' };
+  if (entry.beamPreset === 'panel_metal' || entry.beamPreset === 'panel_plastic') return { ...base, mode: 'surface', budget: [14, 38] };
+  if (entry.beamPreset === 'structure_stiff') return { ...base, mode: 'surface', budget: [16, 40] };
+  return { ...base, mode: 'surface', budget: [12, 24] };
 }
 
 /** Detail 0..1 → vertex target within the budget. */

@@ -112,7 +112,7 @@ export const PartSchema = z.object({
 const Vec3 = z.tuple([z.number(), z.number(), z.number()]);
 export const NODE_ID = /^[A-Za-z][A-Za-z0-9_]*$/;
 export const BEAM_KINDS = ['edge', 'brace', 'attach'] as const;
-export const PROXY_MODE_VALUES = ['decimate', 'hull', 'box', 'cylinder'] as const;
+export const PROXY_MODE_VALUES = ['surface', 'decimate', 'hull', 'box', 'cylinder'] as const;
 export const BRACING_VALUES = ['none', 'light', 'standard', 'heavy'] as const;
 export const ATTACHMENT_STYLE_VALUES = ['bolted', 'clipped', 'rivets', 'welded'] as const;
 

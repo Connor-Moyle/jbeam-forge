@@ -18,7 +18,7 @@ import { massNodeCap, partMass, partRole, partSettings } from '@shared/proxy/gen
 import { clearStructure, generateParts, previewCounts, updateProxySettings, useStructureUi } from './generate';
 import styles from './StructureSection.module.css';
 
-const MODE_LABELS: Record<(typeof PROXY_MODES)[number], string> = { decimate: 'Decimate (shell)', hull: 'Convex hull', box: 'Box (PCA fit)', cylinder: 'Cylinder (PCA fit)' };
+const MODE_LABELS: Record<(typeof PROXY_MODES)[number], string> = { surface: 'Surface (even spacing)', decimate: 'Decimate (shell)', hull: 'Convex hull', box: 'Box (PCA fit)', cylinder: 'Cylinder (PCA fit)' };
 const ROLE_LABELS: Record<StructureRole, string> = { own: 'Own nodes (generated proxy)', rides: 'Rides on parent part', suspension: 'Suspension-built (Phase 10)' };
 const BRACING_LABELS: Record<(typeof BRACING_DENSITIES)[number], string> = { none: 'None', light: 'Light', standard: 'Standard', heavy: 'Heavy' };
 

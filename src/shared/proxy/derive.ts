@@ -113,6 +113,28 @@ export function braces(mesh: ProxyMesh, density: BracingDensity): [number, numbe
       near.sort((x, y) => x[1] - y[1]);
       for (const [b] of near.slice(0, 2)) out.set(k(a, b), [Math.min(a, b), Math.max(a, b)]);
     }
+    // Cage bracing across a symmetric body, like official bodies: every off-centre node ties to its
+    // exact mirror twin (a width beam) and crosses to its neighbours' twins (X-diagonals).
+    const key3 = (x: number, y: number, z: number) => `${Math.round(x * 1e4)},${Math.round(y * 1e4)},${Math.round(z * 1e4)}`;
+    const at = new Map<string, number>();
+    for (let v = 0; v < n; v++) at.set(key3(p[v * 3]!, p[v * 3 + 1]!, p[v * 3 + 2]!), v);
+    const twin = (v: number) => (Math.abs(p[v * 3]!) < 1e-3 ? undefined : at.get(key3(-p[v * 3]!, p[v * 3 + 1]!, p[v * 3 + 2]!)));
+    const neighbours = new Map<number, number[]>();
+    for (const [a, b] of edges(mesh)) {
+      neighbours.set(a, [...(neighbours.get(a) ?? []), b]);
+      neighbours.set(b, [...(neighbours.get(b) ?? []), a]);
+    }
+    const add = (a: number, b: number | undefined) => {
+      if (b === undefined || a === b || connected.has(k(a, b))) return;
+      out.set(k(a, b), [Math.min(a, b), Math.max(a, b)]);
+    };
+    for (let a = 0; a < n; a++) {
+      if (p[a * 3]! <= 0) continue; // left side drives it; the right side is its mirror
+      const t = twin(a);
+      if (t === undefined) continue;
+      add(a, t);
+      for (const nb of neighbours.get(a) ?? []) if (p[nb * 3]! > 0) add(a, twin(nb));
+    }
   }
   return [...out.values()];
 }
