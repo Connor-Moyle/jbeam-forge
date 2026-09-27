@@ -13,3 +13,6 @@ scratch/
 SPEC.md
 docs/SPEC.md
 .claude/
+
+# packaged builds
+release/

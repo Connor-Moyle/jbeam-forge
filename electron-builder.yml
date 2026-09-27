@@ -1,0 +1,28 @@
+appId: com.fatkiwi.jbeamforge
+productName: JBeam Forge
+copyright: Copyright © 2026 Fatkiwi
+directories:
+  output: release
+  buildResources: build
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+asar: true
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  artifactName: JBeam-Forge-Setup-${version}.exe
+  shortcutName: JBeam Forge
+  uninstallDisplayName: JBeam Forge
+portable:
+  artifactName: JBeam-Forge-${version}-portable.exe
+publish: null

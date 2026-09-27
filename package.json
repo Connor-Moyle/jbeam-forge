@@ -1,6 +1,6 @@
 {
   "name": "jbeam-forge",
-  "version": "0.1.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Turn a 3D vehicle model into an installable BeamNG.drive mod",
   "author": "Fatkiwi",
@@ -25,7 +25,10 @@
     "lint-mod": "tsx --tsconfig tsconfig.node.json scripts/lint-mod.ts",
     "proxy-bench": "tsx --tsconfig tsconfig.test-web.json scripts/web/proxy-bench.ts",
     "dump-reference": "tsx --tsconfig tsconfig.node.json scripts/dump-reference-structure.ts",
-    "bench:solver": "tsx --tsconfig tsconfig.node.json scripts/bench-solver.ts"
+    "bench:solver": "tsx --tsconfig tsconfig.node.json scripts/bench-solver.ts",
+    "make-icon": "node scripts/make-icon.mjs",
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "release": "node scripts/release.mjs"
   },
   "engines": {
     "node": ">=22"
@@ -60,6 +63,7 @@
     "@types/yazl": "^3.3.1",
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",

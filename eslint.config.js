@@ -8,7 +8,7 @@ import noFreshSelectorFallback from './eslint-rules/no-fresh-selector-fallback.j
 const forge = { rules: { 'no-fresh-selector-fallback': noFreshSelectorFallback } };
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'artifacts/**', 'coverage/**', 'node_modules/**'] },
+  { ignores: ['out/**', 'dist/**', 'release/**', 'artifacts/**', 'coverage/**', 'node_modules/**'] },
 
   js.configs.recommended,
 
