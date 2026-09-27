@@ -726,8 +726,14 @@ const scenarios = [
         }
         assert(packCount >= 50, `bundled material pack listed (${packCount})`);
         await page.getByLabel('Search the library').fill('carbon fiber 03');
-        await page.waitForTimeout(800); // thumbnails load as rows appear
+        await page.waitForTimeout(3000); // thumbnails render once their textures load
         await shot(page, 'material-pack');
+        // Add a textured pack material to the project and look at it in the editor's live preview.
+        await page.getByTestId('library-apply').first().click();
+        await page.getByTestId('material-preview').waitFor();
+        await page.waitForTimeout(2000);
+        await shot(page, 'material-live-preview');
+        await page.getByTestId('material-library').click();
         await page.getByLabel('Search the library').fill('');
       }
       await page.getByRole('tab', { name: /Presets/ }).click();

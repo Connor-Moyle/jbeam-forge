@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FileDown, FileUp, Plus, Trash2 } from 'lucide-react';
 import { create } from 'zustand';
 import { fuzzyScore } from '@shared/fuzzy';
@@ -14,7 +14,7 @@ import { Input } from '@renderer/ui/components/Input';
 import { Modal } from '@renderer/ui/components/Modal';
 import { Select } from '@renderer/ui/components/Select';
 import { Tabs } from '@renderer/ui/components/Tabs';
-import { previewLayer } from './runtime';
+import { MaterialThumb } from './MaterialPreview';
 import { assignMaterial, createMaterial } from './commands';
 import styles from './LibraryDialog.module.css';
 
@@ -33,53 +33,10 @@ export async function refreshLibrary(): Promise<void> {
   if (!useLibrary.getState().pack.length) useLibrary.getState().setPack(await call('materials:pack'));
 }
 
-/** Texture thumbnails (PNG/JPG colour maps), read on demand and kept for the session. */
-const thumbs = new Map<string, Promise<string | null>>();
-function thumbnail(path: string): Promise<string | null> {
-  let t = thumbs.get(path);
-  if (!t) {
-    t = /\.(png|jpe?g)$/i.test(path)
-      ? call('import:readFile', { path })
-          .then((bytes) => URL.createObjectURL(new Blob([bytes.slice()], { type: /\.png$/i.test(path) ? 'image/png' : 'image/jpeg' })))
-          .catch(() => null)
-      : Promise.resolve(null);
-    thumbs.set(path, t);
-  }
-  return t;
-}
-
-/** A swatch: the colour texture when there is one (loaded once it scrolls into view), else the colour. */
-function Swatch({ layer }: { layer: MaterialDef['layers'][number] }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [src, setSrc] = useState<string | null>(null);
-  const path = layer.maps.baseColorMap;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !path) return;
-    let alive = true;
-    const io = new IntersectionObserver(([e]) => {
-      if (!e?.isIntersecting) return;
-      io.disconnect();
-      void thumbnail(path).then((url) => alive && setSrc(url));
-    });
-    io.observe(el);
-    return () => {
-      alive = false;
-      io.disconnect();
-    };
-  }, [path]);
-  return (
-    <span ref={ref} className={styles.swatch} style={{ background: hex(layer.baseColor), opacity: 0.35 + 0.65 * layer.opacity }} aria-hidden>
-      {src && <img src={src} alt="" className={styles.thumb} />}
-    </span>
-  );
-}
-
 export async function saveToLibrary(def: MaterialDef, category = 'Mine'): Promise<void> {
   useLibrary.getState().setItems(await call('materials:saveToLibrary', { name: def.name, category, def }));
   useUiStore.getState().pushStatus(`Saved ${def.name} to your library`, 'success');
 }
-
 export async function shareMaterial(def: MaterialDef): Promise<void> {
   const path = await call('materials:exportJbmat', { name: def.name, category: 'Shared', def });
   if (path) useUiStore.getState().pushStatus(`Saved ${path}`, 'success');
@@ -95,7 +52,6 @@ interface Entry {
 
 const ALL = '__all__';
 
-const hex = (c: readonly number[]) => `#${c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
 
 /** Browse presets and your saved materials; put one on the selected meshes or add it to the project. */
 export function LibraryDialog() {
@@ -171,10 +127,9 @@ function LibraryBody({ close }: { close: () => void }) {
       </div>
       <ul className={styles.grid} data-testid="library-items">
         {entries.map((e) => {
-          const l = e.def.paint ? e.def.layers[0]! : previewLayer({ ...e.def, id: '', name: '', origin: null });
           return (
             <li key={e.key} className={styles.card}>
-              <Swatch layer={l} />
+              <MaterialThumb def={{ ...e.def, id: e.key, name: e.name, origin: null }} shape={e.category === 'Flags' ? 'panel' : 'sphere'} />
               <span className={styles.text}>
                 <span className={styles.name}>{e.name}</span>
                 <span className={styles.category}>{e.category}</span>

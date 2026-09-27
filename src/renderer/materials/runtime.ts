@@ -33,12 +33,14 @@ export function registerImportedTextures(meshes: readonly ImportedMesh[]): void 
   }
 }
 
+const pending = new Map<string, Promise<void>>();
+
 function texture(path: string, slot: TextureSlot): Texture | null {
   const known = textures.get(path);
   if (known !== undefined) return known;
   if (!loading.has(path)) {
     loading.add(path);
-    void (async () => {
+    const job = (async () => {
       try {
         const bytes = await call('import:readFile', { path });
         const tex = await loadTextureFile(path, bytes, COLOR_SLOTS.has(slot), true);
@@ -51,11 +53,27 @@ function texture(path: string, slot: TextureSlot): Texture | null {
         textures.set(path, null);
       } finally {
         loading.delete(path);
+        pending.delete(path);
         useTextureVersion.getState().bump();
       }
     })();
+    pending.set(path, job);
   }
   return null;
+}
+
+/** Resolves once every texture the material uses has loaded (or failed): for previews that render once. */
+export async function texturesReady(def: MaterialDef): Promise<void> {
+  const jobs: Promise<void>[] = [];
+  for (const layer of def.layers) {
+    for (const [slot, path] of Object.entries(layer.maps) as [TextureSlot, string][]) {
+      if (path.startsWith('/vehicles/')) continue;
+      texture(path, slot);
+      const job = pending.get(path);
+      if (job) jobs.push(job);
+    }
+  }
+  await Promise.all(jobs);
 }
 
 /** The layer the viewport shows: the one carrying the base colour texture, else the first. */

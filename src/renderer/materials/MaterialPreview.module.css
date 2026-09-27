@@ -1,0 +1,45 @@
+.preview {
+  position: relative;
+  height: var(--size-material-preview);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.controls {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  display: flex;
+  gap: var(--space-1);
+}
+
+.select {
+  width: var(--size-material-number);
+}
+
+.thumb {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  flex: none;
+  width: var(--size-control);
+  height: var(--size-control);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-3);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

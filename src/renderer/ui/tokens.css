@@ -42,6 +42,15 @@
   --mesh-default: #9aa1ab; /* untextured imported meshes (STL, missing materials) */
   --viewport-sky: #2a2f38; /* hemisphere light, sky side */
   --viewport-ground: #0e0f12; /* hemisphere light, ground side */
+  /* Material preview backgrounds (fixed: they show the material, not the theme) */
+  --preview-studio-top: #5b6068;
+  --preview-studio-bottom: #25282d;
+  --preview-light: #d9dce1;
+  --preview-dark: #0b0c0e;
+  --preview-checker-a: #8a8f98;
+  --preview-checker-b: #5e636b;
+  --preview-sky-top: #6f9fd8;
+  --preview-sky-bottom: #d8e3ee;
   --viewport-key: #ffffff; /* key light */
 
   /* Category colour dots (scene tree); extended in Phase 3 */
@@ -131,6 +140,8 @@
   --size-material-list: 220px;
   --size-material-number: 72px;
   --size-material-slot: 120px;
+  --size-material-preview: 200px;
+  --size-material-list-short: 150px;
   --size-popover-min: 200px;
   --size-popover-max: 340px;
   --size-modal-sm: 400px;

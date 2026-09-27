@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BookmarkPlus, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
 import { useMergeUi } from '@renderer/materials/MergeDialog';
+import { MaterialPreview, MaterialThumb } from '@renderer/materials/MaterialPreview';
 import { saveToLibrary, shareMaterial, useLibrary } from '@renderer/materials/LibraryDialog';
 import { EMPTY_ARR } from '@shared/empty';
 import { BLEND_OPS, TEXTURE_SLOTS, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
 import { fuzzyScore } from '@shared/fuzzy';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
-import { previewLayer } from '@renderer/materials/runtime';
 import { slotsOf } from '@renderer/materials/seed';
 import * as mc from '@renderer/materials/commands';
 import { Badge } from '@renderer/ui/components/Badge';
@@ -104,7 +104,7 @@ export function MaterialsPanel() {
               title="Drag onto a mesh in the viewport or the Scene tree"
               data-testid="material-row"
             >
-              <Swatch def={m} />
+              <MaterialThumb def={m} className={styles.listThumb} />
               <span className={styles.name}>{m.name}</span>
               {m.paint && <Badge>paint</Badge>}
               {m.translucent && <Badge>glass</Badge>}
@@ -114,16 +114,17 @@ export function MaterialsPanel() {
           ))}
         </ul>
       </ScrollArea>
+      {/* Pinned above the settings so it stays in view while you scroll and tweak. */}
+      {current && (
+        <div className={styles.previewSlot}>
+          <MaterialPreview def={current} />
+        </div>
+      )}
       <ScrollArea className={styles.editor}>{current ? <MaterialEditor key={current.id} def={current} used={usage.get(current.id) ?? 0} /> : <p className={styles.hint}>Select a material to edit it, or pick a mesh to jump to its material.</p>}</ScrollArea>
     </div>
   );
 }
 
-function Swatch({ def }: { def: MaterialDef }) {
-  const l = def.paint ? def.layers[0]! : previewLayer(def);
-  // Inline colour: the swatch *is* the material's colour, there is no token for it.
-  return <span className={styles.swatch} style={{ background: hex(l.baseColor), opacity: 0.35 + 0.65 * l.opacity }} aria-hidden />;
-}
 
 function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
   const layerIndex = mc.useMaterialUi((s) => Math.min(s.layer, def.layers.length - 1));
