@@ -90,6 +90,23 @@ export function acdKey(folderName: string): string {
   return [k1, k2, k3, k4, k5, k6, k7, k8].map((k) => k & 0xff).join('-');
 }
 
+/**
+ * Unpack data.acd when the car folder may have been renamed since it was
+ * packed: tries each candidate folder name in turn. Returns the files and
+ * the name that worked.
+ */
+export function readAcdTrying(bytes: Uint8Array, candidates: readonly string[]): { files: Record<string, Uint8Array>; folderName: string } {
+  let last: unknown = null;
+  for (const name of [...new Set(candidates.filter(Boolean))]) {
+    try {
+      return { files: readAcd(bytes, name), folderName: name };
+    } catch (err) {
+      last = err;
+    }
+  }
+  throw last instanceof Error ? last : new Error('data.acd could not be unpacked');
+}
+
 /** Unpack data.acd: file name → bytes. Throws if the file is not an acd or the key is wrong. */
 export function readAcd(bytes: Uint8Array, folderName: string): Record<string, Uint8Array> {
   const key = [...acdKey(folderName)].map((c) => c.charCodeAt(0));

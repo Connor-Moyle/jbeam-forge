@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import { parseIni, readAcd } from '@shared/ac/files';
+import { parseIni, readAcdTrying } from '@shared/ac/files';
 import type { AcCarInfo } from '@shared/ipc-contract';
 
 /**
@@ -73,7 +73,16 @@ export async function readAcCar(folder: string): Promise<AcCarInfo> {
     for (const name of await listFiles(dataDir, 0)) keep(`data/${name}`, await readFile(join(dataDir, name)));
   } else if (existsSync(acd)) {
     try {
-      for (const [name, bytes] of Object.entries(readAcd(await readFile(acd), carId))) keep(`data/${name}`, bytes);
+      // Packed data is keyed to the folder name it was packed under: try that, then names the car
+      // may have had (its model file, its UI name) in case the folder was renamed since.
+      const uiText = existsSync(join(folder, 'ui', 'ui_car.json')) ? await readFile(join(folder, 'ui', 'ui_car.json'), 'utf8') : '';
+      const uiName = uiText.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ?? '';
+      const stems = (await readdir(folder)).filter((f) => extname(f).toLowerCase() === '.kn5' && !/collider/i.test(f)).map((f) => basename(f, extname(f)).replace(/_lod_[a-z]$/i, ''));
+      const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const candidates = [carId, carId.replace(/\s+/g, '_'), carId.replace(/\s+/g, ''), ...stems, ...stems.map((s) => `ks_${s}`), slug(uiName), slug(carId)];
+      const { files: unpacked, folderName } = readAcdTrying(await readFile(acd), candidates);
+      if (folderName !== carId) warnings.push(`data.acd was packed for a folder called "${folderName}": read it with that name.`);
+      for (const [name, bytes] of Object.entries(unpacked)) keep(`data/${name}`, bytes);
     } catch (err) {
       warnings.push(`data.acd could not be read: ${err instanceof Error ? err.message : String(err)}`);
     }

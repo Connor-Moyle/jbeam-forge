@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acdKey, iniNumber, parseIni, parseLut, readAcd } from '@shared/ac/files';
+import { acdKey, iniNumber, parseIni, parseLut, readAcd, readAcdTrying } from '@shared/ac/files';
 import { parseUiJson, summarizeAcCar } from '@shared/ac/car';
 
 /** Pack files the way data.acd stores them (each byte in a 32-bit slot, shifted by the key). */
@@ -68,6 +68,15 @@ describe('Assetto Corsa files', () => {
 
   it('refuses data.acd packed for another folder name', () => {
     expect(() => readAcd(packAcd({ 'car.ini': '[HEADER]\nVERSION=1' }, 'my_car'), 'renamed_car')).toThrow(/folder name/);
+  });
+
+  it('finds the name data.acd was packed under when the folder was renamed', () => {
+    const packed = packAcd({ 'car.ini': '[HEADER]
+VERSION=1' }, 'my_car');
+    const { files, folderName } = readAcdTrying(packed, ['My Car v2', 'my_car_old', 'my_car']);
+    expect(folderName).toBe('my_car');
+    expect(new TextDecoder().decode(files['car.ini'])).toContain('[HEADER]');
+    expect(() => readAcdTrying(packed, ['nope'])).toThrow(/folder name/);
   });
 
   it('reads ui_car.json the way the game writes it', () => {
