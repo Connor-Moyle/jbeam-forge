@@ -12,7 +12,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | done |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
-| 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | in progress |
+| 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | done (0.7.0) |
 | 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | not started |
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | not started |
 | 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | not started |
@@ -48,10 +48,13 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
 
 ## Phase log
 
-### Phase 7 — Editing suite (in progress)
+### Phase 7 — Editing suite (done, 0.7.0)
+
+**Carried to 0.7.x:** camera bookmarks, snap to grid/surface, bulk scale/rotate/align/redistribute, triangle add/delete/flip, per-node friction/material/collision, named selection sets, add node on surface/plane, per-part mass heatmap.
 
 **Grouped scene tree:** children of each part are gathered into Doors, Glass, Lights, Interior, Engine and so on. Corner families with four or more parts split again into front and rear (Doors → Front doors → Front left door). A group only exists when it would hold at least two parts, and groups open by themselves when they hold the selection or a search hit.
 
