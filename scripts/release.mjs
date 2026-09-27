@@ -4,7 +4,7 @@
 //   node scripts/release.mjs --no-build upload whatever is already in release/
 //
 // Release notes come from docs/releases/v<version>.md (first line is the title).
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -15,9 +15,9 @@ const notesPath = join(root, 'docs', 'releases', `${tag}.md`);
 if (!existsSync(notesPath)) throw new Error(`Write the release notes first: docs/releases/${tag}.md`);
 
 const gh = process.platform === 'win32' && existsSync('C:/Program Files/GitHub CLI/gh.exe') ? 'C:/Program Files/GitHub CLI/gh.exe' : 'gh';
-const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit', shell: cmd === 'npm' });
+const run = (cmd, args) => execFileSync(cmd, args, { cwd: root, stdio: 'inherit' });
 
-if (!process.argv.includes('--no-build')) run('npm', ['run', 'dist']);
+if (!process.argv.includes('--no-build')) execSync('npm run dist', { cwd: root, stdio: 'inherit' });
 
 const assets = [`JBeam-Forge-Setup-${version}.exe`, `JBeam-Forge-${version}-portable.exe`].map((f) => join(root, 'release', f));
 for (const a of assets) if (!existsSync(a)) throw new Error(`Missing build output: ${a}`);
