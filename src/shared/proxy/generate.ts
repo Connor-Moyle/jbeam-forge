@@ -199,14 +199,21 @@ export function hingeUp(doc: Doc, part: Part, entry: TaxonomyEntry): boolean {
   return applyHinge(doc, hinge, parentIds, nodePrefix(part, entry));
 }
 
+/** Bolt a part to its parent again (after its hinge is removed). */
+export function reattachPart(doc: Doc, part: Part, entry: TaxonomyEntry): void {
+  const nodes = doc.nodes.filter((n) => n.partId === part.id);
+  doc.beams = doc.beams.filter((b) => !(b.partId === part.id && b.kind === 'attach'));
+  doc.beams.push(...attachBeams(doc, part, entry, nodes, partSettings(doc, part, entry).attachment).beams);
+}
+
 function attachBeams(doc: Doc, part: Part, entry: TaxonomyEntry, nodes: readonly StructNode[], style: PartProxy['attachment']) {
   if (!part.parentPartId) return { beams: [], warning: null as string | null };
   const parentNodes = swapSafeParentNodes(doc, part.parentPartId);
   if (!parentNodes.length) return { beams: [], warning: 'Its parent part has no structure yet: generate the parent, then this part attaches automatically.' };
   const gap = parentGap(nodes, parentNodes);
-  // Openable parts are held shut by temporary breakable bolts until the hinge wizard (Phase 9) replaces them.
+  // Openable parts are held shut by temporary breakable bolts until a hinge replaces them.
   const warning = entry.openable
-    ? `${entry.label} opens: until hinges and a latch are added (Phase 9) it is held shut by temporary breakable bolts.`
+    ? `${entry.label} opens: until you add its hinge (Inspector → Hinge) it is held shut by temporary breakable bolts.`
     : gap > FAR_FROM_PARENT
       ? `${gap.toFixed(2)} m from its parent part: attached by its 3 nearest nodes only. Check the part's parent, or move its mesh.`
       : null;

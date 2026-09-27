@@ -94,7 +94,7 @@ export function StructureSection({ part }: { part: Part }) {
         <Field label="Bracing">
           <Select value={settings.bracing} onChange={(bracing) => set({ bracing })} options={BRACING_DENSITIES.map((b) => ({ value: b, label: BRACING_LABELS[b] }))} />
         </Field>
-        <Field label="Attachment" hint={entry.openable ? 'Opens: bolted shut until hinges (Phase 9).' : undefined}>
+        <Field label="Attachment" hint={entry.openable ? 'Opens: set up its hinge below.' : undefined}>
           <Select value={settings.attachment} onChange={(attachment) => set({ attachment })} options={ATTACHMENT_STYLES.map((a) => ({ value: a, label: ATTACHMENT_VALUES[a].label }))} disabled={entry.openable} />
         </Field>
       </div>
