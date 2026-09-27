@@ -71,8 +71,7 @@ describe('Assetto Corsa files', () => {
   });
 
   it('finds the name data.acd was packed under when the folder was renamed', () => {
-    const packed = packAcd({ 'car.ini': '[HEADER]
-VERSION=1' }, 'my_car');
+    const packed = packAcd({ 'car.ini': '[HEADER]\nVERSION=1' }, 'my_car');
     const { files, folderName } = readAcdTrying(packed, ['My Car v2', 'my_car_old', 'my_car']);
     expect(folderName).toBe('my_car');
     expect(new TextDecoder().decode(files['car.ini'])).toContain('[HEADER]');
