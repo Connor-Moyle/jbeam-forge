@@ -202,8 +202,12 @@ export function offerAutoClassify(fileName: string, meshes: readonly Pick<Import
   if (!doc) return;
   const fresh = meshes.filter((m) => !doc.assignments[m.key] && !doc.ignoredMeshes.includes(m.key));
   if (fresh.length === 0) return;
+  const { centers, origin } = meshCenters(fresh.map((m) => m.key));
   const proposal = proposeParts(
-    fresh.map((m) => ({ key: m.key, name: m.name })),
+    fresh.map((m) => {
+      const c = centers[m.key];
+      return { key: m.key, name: m.name, center: c ? ([c[0] - origin[0], c[1] - origin[1], c[2] - origin[2]] as [number, number, number]) : undefined };
+    }),
     currentTaxonomy().classifier,
   );
   if (proposal.parts.length === 0) {

@@ -779,7 +779,16 @@ const scenarios = [
       smokeReport.classify = { ...summary, parts: ps.parts.length, assigned: ps.assigned };
       await page.waitForTimeout(300);
       await shot(page, 'smoke-model-parts');
-      writeFileSync(join(outDir, 'smoke-mesh-bounds.json'), JSON.stringify(await hook(page, 'meshBounds'), null, 1));
+      const bounds = await hook(page, 'meshBounds');
+      writeFileSync(join(outDir, 'smoke-mesh-bounds.json'), JSON.stringify(bounds, null, 1));
+      // Meshes straddling the centre line (both lower arms in one object) split into left and right.
+      const straddling = bounds.filter((m) => m.min[0] < -0.2 && m.max[0] > 0.2 && !/body/i.test(m.name)).map((m) => m.key);
+      if (straddling.length) {
+        const halves = await hook(page, 'splitCentreLine', straddling);
+        smokeReport.centreLine = { candidates: straddling.length, split: halves.length };
+        assert(halves.length > 0, 'centre-line split produced right halves');
+        await hook(page, 'runCommand', 'undo');
+      }
       const genStarted = Date.now();
       await page.getByTestId('toolbar-generate').click();
       let gs;

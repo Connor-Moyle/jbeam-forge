@@ -29,7 +29,8 @@
     "make-icon": "node scripts/make-icon.mjs",
     "dist": "electron-vite build && electron-builder --win --publish never",
     "release": "node scripts/release.mjs",
-    "study-prices": "tsx --tsconfig tsconfig.node.json scripts/study-prices.ts"
+    "study-prices": "tsx --tsconfig tsconfig.node.json scripts/study-prices.ts",
+    "project-bench": "tsx --tsconfig tsconfig.node.json scripts/project-bench.ts"
   },
   "engines": {
     "node": ">=22"

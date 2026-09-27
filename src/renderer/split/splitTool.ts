@@ -5,7 +5,8 @@ import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { useAssignUi } from '@renderer/parts/assignUi';
 import type { ImportedMesh } from '@renderer/import/normalize';
-import { connectedComponents, planeSide, type Index } from '@shared/mesh/split';
+import { connectedComponents, planeSide, triangleCentroids, type Index } from '@shared/mesh/split';
+import { meshCenters } from '@renderer/parts/commands';
 import { addSplit, removeSplit, splitProducing, splitResultKey, uniqueMeshName } from '@shared/mesh/splitOps';
 import { EMPTY_ARR } from '@shared/empty';
 
@@ -203,6 +204,52 @@ export function splitConnected(meshKey: string): string[] {
   });
   useSceneStore.getState().select(keys);
   useUiStore.getState().pushStatus(`Split ${mesh.name} into ${pieces.length} pieces in ${Math.round(performance.now() - started)} ms. Assign the new pieces from the Scene tree.`, 'success');
+  return keys;
+}
+
+/** A side needs this share of the triangles before a mesh counts as spanning both. */
+const MIN_SIDE_SHARE = 0.1;
+
+/**
+ * Split meshes that straddle the car's centre line into a left and a right
+ * half (a front suspension modelled as one object, both halfshafts in one
+ * mesh…). Triangles are sorted by their centre; the right half (BeamNG −X)
+ * becomes "<name>_R" and the original keeps the left. The centre line is the
+ * middle of the whole model, so off-centre models still split down the car's
+ * middle. One undo step for all of them. Returns the new keys.
+ */
+export function splitCentreLine(meshKeys: readonly string[]): string[] {
+  const meshes = meshKeys.map(findMesh).filter((m): m is ImportedMesh => !!m);
+  if (!meshes.length) return [];
+  const { origin } = meshCenters([]);
+  const plan: { mesh: ImportedMesh; right: number[] }[] = [];
+  for (const mesh of meshes) {
+    const { positions, index } = geometryArrays(mesh.geometry);
+    const c = triangleCentroids(positions, index);
+    const right: number[] = [];
+    for (let t = 0; t < c.length / 3; t++) if (c[t * 3]! < origin[0]) right.push(t);
+    const share = right.length / (c.length / 3 || 1);
+    if (share >= MIN_SIDE_SHARE && share <= 1 - MIN_SIDE_SHARE) plan.push({ mesh, right });
+  }
+  if (!plan.length) {
+    useUiStore.getState().pushStatus(meshes.length === 1 ? `${meshes[0]!.name} doesn't cross the centre line.` : 'None of those meshes cross the centre line.', 'info');
+    return [];
+  }
+  const keys: string[] = [];
+  const names = meshNames();
+  projectStore.getState().execute({
+    label: plan.length === 1 ? `Split ${plan[0]!.mesh.name} at the centre line` : `Split ${plan.length} meshes at the centre line`,
+    apply: (d) => {
+      for (const { mesh, right } of plan) {
+        const name = uniqueMeshName(`${mesh.name}_R`, names);
+        names.push(name);
+        keys.push(splitResultKey(addSplit(d, { meshKey: mesh.key, name, triangles: right })));
+      }
+    },
+  });
+  useSceneStore.getState().select([...plan.map((p) => p.mesh.key), ...keys]);
+  const skipped = meshes.length - plan.length;
+  useUiStore.getState().pushStatus(`Split ${plan.length} mesh${plan.length === 1 ? '' : 'es'} into left and right${skipped ? ` (${skipped} didn't cross the centre line)` : ''}. Assigning them together sorts out the sides.`, 'success', 6000);
   return keys;
 }
 

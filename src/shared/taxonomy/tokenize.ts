@@ -69,9 +69,6 @@ export const SYNONYMS: Record<string, string> = {
   dial: 'gauges',
   dials: 'gauges',
   cluster: 'gauges',
-  cockpit: 'dashboard',
-  details: 'trim',
-  detail: 'trim',
   cinture: 'seatbelt', // Italian, common in Assetto Corsa conversions
   cintura: 'seatbelt',
   cinturon: 'seatbelt',
@@ -82,8 +79,8 @@ export const BIGRAMS: Record<string, string> = {
   'gas cap': 'fuel door',
   'fuel cap': 'fuel door',
   'filler cap': 'fuel door',
-  'carpet boot': 'trunk carpet',
-  'boot carpet': 'trunk carpet',
+  'carpet boot': 'carpet rear',
+  'boot carpet': 'carpet rear',
   'boot trim': 'trunk trim',
 };
 

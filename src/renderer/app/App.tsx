@@ -23,6 +23,7 @@ import { buildSimModel } from '@shared/sim/model';
 import { offerAutoClassify } from '@renderer/parts/commands';
 import { useStructureUi } from '@renderer/structure/generate';
 import { useEditStore } from '@renderer/structure/editStore';
+import { splitCentreLine } from '@renderer/split/splitTool';
 import { mirrorPartners } from '@shared/structure/edit';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
@@ -159,6 +160,7 @@ function AppEffects() {
             selection: s.selection,
           };
         },
+        splitCentreLine: (keys: string[]) => splitCentreLine(keys),
         /** Every mesh's name, triangle count and BeamNG-space bounds (for studying real models). */
         meshBounds: () =>
           Object.values(useSceneStore.getState().sources).flatMap((src) =>

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import shipped from '../../src/shared/taxonomy/taxonomy.json';
 import fixture from '../fixtures/classify/sunburst2-expected.json';
 import { TaxonomyFileSchema } from '../../src/shared/taxonomy/schema';
-import { CONFIDENT, Classifier, proposeParts, resolvePosition } from '../../src/shared/taxonomy/classify';
+import { CONFIDENT, Classifier, proposeParts, reconcilePosition, resolvePosition } from '../../src/shared/taxonomy/classify';
 import { commonPrefix, editDistance, rawTokens, segment, tokenize } from '../../src/shared/taxonomy/tokenize';
 
 const classifier = new Classifier(TaxonomyFileSchema.parse(shipped).entries);
@@ -160,9 +160,8 @@ describe('game-rip and Blender naming (a converted car with mixed conventions)',
     ['Sunburst6_extra_gasCap_1', 'fuel_door', null],
     ['Sunburst6_interior_Dials_Temp', 'gauges', null],
     ['Sunburst6_interior_Dash_1', 'dashboard', null],
-    ['Sunburst6_Interior_Carpet_boot', 'trunk_trim', null],
+    ['Sunburst6_Interior_Carpet_boot', 'carpet', 'R'],
     ['CINTURE_OFF_SUB0', 'seatbelt', null],
-    ['GEO_Cockpit_HR_SUB1', 'dashboard', null],
     ['Front-Left-rotor.003', 'brake_disc', 'FL'],
   ])('%s → %s %s', (name, id, position) => {
     const c = classifier.classify(name, 'sunburst6');
@@ -175,6 +174,18 @@ describe('game-rip and Blender naming (a converted car with mixed conventions)',
     const proposal = proposeParts(names.map((n) => ({ key: n, name: n })), classifier);
     const partOf = (name: string) => proposal.assignments[name];
     expect(partOf('Sunburst6_extra_gasCap_1.001')).toBe(partOf('Sunburst6_extra_gasCap_1'));
-    expect(proposal.unassigned.sort()).toEqual(['Circle.004', 'Circle.085', 'Cylinder.013', 'Plane.202', 'Plane.203']);
+    // Tool-default names, and Assetto Corsa's GEO_Cockpit (a seat on one car, the whole dash on another) stay for a human.
+    expect(proposal.unassigned.sort()).toEqual(['Circle.004', 'Circle.085', 'Cylinder.013', 'GEO_Cockpit_HR_SUB1', 'Plane.202', 'Plane.203']);
+  });
+
+  it('where a mesh sits beats what its name says, when the two clearly disagree', () => {
+    // A rotor named front-left that sits at the rear right (BeamNG: −X is right, +Y is rear).
+    expect(reconcilePosition('corner', 'FL', [-0.7, 1.3, 0.3])).toEqual({ position: 'RR', changed: true });
+    expect(reconcilePosition('corner', 'FL', [0.7, -1.3, 0.3])).toEqual({ position: 'FL', changed: false });
+    expect(reconcilePosition('lr', 'L', [0.05, 0, 0])).toEqual({ position: 'L', changed: false }); // too close to the middle to argue
+    expect(reconcilePosition('none', null, [1, 1, 1])).toEqual({ position: null, changed: false });
+    const proposal = proposeParts([{ key: 'k', name: 'Front-Left-rotor.003', center: [-0.7, 1.3, 0.3] }], classifier);
+    expect(proposal.parts[0]).toMatchObject({ taxonomyId: 'brake_disc', position: 'RR' });
+    expect(proposal.lowConfidence).toEqual(['k']);
   });
 });

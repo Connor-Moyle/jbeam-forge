@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
-import { AlertTriangle, Ban, Boxes, Combine, Copy, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Search, Tag, Trash2, Undo2, Unlink } from 'lucide-react';
+import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Search, Tag, Trash2, Undo2, Unlink } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore, type LoadedSource } from '@renderer/app/stores/scene';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -7,7 +7,7 @@ import { useUiStore } from '@renderer/app/stores/ui';
 import { locateTextures, startImport } from '@renderer/import/importFlow';
 import * as cmd from '@renderer/parts/commands';
 import { useAssignUi } from '@renderer/parts/assignUi';
-import { isSplitResult, splitConnected, unsplit, useSplitTool } from '@renderer/split/splitTool';
+import { isSplitResult, splitCentreLine, splitConnected, unsplit, useSplitTool } from '@renderer/split/splitTool';
 import { categoryColor, useTaxonomy, type Taxonomy } from '@renderer/parts/taxonomy';
 import { Badge } from '@renderer/ui/components/Badge';
 import { Button } from '@renderer/ui/components/Button';
@@ -361,6 +361,7 @@ function MeshRow({ row, ctx }: { row: Extract<Row, { type: 'mesh' }>; ctx: RowCo
     row.ignored ? { label: 'Restore', icon: Undo2, onSelect: () => cmd.setIgnored(targets(), false) } : { label: 'Ignore (not exported)', icon: Ban, onSelect: () => cmd.setIgnored(targets(), true) },
     { type: 'separator' },
     { label: 'Split into connected pieces', icon: Shapes, onSelect: () => void splitConnected(mesh.key) },
+    { label: 'Split at the centre line (left/right)', icon: FlipHorizontal2, onSelect: () => void splitCentreLine(targets()) },
     { label: 'Split by selecting faces…', icon: Scissors, onSelect: () => useSplitTool.getState().start(mesh.key) },
     { label: 'Merge back into original', icon: Combine, disabled: !isSplitResult(mesh.key), onSelect: () => void unsplit(mesh.key) },
   ];

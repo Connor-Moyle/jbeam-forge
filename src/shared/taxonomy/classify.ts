@@ -172,6 +172,28 @@ export function resolvePosition(axis: PositionAxis, t: Tokenized): string | null
 export interface MeshRef {
   key: string;
   name: string;
+  /** Mesh centre relative to the vehicle's centre (BeamNG space: +X left, −Y front), when known. */
+  center?: [number, number, number];
+}
+
+/** How far from the centre a mesh must sit before its location overrides the name (m). */
+const SIDE_CLEAR = 0.2;
+const FORE_CLEAR = 0.5;
+
+/**
+ * Names lie sometimes (a "Front-Left-rotor" copied to the rear right). When a
+ * mesh clearly sits on the other side or end from what its name says, where
+ * it actually is wins. Returns the position to use and whether it changed.
+ */
+export function reconcilePosition(axis: PositionAxis | undefined, position: string | null, center: readonly number[]): { position: string | null; changed: boolean } {
+  if (!axis || axis === 'none' || !position) return { position, changed: false };
+  const side = center[0]! > SIDE_CLEAR ? 'L' : center[0]! < -SIDE_CLEAR ? 'R' : null;
+  const fore = center[1]! < -FORE_CLEAR ? 'F' : center[1]! > FORE_CLEAR ? 'R' : null;
+  let next = position;
+  if (axis === 'lr' && side) next = side;
+  else if (axis === 'fr' && fore) next = fore;
+  else if (axis === 'corner') next = `${fore ?? position[0]}${side ?? position[1]}`;
+  return { position: next, changed: next !== position };
 }
 
 export interface ProposedPart {
@@ -209,6 +231,13 @@ export function proposeParts(meshes: readonly MeshRef[], classifier: Classifier)
     if (!c.taxonomyId) {
       unassigned.push(m.key);
       continue;
+    }
+    if (m.center) {
+      const fixed = reconcilePosition(classifier.entry(c.taxonomyId)?.positionAxis, c.position, m.center);
+      if (fixed.changed) {
+        c.position = fixed.position;
+        c.confidence = Math.min(c.confidence, MINIMUM); // worth a look in the summary
+      }
     }
     const gk = `${c.taxonomyId}|${c.position ?? ''}|${c.variant}`;
     let part = groups.get(gk);
