@@ -11,7 +11,9 @@ const alias = {
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // three is bundled, not loaded from node_modules: electron-builder drops every `examples`
+    // folder from packaged dependencies, and the library scan needs three's EXRLoader from there.
+    plugins: [externalizeDepsPlugin({ exclude: ['three'] })],
     resolve: { alias },
     build: {
       rollupOptions: { input: { index: resolve(__dirname, 'src/main/index.ts'), libraryWorker: resolve(__dirname, 'src/main/library/worker.ts') } },
