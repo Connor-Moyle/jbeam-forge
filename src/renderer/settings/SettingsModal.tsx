@@ -12,7 +12,7 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { useUiStore } from '@renderer/app/stores/ui';
-import { LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
+import { BeamngParts, LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
 import styles from './SettingsModal.module.css';
 
 const VALIDATE_DEBOUNCE_MS = 250;
@@ -185,6 +185,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
           <Field label="Objects">
             <LibraryFolderList kind="objects" folders={objectFolders} onChange={setObjectFolders} status={libraryStatus} />
           </Field>
+          <BeamngParts status={libraryStatus} />
           <ScanNow status={libraryStatus} onScan={rescan} />
         </FieldGroup>
 

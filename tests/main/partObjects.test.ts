@@ -1,0 +1,73 @@
+import { describe, expect, it } from 'vitest';
+import { categoryOf, indexDae, partsOf, subsetDae } from '../../src/main/beamng/partObjects';
+
+const DAE = `<?xml version="1.0"?>
+<COLLADA><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset>
+<library_geometries>
+<geometry id="Arm-mesh" name="arm"><mesh>ARM</mesh></geometry>
+<geometry id="Hub-mesh" name="hub"><mesh>HUB</mesh></geometry>
+<geometry id="Body-mesh" name="body"><mesh>BODY</mesh></geometry>
+</library_geometries>
+<library_visual_scenes><visual_scene id="Scene">
+<node id="car_arm_F" name="car_arm_F" type="NODE"><matrix>1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix>
+  <instance_geometry url="#Arm-mesh"><bind_material><technique_common><instance_material symbol="m" target="#car_chassis-material"/></technique_common></bind_material></instance_geometry>
+  <node id="car_arm_F_bolt" name="car_arm_F_bolt"/>
+</node>
+<node id="car_hub_F" name="car_hub_F" type="NODE"><instance_geometry url="#Hub-mesh"><bind_material><technique_common><instance_material symbol="m" target="#car_chassis-material"/></technique_common></bind_material></instance_geometry></node>
+<node id="car_body" name="car_body" type="NODE"><instance_geometry url="#Body-mesh"/></node>
+</visual_scene></library_visual_scenes></COLLADA>`;
+
+describe('BeamNG part objects', () => {
+  it('sorts slot types into object categories', () => {
+    expect(categoryOf('etk800_brake_F')).toBe('Brakes');
+    expect(categoryOf('etk800_coilover_R')).toBe('Springs & Dampers');
+    expect(categoryOf('etk800_strutbrace_F')).toBe('Strut Braces');
+    expect(categoryOf('etk800_suspension_F')).toBe('Front Suspension');
+    expect(categoryOf('pickup_suspension_R')).toBe('Rear Suspension');
+    expect(categoryOf('etk800_steering')).toBe('Steering');
+    expect(categoryOf('etk800_hood')).toBeNull();
+  });
+
+  it('reads suspension parts and their meshes from a jbeam', () => {
+    const parts = partsOf(
+      {
+        car_suspension_F: { slotType: 'car_suspension_F', information: { name: 'Sport Front Suspension' }, flexbodies: [['mesh', '[group]'], ['car_arm_F', ['g']], ['car_hub_F', ['g']], ['car_arm_F', ['g']]] },
+        car_hood: { slotType: 'car_hood', flexbodies: [['mesh'], ['car_hood', []]] },
+      },
+      'car',
+      'Test Car',
+    );
+    expect(parts).toEqual([{ vehicle: 'car', vehicleName: 'Test Car', part: 'car_suspension_F', partName: 'Sport Front Suspension', slotType: 'car_suspension_F', category: 'Front Suspension', meshes: ['car_arm_F', 'car_hub_F'] }]);
+  });
+
+  it('cuts just the wanted nodes (children included) out of a DAE', () => {
+    const doc = indexDae(DAE);
+    expect([...doc.nodes.keys()]).toEqual(['car_arm_F', 'car_arm_F_bolt', 'car_hub_F', 'car_body']);
+    const out = subsetDae([{ doc, names: ['car_arm_F', 'car_hub_F'] }], '0.5 0.5 0.5')!;
+    expect(out).toContain('<node id="car_arm_F_bolt"');
+    expect(out).toContain('<geometry id="Arm-mesh"');
+    expect(out).toContain('<geometry id="Hub-mesh"');
+    expect(out).not.toContain('Body-mesh');
+    expect(out).toContain('<up_axis>Z_UP</up_axis>');
+    // The game's material name survives, as a plain material.
+    expect(out).toContain('<material id="car_chassis-m" name="car_chassis">');
+    expect(out).toContain('target="#car_chassis-m"');
+  });
+
+  it('keeps ids apart when meshes come from two DAEs', () => {
+    const doc = indexDae(DAE);
+    const out = subsetDae(
+      [
+        { doc, names: ['car_arm_F'] },
+        { doc, names: ['car_hub_F'] },
+      ],
+      '0.5 0.5 0.5',
+    )!;
+    expect(out).toContain('<geometry id="d0_Arm-mesh"');
+    expect(out).toContain('url="#d1_Hub-mesh"');
+  });
+
+  it('returns nothing when no node is found', () => {
+    expect(subsetDae([{ doc: indexDae(DAE), names: ['missing'] }], '0 0 0')).toBeNull();
+  });
+});

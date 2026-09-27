@@ -26,6 +26,8 @@ const smokeModel = process.argv.find((a) => a.startsWith('--model='))?.slice(8);
 const userProject = process.argv.find((a) => a.startsWith('--project='))?.slice(10);
 // Optional local Assetto Corsa car folder, e.g. --ac-car="L:/…/assettocorsa/content/cars/ks_mazda_mx5_cup"
 const acCar = process.argv.find((a) => a.startsWith('--ac-car='))?.slice(9);
+// Optional real BeamNG install for the suspension-parts scenario, e.g. --beamng-install="I:/…/BeamNG.drive"
+const realInstall = process.argv.find((a) => a.startsWith('--beamng-install='))?.slice(17);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(ROOT, 'artifacts', 'run-desktop', stamp);
 const userData = mkdtempSync(join(tmpdir(), 'jbforge-harness-'));
@@ -183,10 +185,11 @@ const scenarios = [
       let lib;
       for (let i = 0; i < 300; i++) {
         lib = await invoke('library:status');
-        if (!lib.scanning && lib.folders.length === 2) break;
+        if (!lib.scanning && lib.folders.filter((f) => f.kind !== 'beamng').length === 2) break;
         await page.waitForTimeout(100);
       }
-      assert(lib.folders.length === 2 && lib.folders.every((f) => f.count === 1 && !f.error), `library folders scanned (${JSON.stringify(lib)})`);
+      const own = lib.folders.filter((f) => f.kind !== 'beamng');
+      assert(own.length === 2 && own.every((f) => f.count === 1 && !f.error), `library folders scanned (${JSON.stringify(lib)})`);
       assert((await invoke('materials:pack')).some((m) => m.name === 'Test Steel' && m.category === 'Metals'), 'scanned material in the library');
       assert((await invoke('objects:list')).some((o) => o.name === 'Test 01' && o.category === 'Brake Calipers'), 'scanned object in the objects list');
       await page.getByTestId('open-settings').click();
@@ -970,6 +973,47 @@ const scenarios = [
     },
   },
   {
+    id: 'beamng-parts',
+    name: 'suspension parts from a real BeamNG install (--beamng-install)',
+    skip: () => !realInstall,
+    async run({ page }) {
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Parts');
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor]');
+      const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
+      const started = Date.now();
+      await invoke('settings:update', { beamngInstallDir: realInstall });
+      let lib;
+      for (let i = 0; i < 1800; i++) {
+        lib = await invoke('library:status');
+        if (!lib.scanning && lib.folders.some((f) => f.kind === 'beamng' && f.folder === realInstall)) break;
+        await page.waitForTimeout(100);
+      }
+      const bng = lib.folders.find((f) => f.kind === 'beamng' && f.folder === realInstall);
+      assert(bng && bng.count > 100 && !bng.error, `parts cut from the install (${JSON.stringify(bng)})`);
+      partsReport = { parts: bng.count, ms: Date.now() - started };
+      await page.getByTestId('toggle-objects').click();
+      await page.getByTestId('objects-panel').waitFor();
+      await page.getByLabel('Object category').click();
+      await page.getByRole('option', { name: 'BeamNG › Front Suspension' }).click();
+      await page.getByLabel('Search objects').fill('800-Series');
+      await page.waitForTimeout(6000);
+      await shot(page, 'beamng-parts');
+      const before = (await hook(page, 'sceneStats')).meshes;
+      await page.getByTestId('object-add').first().click();
+      for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes === before; i++) await page.waitForTimeout(100);
+      if (await page.getByTestId('classify-skip').isVisible().catch(() => false)) await page.getByTestId('classify-skip').click();
+      const st = await hook(page, 'sceneStats');
+      assert(st.meshes > before, 'a BeamNG suspension added');
+      partsReport.added = st.meshNames;
+      await page.waitForTimeout(800);
+      await shot(page, 'beamng-part-added');
+      writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
+    },
+  },
+  {
     id: 'ac-car',
     name: 'local Assetto Corsa car import (--ac-car)',
     skip: () => !acCar,
@@ -1078,6 +1122,7 @@ const scenarios = [
   },
 ];
 let acReport = null;
+let partsReport = null;
 let smokeReport = null;
 let userReport = null;
 

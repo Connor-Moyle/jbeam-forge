@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { copyFile, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative } from 'node:path';
 import { z } from 'zod';
@@ -189,6 +190,13 @@ export class MaterialLibraryService {
  * <Category>/<Name>/material.json under `dir`, with its texture paths made
  * absolute. Skips anything that doesn't parse rather than failing the lot.
  */
+/** A readable id that stays unique however long the path: a slug plus a hash of the whole path. */
+function stableId(prefix: string, path: string, max: number): string {
+  const hash = createHash('sha1').update(path.toLowerCase()).digest('hex').slice(0, 8);
+  const slug = path.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  return `${prefix}_${slug.slice(0, max - prefix.length - 10)}_${hash}`;
+}
+
 export async function loadBundledPack(dir: string, logger: Logger, prefix = 'pack'): Promise<LibraryItem[]> {
   const found: string[] = [];
   const walk = async (d: string, depth: number): Promise<void> => {
@@ -210,7 +218,7 @@ export async function loadBundledPack(dir: string, logger: Logger, prefix = 'pac
     try {
       const parsed = JbmatSchema.parse(JSON.parse(await readFile(file, 'utf8')));
       const folder = dirname(file);
-      const id = `${prefix}_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 64);
+      const id = stableId(prefix, relative(dir, folder), 64);
       const def = mapPaths({ ...parsed.def, id }, (p) => join(folder, p));
       items.push(LibraryItemSchema.parse({ id, name: parsed.name, category: parsed.category, savedAt: '', def }));
     } catch (err) {
@@ -221,7 +229,7 @@ export async function loadBundledPack(dir: string, logger: Logger, prefix = 'pac
   return items;
 }
 
-const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), group: z.string(), mesh: z.string().min(1), material: MaterialDefSchema.nullable(), source: z.string().optional(), credit: z.string().optional() });
+const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), group: z.string(), mesh: z.string().min(1), material: MaterialDefSchema.nullable(), source: z.string().optional(), credit: z.string().optional(), gameMaterials: z.boolean().optional() });
 
 /** The objects pack shipped with the app: every <Group>/<Category>/<Name>/object.json under `dir`, paths made absolute. */
 export async function loadBundledObjects(dir: string, logger: Logger, prefix = 'obj'): Promise<ObjectItem[]> {
@@ -245,8 +253,8 @@ export async function loadBundledObjects(dir: string, logger: Logger, prefix = '
     try {
       const o = ObjectFileSchema.parse(JSON.parse(await readFile(file, 'utf8')));
       const folder = dirname(file);
-      const id = `${prefix}_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 80);
-      items.push({ id, name: o.name, category: o.category, group: o.group, mesh: join(folder, o.mesh), material: o.material && mapPaths({ ...o.material, id: `${id}_mat` }, (p) => join(folder, p)), credit: o.credit ?? null });
+      const id = stableId(prefix, relative(dir, folder), 80);
+      items.push({ id, name: o.name, category: o.category, group: o.group, mesh: join(folder, o.mesh), material: o.material && mapPaths({ ...o.material, id: `${id}_mat` }, (p) => join(folder, p)), credit: o.credit ?? null, gameMaterials: o.gameMaterials ?? false });
     } catch (err) {
       logger.warn('objects pack: skipped', file, describeError(err).message);
     }

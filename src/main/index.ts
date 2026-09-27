@@ -62,8 +62,8 @@ async function start(): Promise<void> {
   registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, userLibrary, kn5Cache: join(userData, 'kn5-textures'), harness });
   const scanLibrary = () => {
     const s = settings.get();
-    if (!s.materialFolders.length && !s.objectFolders.length && !userLibrary.items.folders.length) return;
-    void userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders }).then(() => {
+    if (!s.materialFolders.length && !s.objectFolders.length && !s.beamngInstallDir && !userLibrary.items.folders.length) return;
+    void userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders, beamngInstall: s.beamngInstallDir }).then(() => {
       const { folders, scanning } = userLibrary.items;
       if (mainWindow && !mainWindow.isDestroyed()) sendEvent(mainWindow.webContents, 'library:changed', { folders, scanning });
     });
@@ -71,10 +71,10 @@ async function start(): Promise<void> {
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 
-  let libraryFolders = JSON.stringify([settings.get().materialFolders, settings.get().objectFolders]);
+  let libraryFolders = JSON.stringify([settings.get().materialFolders, settings.get().objectFolders, settings.get().beamngInstallDir]);
   settings.onChange((s) => {
     setDebugLogging(s.debugLogging);
-    const folders = JSON.stringify([s.materialFolders, s.objectFolders]);
+    const folders = JSON.stringify([s.materialFolders, s.objectFolders, s.beamngInstallDir]);
     if (folders !== libraryFolders) {
       libraryFolders = folders;
       scanLibrary();

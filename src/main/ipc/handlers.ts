@@ -396,7 +396,7 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('library:status', libraryStatus);
   registerInvoke('library:rescan', async () => {
     const s = settings.get();
-    await services.userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders });
+    await services.userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders, beamngInstall: s.beamngInstallDir });
     return libraryStatus();
   });
   registerInvoke('materials:saveToLibrary', ({ name, category, def }) => materialLibrary.add(name, category, def), LibraryEntry);

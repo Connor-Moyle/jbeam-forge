@@ -3,7 +3,8 @@ import type { MaterialDef } from './materials/schema';
 
 export interface LibraryStatus {
   scanning: boolean;
-  folders: { kind: 'materials' | 'objects'; folder: string; count: number; error: string | null }[];
+  /** beamng: suspension, brake and steering parts cut from the BeamNG.drive install. */
+  folders: { kind: 'materials' | 'objects' | 'beamng'; folder: string; count: number; error: string | null }[];
 }
 
 /** An Assetto Corsa car folder as read by main (src/main/import/acCar.ts). */
@@ -30,6 +31,8 @@ export interface ObjectItem {
   material: MaterialDef | null;
   /** Who made it, when the licence asks for credit. */
   credit: string | null;
+  /** Its materials are the game's own (BeamNG parts): referenced by name, never exported. */
+  gameMaterials: boolean;
 }
 
 /** A material saved to the user's library. */

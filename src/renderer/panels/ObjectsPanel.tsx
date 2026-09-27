@@ -35,7 +35,7 @@ export async function addObject(item: ObjectItem): Promise<string | null> {
   const staged = await stageImport(item.mesh, format);
   const slug = `${item.category} ${item.name}`.toLowerCase().replace(/[^a-z0-9]+/g, '_');
   // Objects with their own materials (kn5) keep them; the rest get the pack's ready-made one.
-  const id = await confirmImport(staged, defaultSettings(format), item.material ? { material: { ...item.material, name: slug } } : {});
+  const id = await confirmImport(staged, defaultSettings(format), item.material ? { material: { ...item.material, name: slug } } : { gameMaterials: item.gameMaterials });
   if (id) useUiStore.getState().pushStatus(`Added ${item.name} (${item.category}). Right-click it in the Scene tree’s models list and choose Placement… to move it into position.`, 'success', 8000);
   return id;
 }
@@ -50,10 +50,14 @@ export function ObjectsPanel() {
   useEffect(() => void load().catch(() => undefined), [load]);
 
   const categories = useMemo(() => [...new Set((items ?? []).map((i) => `${i.group} › ${i.category}`))].sort(), [items]);
-  const shown = useMemo(
-    () => (items ?? []).filter((i) => (category === ALL || `${i.group} › ${i.category}` === category) && fuzzyScore(query, `${i.name} ${i.category} ${i.group}`) > 0),
-    [items, category, query],
-  );
+  // Best matches first while searching (fuzzy matching is forgiving: "800-Series" also finds "T-Series").
+  const shown = useMemo(() => {
+    const scored = (items ?? []).filter((i) => category === ALL || `${i.group} › ${i.category}` === category).map((i) => ({ i, score: fuzzyScore(query, `${i.name} ${i.category} ${i.group}`) }));
+    return scored
+      .filter((x) => x.score > 0)
+      .sort((a, b) => (query ? b.score - a.score : 0))
+      .map((x) => x.i);
+  }, [items, category, query]);
 
   if (items && !items.length) return <EmptyState icon={Package} message="The objects pack isn’t installed with this copy." />;
   return (

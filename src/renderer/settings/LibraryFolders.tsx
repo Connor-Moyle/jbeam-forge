@@ -63,3 +63,14 @@ export function ScanNow({ status, onScan }: { status: LibraryStatus | null; onSc
     </Button>
   );
 }
+
+/** The suspension parts cut from the BeamNG install (automatic once the install folder is set). */
+export function BeamngParts({ status }: { status: LibraryStatus | null }) {
+  const s = status?.folders.find((f) => f.kind === 'beamng');
+  const text = !s ? (status?.scanning ? 'Reading suspension, brake and steering parts from BeamNG…' : 'Set the BeamNG.drive install folder above to add its suspension, brake and steering parts to the Objects panel.') : s.error ? `BeamNG parts could not be read: ${s.error}` : `${s.count} suspension, brake and steering parts from your BeamNG.drive install are in the Objects panel (for use in your own mods; they stay on this computer).`;
+  return (
+    <p className={styles.help} data-testid="beamng-parts">
+      {text}
+    </p>
+  );
+}

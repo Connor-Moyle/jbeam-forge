@@ -15,13 +15,31 @@ import type { ScanJob, ScanResult } from './worker';
  */
 
 export interface FolderStatus {
-  kind: 'materials' | 'objects';
+  /** beamng: suspension parts from the BeamNG.drive install (`folder` is the install). */
+  kind: 'materials' | 'objects' | 'beamng';
   folder: string;
   count: number;
   error: string | null;
 }
 
 const MAX_FILES = 50_000;
+/** Bump when the BeamNG part cutting changes, so installs are cut again. */
+const BEAMNG_FORMAT = 2;
+
+type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
+
+/** The vehicle zips' names, sizes and dates: changes when the game updates. */
+async function installFingerprint(installDir: string): Promise<string> {
+  const hash = createHash('sha1').update(`format ${BEAMNG_FORMAT}
+`);
+  const dir = join(installDir, 'content', 'vehicles');
+  for (const name of (await readdir(dir)).sort()) {
+    const s = await stat(join(dir, name));
+    hash.update(`${name}|${s.size}|${s.mtimeMs}
+`);
+  }
+  return hash.digest('hex');
+}
 
 /** Every file's path, size and date: changes when anything in the folder does. */
 async function fingerprint(folder: string): Promise<string> {
@@ -74,15 +92,37 @@ export class UserLibrary {
   }
 
   /** Scan (or reuse the cache of) every folder. Concurrent calls share one run. */
-  scan(folders: { materials: readonly string[]; objects: readonly string[] }): Promise<void> {
+  scan(folders: Folders): Promise<void> {
     this.running ??= this.scanAll(folders).finally(() => (this.running = null));
     return this.running;
   }
 
-  private async scanAll(folders: { materials: readonly string[]; objects: readonly string[] }): Promise<void> {
+  private async scanAll(folders: Folders): Promise<void> {
     const materials: LibraryItem[] = [];
     const objects: ObjectItem[] = [];
     const status: FolderStatus[] = [];
+    if (folders.beamngInstall) {
+      const install = folders.beamngInstall;
+      const out = join(this.cacheRoot, 'beamng', 'parts');
+      const stamp = join(this.cacheRoot, 'beamng', 'parts.fingerprint');
+      try {
+        const fp = await installFingerprint(install);
+        if (!(existsSync(stamp) && (await readFile(stamp, 'utf8')) === fp && existsSync(out))) {
+          this.logger.info('cutting suspension parts from', install);
+          const r = await runWorker({ kind: 'beamng', folder: install, out, title: 'BeamNG parts' });
+          if (!r.ok) throw new Error(r.error);
+          await writeFile(stamp, fp);
+        }
+        this.grant(out);
+        const items = await loadBundledObjects(out, this.logger, 'bng');
+        objects.push(...items);
+        status.push({ kind: 'beamng', folder: install, count: items.length, error: null });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.logger.warn('BeamNG parts:', message);
+        status.push({ kind: 'beamng', folder: install, count: 0, error: message });
+      }
+    }
     for (const kind of ['materials', 'objects'] as const) {
       for (const folder of folders[kind]) {
         const key = createHash('sha1').update(folder.toLowerCase()).digest('hex').slice(0, 10);

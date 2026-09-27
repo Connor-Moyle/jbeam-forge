@@ -100,7 +100,7 @@ export async function startImport(): Promise<void> {
  * `material` puts one ready-made material on every mesh (objects from the
  * library) instead of importing the file's own. Returns the new source id.
  */
-export async function confirmImport(staged: StagedImport, settings: ImportSettings, opts: { material?: MaterialDef; classify?: boolean; textureDirs?: string[] } = {}): Promise<string | null> {
+export async function confirmImport(staged: StagedImport, settings: ImportSettings, opts: { material?: MaterialDef; classify?: boolean; textureDirs?: string[]; gameMaterials?: boolean } = {}): Promise<string | null> {
   const ui = useImportUi.getState();
   ui.setStaged(null);
   ui.setBusy(`Importing ${staged.fileName}…`);
@@ -131,7 +131,9 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
     });
     registerImportedTextures(done.meshes);
     const doc = projectStore.getState().doc;
-    const seed = opts.material ? objectSeed(doc?.materials ?? [], opts.material, done.meshes) : doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
+    let seed = opts.material ? objectSeed(doc?.materials ?? [], opts.material, done.meshes) : doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
+    // Parts cut from the game's own vehicles use the game's materials: reference them by name.
+    if (opts.gameMaterials) seed = { ...seed, materials: seed.materials.map((m) => ({ ...m, gameMaterial: m.name })) };
     projectStore.getState().execute({
       label: `Import ${staged.fileName}`,
       apply: (d) => {
