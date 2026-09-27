@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 10;
+export const CURRENT_PROJECT_VERSION = 11;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -231,9 +231,33 @@ export const MeshCopySchema = z.object({
   mirror: z.boolean(),
 });
 
-export const ProjectV10Schema = z.object({
+/**
+ * An axle (v11, Phase 10): where it is, how wide, whether it steers, and the
+ * suspension fitted to it (a complete set from the game, as its own model).
+ */
+export const AxleSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  /** Wheel centre line along the car, metres (BeamNG Y: −front, +rear). */
+  y: z.number(),
+  /** Wheel centre to wheel centre, metres. */
+  track: z.number().positive(),
+  steered: z.boolean(),
+  fitted: z
+    .object({
+      /** Catalogue id (vehicle/part). */
+      setId: z.string(),
+      name: z.string(),
+      vehicle: z.string(),
+      type: z.string(),
+      sourceId: z.string(),
+    })
+    .nullable(),
+});
+
+export const ProjectV11Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(10),
+  formatVersion: z.literal(11),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -262,13 +286,15 @@ export const ProjectV10Schema = z.object({
   meshEdits: z.record(z.string(), MeshEditSchema),
   /** Copies of meshes (v10). */
   meshCopies: z.array(MeshCopySchema),
+  /** Axles and their suspension (v11, Phase 10). */
+  axles: z.array(AxleSchema),
   suspension: placeholderMap, // Phase 10
   powertrain: placeholderMap, // Phase 11
   configs: placeholderList, // Phase 13
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV10Schema;
+export const ProjectSchema = ProjectV11Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -277,6 +303,7 @@ export type Part = z.infer<typeof PartSchema>;
 export type ReferenceCar = z.infer<typeof ReferenceCarSchema>;
 export type MeshEdit = z.infer<typeof MeshEditSchema>;
 export type MeshCopy = z.infer<typeof MeshCopySchema>;
+export type Axle = z.infer<typeof AxleSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

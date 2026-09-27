@@ -92,6 +92,11 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'per-mesh edits and mesh copies',
     migrate: (doc) => ({ ...doc, formatVersion: 10, meshEdits: {}, meshCopies: [] }),
   },
+  {
+    from: 10,
+    describe: 'axles',
+    migrate: (doc) => ({ ...doc, formatVersion: 11, axles: [] }),
+  },
 ];
 
 export class MigrationError extends Error {

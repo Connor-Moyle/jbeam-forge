@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 import { Worker } from 'node:worker_threads';
-import type { LibraryItem, ObjectItem } from '@shared/ipc-contract';
+import type { LibraryItem, ObjectItem, SuspensionSet } from '@shared/ipc-contract';
 import type { Logger } from '@shared/logger';
 import { loadBundledObjects, loadBundledPack } from '../services/materialLibrary';
 import type { ScanJob, ScanResult } from './worker';
@@ -24,7 +24,7 @@ export interface FolderStatus {
 
 const MAX_FILES = 50_000;
 /** Bump when the BeamNG part cutting changes, so installs are cut again. */
-const BEAMNG_FORMAT = 2;
+const BEAMNG_FORMAT = 5;
 
 type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
 
@@ -62,6 +62,35 @@ async function fingerprint(folder: string): Promise<string> {
   return hash.digest('hex');
 }
 
+/** The complete suspensions written by buildPartObjects (<dir>/<vehicle>/<part>/set.json). */
+async function loadSets(dir: string): Promise<SuspensionSet[]> {
+  const out: SuspensionSet[] = [];
+  let vehicles: string[] = [];
+  try {
+    vehicles = (await readdir(dir)).filter((v) => !v.startsWith('_'));
+  } catch {
+    return out;
+  }
+  for (const v of vehicles) {
+    let parts: string[] = [];
+    try {
+      parts = await readdir(join(dir, v));
+    } catch {
+      continue;
+    }
+    for (const p of parts) {
+      const folder = join(dir, v, p);
+      try {
+        const s = JSON.parse(await readFile(join(folder, 'set.json'), 'utf8')) as Omit<SuspensionSet, 'id' | 'mesh' | 'jbeam' | 'logo'> & { mesh: string; logo: string | null };
+        out.push({ ...s, id: `${v}/${p}`, mesh: join(folder, s.mesh), jbeam: join(folder, 'jbeam.json'), logo: s.logo ? join(folder, s.logo) : null });
+      } catch {
+        // not a set folder
+      }
+    }
+  }
+  return out;
+}
+
 function runWorker(job: ScanJob): Promise<ScanResult> {
   return new Promise((resolve) => {
     const worker = new Worker(new URL('./libraryWorker.js', import.meta.url));
@@ -77,6 +106,7 @@ function runWorker(job: ScanJob): Promise<ScanResult> {
 export class UserLibrary {
   private materials: LibraryItem[] = [];
   private objects: ObjectItem[] = [];
+  private sets: SuspensionSet[] = [];
   private folders: FolderStatus[] = [];
   private running: Promise<void> | null = null;
 
@@ -87,8 +117,8 @@ export class UserLibrary {
     private readonly grant: (dir: string) => void,
   ) {}
 
-  get items(): { materials: LibraryItem[]; objects: ObjectItem[]; folders: FolderStatus[]; scanning: boolean } {
-    return { materials: this.materials, objects: this.objects, folders: this.folders, scanning: this.running !== null };
+  get items(): { materials: LibraryItem[]; objects: ObjectItem[]; sets: SuspensionSet[]; folders: FolderStatus[]; scanning: boolean } {
+    return { materials: this.materials, objects: this.objects, sets: this.sets, folders: this.folders, scanning: this.running !== null };
   }
 
   /** Scan (or reuse the cache of) every folder. Concurrent calls share one run. */
@@ -101,6 +131,7 @@ export class UserLibrary {
     const materials: LibraryItem[] = [];
     const objects: ObjectItem[] = [];
     const status: FolderStatus[] = [];
+    const sets: SuspensionSet[] = [];
     if (folders.beamngInstall) {
       const install = folders.beamngInstall;
       const out = join(this.cacheRoot, 'beamng', 'parts');
@@ -114,8 +145,9 @@ export class UserLibrary {
           await writeFile(stamp, fp);
         }
         this.grant(out);
-        const items = await loadBundledObjects(out, this.logger, 'bng');
+        const items = await loadBundledObjects(join(out, 'BeamNG'), this.logger, 'bng');
         objects.push(...items);
+        sets.push(...(await loadSets(join(out, 'sets'))));
         status.push({ kind: 'beamng', folder: install, count: items.length, error: null });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -157,6 +189,7 @@ export class UserLibrary {
     }
     this.materials = materials;
     this.objects = objects;
+    this.sets = sets;
     this.folders = status;
   }
 }

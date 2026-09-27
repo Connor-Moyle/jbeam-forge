@@ -7,6 +7,27 @@ export interface LibraryStatus {
   folders: { kind: 'materials' | 'objects' | 'beamng'; folder: string; count: number; error: string | null }[];
 }
 
+/** A complete suspension from a stock BeamNG vehicle (cut from the user's install). */
+export interface SuspensionSet {
+  /** "<vehicle>/<part>" */
+  id: string;
+  vehicle: string;
+  vehicleName: string;
+  brand: string;
+  /** Brand logo (absolute), or null. */
+  logo: string | null;
+  axle: 'front' | 'rear' | 'any';
+  /** MacPherson strut, Double wishbone, Solid axle, Leaf spring… */
+  type: string;
+  name: string;
+  /** The part and the defaults of its slots. */
+  parts: string[];
+  /** The set's meshes (absolute DAE). */
+  mesh: string;
+  /** The parts' jbeam definitions (absolute JSON), for bringing the jbeam over. */
+  jbeam: string;
+}
+
 /** An Assetto Corsa car folder as read by main (src/main/import/acCar.ts). */
 export interface AcCarInfo {
   folder: string;
@@ -142,6 +163,8 @@ export interface InvokeContract {
   'import:pickTextureDir': { req: undefined; res: string | null };
   /** Pick an Assetto Corsa car folder and read it (model, skins, data files). */
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
+  /** Complete suspensions from the BeamNG install (empty until the install is set and read). */
+  'suspension:catalogue': { req: undefined; res: SuspensionSet[] };
   /** Your library folders: what each one gave, and whether a scan is running. */
   'library:status': { req: undefined; res: LibraryStatus };
   /** Scan your library folders again now. */
@@ -225,6 +248,7 @@ export const INVOKE_CHANNELS = [
   'import:resolveTextures',
   'import:pickTextureDir',
   'ac:pickCar',
+  'suspension:catalogue',
   'library:status',
   'library:rescan',
   'kn5:saveBaked',

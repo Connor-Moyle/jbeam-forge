@@ -1,0 +1,186 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-2);
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.axle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-0);
+  border-radius: var(--radius-md);
+  background: var(--bg-1);
+}
+
+.axleHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-0);
+  font-size: var(--text-control);
+}
+
+.axleFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: var(--space-2);
+}
+
+.fitted {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.fittedName {
+  color: var(--text-0);
+  font-size: var(--text-control);
+}
+
+.pickerHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.crumbs {
+  overflow: hidden;
+  color: var(--text-1);
+  font-size: var(--text-control);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip,
+.brand,
+.listItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+  color: var(--text-0);
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+
+.chip:hover,
+.brand:hover,
+.listItem:hover {
+  border-color: var(--accent);
+}
+
+.count {
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.brands {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-object-card), 1fr));
+  gap: var(--space-2);
+}
+
+.brand {
+  flex-direction: column;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+  color: var(--text-2);
+}
+
+.logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.list,
+.sets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  width: 100%;
+}
+
+.icon {
+  width: var(--size-icon);
+  height: var(--size-icon);
+  color: var(--text-2);
+}
+
+.setCard {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-0);
+  border-radius: var(--radius-md);
+  background: var(--bg-1);
+}
+
+.setText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  color: var(--text-0);
+  font-size: var(--text-control);
+}
+
+.thumb {
+  display: block;
+  width: var(--size-object-card);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+}

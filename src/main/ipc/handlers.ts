@@ -392,6 +392,7 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('materials:library', () => materialLibrary.get());
   registerInvoke('materials:pack', async () => [...(await materialPack), ...services.userLibrary.items.materials]);
   registerInvoke('objects:list', async () => [...(await objectPack), ...services.userLibrary.items.objects]);
+  registerInvoke('suspension:catalogue', () => services.userLibrary.items.sets);
   const libraryStatus = () => ({ scanning: services.userLibrary.items.scanning, folders: services.userLibrary.items.folders });
   registerInvoke('library:status', libraryStatus);
   registerInvoke('library:rescan', async () => {

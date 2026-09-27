@@ -4,6 +4,7 @@ import { useUiStore } from '@renderer/app/stores/ui';
 import { copyKey } from '@renderer/import/meshEdits';
 import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MeshEdit } from '@shared/project/schema';
+import { removeSourceFromDoc } from '@shared/project/removeSource';
 
 /**
  * Per-mesh edits (move/turn/resize, texture mapping) and copies, as undoable
@@ -129,4 +130,11 @@ export function deleteCopies(keys: readonly string[]): void {
       d.ignoredMeshes = d.ignoredMeshes.filter((k) => !gone.has(k));
     },
   });
+}
+
+/** Take a model (and everything referring to its meshes) out of the project. */
+export function removeModel(sourceId: string): void {
+  const doc = projectStore.getState().doc;
+  const name = doc?.sources.find((s) => s.id === sourceId)?.path.split(/[\\/]/).pop() ?? 'model';
+  projectStore.getState().execute({ label: `Remove ${name}`, apply: (d) => removeSourceFromDoc(d, sourceId) });
 }

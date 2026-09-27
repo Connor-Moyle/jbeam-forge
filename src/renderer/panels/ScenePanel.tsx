@@ -6,6 +6,7 @@ import { useProjectStore } from '@renderer/app/stores/project';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { locateTextures, startImport } from '@renderer/import/importFlow';
 import { usePlacementUi } from '@renderer/import/PlacementDialog';
+import { removeModel } from '@renderer/scene/meshCommands';
 import * as cmd from '@renderer/parts/commands';
 import { useAssignUi } from '@renderer/parts/assignUi';
 import { isSplitResult, splitCentreLine, splitConnected, unsplit, useSplitTool } from '@renderer/split/splitTool';
@@ -90,7 +91,11 @@ function SourceRow({ source }: { source: LoadedSource }) {
   const missing = source.textures?.missing.length ?? 0;
   const unsupported = source.textures?.unsupported.length ?? 0;
   const openPlacement = usePlacementUi((s) => s.open);
-  const items: ContextMenuItem[] = [{ label: 'Placement…', icon: Move3d, disabled: source.status !== 'ready', onSelect: () => openPlacement(source.sourceId) }];
+  const items: ContextMenuItem[] = [
+    { label: 'Placement…', icon: Move3d, disabled: source.status !== 'ready', onSelect: () => openPlacement(source.sourceId) },
+    { type: 'separator' },
+    { label: 'Remove model', icon: Trash2, danger: true, onSelect: () => removeModel(source.sourceId) },
+  ];
   return (
     <ContextMenu items={items}>
       <div data-source-id={source.sourceId} data-testid="scene-source-row">

@@ -323,7 +323,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 10 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 11 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -381,7 +381,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 10 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 11 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -1013,7 +1013,7 @@ const scenarios = [
   },
   {
     id: 'beamng-parts',
-    name: 'suspension parts from a real BeamNG install (--beamng-install)',
+    name: 'suspension workshop with a real BeamNG install (--beamng-install)',
     skip: () => !realInstall,
     async run({ page }) {
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');
@@ -1021,34 +1021,42 @@ const scenarios = [
       await page.getByTestId('newmod-name').fill('Parts');
       await page.getByTestId('newmod-create').click();
       await page.waitForSelector('[data-view=editor]');
+      // A car body to put axles on.
+      await hook(page, 'queueDialog', [join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae')]);
+      await page.getByTestId('toolbar-import').click();
+      await page.getByTestId('import-confirm').click();
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 3000 }).catch(() => false)) await page.getByTestId('classify-skip').click();
       const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
       const started = Date.now();
       await invoke('settings:update', { beamngInstallDir: realInstall });
-      let lib;
-      for (let i = 0; i < 1800; i++) {
-        lib = await invoke('library:status');
-        if (!lib.scanning && lib.folders.some((f) => f.kind === 'beamng' && f.folder === realInstall)) break;
+      let sets = [];
+      for (let i = 0; i < 1800 && !sets.length; i++) {
+        const lib = await invoke('library:status');
+        if (!lib.scanning) sets = await invoke('suspension:catalogue');
         await page.waitForTimeout(100);
       }
-      const bng = lib.folders.find((f) => f.kind === 'beamng' && f.folder === realInstall);
-      assert(bng && bng.count > 100 && !bng.error, `parts cut from the install (${JSON.stringify(bng)})`);
-      partsReport = { parts: bng.count, ms: Date.now() - started };
-      await page.getByTestId('toggle-objects').click();
-      await page.getByTestId('objects-panel').waitFor();
-      await page.getByLabel('Object category').click();
-      await page.getByRole('option', { name: 'BeamNG › Front Suspension' }).click();
-      await page.getByLabel('Search objects').fill('800-Series');
-      await page.waitForTimeout(6000);
-      await shot(page, 'beamng-parts');
-      const before = (await hook(page, 'sceneStats')).meshes;
-      await page.getByTestId('object-add').first().click();
-      for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes === before; i++) await page.waitForTimeout(100);
-      if (await page.getByTestId('classify-skip').isVisible().catch(() => false)) await page.getByTestId('classify-skip').click();
-      const st = await hook(page, 'sceneStats');
-      assert(st.meshes > before, 'a BeamNG suspension added');
-      partsReport.added = st.meshNames;
+      assert(sets.length > 50, `suspensions read from the install (${sets.length})`);
+      partsReport = { sets: sets.length, ms: Date.now() - started, types: [...new Set(sets.map((s) => s.type))] };
+      await page.getByTestId('toggle-suspension').click();
+      await page.getByRole('button', { name: 'Set up axles' }).click();
+      await page.getByTestId('suspension-picker').waitFor();
+      await page.getByTestId('suspension-type').filter({ hasText: 'MacPherson strut' }).click();
       await page.waitForTimeout(800);
-      await shot(page, 'beamng-part-added');
+      await shot(page, 'suspension-brands');
+      await page.getByTestId('suspension-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('suspension-vehicle').first().click();
+      await page.waitForTimeout(3000);
+      await shot(page, 'suspension-sets');
+      const before = (await hook(page, 'sceneStats')).meshes;
+      await page.getByTestId('suspension-fit').first().click();
+      for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes === before; i++) await page.waitForTimeout(100);
+      await page.getByTestId('suspension-panel').waitFor();
+      const st = await hook(page, 'sceneStats');
+      assert(st.meshes > before, 'suspension fitted');
+      partsReport.fitted = st.meshNames.slice(-12);
+      partsReport.parts = (await hook(page, 'partNames')).slice(-12);
+      await page.waitForTimeout(800);
+      await shot(page, 'suspension-fitted');
       writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
     },
   },

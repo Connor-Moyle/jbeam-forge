@@ -177,18 +177,22 @@ async function translations(installDir: string): Promise<Translate> {
 
 /** "ETK 800-Series", "Gavril D-Series"… from info.json (brand + translated name). */
 async function vehicleName(zip: ZipReader, vehicle: string, t: Translate): Promise<string> {
+  return (await vehicleInfo(zip, vehicle, t)).name;
+}
+
+async function vehicleInfo(zip: ZipReader, vehicle: string, t: Translate): Promise<{ name: string; brand: string }> {
   try {
     const info = parseJbeam(await zip.readText(`vehicles/${vehicle}/info.json`)).value;
     if (isJbeamObject(info) && typeof info.Name === 'string') {
       const name = t(info.Name);
       const brand = typeof info.Brand === 'string' ? info.Brand : '';
-      if (!name.startsWith('vehiclesData.')) return brand && !name.startsWith(brand) ? `${brand} ${name}` : name;
+      if (!name.startsWith('vehiclesData.')) return { name: brand && !name.startsWith(brand) ? `${brand} ${name}` : name, brand };
     }
   } catch {
     // no info.json (common parts, props)
   }
-  if (vehicle === 'common') return 'Shared';
-  return vehicle.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  if (vehicle === 'common') return { name: 'Shared', brand: '' };
+  return { name: vehicle.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()), brand: '' };
 }
 
 async function daesOf(zip: ZipReader): Promise<DaeDoc[]> {
@@ -205,6 +209,143 @@ async function daesOf(zip: ZipReader): Promise<DaeDoc[]> {
 
 const safe = (s: string) => s.replace(/[<>:"/\\|?*]+/g, '-').trim();
 
+/** What kind of suspension a set is, from its part and mesh names. */
+export function suspensionType(text: string): string {
+  const t = text.toLowerCase();
+  if (/leaf/.test(t)) return 'Leaf spring';
+  if (/torsion/.test(t)) return 'Torsion beam';
+  if (/swing ?axle|swing ?arm/.test(t)) return 'Swing axle';
+  if (/trailing/.test(t)) return 'Trailing arm';
+  if (/(live|solid|beam) ?axle|[34]-? ?link|torque ?tube|tandem|axle_r\b|axle_f\b/.test(t)) return 'Solid axle';
+  if (/multi-?link/.test(t)) return 'Multi-link';
+  if (/upperarm|upper_arm|wishbone|dwb/.test(t)) return 'Double wishbone';
+  if (/strut/.test(t)) return 'MacPherson strut';
+  return 'Independent';
+}
+
+/** Default part names a part's slots fill ("slots" and the newer "slots2"). */
+export function slotDefaults(body: JbeamObject): string[] {
+  const out: string[] = [];
+  for (const key of ['slots', 'slots2'] as const) {
+    const table = body[key];
+    if (!Array.isArray(table) || !Array.isArray(table[0])) continue;
+    const header = (table[0] as unknown[]).map(String);
+    const col = header.indexOf('default');
+    if (col < 0) continue;
+    for (const row of table.slice(1)) if (Array.isArray(row) && typeof row[col] === 'string' && row[col]) out.push(row[col]);
+  }
+  return out;
+}
+
+const NOT_SUSPENSION = /^wheel|^tire|tyre|hubcap|cladding|mudflap|fender|trim|skin|paint|licenseplate/i;
+
+const SET_CATEGORIES = new Set(['Front Suspension', 'Rear Suspension', 'Suspension']);
+
+/** A suspension as the game fits it: the part plus the defaults of its slots, all the way down. */
+export function suspensionClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 40): string[] {
+  const seen: string[] = [];
+  const queue = [start];
+  while (queue.length && seen.length < max) {
+    const name = queue.shift()!;
+    if (seen.includes(name)) continue;
+    const body = find(name);
+    if (!body) continue;
+    // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension.
+    if (seen.length && typeof body.slotType === 'string' && NOT_SUSPENSION.test(body.slotType)) continue;
+    seen.push(name);
+    queue.push(...slotDefaults(body));
+  }
+  return seen;
+}
+
+function flexMeshes(body: JbeamObject): string[] {
+  return Array.isArray(body.flexbodies) ? body.flexbodies.slice(1).flatMap((row) => (Array.isArray(row) && typeof row[0] === 'string' ? [row[0]] : [])) : [];
+}
+
+async function allParts(zip: ZipReader): Promise<Map<string, JbeamObject>> {
+  const map = new Map<string, JbeamObject>();
+  for (const e of (await zip.entries()).filter((x) => x.name.endsWith('.jbeam'))) {
+    try {
+      const doc = parseJbeam(await zip.readText(e.name)).value;
+      if (!isJbeamObject(doc)) continue;
+      for (const [name, body] of Object.entries(doc)) if (isJbeamObject(body) && !map.has(name)) map.set(name, body);
+    } catch {
+      // unreadable jbeam: skip
+    }
+  }
+  return map;
+}
+
+/**
+ * Complete suspensions of one vehicle, as the game fits them (the part and
+ * its slot defaults): <out>/<vehicle>/<part>/set.json + set.dae +
+ * jbeam.json (the parts' definitions, for bringing the jbeam over), and the
+ * brand logo.
+ */
+async function writeSets(
+  zip: ZipReader,
+  vehicle: string,
+  info: { name: string; brand: string },
+  commonParts: ReadonlyMap<string, JbeamObject>,
+  brandLogos: ReadonlyMap<string, Buffer>,
+  locate: (mesh: string) => DaeDoc | undefined,
+  out: string,
+): Promise<void> {
+  const own = await allParts(zip);
+  const find = (n: string) => own.get(n) ?? commonParts.get(n);
+  const logoFile = join(out, '_logos', `${vehicle}.png`);
+  let logo: Buffer | null = brandLogos.get(info.brand.toLowerCase()) ?? null;
+  if (!logo) {
+    try {
+      logo = await zip.readBuffer(`vehicles/${vehicle}/logo.png`);
+    } catch {
+      logo = null;
+    }
+  }
+  if (logo) {
+    mkdirSync(join(out, '_logos'), { recursive: true });
+    writeFileSync(logoFile, logo);
+  }
+  const seen = new Set<string>();
+  for (const [partName, body] of own) {
+    const slotType = typeof body.slotType === 'string' ? body.slotType : '';
+    const category = categoryOf(slotType);
+    // A set starts at the suspension itself (not a hub or subframe on its own).
+    if (!category || !SET_CATEGORIES.has(category) || !/suspension|axle/i.test(slotType)) continue;
+    const parts = suspensionClosure(partName, find);
+    const meshes = [...new Set(parts.flatMap((p) => flexMeshes(find(p)!)))];
+    const key = meshes.sort().join('|');
+    if (!meshes.length || seen.has(key)) continue;
+    seen.add(key);
+    const sources: { doc: DaeDoc; names: string[] }[] = [];
+    for (const mesh of meshes) {
+      const doc = locate(mesh);
+      if (!doc) continue;
+      const s = sources.find((x) => x.doc === doc);
+      if (s) s.names.push(mesh);
+      else sources.push({ doc, names: [mesh] });
+    }
+    const dae = sources.length ? subsetDae(sources, '0.5 0.5 0.52') : null;
+    if (!dae) continue;
+    const infoBlock = isJbeamObject(body.information) ? body.information : null;
+    const title = typeof infoBlock?.name === 'string' && infoBlock.name.trim() ? infoBlock.name.trim() : partName;
+    const axle = category === 'Front Suspension' ? 'front' : category === 'Rear Suspension' ? 'rear' : /_F(_|$)/.test(slotType) ? 'front' : /_R(_|$)/.test(slotType) ? 'rear' : 'any';
+    const dir = join(out, vehicle, safe(partName));
+    mkdirSync(dir, { recursive: true });
+    const meshFile = `${vehicle}_${safe(partName)}.dae`;
+    writeFileSync(join(dir, meshFile), dae);
+    writeFileSync(join(dir, 'jbeam.json'), JSON.stringify(Object.fromEntries(parts.map((p) => [p, find(p)])), null, 1));
+    writeFileSync(
+      join(dir, 'set.json'),
+      JSON.stringify(
+        { version: 1, vehicle, vehicleName: info.name, brand: info.brand || 'Other', axle, type: suspensionType(`${title} ${parts.join(' ')} ${meshes.join(' ')}`), name: title, part: partName, parts, mesh: meshFile, logo: logo ? `../../_logos/${vehicle}.png` : null },
+        null,
+        1,
+      ),
+    );
+  }
+}
+
 /**
  * Write every suspension-area part of every stock vehicle as an object
  * (<out>/BeamNG/<Category>/<Vehicle · Part>/object.json + <part>.dae).
@@ -215,6 +356,14 @@ export async function buildPartObjects(installDir: string, out: string, onVehicl
   const zips = (await readdir(root)).filter((z) => z.toLowerCase().endsWith('.zip'));
   const t = await translations(installDir);
   const common = zips.includes('common.zip') ? await withZip(join(root, 'common.zip'), daesOf) : [];
+  const commonParts = zips.includes('common.zip') ? await withZip(join(root, 'common.zip'), allParts) : new Map<string, JbeamObject>();
+  const brandLogos = zips.includes('common.zip')
+    ? await withZip(join(root, 'common.zip'), async (zip) => {
+        const logos = new Map<string, Buffer>();
+        for (const e of (await zip.entries()).filter((x) => /vehicles\/common\/brand_[^/]+\.png$/i.test(x.name))) logos.set(e.name.replace(/^.*brand_|\.png$/gi, '').toLowerCase(), await zip.readBuffer(e.name));
+        return logos;
+      })
+    : new Map<string, Buffer>();
   let count = 0;
   const taken = new Set<string>();
   for (const z of zips) {
@@ -233,6 +382,8 @@ export async function buildPartObjects(installDir: string, out: string, onVehicl
       if (!parts.length) return;
       onVehicle?.(name);
       const own = vehicle === 'common' ? common : await daesOf(zip);
+      const locate = (mesh: string) => own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
+      if (vehicle !== 'common') await writeSets(zip, vehicle, await vehicleInfo(zip, vehicle, t), commonParts, brandLogos, locate, join(out, 'sets'));
       const seen = new Set<string>();
       for (const p of parts) {
         const key = [...p.meshes].sort().join('|');
