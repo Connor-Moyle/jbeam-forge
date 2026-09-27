@@ -139,3 +139,15 @@
   box-shadow: inset 0 0 0 var(--border-width-accent) var(--accent);
   background: var(--accent-dim);
 }
+
+.categoryLabel {
+  color: var(--text-1);
+  font-weight: var(--weight-medium);
+}
+
+.categoryCount {
+  margin-left: var(--space-1);
+  color: var(--text-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-regular);
+}

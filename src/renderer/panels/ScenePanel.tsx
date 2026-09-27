@@ -21,6 +21,7 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { TreeRow } from '@renderer/ui/components/TreeRow';
 import { cx } from '@renderer/ui/cx';
 import { ancestorIds, buildSceneTree, subtreeIds, type MeshInfo, type PartNode } from '@shared/parts/tree';
+import { groupInfo, groupItems, type TreeItem } from '@shared/parts/grouping';
 import { positionLabel } from '@shared/parts/ops';
 import { POSITIONS_BY_AXIS } from '@shared/taxonomy/schema';
 import type { Part } from '@shared/project/schema';
@@ -110,7 +111,8 @@ function SourceRow({ source }: { source: LoadedSource }) {
 // ---------------------------------------------------------------- parts tree
 
 type Row =
-  | { type: 'part'; node: PartNode; open: boolean; hasKids: boolean }
+  | { type: 'part'; node: PartNode; depth: number; open: boolean; hasKids: boolean }
+  | { type: 'category'; key: string; label: string; category: string; count: number; total: number; depth: number; open: boolean }
   | { type: 'mesh'; mesh: MeshInfo; depth: number; partId: string | null; ignored: boolean }
   | { type: 'group'; id: string; label: string; count: number; open: boolean };
 
@@ -164,15 +166,30 @@ function PartTree({ query }: { query: string }) {
       return next;
     });
 
+  // Category groups open by themselves when they hold what you're looking at (search hits, the selection).
+  const revealIds = new Set<string>([...revealed, ...(activePart ? [activePart, ...ancestorIds(parts, activePart)] : [])]);
+  const holds = (items: TreeItem[]): boolean => items.some((i) => (i.type === 'part' ? revealIds.has(i.node.part.id) || tree.hitPath.has(i.node.part.id) : holds(i.items)));
+  const infoOf = (p: Part) => groupInfo(tax.entry(p.taxonomyId), p);
   const rows: Row[] = [];
-  const walk = (node: PartNode) => {
-    const open = isOpen(node.part.id, node.depth === 0);
-    rows.push({ type: 'part', node, open, hasKids: node.children.length + node.meshes.length > 0 });
+  const walk = (node: PartNode, depth: number) => {
+    const open = isOpen(node.part.id, depth === 0);
+    rows.push({ type: 'part', node, depth, open, hasKids: node.children.length + node.meshes.length > 0 });
     if (!open) return;
-    for (const m of node.meshes) rows.push({ type: 'mesh', mesh: m, depth: node.depth + 1, partId: node.part.id, ignored: false });
-    for (const c of node.children) walk(c);
+    for (const m of node.meshes) rows.push({ type: 'mesh', mesh: m, depth: depth + 1, partId: node.part.id, ignored: false });
+    walkItems(groupItems(node.children, infoOf, node.part.id), depth + 1);
   };
-  tree.roots.forEach(walk);
+  const walkItems = (items: TreeItem[], depth: number) => {
+    for (const item of items) {
+      if (item.type === 'part') {
+        walk(item.node, depth);
+        continue;
+      }
+      const open = (query !== '' || holds(item.items)) !== toggled.has(item.key);
+      rows.push({ type: 'category', key: item.key, label: item.label, category: item.category, count: item.count, total: item.total, depth, open });
+      if (open) walkItems(item.items, depth + 1);
+    }
+  };
+  tree.roots.forEach((r) => walk(r, 0));
   if (tree.unassigned.length || !query) {
     const open = isOpen(GROUP_UNASSIGNED, true);
     rows.push({ type: 'group', id: GROUP_UNASSIGNED, label: 'Unassigned', count: tree.unassigned.length, open });
@@ -191,6 +208,8 @@ function PartTree({ query }: { query: string }) {
       {rows.map((r) =>
         r.type === 'part' ? (
           <PartRow key={`p:${r.node.part.id}`} row={r} ctx={ctx} />
+        ) : r.type === 'category' ? (
+          <CategoryRow key={r.key} row={r} ctx={ctx} />
         ) : r.type === 'mesh' ? (
           <MeshRow key={`m:${r.mesh.key}`} row={r} ctx={ctx} />
         ) : (
@@ -289,7 +308,7 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
         className={cx(ctx.dropTarget === part.id && styles.dropTarget)}
       >
         <TreeRow
-          depth={node.depth}
+          depth={row.depth}
           expanded={row.hasKids ? row.open : undefined}
           onToggle={() => ctx.toggle(part.id)}
           dotColor={categoryColor(entry?.category)}
@@ -370,6 +389,27 @@ function MeshRow({ row, ctx }: { row: Extract<Row, { type: 'mesh' }>; ctx: RowCo
         />
       </div>
     </ContextMenu>
+  );
+}
+
+/** A logical group of sibling parts (Doors, Front doors, Glass…). */
+function CategoryRow({ row, ctx }: { row: Extract<Row, { type: 'category' }>; ctx: RowContext }) {
+  return (
+    <div data-category={row.key} data-testid="scene-category">
+      <TreeRow
+        depth={row.depth}
+        expanded={row.open}
+        onToggle={() => ctx.toggle(row.key)}
+        onSelect={() => ctx.toggle(row.key)}
+        dotColor={categoryColor(row.category)}
+        label={
+          <span className={styles.categoryLabel}>
+            {row.label} <span className={styles.categoryCount}>{row.count} parts</span>
+          </span>
+        }
+        count={row.total}
+      />
+    </div>
   );
 }
 
