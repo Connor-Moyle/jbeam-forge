@@ -63,8 +63,11 @@ function slotDefaultsOf(part: JbeamObject): { type: string; def: string }[] {
   return out;
 }
 
+/** Parts standing in for a fitted suspension, engine or gearbox (replaced by the game's jbeam on export). */
+export const SET_KINDS: ReadonlySet<string> = new Set(['suspension_set', 'engine_set', 'gearbox_set']);
+
 /** Axle tags for part and node names: F, R, R2, R3… */
-function axleTag(i: number): string {
+export function axleTag(i: number): string {
   return i === 0 ? 'F' : i === 1 ? 'R' : `R${i}`;
 }
 
@@ -142,6 +145,19 @@ const SETTING_TEXT: Record<TuningVar['setting'], { title: string; description: s
   mass: { title: 'Weight', description: 'Scales the part’s weight' },
   stiffness: { title: 'Stiffness', description: 'Scales how stiff the part’s structure is' },
   strength: { title: 'Strength', description: 'Scales how much it takes to bend or break the part' },
+  downforce: { title: 'Downforce', description: 'Scales the downforce it makes (angle of attack)' },
+};
+
+/**
+ * Aero parts: lift on their upward-facing triangles (the game's wings are a
+ * single upward-facing surface, found by the normals of the stock sunburst2
+ * spoilers), drag on all of them. Values from the stock parts.
+ */
+export const AERO: Readonly<Record<string, { lift: number; stall: number; drag: number }>> = {
+  wing: { lift: 70, stall: 0.24, drag: 44 },
+  spoiler: { lift: 15, stall: 0.3, drag: 11 },
+  splitter: { lift: 20, stall: 0.3, drag: 20 },
+  lip: { lift: 10, stall: 0.3, drag: 15 },
 };
 
 function variablesSection(part: Part, vars: readonly TuningVar[]): WritableValue[] {
@@ -219,10 +235,22 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
   return firstAttach >= 0 && a.breakGroup ? [...table, { breakGroup: '' }] : table;
 }
 
-function trianglesSection(tris: readonly StructTri[], group: string, preset: BeamPresetId): WritableValue[] {
+function trianglesSection(tris: readonly StructTri[], group: string, preset: BeamPresetId, aero?: { lift: number; stall: number; drag: number; pos: (id: string) => [number, number, number] | undefined; downforce?: string }): WritableValue[] {
   const gm = GROUND_MODEL[BEAM_PRESET_VALUES[preset].nodeMaterial] ?? 'metal';
-  const records: WritableRecord[] = tris.map((t) => ({ values: { 'id1:': t.ids[0], 'id2:': t.ids[1], 'id3:': t.ids[2] }, options: { groundModel: gm, group } }));
-  return [...writeTable(['id1:', 'id2:', 'id3:'], records, { resetValues: { group: '' } }), { group: '' }];
+  const facesUp = (t: StructTri) => {
+    const [a, b, c] = t.ids.map((id) => aero!.pos(id));
+    if (!a || !b || !c) return false;
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    const n = [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!];
+    const len = Math.hypot(n[0]!, n[1]!, n[2]!);
+    return len > 0 && n[2]! / len > 0.6;
+  };
+  const records: WritableRecord[] = tris.map((t) => {
+    const lift = aero && facesUp(t) ? { liftCoef: scaled(aero.lift, aero.downforce), stallAngle: aero.stall } : undefined;
+    return { values: { 'id1:': t.ids[0], 'id2:': t.ids[1], 'id3:': t.ids[2] }, options: { ...(aero ? { dragCoef: aero.drag } : {}), groundModel: gm, group, ...lift }, ...(lift ? { inlineOptions: lift } : {}) };
+  });
+  return [...writeTable(['id1:', 'id2:', 'id3:'], records, { resetValues: { group: '' }, inlineKeys: ['liftCoef', 'stallAngle'] }), { group: '' }];
 }
 
 function slotsFor(doc: Doc, children: readonly Part[], coreSlotType: string | null): WritableValue[] {
@@ -249,7 +277,6 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const fittedSources = [...(fullDoc.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.sourceId] : [])), ...(pt?.engine ? [pt.engine.sourceId] : []), ...(pt?.gearbox ? [pt.gearbox.sourceId] : [])];
   const fitted = new Set(fittedSources);
   const fromFitted = (k: string) => fitted.has(k.slice(0, k.indexOf(':')));
-  const SET_KINDS = new Set(['suspension_set', 'engine_set', 'gearbox_set']);
   const doc: Doc = { ...fullDoc, parts: fullDoc.parts.filter((p) => !SET_KINDS.has(p.taxonomyId)) };
   const setParts = new Set(fullDoc.parts.filter((p) => SET_KINDS.has(p.taxonomyId)).map((p) => p.id));
   const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
@@ -400,7 +427,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
     const posOf = (id: string) => doc.nodes.find((n) => n.id === id)?.pos;
     if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass);
-    if (tris.length) content.triangles = trianglesSection(tris, slotType, preset);
+    const aero = AERO[part.taxonomyId];
+    if (tris.length) content.triangles = trianglesSection(tris, slotType, preset, aero && { ...aero, pos: posOf, downforce: partVars.downforce });
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
     const doc1: WritableObject = { [part.name]: content };
     files.push({ file: `${part.name}.jbeam`, part: part.name, text: serializeJbeam(doc1) });

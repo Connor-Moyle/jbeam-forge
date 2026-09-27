@@ -155,9 +155,9 @@ export function prepareExport(): PreparedExport | null {
     let file = configFileName(config);
     for (let i = 2; taken.has(file); i++) file = `${configFileName(config)}_${i}`;
     taken.add(file);
-    const pc = resolveConfig(doc, tax, config);
+    const pc = resolveConfig(doc, tax, config, useSetData.getState().data);
     configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config), null, 2)}\n` });
-    const preview = capturePreviewOf(doc, includedParts(doc, tax, pc));
+    const preview = capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data));
     if (preview) configFiles.push({ path: `${root}/${file}.jpg`, base64: base64FromDataUrl(preview) });
   }
   const files: ExportBundle['files'] = [

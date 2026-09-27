@@ -134,6 +134,30 @@ describe('jbeam export', () => {
     expect(beams.some((r) => r.options.deformGroup === flex.options.deformGroup && r.options.deformationTriggerRatio === 0.02)).toBe(true);
   });
 
+  it('gives a wing lift on its upward faces and drag on all, scaled by its downforce setting', () => {
+    const { doc, meshes } = carProject();
+    const wing = createPart(doc, tax, { taxonomyId: 'wing', id: 'p_wing', parentPartId: 'p_body' });
+    assignMeshes(doc, ['s:wing'], wing.id);
+    generateStructure(doc, tax, [{ partId: wing.id, mesh: box(0.7, 1.9, 2.1, 1.2, 1.25, 3) }]);
+    doc.variables = [{ id: 'v', partId: 'p_wing', setting: 'downforce', min: 0.3, max: 2, default: 1 }];
+    const names = exportMeshNames(doc, [...meshes, { key: 's:wing', name: 'wing', sourceId: 's' }]);
+    const part = [...buildJbeamFiles(doc, tax, { meshNames: names, author: 'x' }).map((f) => parsePart(f.text)[1])].find((p) => p.slotType === 'test_wing')!;
+    expect(part.triangles).toBeDefined();
+    const rows = readTable(part.triangles!).records;
+    const pos = new Map(doc.nodes.map((n) => [n.id, n.pos]));
+    const lifting = rows.filter((r) => r.inlineOptions?.liftCoef !== undefined);
+    expect(lifting.length).toBeGreaterThan(0);
+    expect(lifting.length).toBeLessThan(rows.length);
+    expect(lifting.every((r) => r.inlineOptions.liftCoef === '$=70*$test_wing_downforce' && r.inlineOptions.stallAngle === 0.24)).toBe(true);
+    // Lifting faces are the top: right-hand normals pointing up.
+    for (const r of lifting) {
+      const [a, b, c] = ['id1:', 'id2:', 'id3:'].map((k) => pos.get(r.values[k] as string)!);
+      const nz = (b![0] - a![0]) * (c![1] - a![1]) - (b![1] - a![1]) * (c![0] - a![0]);
+      expect(nz).toBeGreaterThan(0);
+    }
+    expect(rows.every((r) => r.options.dragCoef === 44)).toBe(true);
+  });
+
   it('writes licence plates, a tow hitch and paint designs the way the stock cars do', () => {
     const { doc, meshes } = carProject();
     doc.features = {
@@ -183,6 +207,27 @@ describe('jbeam export', () => {
     expect([...includedParts(doc, tax, pc)].sort()).toEqual(['p_body', 'p_bumper_race', 'p_hood']);
     expect(configFileName(race)).toBe('race_spec');
     expect(configInfoJson(doc, tax, pc, race)).toMatchObject({ Configuration: 'Race Spec!', 'Config Type': 'Custom', Description: 'Lighter' });
+  });
+
+  it('lets a configuration leave a fitted axle off', () => {
+    const { doc } = carProject();
+    const set = createPart(doc, tax, { taxonomyId: 'suspension_set', id: 'p_rear_set' });
+    assignMeshes(doc, ['susp:arm_R'], set.id);
+    doc.axles = [
+      { id: 'a1', name: 'Front', y: -1.3, track: 1.5, steered: true, tuning: {}, ownMeshes: [], fitted: null },
+      { id: 'a2', name: 'Rear', y: 1.3, track: 1.5, steered: false, tuning: {}, ownMeshes: [], fitted: { setId: 'pickup/rear', name: 'Leaf', vehicle: 'Gavril D-Series', type: 'leaf', sourceId: 'susp' } },
+    ];
+    const sets = { 'pickup/rear': { root: 'pickup_leaf_R', parts: { pickup_leaf_R: { slotType: 'pickup_suspension_R' } } } };
+    const slots = slotChoices(doc, tax, sets);
+    // The stand-in part isn't a slot of its own; the axle is, right under the body.
+    expect(slots.some((s) => s.slotType.includes('suspension_set'))).toBe(false);
+    const bodyAt = slots.findIndex((s) => s.core);
+    expect(slots[bodyAt + 1]).toMatchObject({ slotType: 'test_R_pickup_suspension_R', defaultPart: 'test_R_pickup_leaf_R', label: 'Rear suspension', core: false, setPartIds: ['p_rear_set'] });
+    const base = resolveConfig(doc, tax, null, sets);
+    expect(base.parts.test_R_pickup_suspension_R).toBe('test_R_pickup_leaf_R');
+    expect(includedParts(doc, tax, base, sets).has('p_rear_set')).toBe(true);
+    const noRear = resolveConfig(doc, tax, { id: 'c', name: 'Trike', description: '', type: 'Custom', parts: { test_R_pickup_suspension_R: '' }, vars: {} }, sets);
+    expect(includedParts(doc, tax, noRear, sets).has('p_rear_set')).toBe(false);
   });
 
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {

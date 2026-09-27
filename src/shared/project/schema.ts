@@ -283,7 +283,7 @@ export const PowertrainSchema = z.object({
 export const TuningVarSchema = z.object({
   id: z.string().min(1),
   partId: z.string().min(1),
-  setting: z.enum(['mass', 'stiffness', 'strength']),
+  setting: z.enum(['mass', 'stiffness', 'strength', 'downforce']),
   min: z.number().positive(),
   max: z.number().positive(),
   default: z.number().positive(),

@@ -5,6 +5,7 @@ import { variableName } from '@shared/export/jbeam';
 import { EMPTY_ARR } from '@shared/empty';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useTaxonomy } from '@renderer/parts/taxonomy';
+import { useSetData } from '@renderer/suspension/commands';
 import { Button } from '@renderer/ui/components/Button';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
 import { Field, FieldGroup } from '@renderer/ui/components/Field';
@@ -32,13 +33,14 @@ export function ConfigsPanel() {
   const selected = useConfigUi((s) => s.selected);
   const preview = useConfigUi((s) => s.preview);
   const config = configs.find((c) => c.id === selected) ?? null;
-  const slots = useMemo(() => (doc ? slotChoices(doc, tax) : []), [doc, tax]);
-  const pc = useMemo(() => (doc ? resolveConfig(doc, tax, config) : null), [doc, tax, config]);
+  const sets = useSetData((s) => s.data);
+  const slots = useMemo(() => (doc ? slotChoices(doc, tax, sets) : []), [doc, tax, sets]);
+  const pc = useMemo(() => (doc ? resolveConfig(doc, tax, config, sets) : null), [doc, tax, config, sets]);
 
   // Preview: only the parts this configuration puts on the car.
   useEffect(() => {
-    applyConfigPreview(preview && doc && pc ? includedParts(doc, tax, pc) : null);
-  }, [preview, doc, tax, pc]);
+    applyConfigPreview(preview && doc && pc ? includedParts(doc, tax, pc, sets) : null);
+  }, [preview, doc, tax, pc, sets]);
   useEffect(() => () => applyConfigPreview(null), []);
 
   if (!doc || !pc) return null;

@@ -5,6 +5,7 @@ import { Toggle } from '@renderer/ui/components/Toggle';
 import { EMPTY_ARR } from '@shared/empty';
 import type { Part, TuningVar } from '@shared/project/schema';
 import styles from './TuningVarsSection.module.css';
+import { AERO } from '@shared/export/jbeam';
 
 /**
  * Part settings the player can change in the game's tuning menu. Each is a
@@ -16,6 +17,7 @@ const SETTINGS: { setting: TuningVar['setting']; label: string; hint: string; ra
   { setting: 'mass', label: 'Weight', hint: 'Lighter or heavier versions of the part', range: [0.5, 1.5] },
   { setting: 'stiffness', label: 'Stiffness', hint: 'How much it flexes', range: [0.7, 1.5] },
   { setting: 'strength', label: 'Strength', hint: 'How much it takes to bend or break it', range: [0.5, 2] },
+  { setting: 'downforce', label: 'Downforce', hint: 'Wing angle: more grip, more drag', range: [0.3, 2] },
 ];
 
 export function setTuningVar(partId: string, setting: TuningVar['setting'], patch: Partial<Omit<TuningVar, 'id' | 'partId' | 'setting'>> | null): void {
@@ -45,7 +47,7 @@ export function TuningVarsSection({ part }: { part: Part }) {
   return (
     <FieldGroup title="Adjustable in game">
       <p className={styles.note}>Ticked settings show in BeamNG&rsquo;s tuning menu for this part, as a scale between min and max.</p>
-      {SETTINGS.map(({ setting, label, hint, range }) => {
+      {SETTINGS.filter((x) => x.setting !== 'downforce' || AERO[part.taxonomyId]).map(({ setting, label, hint, range }) => {
         const v = vars.find((x) => x.partId === part.id && x.setting === setting);
         return (
           <div key={setting} className={styles.setting} data-testid={`tuning-var-${setting}`}>
