@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 11;
+export const CURRENT_PROJECT_VERSION = 12;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -257,9 +257,25 @@ export const AxleSchema = z.object({
     .nullable(),
 });
 
-export const ProjectV11Schema = z.object({
+/** An engine or gearbox fitted from the game (v12, Phase 11): its own model, its jbeam brought over on export. */
+export const FittedSetSchema = z.object({
+  setId: z.string(),
+  name: z.string(),
+  vehicle: z.string(),
+  type: z.string(),
+  sourceId: z.string(),
+  /** Tuning values for its variables; unset = the game's default. */
+  tuning: z.record(z.string(), z.number()),
+});
+
+export const PowertrainSchema = z.object({
+  engine: FittedSetSchema.nullable(),
+  gearbox: FittedSetSchema.nullable(),
+});
+
+export const ProjectV12Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(11),
+  formatVersion: z.literal(12),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -291,12 +307,13 @@ export const ProjectV11Schema = z.object({
   /** Axles and their suspension (v11, Phase 10). */
   axles: z.array(AxleSchema),
   suspension: placeholderMap, // Phase 10
-  powertrain: placeholderMap, // Phase 11
+  /** Engine and gearbox (v12, Phase 11). */
+  powertrain: PowertrainSchema,
   configs: placeholderList, // Phase 13
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV11Schema;
+export const ProjectSchema = ProjectV12Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -306,6 +323,7 @@ export type ReferenceCar = z.infer<typeof ReferenceCarSchema>;
 export type MeshEdit = z.infer<typeof MeshEditSchema>;
 export type MeshCopy = z.infer<typeof MeshCopySchema>;
 export type Axle = z.infer<typeof AxleSchema>;
+export type FittedSet = z.infer<typeof FittedSetSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

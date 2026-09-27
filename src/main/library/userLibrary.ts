@@ -24,7 +24,7 @@ export interface FolderStatus {
 
 const MAX_FILES = 50_000;
 /** Bump when the BeamNG part cutting changes, so installs are cut again. */
-const BEAMNG_FORMAT = 6;
+const BEAMNG_FORMAT = 8;
 
 type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
 
@@ -82,7 +82,7 @@ async function loadSets(dir: string): Promise<SuspensionSet[]> {
       const folder = join(dir, v, p);
       try {
         const s = JSON.parse(await readFile(join(folder, 'set.json'), 'utf8')) as Omit<SuspensionSet, 'id' | 'mesh' | 'jbeam' | 'logo'> & { mesh: string; logo: string | null };
-        out.push({ ...s, id: `${v}/${p}`, mesh: join(folder, s.mesh), jbeam: join(folder, 'jbeam.json'), logo: s.logo ? join(folder, s.logo) : null });
+        out.push({ ...s, kind: s.kind ?? 'suspension', slotType: s.slotType ?? '', id: `${v}/${p}`, mesh: join(folder, s.mesh), jbeam: join(folder, 'jbeam.json'), logo: s.logo ? join(folder, s.logo) : null });
       } catch {
         // not a set folder
       }

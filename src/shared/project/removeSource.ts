@@ -30,4 +30,6 @@ export function removeSourceFromDoc(d: Project, sourceId: string): void {
     for (const k of Object.keys(rec)) if (drop(k)) delete rec[k];
   }
   for (const a of d.axles) if (a.fitted?.sourceId === sourceId) a.fitted = null;
+  if (d.powertrain.engine?.sourceId === sourceId) d.powertrain.engine = null;
+  if (d.powertrain.gearbox?.sourceId === sourceId) d.powertrain.gearbox = null;
 }

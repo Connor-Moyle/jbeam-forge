@@ -1,9 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { isJbeamObject, parseJbeam, type JbeamObject } from '@shared/jbeam/parse';
-import { withZip, type ZipReader } from './zip';
+import { dirname, join } from 'node:path';
+import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '@shared/jbeam/parse';
+import { withZip, ZipReader } from './zip';
 import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
+import { engineSpecs, gearboxSpecs, isEnginePart, isGearboxPart, partTitle } from '@shared/powertrain/specs';
 
 /**
  * Suspension, brake and steering meshes from the user's own BeamNG.drive
@@ -104,7 +105,7 @@ const between = (text: string, open: string, close: string): string | null => {
 };
 
 /** A DAE holding just these nodes (from one or more source DAEs), with plain materials that keep the game's names. */
-export function subsetDae(sources: { doc: DaeDoc; names: string[] }[], shade: string): string | null {
+export function subsetDae(sources: { doc: DaeDoc; names: string[] }[], shade: string, texture: (material: string) => string | null = () => null): string | null {
   const nodes: string[] = [];
   const geometries: string[] = [];
   const materials = new Set<string>();
@@ -136,8 +137,16 @@ export function subsetDae(sources: { doc: DaeDoc; names: string[] }[], shade: st
   return `<?xml version="1.0" encoding="utf-8"?>
 <COLLADA xmlns="http://www.collada.org/2005/11/COLLADASchema" version="1.4.1">
 ${asset}
+<library_images>
+${mats
+  .flatMap((m) => {
+    const t = texture(m);
+    return t ? [`<image id="${m}-img" name="${m}-img"><init_from>${t}</init_from></image>`] : [];
+  })
+  .join('\n')}
+</library_images>
 <library_effects>
-${mats.map((m) => `<effect id="${m}-fx"><profile_COMMON><technique sid="common"><lambert><diffuse><color>${shade} 1</color></diffuse></lambert></technique></profile_COMMON></effect>`).join('\n')}
+${mats.map((m) => (texture(m) ? `<effect id="${m}-fx"><profile_COMMON><newparam sid="${m}-surface"><surface type="2D"><init_from>${m}-img</init_from></surface></newparam><newparam sid="${m}-sampler"><sampler2D><source>${m}-surface</source></sampler2D></newparam><technique sid="common"><lambert><diffuse><texture texture="${m}-sampler" texcoord="UVMap"/></diffuse></lambert></technique></profile_COMMON></effect>` : `<effect id="${m}-fx"><profile_COMMON><technique sid="common"><lambert><diffuse><color>${shade} 1</color></diffuse></lambert></technique></profile_COMMON></effect>`)).join('\n')}
 </library_effects>
 <library_materials>
 ${mats.map((m) => `<material id="${m}-m" name="${m}"><instance_effect url="#${m}-fx"/></material>`).join('\n')}
@@ -153,6 +162,109 @@ ${nodes.join('\n')}
 <scene><instance_visual_scene url="#Scene"/></scene>
 </COLLADA>
 `;
+}
+
+/** The game material names a subset uses (as subsetDae names them). */
+export function subsetMaterials(sources: { doc: DaeDoc; names: string[] }[]): string[] {
+  const out = new Set<string>();
+  for (const { doc, names } of sources) {
+    for (const name of names) {
+      const r = doc.nodes.get(name);
+      if (!r) continue;
+      for (const m of doc.text.slice(r[0], r[1]).matchAll(/target="#([^"]+)"/g)) out.add(m[1]!.replace(/-material$/, ''));
+    }
+  }
+  return [...out];
+}
+
+/** Material name (and mapTo) → its colour texture, from a zip's *.materials.json files. */
+async function materialTextures(zip: ZipReader): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (const e of (await zip.entries()).filter((x) => /materials\.json$/i.test(x.name))) {
+    let doc: JbeamValue;
+    try {
+      doc = parseJbeam(await zip.readText(e.name)).value;
+    } catch {
+      continue;
+    }
+    if (!isJbeamObject(doc)) continue;
+    for (const [key, mat] of Object.entries(doc)) {
+      if (!isJbeamObject(mat) || !Array.isArray(mat.Stages)) continue;
+      let tex: string | null = null;
+      for (const stage of mat.Stages) {
+        if (!isJbeamObject(stage)) continue;
+        const t = stage.baseColorMap ?? stage.colorMap ?? stage.diffuseMap;
+        if (typeof t === 'string' && t) {
+          tex = t.replace(/^\//, '');
+          break;
+        }
+      }
+      if (!tex) continue;
+      for (const n of [key, mat.name, mat.mapTo]) if (typeof n === 'string' && !out.has(n.toLowerCase())) out.set(n.toLowerCase(), tex);
+    }
+  }
+  return out;
+}
+
+/**
+ * Textures the cut-out parts use, copied once into <out>/_textures/<path in the game>. Every
+ * object/set DAE sits three folders below <out>, so it refers to them as ../../../_textures/….
+ */
+class TextureStore {
+  private readonly placed = new Map<string, string | null>();
+  constructor(
+    private readonly out: string,
+    private readonly common: ZipReader | null,
+  ) {}
+
+  private readonly indexes = new WeakMap<ZipReader, Promise<Map<string, string>>>();
+
+  /** The zip's entry for a texture path: exact, any case, or the .dds the game converted it to. */
+  private async entry(zip: ZipReader, path: string): Promise<string | null> {
+    let index = this.indexes.get(zip);
+    if (!index) {
+      index = zip.entries().then((es) => new Map(es.map((e) => [e.name.toLowerCase(), e.name])));
+      this.indexes.set(zip, index);
+    }
+    const map = await index;
+    const lower = path.toLowerCase();
+    return map.get(lower) ?? map.get(lower.replace(/\.[a-z0-9]+$/, '.dds')) ?? null;
+  }
+
+  async place(zipPath: string, zip: ZipReader): Promise<string | null> {
+    const key = zipPath.toLowerCase();
+    let found = this.placed.get(key);
+    if (found === undefined) {
+      found = null;
+      for (const source of [zip, this.common]) {
+        if (!source) continue;
+        try {
+          const name = await this.entry(source, zipPath);
+          if (!name) continue;
+          const target = join(this.out, '_textures', name);
+          mkdirSync(dirname(target), { recursive: true });
+          writeFileSync(target, await source.readBuffer(name, 256 * 1024 * 1024));
+          found = name;
+          break;
+        } catch {
+          // unreadable texture: the part stays plain
+        }
+      }
+      this.placed.set(key, found);
+    }
+    return found ? `../../../_textures/${found}` : null;
+  }
+
+  /** Texture URLs (relative to a part's DAE) for these materials. */
+  async lookup(materials: readonly string[], index: ReadonlyMap<string, string>, zip: ZipReader): Promise<(m: string) => string | null> {
+    const urls = new Map<string, string>();
+    for (const m of materials) {
+      const path = index.get(m.toLowerCase());
+      const url = path ? await this.place(path, zip) : null;
+      if (url) urls.set(m, url);
+    }
+    return (m) => urls.get(m) ?? null;
+  }
 }
 
 const SHADES: Record<string, string> = {
@@ -244,6 +356,17 @@ const SET_CATEGORIES = new Set(['Front Suspension', 'Rear Suspension', 'Suspensi
 
 /** A suspension as the game fits it: the part plus the defaults of its slots, all the way down. */
 export function suspensionClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 40): string[] {
+  // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension.
+  return partClosure(start, find, (b) => typeof b.slotType === 'string' && NOT_SUSPENSION.test(b.slotType), max);
+}
+
+/** An engine without its gearbox (that belongs to the gearbox workshop), wheels or body parts. */
+export function engineClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 60): string[] {
+  return partClosure(start, find, (b) => isGearboxPart(b) || (typeof b.slotType === 'string' && /transmission|transaxle|gearbox|^wheel|^tire/i.test(b.slotType)), max);
+}
+
+/** A part and the defaults of its slots, all the way down; `skip` leaves out branches (not the start). */
+export function partClosure(start: string, find: (name: string) => JbeamObject | undefined, skip: (body: JbeamObject) => boolean, max = 40): string[] {
   const seen: string[] = [];
   const queue = [start];
   while (queue.length && seen.length < max) {
@@ -251,12 +374,33 @@ export function suspensionClosure(start: string, find: (name: string) => JbeamOb
     if (seen.includes(name)) continue;
     const body = find(name);
     if (!body) continue;
-    // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension.
-    if (seen.length && typeof body.slotType === 'string' && NOT_SUSPENSION.test(body.slotType)) continue;
+    if (seen.length && skip(body)) continue;
     seen.push(name);
     queue.push(...slotDefaults(body));
   }
   return seen;
+}
+
+/** Every slot type a set of parts declares (the type/name column and allowTypes). */
+export function declaredSlotTypes(parts: Iterable<JbeamObject>): Set<string> {
+  const out = new Set<string>();
+  for (const p of parts) {
+    for (const key of ['slots', 'slots2'] as const) {
+      const t = p[key];
+      if (!Array.isArray(t) || !Array.isArray(t[0])) continue;
+      const h = (t[0] as unknown[]).map(String);
+      for (const row of t.slice(1)) {
+        if (!Array.isArray(row)) continue;
+        for (const col of ['type', 'name']) {
+          const v = row[h.indexOf(col)];
+          if (typeof v === 'string') out.add(v);
+        }
+        const allow = row[h.indexOf('allowTypes')];
+        if (Array.isArray(allow)) for (const a of allow) if (typeof a === 'string') out.add(a);
+      }
+    }
+  }
+  return out;
 }
 
 function flexMeshes(body: JbeamObject): string[] {
@@ -291,13 +435,11 @@ async function writeSets(
   brandLogos: ReadonlyMap<string, Buffer>,
   locate: (mesh: string) => DaeDoc | undefined,
   out: string,
+  textures: TextureStore,
+  materialIndex: ReadonlyMap<string, string>,
 ): Promise<void> {
   const own = await allParts(zip);
   const find = (n: string) => own.get(n) ?? commonParts.get(n);
-  // Every node the car defines, so a set's attachments to the body can be placed.
-  const vehicleNodes = new Map<string, V3>();
-  for (const body of own.values()) for (const [id, pos] of definedNodes(body)) if (!vehicleNodes.has(id)) vehicleNodes.set(id, pos);
-  const logoFile = join(out, '_logos', `${vehicle}.png`);
   let logo: Buffer | null = brandLogos.get(info.brand.toLowerCase()) ?? null;
   if (!logo) {
     try {
@@ -308,17 +450,41 @@ async function writeSets(
   }
   if (logo) {
     mkdirSync(join(out, '_logos'), { recursive: true });
-    writeFileSync(logoFile, logo);
+    writeFileSync(join(out, '_logos', `${vehicle}.png`), logo);
   }
-  const seen = new Set<string>();
+
+  // What goes in: suspensions from the car's own parts; engines and gearboxes (often shared, in
+  // common) that fit a slot the car or its engines declare.
+  const roots: { kind: 'suspension' | 'engine' | 'gearbox'; part: string; parts: string[] }[] = [];
   for (const [partName, body] of own) {
     const slotType = typeof body.slotType === 'string' ? body.slotType : '';
     const category = categoryOf(slotType);
     // A set starts at the suspension itself (not a hub or subframe on its own).
-    if (!category || !SET_CATEGORIES.has(category) || !/suspension|axle/i.test(slotType)) continue;
-    const parts = suspensionClosure(partName, find);
+    if (category && SET_CATEGORIES.has(category) && /suspension|axle/i.test(slotType)) roots.push({ kind: 'suspension', part: partName, parts: suspensionClosure(partName, find) });
+  }
+  const pool = new Map([...commonParts, ...own]);
+  const carSlots = declaredSlotTypes(own.values());
+  // Landing gear and the like have motors too; they aren't engines.
+  const engines = [...pool].filter(([n, b]) => typeof b.slotType === 'string' && carSlots.has(b.slotType) && isEnginePart(b) && !/landing|winch|crane|ramp/i.test(`${n} ${partTitle(b, n)}`));
+  for (const [name] of engines) roots.push({ kind: 'engine', part: name, parts: engineClosure(name, find) });
+  const engineSlots = declaredSlotTypes(engines.map(([, b]) => b));
+  for (const [name, b] of pool) {
+    if (typeof b.slotType === 'string' && (carSlots.has(b.slotType) || engineSlots.has(b.slotType)) && isGearboxPart(b)) {
+      roots.push({ kind: 'gearbox', part: name, parts: partClosure(name, find, (x) => typeof x.slotType === 'string' && /^wheel|^tire/i.test(x.slotType)) });
+    }
+  }
+
+  // Every node the car and its engines define, so a set's attachments can be placed.
+  const vehicleNodes = new Map<string, V3>();
+  const engineParts = engines.flatMap(([n]) => engineClosure(n, find).map((p) => find(p)!));
+  for (const body of [...own.values(), ...engineParts]) for (const [id, pos] of definedNodes(body)) if (!vehicleNodes.has(id)) vehicleNodes.set(id, pos);
+
+  const seen = new Set<string>();
+  for (const { kind, part: partName, parts } of roots) {
+    const body = find(partName)!;
+    const slotType = typeof body.slotType === 'string' ? body.slotType : '';
     const meshes = [...new Set(parts.flatMap((p) => flexMeshes(find(p)!)))];
-    const key = meshes.sort().join('|');
+    const key = `${kind}:${meshes.sort().join('|')}:${kind === 'suspension' ? '' : partName}`;
     if (!meshes.length || seen.has(key)) continue;
     seen.add(key);
     const sources: { doc: DaeDoc; names: string[] }[] = [];
@@ -329,26 +495,39 @@ async function writeSets(
       if (s) s.names.push(mesh);
       else sources.push({ doc, names: [mesh] });
     }
-    const dae = sources.length ? subsetDae(sources, '0.5 0.5 0.52') : null;
+    const dae = sources.length ? subsetDae(sources, kind === 'suspension' ? '0.5 0.5 0.52' : '0.32 0.33 0.35', await textures.lookup(subsetMaterials(sources), materialIndex, zip)) : null;
     if (!dae) continue;
-    const infoBlock = isJbeamObject(body.information) ? body.information : null;
-    const title = typeof infoBlock?.name === 'string' && infoBlock.name.trim() ? infoBlock.name.trim() : partName;
-    const axle = category === 'Front Suspension' ? 'front' : category === 'Rear Suspension' ? 'rear' : /_F(_|$)/.test(slotType) ? 'front' : /_R(_|$)/.test(slotType) ? 'rear' : 'any';
+    const title = partTitle(body, partName);
+    const closure = Object.fromEntries(parts.map((p) => [p, find(p)!]));
+    const category = categoryOf(slotType);
+    const axle = kind !== 'suspension' ? 'any' : category === 'Front Suspension' ? 'front' : category === 'Rear Suspension' ? 'rear' : /_F(_|$)/.test(slotType) ? 'front' : /_R(_|$)/.test(slotType) ? 'rear' : 'any';
+    const engine = kind === 'engine' ? engineSpecs(body, Object.values(closure), title) : undefined;
+    const gearbox = kind === 'gearbox' ? gearboxSpecs(body) : undefined;
+    const type = kind === 'suspension' ? suspensionType(`${title} ${parts.join(' ')} ${meshes.join(' ')}`) : engine ? engine.layout : gearbox!.kind;
     const dir = join(out, vehicle, safe(partName));
     mkdirSync(dir, { recursive: true });
     const meshFile = `${vehicle}_${safe(partName)}.dae`;
     writeFileSync(join(dir, meshFile), dae);
-    const closure = Object.fromEntries(parts.map((p) => [p, find(p)!]));
     writeFileSync(join(dir, 'jbeam.json'), JSON.stringify(closure, null, 1));
     writeFileSync(join(dir, 'anchors.json'), JSON.stringify(externalNodeRefs(closure, vehicleNodes)));
-    writeFileSync(
-      join(dir, 'set.json'),
-      JSON.stringify(
-        { version: 1, vehicle, vehicleName: info.name, brand: info.brand || 'Other', axle, type: suspensionType(`${title} ${parts.join(' ')} ${meshes.join(' ')}`), name: title, part: partName, parts, mesh: meshFile, logo: logo ? `../../_logos/${vehicle}.png` : null },
-        null,
-        1,
-      ),
-    );
+    const setJson = {
+      version: 1,
+      kind,
+      vehicle,
+      vehicleName: info.name,
+      brand: info.brand || 'Other',
+      axle,
+      type,
+      name: title,
+      part: partName,
+      slotType,
+      parts,
+      mesh: meshFile,
+      logo: logo ? `../../_logos/${vehicle}.png` : null,
+      ...(engine ? { engine } : {}),
+      ...(gearbox ? { gearbox } : {}),
+    };
+    writeFileSync(join(dir, 'set.json'), JSON.stringify(setJson, null, 1));
   }
 }
 
@@ -372,50 +551,62 @@ export async function buildPartObjects(installDir: string, out: string, onVehicl
     : new Map<string, Buffer>();
   let count = 0;
   const taken = new Set<string>();
-  for (const z of zips) {
-    const vehicle = z.replace(/\.zip$/i, '');
-    await withZip(join(root, z), async (zip) => {
-      const parts: PartObject[] = [];
-      const name = await vehicleName(zip, vehicle, t);
-      for (const e of (await zip.entries()).filter((x) => x.name.endsWith('.jbeam'))) {
-        try {
-          const doc = parseJbeam(await zip.readText(e.name)).value;
-          if (isJbeamObject(doc)) parts.push(...partsOf(doc, vehicle, name));
-        } catch {
-          // a jbeam the lenient parser can't read: skip it
+  const commonZip = zips.includes('common.zip') ? await ZipReader.open(join(root, 'common.zip')) : null;
+  const textures = new TextureStore(out, commonZip);
+  const commonMaterials = commonZip ? await materialTextures(commonZip) : new Map<string, string>();
+  try {
+    for (const z of zips) {
+      const vehicle = z.replace(/\.zip$/i, '');
+      await withZip(join(root, z), async (zip) => {
+        const parts: PartObject[] = [];
+        const name = await vehicleName(zip, vehicle, t);
+        for (const e of (await zip.entries()).filter((x) => x.name.endsWith('.jbeam'))) {
+          try {
+            const doc = parseJbeam(await zip.readText(e.name)).value;
+            if (isJbeamObject(doc)) parts.push(...partsOf(doc, vehicle, name));
+          } catch {
+            // a jbeam the lenient parser can't read: skip it
+          }
         }
-      }
-      if (!parts.length) return;
-      onVehicle?.(name);
-      const own = vehicle === 'common' ? common : await daesOf(zip);
-      const locate = (mesh: string) => own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
-      if (vehicle !== 'common') await writeSets(zip, vehicle, await vehicleInfo(zip, vehicle, t), commonParts, brandLogos, locate, join(out, 'sets'));
-      const seen = new Set<string>();
-      for (const p of parts) {
-        const key = [...p.meshes].sort().join('|');
-        if (seen.has(key)) continue;
-        seen.add(key);
-        const sources: { doc: DaeDoc; names: string[] }[] = [];
-        for (const mesh of p.meshes) {
-          const doc = own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
-          if (!doc) continue;
-          const s = sources.find((x) => x.doc === doc);
-          if (s) s.names.push(mesh);
-          else sources.push({ doc, names: [mesh] });
+        if (!parts.length) return;
+        onVehicle?.(name);
+        const own = vehicle === 'common' ? common : await daesOf(zip);
+        const locate = (mesh: string) => own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
+        // The car's own materials first, then the shared ones.
+        const materialIndex = new Map([...commonMaterials, ...(vehicle === 'common' ? [] : await materialTextures(zip))]);
+        if (vehicle !== 'common') await writeSets(zip, vehicle, await vehicleInfo(zip, vehicle, t), commonParts, brandLogos, locate, join(out, 'sets'), textures, materialIndex);
+        const seen = new Set<string>();
+        for (const p of parts) {
+          const key = [...p.meshes].sort().join('|');
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const sources: { doc: DaeDoc; names: string[] }[] = [];
+          for (const mesh of p.meshes) {
+            const doc = own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
+            if (!doc) continue;
+            const s = sources.find((x) => x.doc === doc);
+            if (s) s.names.push(mesh);
+            else sources.push({ doc, names: [mesh] });
+          }
+          const dae = sources.length ? subsetDae(sources, SHADES[p.category] ?? '0.5 0.5 0.52', await textures.lookup(subsetMaterials(sources), materialIndex, zip)) : null;
+          if (!dae) continue;
+          let title = safe(`${p.vehicleName} · ${p.partName}`);
+          for (let i = 2; taken.has(`${p.category}/${title}`.toLowerCase()); i++) title = safe(`${p.vehicleName} · ${p.partName} ${i}`);
+          taken.add(`${p.category}/${title}`.toLowerCase());
+          const dir = join(out, 'BeamNG', p.category, title);
+          mkdirSync(dir, { recursive: true });
+          const meshFile = `${p.part}.dae`;
+          writeFileSync(join(dir, meshFile), dae);
+          writeFileSync(
+            join(dir, 'object.json'),
+            JSON.stringify({ version: 1, name: title, category: p.category, group: 'BeamNG', mesh: meshFile, material: null, gameMaterials: true, source: `${vehicle}: ${p.part}`, credit: 'BeamNG (from your install)' }, null, 2),
+          );
+          count++;
         }
-        const dae = sources.length ? subsetDae(sources, SHADES[p.category] ?? '0.5 0.5 0.52') : null;
-        if (!dae) continue;
-        let title = safe(`${p.vehicleName} · ${p.partName}`);
-        for (let i = 2; taken.has(`${p.category}/${title}`.toLowerCase()); i++) title = safe(`${p.vehicleName} · ${p.partName} ${i}`);
-        taken.add(`${p.category}/${title}`.toLowerCase());
-        const dir = join(out, 'BeamNG', p.category, title);
-        mkdirSync(dir, { recursive: true });
-        const meshFile = `${p.part}.dae`;
-        writeFileSync(join(dir, meshFile), dae);
-        writeFileSync(join(dir, 'object.json'), JSON.stringify({ version: 1, name: title, category: p.category, group: 'BeamNG', mesh: meshFile, material: null, gameMaterials: true, source: `${vehicle}: ${p.part}`, credit: 'BeamNG (from your install)' }, null, 2));
-        count++;
-      }
-    });
+      });
+    }
+  } finally {
+    commonZip?.close();
   }
   return count;
 }

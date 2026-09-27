@@ -10,7 +10,7 @@ import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
 import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
-import { transplantSuspension } from '../suspension/transplant';
+import { definedNodes, transplantSuspension } from '../suspension/transplant';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -24,7 +24,7 @@ import { transplantSuspension } from '../suspension/transplant';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -42,6 +42,20 @@ export interface SuspensionSetData {
   parts: Record<string, JbeamObject>;
   anchors: Record<string, [number, number, number]>;
   root: string;
+}
+
+/** A part's slots: type and default (both slot table formats). */
+function slotDefaultsOf(part: JbeamObject): { type: string; def: string }[] {
+  const out: { type: string; def: string }[] = [];
+  for (const key of ['slots', 'slots2'] as const) {
+    const t = part[key];
+    if (!Array.isArray(t) || !Array.isArray(t[0])) continue;
+    const h = (t[0]).map(String);
+    const typeCol = h.includes('name') ? h.indexOf('name') : h.indexOf('type');
+    const defCol = h.indexOf('default');
+    for (const row of t.slice(1)) if (Array.isArray(row) && typeof row[typeCol] === 'string') out.push({ type: row[typeCol], def: typeof row[defCol] === 'string' ? (row[defCol]) : '' });
+  }
+  return out;
 }
 
 /** Axle tags for part and node names: F, R, R2, R3… */
@@ -185,33 +199,50 @@ function slotsFor(doc: Doc, children: readonly Part[], coreSlotType: string | nu
 export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamExportOptions): JbeamFile[] {
   const slug = fullDoc.meta.slug;
   const files: JbeamFile[] = [];
-  // Fitted suspensions: their project part is replaced by the game's own jbeam, brought over.
-  const fitted = new Set((fullDoc.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.sourceId] : [])));
+  // Fitted suspensions, engine and gearbox: their project parts are replaced by the game's own jbeam, brought over.
+  const pt = fullDoc.powertrain;
+  const fittedSources = [...(fullDoc.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.sourceId] : [])), ...(pt?.engine ? [pt.engine.sourceId] : []), ...(pt?.gearbox ? [pt.gearbox.sourceId] : [])];
+  const fitted = new Set(fittedSources);
   const fromFitted = (k: string) => fitted.has(k.slice(0, k.indexOf(':')));
-  const doc: Doc = { ...fullDoc, parts: fullDoc.parts.filter((p) => p.taxonomyId !== 'suspension_set') };
-  const suspensionSlots: WritableValue[] = [];
-  (fullDoc.axles ?? []).forEach((axle, i) => {
-    const data = axle.fitted ? opts.suspensions?.[axle.fitted.setId] : undefined;
-    if (!axle.fitted || !data) return;
-    const sourceId = axle.fitted.sourceId;
+  const SET_KINDS = new Set(['suspension_set', 'engine_set', 'gearbox_set']);
+  const doc: Doc = { ...fullDoc, parts: fullDoc.parts.filter((p) => !SET_KINDS.has(p.taxonomyId)) };
+  const setParts = new Set(fullDoc.parts.filter((p) => SET_KINDS.has(p.taxonomyId)).map((p) => p.id));
+  const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
+  const extraSlots: WritableValue[] = [];
+  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>) => {
+    const data = opts.suspensions?.[setId];
+    if (!data) return null;
     const meshNames: Record<string, string> = {};
     for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
     const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
-    const suspensionParts = new Set(fullDoc.parts.filter((p) => p.taxonomyId === 'suspension_set').map((p) => p.id));
-    const t = transplantSuspension({
-      parts: data.parts,
-      root: data.root,
-      anchors: data.anchors,
-      offset,
-      partPrefix: `${slug}_${axleTag(i)}_`,
-      nodePrefix: `${axleTag(i).toLowerCase()}_`,
-      target: fullDoc.nodes.filter((n) => !suspensionParts.has(n.partId)),
-      meshNames,
-      tuning: axle.tuning,
-    });
+    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites });
     for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
-    suspensionSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
+    return t;
+  };
+  (fullDoc.axles ?? []).forEach((axle, i) => {
+    if (!axle.fitted) return;
+    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), bodyNodes, axle.tuning);
+    if (t) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
   });
+  // The gearbox plugs into the engine's transmission slot (renamed ahead so the engine can point at it).
+  const box = pt?.gearbox ? opts.suspensions?.[pt.gearbox.setId] : undefined;
+  const boxSlot = box ? (typeof box.parts[box.root]?.slotType === 'string' ? (box.parts[box.root]!.slotType as string) : box.root) : null;
+  const engineData = pt?.engine ? opts.suspensions?.[pt.engine.setId] : undefined;
+  const engineTransmissionSlots = engineData && boxSlot ? Object.values(engineData.parts).flatMap((p) => slotDefaultsOf(p).filter((r) => /transmission|transaxle|gearbox/i.test(r.type)).map((r) => r.type)) : [];
+  const rewrites = Object.fromEntries(engineTransmissionSlots.map((st) => [st, { slotType: `${slug}_G_${boxSlot}`, part: `${slug}_G_${box!.root}` }]));
+  let engineNodes: { id: string; pos: [number, number, number] }[] = [];
+  if (pt?.engine) {
+    const t = bring(pt.engine.setId, pt.engine.sourceId, 'E', bodyNodes, pt.engine.tuning, rewrites);
+    if (t) {
+      extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Engine']);
+      engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
+    }
+  }
+  if (pt?.gearbox) {
+    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...bodyNodes], pt.gearbox.tuning);
+    // Without an engine of ours to plug into, the gearbox hangs off the body.
+    if (t && !engineTransmissionSlots.length) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Transmission']);
+  }
   const body = bodyPart(doc, tax);
   const byId = new Map(doc.parts.map((p) => [p.id, p]));
   // Children hang on the parent's *slot*: every variant of the parent declares the same child slots.
@@ -260,7 +291,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const kids = childrenOf(part);
     if (kids.length) content.slots2 = slotsFor(doc, kids, null);
     // The body carries the fitted suspensions' slots.
-    if (part.id === body?.id && suspensionSlots.length) content.slots2 = [...((content.slots2 as WritableValue[] | undefined) ?? [['name', 'allowTypes', 'denyTypes', 'default', 'description']]), ...suspensionSlots];
+    if (part.id === body?.id && extraSlots.length) content.slots2 = [...((content.slots2 as WritableValue[] | undefined) ?? [['name', 'allowTypes', 'denyTypes', 'default', 'description']]), ...extraSlots];
     if (part.id === body?.id && doc.proxy.refNodes) {
       const r = doc.proxy.refNodes;
       content.refNodes = [['ref:', 'back:', 'left:', 'up:', 'leftCorner:', 'rightCorner:'], [r.ref, r.back, r.left, r.up, r.leftCorner, r.rightCorner]];

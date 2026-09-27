@@ -95,6 +95,13 @@ describe('suspension jbeam transplant', () => {
     expect(shiftOffset('$trackwidth_F', 0)).toBe('$trackwidth_F');
   });
 
+  it('points a slot it does not bring at another transplanted set', () => {
+    const engine: Record<string, JbeamObject> = { eng: { slotType: 'car_engine', slots: [['type', 'default', 'description'], ['car_transmission', 'car_transmission_6M', 'Transmission']] } };
+    const r = transplantSuspension({ parts: engine, root: 'eng', anchors: {}, offset: [0, 0, 0], partPrefix: 'm_E_', nodePrefix: 'e_', target: [], meshNames: {}, tuning: {}, slotRewrites: { car_transmission: { slotType: 'm_G_box_transmission', part: 'm_G_box_6M' } } });
+    expect(r.parts.m_E_eng!.slots).toEqual([['type', 'default', 'description'], ['m_G_box_transmission', 'm_G_box_6M', 'Transmission']]);
+    expect(r.rootSlotType).toBe('m_E_car_engine');
+  });
+
   it('lists the tuning variables', () => {
     expect(tuningVariables(PARTS)).toEqual([{ name: '$camber_F', unit: '', category: 'Wheel Alignment', title: 'Camber', description: 'Camber angle', default: 1, min: 0.95, max: 1.05, step: 0.001 }]);
   });

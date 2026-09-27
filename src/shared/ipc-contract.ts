@@ -7,10 +7,15 @@ export interface LibraryStatus {
   folders: { kind: 'materials' | 'objects' | 'beamng'; folder: string; count: number; error: string | null }[];
 }
 
-/** A complete suspension from a stock BeamNG vehicle (cut from the user's install). */
+/** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
 export interface SuspensionSet {
   /** "<vehicle>/<part>" */
   id: string;
+  kind: 'suspension' | 'engine' | 'gearbox';
+  /** The root part's slot type (what it plugs into). */
+  slotType: string;
+  engine?: EngineSpecs;
+  gearbox?: GearboxSpecs;
   vehicle: string;
   vehicleName: string;
   brand: string;
@@ -71,6 +76,7 @@ import type { BeamngDetection, InstallValidation } from './beamng';
 import type { SourceFormat } from './project/schema';
 import type { TaxonomyEntry } from './taxonomy/schema';
 import type { JbeamObject } from './jbeam/parse';
+import type { EngineSpecs, GearboxSpecs } from './powertrain/specs';
 
 /**
  * Single source of truth for every IPC channel. The preload bridge only
@@ -166,6 +172,8 @@ export interface InvokeContract {
   'import:pickTextureDir': { req: undefined; res: string | null };
   /** Pick an Assetto Corsa car folder and read it (model, skins, data files). */
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
+  /** Complete engines and gearboxes from the BeamNG install. */
+  'powertrain:catalogue': { req: undefined; res: SuspensionSet[] };
   /** Complete suspensions from the BeamNG install (empty until the install is set and read). */
   'suspension:catalogue': { req: undefined; res: SuspensionSet[] };
   /** A set's jbeam part definitions and the body nodes it attaches to (original positions). */
@@ -254,6 +262,7 @@ export const INVOKE_CHANNELS = [
   'import:pickTextureDir',
   'ac:pickCar',
   'suspension:catalogue',
+  'powertrain:catalogue',
   'suspension:set',
   'library:status',
   'library:rescan',

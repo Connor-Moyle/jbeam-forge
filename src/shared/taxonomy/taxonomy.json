@@ -2084,6 +2084,36 @@
       ]
     },
     {
+      "id": "engine_set",
+      "label": "Engine (from the game)",
+      "category": "Mechanical",
+      "subcategory": "Engine",
+      "positionAxis": "none",
+      "slotType": "engine_set",
+      "parent": "body",
+      "defaultMass": 190,
+      "defaultPrice": 6000,
+      "nodePrefix": "eg",
+      "beamPreset": "mechanical_block",
+      "openable": false,
+      "nameHints": []
+    },
+    {
+      "id": "gearbox_set",
+      "label": "Gearbox (from the game)",
+      "category": "Mechanical",
+      "subcategory": "Driveline",
+      "positionAxis": "none",
+      "slotType": "gearbox_set",
+      "parent": "body",
+      "defaultMass": 45,
+      "defaultPrice": 3000,
+      "nodePrefix": "gx",
+      "beamPreset": "mechanical_block",
+      "openable": false,
+      "nameHints": []
+    },
+    {
       "id": "transfer_case",
       "label": "Transfer case",
       "category": "Mechanical",

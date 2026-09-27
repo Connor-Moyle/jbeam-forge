@@ -64,6 +64,26 @@ export interface TransplantInput {
   meshNames: Readonly<Record<string, string>>;
   /** Variable name ($springheight_F…) → value to use as its default. */
   tuning: Readonly<Record<string, number>>;
+  /**
+   * Slots the set declares for parts it doesn't bring (an engine's transmission slot) that
+   * should take another transplanted set instead: original slot type → its new slot type and part.
+   */
+  slotRewrites?: Readonly<Record<string, { slotType: string; part: string }>>;
+}
+
+/** Point rewritten slots at their new slot type and default part. */
+function rewriteSlots(table: JbeamValue, rewrites: Readonly<Record<string, { slotType: string; part: string }>>): JbeamValue {
+  if (!Array.isArray(table) || !Array.isArray(table[0])) return table;
+  const h = (table[0]).map(String);
+  const typeCol = h.includes('name') ? h.indexOf('name') : h.indexOf('type');
+  const defCol = h.indexOf('default');
+  const allowCol = h.indexOf('allowTypes');
+  return table.map((row, i) => {
+    if (i === 0 || !Array.isArray(row) || typeof row[typeCol] !== 'string') return row;
+    const r = rewrites[row[typeCol]];
+    if (!r) return row;
+    return row.map((c, j) => (j === typeCol ? r.slotType : j === defCol ? r.part : j === allowCol && Array.isArray(c) ? [r.slotType] : c));
+  });
 }
 
 export interface TransplantResult {
@@ -151,7 +171,7 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     for (const [section, value] of Object.entries(body)) {
       if (section === 'information') part[section] = value;
       else if (section === 'slotType') part[section] = typeof value === 'string' ? (slotTypes.get(value) ?? value) : value;
-      else if (section === 'slots' || section === 'slots2') part[section] = shiftSlotOffsets(renameStrings(value, names), input.offset);
+      else if (section === 'slots' || section === 'slots2') part[section] = shiftSlotOffsets(rewriteSlots(renameStrings(value, names), input.slotRewrites ?? {}), input.offset);
       else if (section === 'nodes' && Array.isArray(value)) {
         part[section] = value.map((row, i) => {
           if (i === 0 || !Array.isArray(row) || typeof row[0] !== 'string') return row;

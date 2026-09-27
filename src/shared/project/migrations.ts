@@ -97,6 +97,11 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'axles',
     migrate: (doc) => ({ ...doc, formatVersion: 11, axles: [] }),
   },
+  {
+    from: 11,
+    describe: 'engine and gearbox',
+    migrate: (doc) => ({ ...doc, formatVersion: 12, powertrain: { engine: null, gearbox: null } }),
+  },
 ];
 
 export class MigrationError extends Error {
