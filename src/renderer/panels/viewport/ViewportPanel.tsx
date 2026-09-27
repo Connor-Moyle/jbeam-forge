@@ -25,6 +25,7 @@ import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simSession';
 import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
+import { useHingeUi } from '@renderer/hinges/commands';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
 import { Focus, Move, Rotate3d, Scaling, X } from 'lucide-react';
@@ -210,6 +211,18 @@ export function ViewportPanel() {
       pushLiveMeshes();
     });
     const unsubscribeLiveView = useLiveView.subscribe(pushLiveMeshes);
+    // Hinge wizard preview: follows the hinge section's part and swing slider.
+    const pushHinge = () => {
+      const { partId, swing } = useHingeUi.getState();
+      const doc = projectStore.getState().doc;
+      const h = partId ? doc?.hinges.find((x) => x.partId === partId) : undefined;
+      if (!doc || !h) return rt.setHingePreview(null);
+      const meshKeys = Object.keys(doc.assignments).filter((k) => doc.assignments[k] === partId);
+      rt.setHingePreview({ axis: h.axis, latch: h.latch, handles: h.handles.map((x) => x.pos), meshKeys, angle: swing * h.openAngle * h.direction });
+    };
+    pushHinge();
+    const unsubscribeHinge = useHingeUi.subscribe(pushHinge);
+    const unsubscribeHingeDoc = projectStore.subscribe(pushHinge);
     const unsubscribeLiveSel = scene.subscribe(() => useLiveView.getState().isolate && pushLiveMeshes());
     let lastFrameRequest = scene.getState().frameRequest;
     const unsubscribe = scene.subscribe((s) => {
@@ -290,6 +303,8 @@ export function ViewportPanel() {
       unsubscribeTextures();
       unsubscribeSim();
       unsubscribeLiveView();
+      unsubscribeHinge();
+      unsubscribeHingeDoc();
       unsubscribeLiveSel();
       host.removeEventListener('keydown', onKey);
       host.removeEventListener('dragover', onDragOver);

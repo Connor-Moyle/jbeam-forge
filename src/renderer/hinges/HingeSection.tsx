@@ -25,6 +25,7 @@ export function HingeSection({ part }: { part: Part }) {
   const hinge = useProjectStore((s) => s.doc?.hinges.find((h) => h.partId === part.id));
   const problem = useProjectStore((s) => (s.doc ? hingeProblem(s.doc, part.id) : null));
   const selected = useEditStore((s) => s.nodes);
+  const swing = useHingeUi((s) => s.swing);
   const pushStatus = useUiStore((s) => s.pushStatus);
 
   // Show this part's hinge in the viewport while its section is open.
@@ -52,6 +53,9 @@ export function HingeSection({ part }: { part: Part }) {
   };
   return (
     <FieldGroup title="Hinge">
+      <Field label="Swing preview" hint="Shows it opening in the viewport (the see-through copy). Nothing is changed.">
+        <Slider value={swing} onChange={(v) => useHingeUi.getState().setSwing(v)} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * hinge.openAngle)}°`} aria-label="Swing preview" />
+      </Field>
       <Field label="Opens to">
         <Slider value={hinge.openAngle} onChange={(openAngle) => set({ openAngle }, 'Change opening angle')} min={5} max={180} step={1} format={(v) => `${v}°`} aria-label="Opening angle" />
       </Field>

@@ -2,6 +2,7 @@ import {
   Box3,
   BufferGeometry,
   Color,
+  CylinderGeometry,
   DirectionalLight,
   GridHelper,
   Group,
@@ -204,6 +205,9 @@ export class ViewportRuntime {
   /** Test Mode: the car's visual meshes, bent by the physics. */
   private readonly liveMeshRoot = new Group();
   private liveMeshes: { mesh: Mesh; binding: SkinBinding }[] = [];
+  /** Hinge wizard: the hinge line, latch, handles and a ghost of the part swung open. */
+  private readonly hingeRoot = new Group();
+  private readonly hingeGhostMaterial: MeshStandardMaterial;
   private liveFramedFor: unknown = null;
   private viewToggles = { mesh: true, structure: true, xray: false };
   private simDrag: { node: number; depth: number } | null = null;
@@ -259,6 +263,10 @@ export class ViewportRuntime {
     this.scene.add(this.structure.root, this.reference.root, this.live.root);
     this.liveMeshRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.scene.add(this.liveMeshRoot);
+    this.hingeRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.hingeRoot.renderOrder = 7;
+    this.scene.add(this.hingeRoot);
+    this.hingeGhostMaterial = new MeshStandardMaterial({ color: new Color(resolveToken('accent') || undefined), transparent: true, opacity: 0.35, depthWrite: false });
     this.editOverlay.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.editOverlay.root.renderOrder = 6;
     this.editFrame.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
@@ -863,6 +871,53 @@ export class ViewportRuntime {
         o.updateMatrix();
       }
       o.matrixWorldNeedsUpdate = true;
+    }
+  }
+
+  /**
+   * Hinge wizard preview (BeamNG space): the hinge line, latch and handle
+   * markers, and a see-through copy of the part's meshes swung `angle`
+   * degrees about the line. null clears it.
+   */
+  setHingePreview(view: { axis: [Vec3, Vec3]; latch: Vec3 | null; handles: Vec3[]; meshKeys: readonly string[]; angle: number } | null): void {
+    for (const child of [...this.hingeRoot.children]) {
+      this.hingeRoot.remove(child);
+      if (child instanceof Mesh && child.material !== this.hingeGhostMaterial) {
+        (child.geometry as BufferGeometry).dispose();
+        (child.material as MeshBasicMaterial).dispose();
+      }
+    }
+    if (!view) return;
+    const [a, b] = view.axis.map((p) => new Vector3(...p)) as [Vector3, Vector3];
+    const r = Math.max(0.008, this.structure.nodeRadius * 1.6);
+    const marker = (at: Vector3, token: 'accent' | 'warning' | 'success', size = r) => {
+      const m = new Mesh(new OctahedronGeometry(size), new MeshBasicMaterial({ color: new Color(resolveToken(token) || undefined), depthTest: false }));
+      m.position.copy(at);
+      m.renderOrder = 8;
+      this.hingeRoot.add(m);
+    };
+    // The hinge line: a thin rod between its two ends.
+    const dir = b.clone().sub(a);
+    const rod = new Mesh(new CylinderGeometry(r * 0.35, r * 0.35, dir.length(), 8), new MeshBasicMaterial({ color: new Color(resolveToken('accent') || undefined), depthTest: false }));
+    rod.position.copy(a).add(b).multiplyScalar(0.5);
+    rod.quaternion.setFromUnitVectors(new Vector3(0, 1, 0), dir.clone().normalize());
+    rod.renderOrder = 8;
+    this.hingeRoot.add(rod);
+    marker(a, 'accent');
+    marker(b, 'accent');
+    if (view.latch) marker(new Vector3(...view.latch), 'warning', r * 1.3);
+    for (const h of view.handles) marker(new Vector3(...h), 'success', r * 1.1);
+    if (Math.abs(view.angle) < 0.01) return;
+    // The part swung open.
+    const turn = new Matrix4().makeTranslation(a.x, a.y, a.z).multiply(new Matrix4().makeRotationAxis(dir.clone().normalize(), (view.angle * Math.PI) / 180)).multiply(new Matrix4().makeTranslation(-a.x, -a.y, -a.z));
+    for (const key of view.meshKeys) {
+      const src = this.meshObjects.get(key);
+      if (!src) continue;
+      const ghost = new Mesh(src.geometry, this.hingeGhostMaterial);
+      ghost.matrixAutoUpdate = false;
+      ghost.matrix.copy(turn);
+      ghost.renderOrder = 7;
+      this.hingeRoot.add(ghost);
     }
   }
 
