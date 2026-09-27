@@ -110,10 +110,14 @@ export function seedMaterials(sourceId: string, meshes: readonly ImportedMesh[])
   });
 }
 
-/** Material ids of a mesh; split pieces use their base mesh's. */
-export function slotsOf(doc: { materialSlots: Readonly<Record<string, readonly string[]>> }, meshKey: string): readonly string[] | undefined {
+/** Material ids of a mesh; split pieces use their base mesh's, copies their original's. */
+export function slotsOf(doc: { materialSlots: Readonly<Record<string, readonly string[]>>; meshCopies?: readonly { id: string; from: string }[] }, meshKey: string): readonly string[] | undefined {
   const own = doc.materialSlots[meshKey];
   if (own) return own;
+  if (meshKey.startsWith('copy:')) {
+    const from = doc.meshCopies?.find((c) => `copy:${c.id}` === meshKey)?.from;
+    return from ? slotsOf(doc, from) : undefined;
+  }
   const slash = meshKey.indexOf('/');
   return slash > 0 ? slotsOf(doc, meshKey.slice(0, slash)) : undefined;
 }

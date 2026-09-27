@@ -55,10 +55,10 @@ describe('.jbforge io', () => {
     }
   });
 
-  it('migrates the v2 fixture to v9, adding textureDirs to every source', () => {
+  it('migrates the v2 fixture to v10, adding textureDirs to every source', () => {
     const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8'));
     expect(migratedFrom).toBe(2);
-    expect(applied).toEqual([expect.stringMatching(/^v2→v3: /), expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /)]);
+    expect(applied).toEqual([expect.stringMatching(/^v2→v3: /), expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /), expect.stringMatching(/^v9→v10: /)]);
     expect(project.sources.map((s) => s.textureDirs)).toEqual([[]]);
   });
 
@@ -66,14 +66,14 @@ describe('.jbforge io', () => {
     const v3 = JSON.parse(readFileSync(join(FIXTURES, 'v3-textures.jbforge'), 'utf8')) as { parts: { price: number }[] };
     v3.parts[1]!.price = 0;
     const { project, applied } = parseProject(JSON.stringify(v3));
-    expect(applied).toEqual([expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /)]);
+    expect(applied).toEqual([expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /), expect.stringMatching(/^v9→v10: /)]);
     expect(project.parts.map((p) => p.price)).toEqual([1000, null]);
   });
 
-  it('migrates the v1 fixture through to v9 with empty Phase 3 sections', () => {
+  it('migrates the v1 fixture through to v10 with empty Phase 3 sections', () => {
     const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v1-empty.jbforge'), 'utf8'));
     expect(migratedFrom).toBe(1);
-    expect(applied).toEqual([expect.stringMatching(/^v1→v2: /), expect.stringMatching(/^v2→v3: /), expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /)]);
+    expect(applied).toEqual([expect.stringMatching(/^v1→v2: /), expect.stringMatching(/^v2→v3: /), expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /), expect.stringMatching(/^v9→v10: /)]);
     expect(project.meta.slug).toBe('fixture_car');
     expect(project).toMatchObject({ sources: [], splits: [], parts: [], assignments: {}, ignoredMeshes: [], customTaxonomy: [] });
   });

@@ -26,7 +26,10 @@ import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame } from '@renderer/sim/simSession';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
-import { Focus, X } from 'lucide-react';
+import { Focus, Move, X } from 'lucide-react';
+import { cx } from '@renderer/ui/cx';
+import { useMeshMove } from '@renderer/scene/meshMove';
+import { nudgeMeshes } from '@renderer/scene/meshCommands';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
@@ -75,6 +78,17 @@ export function ViewportPanel() {
           selectParts();
         },
         onGizmoMove: (delta, done) => {
+          // Modelling: the gizmo is on the selected meshes.
+          if (!useEditStore.getState().active) {
+            const keys = useSceneStore.getState().selection;
+            if (!done) {
+              runtime?.previewMeshOffset(keys, delta);
+              return;
+            }
+            runtime?.previewMeshOffset(keys, null);
+            if (Math.hypot(...delta) > 1e-6) nudgeMeshes(keys, delta);
+            return;
+          }
           if (!done) {
             previewSelectionMove(delta);
             return;
@@ -154,6 +168,15 @@ export function ViewportPanel() {
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
     const unsubscribeView = useUiStore.subscribe((s) => rt.setView(s.view));
     const unsubscribeEdit = useEditStore.subscribe(pushStructure);
+    // Move gizmo on the selected meshes (Modelling), re-parked whenever they change.
+    const pushMeshGizmo = () => {
+      const on = useMeshMove.getState().on && !useEditStore.getState().active && !useSplitTool.getState().meshKey;
+      rt.setMeshGizmo(on ? scene.getState().selection : null);
+    };
+    pushMeshGizmo();
+    const unsubscribeMove = useMeshMove.subscribe(pushMeshGizmo);
+    const unsubscribeMoveScene = scene.subscribe(pushMeshGizmo);
+    const unsubscribeMoveEdit = useEditStore.subscribe(pushMeshGizmo);
     // Test Mode frames straight from the sim session (60 Hz, outside React).
     const unsubscribeSim = onSimFrame((frame) => rt.setLive(frame));
     let lastFrameRequest = scene.getState().frameRequest;
@@ -170,6 +193,11 @@ export function ViewportPanel() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const splitting = useSplitTool.getState().meshKey !== null;
       const edit = useEditStore.getState();
+      if (!splitting && !edit.active && (e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        useMeshMove.getState().toggle();
+        e.preventDefault();
+        return;
+      }
       if (!splitting && e.key === 'Tab' && !e.ctrlKey && !e.altKey) {
         edit.setActive(!edit.active);
         e.preventDefault();
@@ -217,6 +245,9 @@ export function ViewportPanel() {
       unsubscribeSettings();
       unsubscribeView();
       unsubscribeEdit();
+      unsubscribeMove();
+      unsubscribeMoveScene();
+      unsubscribeMoveEdit();
       unsubscribeTextures();
       unsubscribeSim();
       host.removeEventListener('keydown', onKey);
@@ -241,6 +272,7 @@ export function ViewportPanel() {
       <SplitToolbar />
       <EditToolbar />
       <FocusPill />
+      <MovePill />
       {toolShape && toolShape.length >= 4 && (
         <svg className={splitStyles.shape} aria-hidden>
           <polygon points={svgPoints(toolShape)} />
@@ -267,6 +299,20 @@ function svgPoints(flat: readonly number[]): string {
   const out: string[] = [];
   for (let i = 0; i + 1 < flat.length; i += 2) out.push(`${flat[i]},${flat[i + 1]}`);
   return out.join(' ');
+}
+
+/** Modelling: turn the move arrows on the selected meshes on and off (M). */
+function MovePill() {
+  const on = useMeshMove((s) => s.on);
+  const selected = useSceneStore((s) => s.selection.length);
+  const editing = useEditStore((s) => s.active);
+  if (editing || (!selected && !on)) return null;
+  return (
+    <button type="button" className={cx(styles.movePill, on && styles.movePillOn)} onClick={() => useMeshMove.getState().toggle()} title="Move the selected meshes with arrows (M)" data-testid="mesh-move-toggle">
+      <Move size={iconSize('size-icon-sm')} aria-hidden />
+      {on ? 'Moving: drag the arrows' : 'Move'}
+    </button>
+  );
 }
 
 /** "Focused on Hood" with a way out, while Focus Mode is on. */

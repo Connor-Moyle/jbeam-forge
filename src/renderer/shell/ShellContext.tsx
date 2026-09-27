@@ -35,6 +35,11 @@ export function useShell(): ShellApi {
   return ctx;
 }
 
+/** The shell when there is one (panels rendered on their own, e.g. in tests, get null). */
+export function useOptionalShell(): ShellApi | null {
+  return useContext(ShellContext);
+}
+
 /** A stored layout is usable only if every panel is one we can render here. */
 export function isRestorable(layout: StoredLayout, devMode: boolean): boolean {
   const panels = Object.values(layout.dockview.panels);

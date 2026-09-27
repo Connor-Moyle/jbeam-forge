@@ -198,6 +198,8 @@ export class ViewportRuntime {
   private readonly gizmo: TransformControls;
   private gizmoStart: Vector3 | null = null;
   private gizmoHot = false;
+  /** Modelling: meshes the move gizmo is on (outside edit mode). */
+  private meshGizmoKeys: readonly string[] | null = null;
   /** Centre-of-gravity marker, drawn with the structure. */
   private readonly cog: Mesh;
   private injectedFrameErrors = 0;
@@ -453,6 +455,7 @@ export class ViewportRuntime {
         return; // clicks never change the mesh selection while splitting
       }
       if (this.edit) return; // edit mode picks nodes instead (handled above)
+      if (this.meshGizmoKeys && this.gizmoHot) return; // a click on the move arrows, not the mesh behind them
       this.callbacks.onPick(this.pick(e.clientX, e.clientY), { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
     });
     this.listen(canvas, 'dblclick', (e) => {
@@ -703,7 +706,7 @@ export class ViewportRuntime {
     }
     if (!view) {
       this.editOverlay.set(null, 0);
-      this.gizmo.detach();
+      if (!this.meshGizmoKeys) this.gizmo.detach();
       return;
     }
     const pos = new Map(view.nodes.map((n) => [n.id, n.pos]));
@@ -727,6 +730,38 @@ export class ViewportRuntime {
       this.pivot.position.set(cx / picked.length, cy / picked.length, cz / picked.length);
     }
     if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
+  }
+
+  /**
+   * Modelling: put the move gizmo on these meshes (null = off). Its drags
+   * come through onGizmoMove like edit mode's; previewMeshOffset shows them.
+   */
+  setMeshGizmo(keys: readonly string[] | null): void {
+    this.meshGizmoKeys = keys && keys.length && !this.edit ? keys : null;
+    if (!this.meshGizmoKeys) {
+      if (!this.edit) this.gizmo.detach();
+      return;
+    }
+    if (!this.gizmoStart) {
+      const box = new Box3();
+      for (const k of this.meshGizmoKeys) {
+        const g = this.meshObjects.get(k)?.geometry;
+        if (!g) continue;
+        if (!g.boundingBox) g.computeBoundingBox();
+        if (g.boundingBox) box.union(g.boundingBox);
+      }
+      if (box.isEmpty()) {
+        this.gizmo.detach();
+        return;
+      }
+      box.getCenter(this.pivot.position);
+    }
+    if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
+  }
+
+  /** Show meshes moved by `delta` (BeamNG space) while the gizmo drags; null puts them back. */
+  previewMeshOffset(keys: readonly string[], delta: Vec3 | null): void {
+    for (const k of keys) this.meshObjects.get(k)?.position.set(delta?.[0] ?? 0, delta?.[1] ?? 0, delta?.[2] ?? 0);
   }
 
   /** Screen-right and screen-up as the nearest BeamNG axes, for arrow-key nudging. */

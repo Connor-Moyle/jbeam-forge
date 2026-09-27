@@ -323,7 +323,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 9 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 10 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -381,7 +381,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 9 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 10 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -835,8 +835,8 @@ const scenarios = [
         const x0 = await centreX();
         await page.getByTestId('scene-source-row').last().click({ button: 'right' });
         await page.getByRole('menuitem', { name: 'Placement…' }).click();
-        await page.getByLabel('Position X').fill('1.5');
-        await page.getByLabel('Position X').press('Enter');
+        await page.getByLabel('Position X', { exact: true }).fill('1.5');
+        await page.getByLabel('Position X', { exact: true }).press('Enter');
         await page.waitForTimeout(200);
         const x1 = await centreX();
         assert(Math.abs(x1 - x0 - 1.5) < 0.01, `object moved 1.5 m along X (${x0.toFixed(3)} → ${x1.toFixed(3)})`);
@@ -845,6 +845,24 @@ const scenarios = [
         await hook(page, 'runCommand', 'undo');
         await page.waitForTimeout(200);
         assert(Math.abs((await centreX()) - x0) < 0.01, 'undo moves the object back');
+
+        // Per-mesh editing: move the caliper in the Inspector, then mirror it to the other side.
+        const objKeys = (await hook(page, 'meshBounds')).filter((m) => !keysBefore.has(m.key)).map((m) => m.key);
+        await hook(page, 'selectMeshes', objKeys);
+        await page.getByLabel('Mesh position X').fill('0.7');
+        await page.getByLabel('Mesh position X').press('Enter');
+        await page.waitForTimeout(300);
+        const movedX = await centreX();
+        assert(Math.abs(movedX - x0 - 0.7) < 0.01, `mesh moved 0.7 m in the Inspector (${x0.toFixed(3)} → ${movedX.toFixed(3)})`);
+        await page.getByTestId('mesh-mirror').click();
+        await page.waitForTimeout(300);
+        const mirrored = (await hook(page, 'meshBounds')).filter((m) => m.key.startsWith('copy:'));
+        const mx = mirrored.reduce((n, m) => n + (m.min[0] + m.max[0]) / 2, 0) / Math.max(1, mirrored.length);
+        assert(mirrored.length === objKeys.length && Math.abs(mx + movedX) < 0.01, `mirrored copy on the other side (${movedX.toFixed(3)} ↔ ${mx.toFixed(3)})`);
+        await shot(page, 'mesh-mirrored');
+        await hook(page, 'runCommand', 'undo');
+        await hook(page, 'runCommand', 'undo');
+        await page.waitForTimeout(200);
         await hook(page, 'runCommand', 'undo');
         // kn5 dashes bring their own materials and textures.
         await page.getByLabel('Search objects').fill('');

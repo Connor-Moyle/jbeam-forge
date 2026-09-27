@@ -2,13 +2,14 @@ import { useEffect } from 'react';
 import { IDENTITY_PLACEMENT } from '@shared/project/schema';
 import { samePlacement } from '@shared/placement';
 import { applyPlacement } from './placement';
+import { applyMeshEdits, editsKey } from './meshEdits';
 import { planSeed, seedMaterials } from '@renderer/materials/seed';
 import type { MaterialDef } from '@shared/materials/schema';
 import { registerImportedTextures } from '@renderer/materials/runtime';
 import { produce } from 'immer';
 import { legacyKeyMap, remapMeshKeys } from '@shared/mesh/legacyKeys';
 import { create } from 'zustand';
-import type { Source } from '@shared/project/schema';
+import type { Project, Source } from '@shared/project/schema';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import { projectStore, useProjectStore } from '@renderer/app/stores/project';
@@ -65,16 +66,27 @@ function storedPath(absolutePath: string): string {
 }
 
 /** The source's meshes with the open document's splits applied (problems are logged and surfaced once). */
+/** What a source's derived meshes depend on (splits, per-mesh edits and copies). */
+function deriveKey(doc: Project | null, sourceId: string, meshKeys: ReadonlySet<string>): string {
+  return `${JSON.stringify(splitsForSource(doc?.splits ?? EMPTY_ARR, sourceId))}|${editsKey(meshKeys, doc?.meshEdits ?? {}, doc?.meshCopies ?? EMPTY_ARR)}`;
+}
+
+/** The meshes a source shows: its raw import with splits, then per-mesh edits and copies, applied. */
 export function deriveMeshes(sourceId: string, raw: ImportedMesh[]): { meshes: ImportedMesh[]; splitsKey: string } {
-  const splits = splitsForSource(projectStore.getState().doc?.splits ?? EMPTY_ARR, sourceId);
-  const splitsKey = JSON.stringify(splits);
-  if (splits.length === 0) return { meshes: raw, splitsKey };
-  const { meshes, problems } = applySplits(raw, splits);
-  if (problems.length) {
-    logger.warn(`${problems.length} split(s) could not be applied:`, problems.join('; '));
-    useUiStore.getState().pushStatus(`${problems.length} split${problems.length === 1 ? '' : 's'} could not be re-applied: ${problems[0]}`, 'warning', 10000);
+  const doc = projectStore.getState().doc;
+  const splits = splitsForSource(doc?.splits ?? EMPTY_ARR, sourceId);
+  let meshes = raw;
+  if (splits.length) {
+    const result = applySplits(raw, splits);
+    meshes = result.meshes;
+    if (result.problems.length) {
+      logger.warn(`${result.problems.length} split(s) could not be applied:`, result.problems.join('; '));
+      useUiStore.getState().pushStatus(`${result.problems.length} split${result.problems.length === 1 ? '' : 's'} could not be re-applied: ${result.problems[0]}`, 'warning', 10000);
+    }
   }
-  return { meshes, splitsKey };
+  const keys = new Set(meshes.map((m) => m.key));
+  meshes = applyMeshEdits(meshes, doc?.meshEdits ?? {}, doc?.meshCopies ?? EMPTY_ARR);
+  return { meshes, splitsKey: deriveKey(doc, sourceId, keys) };
 }
 
 /** Toolbar / Scene panel / wizard entry point. */
@@ -274,16 +286,20 @@ export function useSourceSync(): void {
   }, [sources]);
 
   // Splits changed (split, unsplit, undo/redo): re-derive the affected sources from their raw meshes.
+  // Per-mesh edits and copies too: the same re-derive.
   const splits = useProjectStore((s) => s.doc?.splits ?? EMPTY_ARR);
+  const meshEdits = useProjectStore((s) => s.doc?.meshEdits);
+  const meshCopies = useProjectStore((s) => s.doc?.meshCopies);
   useEffect(() => {
     const scene = useSceneStore.getState();
+    const doc = projectStore.getState().doc;
     for (const src of Object.values(scene.sources)) {
       if (src.status !== 'ready') continue;
-      const key = JSON.stringify(splitsForSource(splits, src.sourceId));
-      if (key === src.splitsKey) continue;
+      const splitKeys = new Set(applySplits(src.raw, splitsForSource(splits, src.sourceId)).meshes.map((m) => m.key));
+      if (deriveKey(doc, src.sourceId, splitKeys) === src.splitsKey) continue;
       scene.setSource({ ...src, ...deriveMeshes(src.sourceId, src.raw) });
     }
-  }, [splits]);
+  }, [splits, meshEdits, meshCopies]);
 
   // Leaving the editor (project closed) cancels loads and frees all geometry.
   useEffect(

@@ -139,6 +139,8 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     materialSlots: {},
     hinges: [],
     reference: null,
+    meshEdits: {},
+    meshCopies: [],
     suspension: {},
     powertrain: {},
     configs: [],

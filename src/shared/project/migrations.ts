@@ -87,6 +87,11 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'reference car data (Assetto Corsa import)',
     migrate: (doc) => ({ ...doc, formatVersion: 9, reference: null }),
   },
+  {
+    from: 9,
+    describe: 'per-mesh edits and mesh copies',
+    migrate: (doc) => ({ ...doc, formatVersion: 10, meshEdits: {}, meshCopies: [] }),
+  },
 ];
 
 export class MigrationError extends Error {

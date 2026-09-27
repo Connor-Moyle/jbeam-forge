@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 9;
+export const CURRENT_PROJECT_VERSION = 10;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -206,9 +206,34 @@ export const ReferenceCarSchema = z.object({
   importedAt: z.iso.datetime(),
 });
 
-export const ProjectV9Schema = z.object({
+const V3 = z.tuple([z.number(), z.number(), z.number()]);
+const V2 = z.tuple([z.number(), z.number()]);
+
+/**
+ * Changes to one mesh (v10): moved, turned and resized about its own centre,
+ * and its texture mapping scaled/offset/turned. Baked into the geometry the
+ * viewport draws and the export writes.
+ */
+export const MeshEditSchema = z.object({
+  /** Metres, BeamNG space. */
+  position: V3,
+  /** Degrees about X, Y, Z (applied X, then Y, then Z) around the mesh's centre. */
+  rotation: V3,
+  scale: V3,
+  uv: z.object({ scale: V2, offset: V2, rotation: z.number() }),
+});
+
+/** A copy of a mesh (v10), e.g. a caliper mirrored to the other side. Its key is `copy:<id>`. */
+export const MeshCopySchema = z.object({
+  id: z.string().min(1),
+  from: z.string().min(1),
+  /** Mirror across the car's centre line (left ↔ right). */
+  mirror: z.boolean(),
+});
+
+export const ProjectV10Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(9),
+  formatVersion: z.literal(10),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -233,19 +258,25 @@ export const ProjectV9Schema = z.object({
   hinges: z.array(HingeSchema),
   /** The car this project was brought over from, if any (v9). */
   reference: ReferenceCarSchema.nullable(),
+  /** meshKey → how that mesh was moved/turned/resized and its textures mapped (v10). */
+  meshEdits: z.record(z.string(), MeshEditSchema),
+  /** Copies of meshes (v10). */
+  meshCopies: z.array(MeshCopySchema),
   suspension: placeholderMap, // Phase 10
   powertrain: placeholderMap, // Phase 11
   configs: placeholderList, // Phase 13
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV9Schema;
+export const ProjectSchema = ProjectV10Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
 export type Split = z.infer<typeof SplitSchema>;
 export type Part = z.infer<typeof PartSchema>;
 export type ReferenceCar = z.infer<typeof ReferenceCarSchema>;
+export type MeshEdit = z.infer<typeof MeshEditSchema>;
+export type MeshCopy = z.infer<typeof MeshCopySchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

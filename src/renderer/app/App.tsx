@@ -186,6 +186,7 @@ function AppEffects() {
           const names = new Map((d?.materials ?? []).map((m) => [m.id, m.name]));
           return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
         },
+        selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
         materialCount: () => projectStore.getState().doc?.materials.length ?? 0,
         meshNameList: () => Object.values(projectStore.getState().doc?.meshNames ?? {}).map((e) => e.name),
         partNames: () => (projectStore.getState().doc?.parts ?? []).map((p) => p.displayName),
