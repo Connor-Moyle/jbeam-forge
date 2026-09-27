@@ -227,3 +227,25 @@ describe('empty proxy fallback', () => {
     expect(r.reports[0]!.warnings.join()).toMatch(/box was fitted/);
   });
 });
+
+describe('regeneration keeps hand-moved nodes', () => {
+  it('a moved node survives regenerating its part, still connected, with no duplicate ids', () => {
+    const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
+    const body = createPart(doc, tax, { taxonomyId: 'body' });
+    const geometry = [{ partId: body.id, mesh: boxShell(0.8, -2, 2, 0.2, 1.4, 8) }];
+    generateStructure(doc, tax, geometry);
+    const node = doc.nodes.find((n) => n.partId === body.id)!;
+    node.pos = [node.pos[0], node.pos[1], node.pos[2] + 0.05];
+    node.manual = true;
+    const moved = { id: node.id, pos: [...node.pos] };
+
+    generateStructure(doc, tax, geometry);
+    const again = doc.nodes.filter((n) => n.id === moved.id);
+    expect(again).toHaveLength(1);
+    expect(again[0]!.pos).toEqual(moved.pos);
+    expect(new Set(doc.nodes.map((n) => n.id)).size).toBe(doc.nodes.length);
+    expect(doc.beams.some((b) => b.id1 === moved.id || b.id2 === moved.id)).toBe(true);
+    const ids = new Set(doc.nodes.map((n) => n.id));
+    for (const b of doc.beams) expect(ids.has(b.id1) && ids.has(b.id2)).toBe(true);
+  });
+});

@@ -137,3 +137,45 @@ export function invertSelection(): void {
   const cur = new Set(useEditStore.getState().nodes);
   useEditStore.getState().select(editableNodeIds().filter((id) => !cur.has(id)), []);
 }
+
+/** B: beams between the selected nodes, in the order they were picked. */
+export function connectSelection(): void {
+  const ids = useEditStore.getState().nodes;
+  if (ids.length < 2) return;
+  let added = 0;
+  projectStore.getState().execute({
+    label: 'Add beams',
+    apply: (d) => {
+      added = edit.connectNodes(d, ids);
+    },
+  });
+  useUiStore.getState().pushStatus(added ? `Added ${plural(added, 'beam')}` : 'Those nodes are already connected');
+}
+
+/** M: merge the selected nodes into the first one picked. */
+export function mergeSelection(): void {
+  const ids = useEditStore.getState().nodes;
+  if (ids.length < 2) return;
+  let kept: string | null = null;
+  projectStore.getState().execute({
+    label: `Merge ${plural(ids.length, 'node')}`,
+    apply: (d) => {
+      kept = edit.mergeNodes(d, ids);
+    },
+  });
+  if (kept) useEditStore.getState().select([kept], []);
+}
+
+/** D: split the selected beams at their midpoints and select the new nodes. */
+export function splitSelectedBeams(): void {
+  const keys = useEditStore.getState().beams;
+  if (!keys.length) return;
+  let created: string[] = [];
+  projectStore.getState().execute({
+    label: `Split ${plural(keys.length, 'beam')}`,
+    apply: (d) => {
+      created = edit.splitBeams(d, keys);
+    },
+  });
+  useEditStore.getState().select(created, []);
+}

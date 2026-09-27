@@ -76,6 +76,8 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 - **Inspector:** node id rename (every beam, triangle and reference node follows), weight for one or many nodes, and delete.
 - **Delete** removes nodes along with their beams and triangles, or deletes selected beams.
 - While editing, orbit moves to the right mouse button and pan to the middle button, the same as the split tool.
+- **Topology:** **B** chains the picked nodes with beams in the order picked (beams across parts become attachments), **M** merges nodes into the first one picked (centre position, summed weight, references follow, collapsed beams and triangles dropped), and **D** splits selected beams at the midpoint.
+- **Regenerating keeps hand-moved nodes:** each one takes the place of the regenerated node with the same id, or else the nearest one within 15 cm, and inherits its beams. Anything further away stays as it is, with a warning.
 
 **Automatic prices and weights** (`npm run study-prices`):
 - Every part of the 28 official cars and 10 trucks was classified with our own classifier. For each kind the study records its in-game price (`information.value`) and its node-weight sum.

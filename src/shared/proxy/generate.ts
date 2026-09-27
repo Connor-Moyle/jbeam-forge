@@ -5,6 +5,7 @@ import { buildProxy } from './build';
 import type { ProxyMesh } from './mesh';
 import { attachToParent, deriveStructure, FAR_FROM_PARENT, parentGap, placeRefNodes, positionTag, predictStability, presetSprings, type StabilityReport } from './derive';
 import { BEAM_PRESET_VALUES, kindDefaults, targetVertices } from './presets';
+import { adoptManualNodes } from '../structure/edit';
 
 /**
  * Generate parts' structure into the document (SPEC §4.4). Pure: works on
@@ -140,26 +141,30 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
       fallbackWarnings.push(`The ${settings.mode} proxy came out empty (very thin or fragmented shape), so a box was fitted instead.`);
     }
 
-    // Replace this part's structure (manual nodes are kept for Phase 7's regeneration rules).
+    // Replace this part's structure. Nodes moved by hand stay and take the place of the regenerated node they match.
     removePartStructure(doc, partId);
+    const manual = doc.nodes.filter((n) => n.partId === partId && n.manual);
     const slot = slotOf(doc.parts, partId);
     const taken = new Set(doc.nodes.filter((n) => slotOf(doc.parts, n.partId) !== slot).map((n) => n.id));
     const derived = deriveStructure({ partId, mesh: built.mesh, prefix: nodePrefix(part, entry), massKg, bracing: settings.bracing, taken });
+    const adopted = adoptManualNodes(derived, manual);
     doc.nodes.push(...derived.nodes);
     doc.beams.push(...derived.beams);
     doc.tris.push(...derived.tris);
     const warnings = [...fallbackWarnings, ...derived.warnings];
+    if (adopted.loose) warnings.push(`${adopted.loose} hand-moved node${adopted.loose === 1 ? ' is' : 's are'} too far from the new structure to reconnect; ${adopted.loose === 1 ? 'it was' : 'they were'} kept on ${adopted.loose === 1 ? 'its' : 'their'} own.`);
+    const partNodes = [...derived.nodes, ...manual];
 
-    const attach = attachBeams(doc, part, entry, derived.nodes, settings.attachment);
+    const attach = attachBeams(doc, part, entry, partNodes, settings.attachment);
     doc.beams.push(...attach.beams);
     if (attach.warning) warnings.push(attach.warning);
     doc.proxy.parts[partId] = settings;
     regenerated.add(partId);
 
     const partBeams = [...derived.beams, ...attach.beams];
-    const stability = predictStability(derived.nodes, partBeams, springs);
+    const stability = predictStability(partNodes, partBeams, springs);
     if (stability.verdict !== 'ok') warnings.push(`Stability ${stability.verdict}: ${stability.offenders[0]?.message ?? ''}`);
-    reports.push({ partId, vertices: derived.nodes.length, beams: partBeams.length, triangles: derived.tris.length, massKg, mirrored: built.mirrored, ms: built.stats.ms, warnings, stability });
+    reports.push({ partId, vertices: partNodes.length, beams: partBeams.length, triangles: derived.tris.length, massKg, mirrored: built.mirrored, ms: built.stats.ms, warnings, stability });
   }
 
   // Children that were not regenerated keep their nodes but must re-attach: their parent's slot has new

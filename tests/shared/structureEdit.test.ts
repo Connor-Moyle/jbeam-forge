@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Project } from '../../src/shared/project/schema';
-import { applyMove, beamKey, centroid, deleteBeams, deleteNodes, mirrorPartners, planMove, renameNode, setNodeAxis, softWeight } from '../../src/shared/structure/edit';
+import { adoptManualNodes, applyMove, beamKey, centroid, connectNodes, deleteBeams, deleteNodes, mergeNodes, mirrorPartners, planMove, renameNode, setNodeAxis, softWeight, splitBeams } from '../../src/shared/structure/edit';
 
 type Doc = Pick<Project, 'nodes' | 'beams' | 'tris' | 'proxy'>;
 
@@ -116,5 +116,57 @@ describe('structure editing', () => {
   it('centroid averages positions', () => {
     expect(centroid([{ pos: [0, 0, 0] }, { pos: [2, 4, 6] }])).toEqual([1, 2, 3]);
     expect(centroid([])).toEqual([0, 0, 0]);
+  });
+});
+
+describe('topology', () => {
+  it('connects nodes as a chain, skipping beams that exist, and makes cross-part beams attachments', () => {
+    const doc = makeDoc();
+    expect(connectNodes(doc, ['n1r', 'n1l', 'n3', 'lone'])).toBe(2); // n1r-n1l exists
+    const added = doc.beams.slice(-2);
+    expect(added[0]).toMatchObject({ id1: 'n1l', id2: 'n3', kind: 'edge', partId: 'p1' });
+    expect(added[1]).toMatchObject({ id1: 'n3', id2: 'lone', kind: 'attach', partId: 'p1' });
+  });
+
+  it('splits a beam at its midpoint into two', () => {
+    const doc = makeDoc();
+    const [id] = splitBeams(doc, [beamKey('n1r', 'n1l')]);
+    const node = doc.nodes.find((n) => n.id === id)!;
+    expect(node.pos).toEqual([0, 1, 0.3]);
+    expect(node.manual).toBe(true);
+    expect(doc.beams.filter((b) => b.id1 === id || b.id2 === id)).toHaveLength(2);
+    expect(doc.beams.some((b) => beamKey(b.id1, b.id2) === beamKey('n1l', 'n1r'))).toBe(false);
+  });
+
+  it('merges nodes into the first: centre position, summed weight, references follow, collapsed beams go', () => {
+    const doc = makeDoc();
+    expect(mergeNodes(doc, ['n1l', 'n1r'])).toBe('n1l');
+    const kept = doc.nodes.find((n) => n.id === 'n1l')!;
+    expect(kept.pos).toEqual([0, 1, 0.3]);
+    expect(kept.weight).toBe(2);
+    expect(doc.nodes.some((n) => n.id === 'n1r')).toBe(false);
+    expect(doc.beams.some((b) => b.id1 === b.id2)).toBe(false);
+    expect(doc.tris).toHaveLength(0); // n1l, n1r, n3 collapsed to two corners
+    expect(doc.proxy.refNodes!.rightCorner).toBe('n2r');
+  });
+
+  it('adopts a manual node in place of the regenerated one with the same id, else the nearest', () => {
+    const derived = {
+      nodes: [
+        { id: 'a1', partId: 'p', pos: [0, 0, 0] as [number, number, number], weight: 1 },
+        { id: 'a2', partId: 'p', pos: [1, 0, 0] as [number, number, number], weight: 1 },
+        { id: 'a3', partId: 'p', pos: [2, 0, 0] as [number, number, number], weight: 1 },
+      ],
+      beams: [{ id1: 'a1', id2: 'a2' }, { id1: 'a2', id2: 'a3' }],
+      tris: [] as { ids: [string, string, string] }[],
+    };
+    const manual = [
+      { id: 'a1', partId: 'p', pos: [0, 0, 0.05] as [number, number, number], weight: 1, manual: true },
+      { id: 'old7', partId: 'p', pos: [2.05, 0, 0] as [number, number, number], weight: 1, manual: true },
+      { id: 'far', partId: 'p', pos: [9, 9, 9] as [number, number, number], weight: 1, manual: true },
+    ];
+    expect(adoptManualNodes(derived, manual)).toEqual({ kept: 2, loose: 1 });
+    expect(derived.nodes.map((n) => n.id)).toEqual(['a2']);
+    expect(derived.beams).toEqual([{ id1: 'a1', id2: 'a2' }, { id1: 'a2', id2: 'old7' }]);
   });
 });

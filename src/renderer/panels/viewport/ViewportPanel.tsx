@@ -8,7 +8,7 @@ import { startImport } from '@renderer/import/importFlow';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import { ViewportRuntime, webglAvailable, type EditView, type GlState, type ToolState, type ViewState } from './viewportRuntime';
 import { useEditStore } from '@renderer/structure/editStore';
-import { deleteSelection, invertSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts } from '@renderer/structure/editCommands';
+import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
 import { EditToolbar } from '@renderer/structure/EditToolbar';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
 import { SplitToolbar } from '@renderer/split/SplitToolbar';
@@ -264,6 +264,9 @@ function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
   else if (ctrl && (e.key === 'a' || e.key === 'A')) selectAll();
   else if (ctrl && (e.key === 'i' || e.key === 'I')) invertSelection();
   else if (!ctrl && (e.key === 'l' || e.key === 'L')) selectConnected();
+  else if (!ctrl && (e.key === 'b' || e.key === 'B')) connectSelection();
+  else if (!ctrl && (e.key === 'm' || e.key === 'M')) mergeSelection();
+  else if (!ctrl && (e.key === 'd' || e.key === 'D')) splitSelectedBeams();
   else if (e.key === 'Escape' && (edit.nodes.length || edit.beams.length)) edit.clear();
   else if (e.key.startsWith('Arrow') && edit.nodes.length) {
     // 5 mm steps; Shift for 25 mm, Alt for 1 mm. Left/right and up/down follow the screen, snapped to the nearest axis.

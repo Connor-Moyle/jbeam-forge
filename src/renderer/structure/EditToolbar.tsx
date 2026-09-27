@@ -1,10 +1,10 @@
-import { FlipHorizontal2, Magnet, MousePointer2, Network, Trash2, X } from 'lucide-react';
+import { Combine, FlipHorizontal2, Magnet, MousePointer2, Network, Spline, SplitSquareHorizontal, Trash2, X } from 'lucide-react';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { Slider } from '@renderer/ui/components/Slider';
 import { useSplitTool } from '@renderer/split/splitTool';
 import styles from '@renderer/split/SplitToolbar.module.css';
 import { useEditStore } from './editStore';
-import { deleteSelection, selectConnected } from './editCommands';
+import { connectSelection, deleteSelection, mergeSelection, selectConnected, splitSelectedBeams } from './editCommands';
 
 /** Floating structure-edit controls over the viewport while edit mode is on. */
 export function EditToolbar() {
@@ -41,6 +41,9 @@ export function EditToolbar() {
       </span>
       <div className={styles.group}>
         <IconButton icon={Network} label="Select connected (L)" size="sm" onClick={selectConnected} disabled={!nodes} />
+        <IconButton icon={Spline} label="Connect with beams, in the order picked (B)" size="sm" onClick={connectSelection} disabled={nodes < 2} data-testid="edit-connect" />
+        <IconButton icon={Combine} label="Merge into the first node picked (M)" size="sm" onClick={mergeSelection} disabled={nodes < 2} data-testid="edit-merge" />
+        <IconButton icon={SplitSquareHorizontal} label="Split beams at the middle (D)" size="sm" onClick={splitSelectedBeams} disabled={!beams} data-testid="edit-split-beam" />
         <IconButton icon={Trash2} label="Delete (Del)" size="sm" onClick={deleteSelection} disabled={!nodes && !beams} data-testid="edit-delete" />
       </div>
       <span className={styles.hint}>Right-drag orbits · arrows nudge</span>

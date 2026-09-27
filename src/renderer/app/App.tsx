@@ -61,6 +61,8 @@ function AppEffects() {
         },
         editSelect: (ids: string[]) => useEditStore.getState().select(ids, []),
         nodeInfo: (ids: string[]) => (projectStore.getState().doc?.nodes ?? []).filter((n) => ids.includes(n.id)).map((n) => ({ id: n.id, pos: n.pos, manual: !!n.manual, weight: n.weight })),
+        /** The first `n` node ids in the document, for topology checks. */
+        firstNodes: (n: number) => (projectStore.getState().doc?.nodes ?? []).slice(0, n).map((x) => x.id),
         /** A left/right node pair (by position) to exercise symmetry; [some node, null] when nothing is mirrored. */
         mirrorPair: () => {
           const nodes = projectStore.getState().doc?.nodes ?? [];

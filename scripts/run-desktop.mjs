@@ -653,6 +653,21 @@ const scenarios = [
       assert((await hook(page, 'structureState')).nodes === st.nodes - boxed, 'Delete removes the selected nodes');
       await hook(page, 'runCommand', 'undo');
       assert((await hook(page, 'structureState')).nodes === st.nodes, 'undo restores them');
+      // Topology: B connects two picked nodes, M merges them, both undo.
+      const someNodes = (await hook(page, 'firstNodes', 2)) ?? [];
+      assert(someNodes.length === 2, 'two nodes to connect');
+      await hook(page, 'editSelect', someNodes);
+      await page.getByTestId('viewport').focus();
+      const beamsBefore = (await hook(page, 'structureState')).beams;
+      await page.keyboard.press('b');
+      const beamsAfter = (await hook(page, 'structureState')).beams;
+      assert(beamsAfter === beamsBefore + 1 || beamsAfter === beamsBefore, `B connects the nodes (${beamsBefore} → ${beamsAfter})`);
+      await page.keyboard.press('m');
+      assert((await hook(page, 'structureState')).nodes === st.nodes - 1, 'M merges two nodes into one');
+      await hook(page, 'runCommand', 'undo');
+      if (beamsAfter !== beamsBefore) await hook(page, 'runCommand', 'undo');
+      const restored = await hook(page, 'structureState');
+      assert(restored.nodes === st.nodes && restored.beams === beamsBefore, 'undo restores nodes and beams');
       await page.getByTestId('edit-exit').click();
       assert(!(await hook(page, 'editState')).active, 'edit mode off');
 

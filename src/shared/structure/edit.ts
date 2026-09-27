@@ -207,3 +207,138 @@ export function centroid(nodes: readonly Pick<StructNode, 'pos'>[]): Vec3 {
 function round(v: number): number {
   return Math.round(v * 1e5) / 1e5;
 }
+
+// ---------------------------------------------------------------- topology
+
+/** A free node id: `base` plus the lowest number not taken ("dr" → dr12). */
+export function uniqueNodeId(doc: Pick<Project, 'nodes'>, base: string): string {
+  const taken = new Set(doc.nodes.map((n) => n.id));
+  const stem = base.replace(/\d+[a-z]?$/i, '') || 'n';
+  for (let i = 1; ; i++) if (!taken.has(`${stem}${i}`)) return `${stem}${i}`;
+}
+
+/**
+ * Connect nodes with beams in the order given (a chain: a-b, b-c…). Beams
+ * between two parts become attachment beams owned by the first node's part.
+ * Existing beams are left alone. Returns how many were added.
+ */
+export function connectNodes(doc: Pick<Project, 'nodes' | 'beams'>, ids: readonly string[]): number {
+  const byId = new Map(doc.nodes.map((n) => [n.id, n]));
+  const have = new Set(doc.beams.map((b) => beamKey(b.id1, b.id2)));
+  let added = 0;
+  for (let i = 0; i + 1 < ids.length; i++) {
+    const a = byId.get(ids[i]!);
+    const b = byId.get(ids[i + 1]!);
+    if (!a || !b || a.id === b.id || have.has(beamKey(a.id, b.id))) continue;
+    doc.beams.push({ id1: a.id, id2: b.id, partId: a.partId, kind: a.partId === b.partId ? 'edge' : 'attach' });
+    have.add(beamKey(a.id, b.id));
+    added++;
+  }
+  return added;
+}
+
+/** Split beams at their midpoints: a new node in the middle, the beam becomes two. Returns the new node ids. */
+export function splitBeams(doc: Pick<Project, 'nodes' | 'beams'>, keys: readonly string[]): string[] {
+  const want = new Set(keys);
+  const byId = new Map(doc.nodes.map((n) => [n.id, n]));
+  const created: string[] = [];
+  const next: typeof doc.beams = [];
+  const done = new Set<string>();
+  for (const b of doc.beams) {
+    const key = beamKey(b.id1, b.id2);
+    const a = byId.get(b.id1);
+    const c = byId.get(b.id2);
+    if (!want.has(key) || !a || !c) {
+      next.push(b);
+      continue;
+    }
+    if (done.has(key)) continue; // a duplicate beam on a pair already split
+    done.add(key);
+    const owner = a.partId === b.partId ? a : c;
+    const id = uniqueNodeId(doc, owner.id);
+    const node = { id, partId: b.partId, pos: [round((a.pos[0] + c.pos[0]) / 2), round((a.pos[1] + c.pos[1]) / 2), round((a.pos[2] + c.pos[2]) / 2)] as Vec3, weight: round((a.weight + c.weight) / 2), manual: true };
+    doc.nodes.push(node);
+    byId.set(id, node);
+    created.push(id);
+    next.push({ ...b, id2: id }, { ...b, id1: id });
+  }
+  doc.beams = next;
+  return created;
+}
+
+/**
+ * Merge nodes into the first one: it moves to their centre and takes their
+ * combined weight; every beam and triangle follows, and beams or triangles
+ * that collapse (both ends on the kept node, or repeats) are dropped.
+ */
+export function mergeNodes(doc: Doc, ids: readonly string[]): string | null {
+  const byId = new Map(doc.nodes.map((n) => [n.id, n]));
+  const group = ids.map((id) => byId.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
+  if (group.length < 2) return null;
+  const keep = group[0]!;
+  const gone = new Set(group.slice(1).map((n) => n.id));
+  const c = centroid(group);
+  keep.pos = [round(c[0]), round(c[1]), round(c[2])];
+  keep.weight = round(group.reduce((m, n) => m + n.weight, 0));
+  keep.manual = true;
+  const to = (id: string) => (gone.has(id) ? keep.id : id);
+  doc.nodes = doc.nodes.filter((n) => !gone.has(n.id));
+  const seen = new Set<string>();
+  doc.beams = doc.beams
+    .map((b) => ({ ...b, id1: to(b.id1), id2: to(b.id2) }))
+    .filter((b) => {
+      const key = `${beamKey(b.id1, b.id2)}|${b.kind}`;
+      if (b.id1 === b.id2 || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  doc.tris = doc.tris.map((t) => ({ ...t, ids: t.ids.map(to) as typeof t.ids })).filter((t) => new Set(t.ids).size === 3);
+  const ref = doc.proxy.refNodes;
+  if (ref) for (const k of Object.keys(ref) as (keyof typeof ref)[]) ref[k] = to(ref[k]);
+  return keep.id;
+}
+
+// ---------------------------------------------------------------- regeneration
+
+/** How far a hand-moved node may be from a regenerated one and still take its place (m). */
+export const ADOPT_REACH = 0.15;
+
+/**
+ * Regenerating a part keeps the nodes you moved by hand: each one replaces the
+ * freshly generated node with the same id, or else the nearest one within
+ * reach, and inherits its beams and triangles. Mutates `derived`. Returns how
+ * many were reconnected and how many were left standing on their own.
+ */
+export function adoptManualNodes(derived: { nodes: StructNode[]; beams: { id1: string; id2: string }[]; tris: { ids: [string, string, string] }[] }, manual: readonly StructNode[], reach = ADOPT_REACH): { kept: number; loose: number } {
+  const rename = new Map<string, string>();
+  const replaced = new Set<string>();
+  let loose = 0;
+  for (const m of manual) {
+    let target = derived.nodes.find((n) => n.id === m.id && !replaced.has(n.id));
+    if (!target) {
+      let bestD = reach;
+      for (const n of derived.nodes) {
+        if (replaced.has(n.id) || manual.some((o) => o.id === n.id)) continue;
+        const d = Math.hypot(n.pos[0] - m.pos[0], n.pos[1] - m.pos[1], n.pos[2] - m.pos[2]);
+        if (d <= bestD) {
+          bestD = d;
+          target = n;
+        }
+      }
+    }
+    if (!target) {
+      loose++;
+      continue;
+    }
+    replaced.add(target.id);
+    if (target.id !== m.id) rename.set(target.id, m.id);
+  }
+  derived.nodes = derived.nodes.filter((n) => !replaced.has(n.id));
+  const to = (id: string) => rename.get(id) ?? id;
+  for (const b of derived.beams) {
+    b.id1 = to(b.id1);
+    b.id2 = to(b.id2);
+  }
+  for (const t of derived.tris) t.ids = t.ids.map(to) as [string, string, string];
+  return { kept: manual.length - loose, loose };
+}
