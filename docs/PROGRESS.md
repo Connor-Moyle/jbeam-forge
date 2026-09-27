@@ -48,6 +48,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.8.5 | Per-mesh move/turn/resize + mirror copies + per-mesh texture mapping (format v10), Inspector material quick edits, objects placed by corner, hinge section (9b), AC helper meshes hidden + gloss maps |
 | 0.8.4 | Library folders scanned at startup (your own materials and objects); 1,030 suspension/brake/steering parts cut from your BeamNG install into the objects library |
 | 0.8.3 | Assetto Corsa import: kn5 models, whole car folders (skins, data/ or data.acd, ui, extension), Reference car panel, painted liveries; kn5 dashes in the objects library |
 | 0.8.2 | Objects library (58 calipers and discs, rendered previews, separate download); model placement (position/rotation/scale) |
