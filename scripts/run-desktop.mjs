@@ -737,6 +737,7 @@ const scenarios = [
       smokeReport.classify = { ...summary, parts: ps.parts.length, assigned: ps.assigned };
       await page.waitForTimeout(300);
       await shot(page, 'smoke-model-parts');
+      writeFileSync(join(outDir, 'smoke-mesh-bounds.json'), JSON.stringify(await hook(page, 'meshBounds'), null, 1));
       const genStarted = Date.now();
       await page.getByTestId('toolbar-generate').click();
       let gs;

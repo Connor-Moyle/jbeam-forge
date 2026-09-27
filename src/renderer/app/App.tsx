@@ -155,6 +155,16 @@ function AppEffects() {
             selection: s.selection,
           };
         },
+        /** Every mesh's name, triangle count and BeamNG-space bounds (for studying real models). */
+        meshBounds: () =>
+          Object.values(useSceneStore.getState().sources).flatMap((src) =>
+            src.meshes.map((m) => {
+              const g = m.geometry;
+              if (!g.boundingBox) g.computeBoundingBox();
+              const b = g.boundingBox!;
+              return { key: m.key, name: m.name, triangles: m.triangles, min: b.min.toArray(), max: b.max.toArray() };
+            }),
+          ),
         measureFps: (ms: number) =>
           new Promise<number>((resolve) => {
             let frames = 0;
