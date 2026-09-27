@@ -46,7 +46,7 @@ function AppEffects() {
         renameProject: (name: string) => projectStore.getState().execute({ label: 'Rename project', apply: (d) => void (d.meta.name = name) }),
         projectState: () => {
           const s = projectStore.getState();
-          return { name: s.doc?.meta.name ?? null, dirty: isDirty(s), filePath: s.filePath, undo: s.undoStack.length, redo: s.redoStack.length };
+          return { name: s.doc?.meta.name ?? null, dirty: isDirty(s), filePath: s.filePath, undo: s.undoStack.length, redo: s.redoStack.length, undoLabels: s.undoStack.map((e) => e.label).slice(-5) };
         },
         runCommand: (command: AppCommand) => runAppCommand(command),
         queueDialog: (answers: (string | null)[]) => call('harness:queueDialog', { answers }),

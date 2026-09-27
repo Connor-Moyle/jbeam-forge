@@ -347,6 +347,16 @@ export function registerIpcHandlers(services: HandlerServices): void {
     return dir;
   });
 
+  registerInvoke('materials:pickTexture', async (_req, event) => {
+    const path = await pickOpenFile(event.sender, {
+      title: 'Choose a texture',
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'dds', 'tga', 'bmp', 'webp'] }],
+      properties: ['openFile'],
+    });
+    if (path) projects.grantRoot(dirname(path));
+    return path;
+  });
+
   registerInvoke(
     'import:locateSource',
     async (req) => {

@@ -1,5 +1,8 @@
 import { Color, DoubleSide, SRGBColorSpace, Texture, type Material } from 'three';
 import { exportMaterialName, type ExportMaterial } from '@shared/export/files';
+import { materialJson } from '@shared/materials/beamng';
+import type { MaterialDef } from '@shared/materials/schema';
+import { previewLayer } from '@renderer/materials/runtime';
 
 /**
  * Imported three.js materials → exported material definitions + the texture
@@ -28,12 +31,12 @@ function basename(p: string): string {
   return p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
 }
 
-export function collectMaterials(slug: string, materials: Iterable<Material>): MaterialExport {
-  const taken = new Set<string>();
-  const out: MaterialExport = { materials: [], names: new Map(), copies: [] };
+/** Names texture files inside the mod (slug-prefixed, unique) and records what to copy. */
+export function createTextureNamer(slug: string): { file: (src: string) => string; copies: { from: string; to: string }[] } {
   const fileFor = new Map<string, string>(); // source path → file name in the mod
   const usedFiles = new Set<string>();
-  const copyTexture = (src: string): string => {
+  const copies: { from: string; to: string }[] = [];
+  const file = (src: string): string => {
     const known = fileFor.get(src);
     if (known) return known;
     const base = basename(src).replace(/[^A-Za-z0-9_.-]/g, '_');
@@ -42,9 +45,36 @@ export function collectMaterials(slug: string, materials: Iterable<Material>): M
     for (let i = 2; usedFiles.has(name.toLowerCase()); i++) name = `${name.slice(0, dot)}_${i}${name.slice(dot)}`;
     usedFiles.add(name.toLowerCase());
     fileFor.set(src, name);
-    out.copies.push({ from: src, to: `vehicles/${slug}/${name}` });
+    copies.push({ from: src, to: `vehicles/${slug}/${name}` });
     return name;
   };
+  return { file, copies };
+}
+
+/**
+ * Project materials → exported names, main.materials.json entries and texture
+ * copies. Game materials export under their own name with nothing written.
+ */
+export function projectMaterialExport(slug: string, defs: readonly MaterialDef[], namer = createTextureNamer(slug), taken = new Set<string>()) {
+  const names = new Map<string, string>();
+  const json: Record<string, unknown> = {};
+  const colors: { name: string; color: [number, number, number, number] }[] = [];
+  for (const def of defs) {
+    if (def.gameMaterial) {
+      names.set(def.id, def.gameMaterial);
+      continue;
+    }
+    const name = exportMaterialName(slug, def.name, taken);
+    names.set(def.id, name);
+    json[name] = materialJson(def, name, (path) => `/vehicles/${slug}/${namer.file(path)}`);
+    colors.push({ name, color: [...previewLayer(def).baseColor] });
+  }
+  return { names, json, colors, copies: namer.copies };
+}
+
+export function collectMaterials(slug: string, materials: Iterable<Material>, namer = createTextureNamer(slug), taken = new Set<string>()): MaterialExport {
+  const out: MaterialExport = { materials: [], names: new Map(), copies: namer.copies };
+  const copyTexture = namer.file;
 
   for (const mat of materials) {
     if (out.names.has(mat)) continue;

@@ -1,0 +1,191 @@
+.panel {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-bottom: var(--border-width) solid var(--border-0);
+}
+
+.list {
+  flex: 0 1 auto;
+  max-height: var(--size-material-list);
+  min-height: 0;
+  border-bottom: var(--border-width) solid var(--border-0);
+}
+
+.items {
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--size-tree-row);
+  padding: 0 var(--space-3);
+  color: var(--text-1);
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+
+.item:hover {
+  background: var(--bg-3);
+}
+
+.active {
+  background: var(--accent-dim);
+  color: var(--text-0);
+}
+
+.swatch {
+  flex: none;
+  width: var(--size-checkbox);
+  height: var(--size-checkbox);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+}
+
+.name {
+  overflow: hidden;
+  flex: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+.editor {
+  flex: 1;
+  min-height: 0;
+}
+
+.form {
+  padding: var(--space-3);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.layers {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+
+.layerTab {
+  height: var(--size-control-sm);
+  padding: 0 var(--space-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--text-1);
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.layerActive {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text-0);
+}
+
+.hint {
+  margin: 0 0 var(--space-3);
+  color: var(--text-2);
+  font-size: var(--text-label);
+  line-height: var(--line-normal);
+}
+
+.colorRow,
+.sliderRow {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.num {
+  width: var(--size-material-number);
+  flex: none;
+}
+
+.color {
+  width: var(--size-control);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+.row3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.texture {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-tree-row);
+}
+
+.textureLabel {
+  flex: none;
+  width: var(--size-material-slot);
+  color: var(--text-1);
+  font-size: var(--text-label);
+}
+
+.textureFile {
+  overflow: hidden;
+  flex: 1;
+  color: var(--text-0);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.none {
+  color: var(--text-2);
+}
+
+.uv {
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-2);
+  font-size: var(--text-label);
+  cursor: pointer;
+}
+
+.uvOn {
+  border-color: var(--accent);
+  color: var(--accent);
+}

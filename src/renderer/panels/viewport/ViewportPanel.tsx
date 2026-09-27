@@ -9,6 +9,10 @@ import type { ImportedMesh } from '@renderer/import/normalize';
 import { ViewportRuntime, webglAvailable, type EditView, type GlState, type ToolState, type ViewState } from './viewportRuntime';
 import { useEditStore } from '@renderer/structure/editStore';
 import { massBalance } from '@shared/structure/balance';
+import type { MaterialDef } from '@shared/materials/schema';
+import type { Material } from 'three';
+import { materialFor, useTextureVersion } from '@renderer/materials/runtime';
+import { slotsOf } from '@renderer/materials/seed';
 import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
 import { EditToolbar } from '@renderer/structure/EditToolbar';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
@@ -90,13 +94,21 @@ export function ViewportPanel() {
     // Scene store → runtime, outside React rendering (hundreds of meshes, per-frame hover).
     let meshesSource: unknown = null;
     let meshes: ImportedMesh[] = [];
+    let materialInputs: unknown[] = [];
+    let materials: ReadonlyMap<string, Material | Material[]> | undefined;
     const push = () => {
       const s = scene.getState();
       if (s.sources !== meshesSource) {
         meshesSource = s.sources;
         meshes = allMeshes(s.sources);
       }
-      const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover, focus: s.focus?.meshKeys ?? null };
+      const doc = projectStore.getState().doc;
+      const inputs = [meshes, doc?.materials, doc?.materialSlots, useTextureVersion.getState().version];
+      if (inputs.some((x, i) => x !== materialInputs[i])) {
+        materialInputs = inputs;
+        materials = doc ? projectMaterials(doc, meshes) : undefined;
+      }
+      const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover, focus: s.focus?.meshKeys ?? null, materials };
       rt.sync(view);
     };
     push();
@@ -133,7 +145,9 @@ export function ViewportPanel() {
     const unsubscribeStructure = projectStore.subscribe(() => {
       refreshFocus();
       pushStructure();
+      push();
     });
+    const unsubscribeTextures = useTextureVersion.subscribe(push);
     const ghost = () => rt.setGhostOpacity(useSettingsStore.getState().settings?.focusGhostOpacity ?? DEFAULT_SETTINGS.focusGhostOpacity);
     ghost();
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
@@ -183,6 +197,7 @@ export function ViewportPanel() {
       unsubscribeSettings();
       unsubscribeView();
       unsubscribeEdit();
+      unsubscribeTextures();
       unsubscribeSim();
       host.removeEventListener('keydown', onKey);
       rt.dispose();
@@ -280,4 +295,21 @@ function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
     moveSelection([dir[0]! * step, dir[1]! * step, dir[2]! * step], 'Nudge nodes');
   } else return false;
   return true;
+}
+
+/** Each mesh's project materials (split pieces use their base mesh's). */
+function projectMaterials(doc: { materials: readonly MaterialDef[]; materialSlots: Readonly<Record<string, readonly string[]>> }, meshes: readonly ImportedMesh[]): Map<string, Material | Material[]> {
+  const defs = new Map(doc.materials.map((d) => [d.id, d]));
+  const out = new Map<string, Material | Material[]>();
+  for (const m of meshes) {
+    const ids = slotsOf(doc, m.key);
+    if (!ids?.length) continue;
+    const imported = Array.isArray(m.material) ? m.material : [m.material];
+    const mats = ids.map((id, i) => {
+      const def = defs.get(id);
+      return def ? materialFor(def) : (imported[i] ?? imported[0]!);
+    });
+    out.set(m.key, mats.length === 1 ? mats[0]! : mats);
+  }
+  return out;
 }

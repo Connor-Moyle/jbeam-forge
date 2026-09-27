@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { withMeshNames } from '@shared/parts/meshNames';
+import { slotsOf } from '@renderer/materials/seed';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import { projectStore } from '@renderer/app/stores/project';
@@ -12,7 +13,7 @@ import { buildJbeamFiles } from '@shared/export/jbeam';
 import { configInfo, DEFAULT_CONFIG, defaultConfig, exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
-import { collectMaterials } from './materials';
+import { collectMaterials, createTextureNamer, projectMaterialExport } from './materials';
 
 const logger = rlog('export');
 
@@ -71,27 +72,36 @@ export function prepareExport(): PreparedExport | null {
   const meshNames = exportMeshNames(doc, allMeshes);
   const exported = allMeshes.filter((m) => meshNames.has(m.key));
 
+  // Project materials first; a mesh without any (shouldn't happen after import) keeps its imported one.
+  const namer = createTextureNamer(slug);
+  const takenNames = new Set<string>();
+  const usedIds = new Set(exported.flatMap((m) => slotsOf(doc, m.key) ?? []));
+  const project = projectMaterialExport(slug, doc.materials.filter((d) => usedIds.has(d.id)), namer, takenNames);
+  const unslotted = exported.filter((m) => !slotsOf(doc, m.key)?.length);
   const mats = collectMaterials(
     slug,
-    exported.flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])),
+    unslotted.flatMap((m) => (Array.isArray(m.material) ? m.material : [m.material])),
+    namer,
+    takenNames,
   );
-  const daeMeshes: DaeMesh[] = exported.map((m) => ({
-    name: meshNames.get(m.key)!,
-    geometry: m.geometry,
-    materials: (Array.isArray(m.material) ? m.material : [m.material]).map((mat) => mats.names.get(mat)!),
-    flipV: formatOf.get(m.sourceId) === 'gltf' || formatOf.get(m.sourceId) === 'glb',
-  }));
-  const dae = writeDae(
-    daeMeshes,
-    mats.materials.map((m) => ({ name: m.name, color: m.baseColor })),
-  );
+  const daeMeshes: DaeMesh[] = exported.map((m) => {
+    const imported = Array.isArray(m.material) ? m.material : [m.material];
+    const ids = slotsOf(doc, m.key);
+    return {
+      name: meshNames.get(m.key)!,
+      geometry: m.geometry,
+      materials: ids?.length ? ids.map((id) => project.names.get(id) ?? `${slug}_missing`) : imported.map((mat) => mats.names.get(mat)!),
+      flipV: formatOf.get(m.sourceId) === 'gltf' || formatOf.get(m.sourceId) === 'glb',
+    };
+  });
+  const dae = writeDae(daeMeshes, [...project.colors, ...mats.materials.map((m) => ({ name: m.name, color: m.baseColor }))]);
   const jbeams = buildJbeamFiles(doc, tax, { meshNames, author });
   const pc = defaultConfig(doc, tax);
   const root = `vehicles/${slug}`;
   const files: ExportBundle['files'] = [
     { path: `${root}/${slug}.dae`, text: dae },
     ...jbeams.map((j) => ({ path: `${root}/${j.file}`, text: j.text })),
-    { path: `${root}/main.materials.json`, text: `${JSON.stringify(materialsJson(slug, mats.materials), null, 2)}\n` },
+    { path: `${root}/main.materials.json`, text: `${JSON.stringify({ ...project.json, ...materialsJson(slug, mats.materials) }, null, 2)}\n` },
     { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author), null, 2)}\n` },
     { path: `${root}/${DEFAULT_CONFIG}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` },
     { path: `${root}/info_${DEFAULT_CONFIG}.json`, text: `${JSON.stringify(configInfo(doc, tax, pc), null, 2)}\n` },

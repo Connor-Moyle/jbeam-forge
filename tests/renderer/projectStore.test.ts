@@ -142,3 +142,24 @@ describe('undo history saved with the project', () => {
     expect(parseSavedHistory('{"version":1,"projectHash":"h","undo":[{"id":"x"}],"redo":[]}')).toBeNull();
   });
 });
+
+describe('coalesced edits', () => {
+  it('merges rapid edits with the same key into one undo step', () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    for (let i = 1; i <= 5; i++) s.getState().execute({ label: 'Drag', coalesce: 'name', apply: (d) => void (d.meta.name = `N${i}`) });
+    expect(s.getState().undoStack).toHaveLength(1);
+    s.getState().undo();
+    expect(s.getState().doc!.meta.name).toBe('Test');
+  });
+
+  it('does not merge across a save', () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    s.getState().execute({ label: 'Drag', coalesce: 'name', apply: (d) => void (d.meta.name = 'A') });
+    s.getState().markSaved('x.jbforge', currentStateId(s.getState()));
+    s.getState().execute({ label: 'Drag', coalesce: 'name', apply: (d) => void (d.meta.name = 'B') });
+    expect(s.getState().undoStack).toHaveLength(2);
+    expect(isDirty(s.getState())).toBe(true);
+  });
+});

@@ -10,6 +10,8 @@ import { call } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import { collectMaterials } from './materials';
+import { materialFor } from '@renderer/materials/runtime';
+import { slotsOf } from '@renderer/materials/seed';
 import { writeDae } from './dae';
 
 /**
@@ -28,9 +30,14 @@ function exportedMeshes(): { meshes: (ImportedMesh & { group: string })[]; slug:
   const ignored = new Set(doc.ignoredMeshes);
   const partName = new Map(doc.parts.map((p) => [p.id, p.displayName]));
   const all = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);
+  const defs = new Map(doc.materials.map((d) => [d.id, d]));
   const meshes = withMeshNames(doc, all.filter((m) => !ignored.has(m.key))).map((m) => {
     const partId = doc.assignments[m.key];
-    return { ...m, group: partId ? (partName.get(partId) ?? 'Unassigned') : 'Unassigned' };
+    // Project materials (with any edits) where the mesh has them.
+    const imported = Array.isArray(m.material) ? m.material : [m.material];
+    const ids = slotsOf(doc, m.key);
+    const mats = ids?.length ? ids.map((id, i) => (defs.get(id) ? materialFor(defs.get(id)!) : (imported[i] ?? imported[0]!))) : imported;
+    return { ...m, material: mats.length === 1 ? mats[0]! : mats, group: partId ? (partName.get(partId) ?? 'Unassigned') : 'Unassigned' };
   });
   return { meshes, slug: doc.meta.slug };
 }

@@ -58,6 +58,14 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'friendly mesh names (meshNames)',
     migrate: (doc) => ({ ...doc, formatVersion: 5, meshNames: {} }),
   },
+  {
+    from: 5,
+    describe: 'vehicle materials (typed materials list, materialSlots)',
+    migrate: (doc) => {
+      if (Array.isArray(doc.materials) && doc.materials.length) throw new Error('v5 project has materials, which no v5 app could write');
+      return { ...doc, formatVersion: 6, materials: [], materialSlots: {} };
+    },
+  },
 ];
 
 export class MigrationError extends Error {

@@ -29,8 +29,9 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
   materials: [
     { id: 'viewport' },
     { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+    // Both visible: the material being edited on top, the selected part's details below.
     { id: 'materials', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
-    { id: 'inspector', relativeTo: 'materials', direction: 'within' },
+    { id: 'inspector', relativeTo: 'materials', direction: 'below' },
   ],
   testing: [
     { id: 'viewport' },

@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { planSeed, seedMaterials } from '@renderer/materials/seed';
+import { registerImportedTextures } from '@renderer/materials/runtime';
 import { produce } from 'immer';
 import { legacyKeyMap, remapMeshKeys } from '@shared/mesh/legacyKeys';
 import { create } from 'zustand';
@@ -117,7 +119,17 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
       error: null,
       stats: { triangles: staged.triangles, totalMs: done.totalMs },
     });
-    projectStore.getState().execute({ label: `Import ${staged.fileName}`, apply: (d) => void d.sources.push(source) });
+    registerImportedTextures(done.meshes);
+    const doc = projectStore.getState().doc;
+    const seed = doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
+    projectStore.getState().execute({
+      label: `Import ${staged.fileName}`,
+      apply: (d) => {
+        d.sources.push(source);
+        d.materials.push(...seed.materials); // every material and texture comes along
+        Object.assign(d.materialSlots, seed.slots);
+      },
+    });
     useSceneStore.getState().requestFrame();
     offerAutoClassify(staged.fileName, done.meshes);
     const missing = done.textures.missing.length;
@@ -180,7 +192,9 @@ async function loadFromDisk(source: Source): Promise<void> {
       return;
     }
     if (source.format === 'fbx') adoptLegacyFbxKeys(source.id, done.meshes);
+    registerImportedTextures(done.meshes);
     store({ ...base, status: 'ready', raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
+    seedMaterials(source.id, done.meshes); // projects from before materials existed
   } catch (err) {
     store({ ...base, status: 'error', error: errorText(err) });
   } finally {

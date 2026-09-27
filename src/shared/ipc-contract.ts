@@ -96,6 +96,8 @@ export interface InvokeContract {
   };
   /** "Locate folder…" for missing textures; grants the folder. */
   'import:pickTextureDir': { req: undefined; res: string | null };
+  /** Pick an image for a material slot; its folder becomes readable. */
+  'materials:pickTexture': { req: undefined; res: string | null };
   /** Find a project's source file on disk (relative path, absolute path, next to the project). */
   'import:locateSource': { req: { projectPath: string | null; path: string; absolutePath: string }; res: string | null };
   /** run-desktop harness only (registered only in harness mode): scripted dialog answers. */
@@ -158,6 +160,7 @@ export const INVOKE_CHANNELS = [
   'import:readFile',
   'import:resolveTextures',
   'import:pickTextureDir',
+  'materials:pickTexture',
   'import:locateSource',
   'project:allowFolders',
   'project:readHistory',

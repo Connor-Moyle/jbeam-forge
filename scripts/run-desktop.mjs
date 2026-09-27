@@ -294,7 +294,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 5 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 6 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -352,7 +352,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 5 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 6 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -566,6 +566,8 @@ const scenarios = [
       await page.getByTestId('folders-allow').click();
       st = await waitMeshes(4);
       assert(st.meshNames.includes('merged_piece2_split'), 'splits re-applied after reopening');
+      const reopenedState = await hook(page, 'projectState');
+      assert(!reopenedState.dirty, `reopened project is clean (${JSON.stringify(reopenedState)})`);
       await shot(page, 'split-reopened');
       await hook(page, 'runCommand', 'close'); // leave on the home screen for the next scenario
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');
@@ -700,6 +702,19 @@ const scenarios = [
       await page.getByTestId('edit-exit').click();
       assert(!(await hook(page, 'editState')).active, 'edit mode off');
 
+      // Materials came in with the import; edit one and check the export carries it.
+      await hook(page, 'applyPreset', 'materials');
+      await page.getByTestId('materials-panel').waitFor();
+      assert((await page.getByTestId('material-row').count()) >= 1, 'imported materials listed');
+      await page.getByTestId('material-row').first().click();
+      await page.getByTestId('material-editor').waitFor();
+      const rough = page.getByLabel('Roughness value').first();
+      await rough.fill('0.27');
+      await rough.press('Enter');
+      await page.waitForTimeout(200);
+      await shot(page, 'materials-panel');
+      await hook(page, 'applyPreset', 'modelling');
+
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
@@ -719,6 +734,8 @@ const scenarios = [
       const flexMesh = body.match(/\["(generate_test_[a-z0-9_]+)",\s*\["generate_test_body"\]\]/)?.[1];
       assert(flexMesh && dae.includes(`<node id="${flexMesh}" name="${flexMesh}"`), `body flexbody mesh ${flexMesh} is a DAE node`);
       assert(existsSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test', 'jbforge-export.json')), 'export marker written');
+      const matsJson = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
+      assert(Object.values(matsJson).some((m) => m.Stages?.[0]?.roughnessFactor === 0.27 && m.version === 1.5), `edited material exported (${JSON.stringify(matsJson).slice(0, 300)})`);
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();
 
@@ -790,7 +807,12 @@ const scenarios = [
       const dae = readFileSync(daePath, 'utf8');
       assert(dae.includes('name="rear_left_halfshaft_2"'), 'dae nodes carry the new names');
       assert(readFileSync(join(ROOT, userProject), 'utf8') === original, 'the project file itself was not touched');
-      userReport = { meshes: st.meshes, named: names.length, glbBytes: glb.length, daeBytes: dae.length };
+      await hook(page, 'applyPreset', 'materials');
+      await page.getByTestId('materials-panel').waitFor();
+      const materialRows = await page.getByTestId('material-row').count();
+      await page.waitForTimeout(1500); // textures load in the background
+      await shot(page, 'user-project-materials');
+      userReport = { meshes: st.meshes, named: names.length, materials: materialRows, glbBytes: glb.length, daeBytes: dae.length };
     },
   },
   {

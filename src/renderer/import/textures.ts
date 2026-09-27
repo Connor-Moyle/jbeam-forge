@@ -11,6 +11,7 @@ import {
   RGBA_S3TC_DXT3_Format,
   RGBA_S3TC_DXT5_Format,
   RGBAFormat,
+  RepeatWrapping,
   SRGBColorSpace,
   Texture,
   type CompressedPixelFormat,
@@ -214,4 +215,21 @@ export async function applyTextures(materials: readonly Material[], io: TextureI
     });
   }
   return report;
+}
+
+/**
+ * Load one texture file for a material slot (the material editor's picker and
+ * textures not already decoded by an import). `flipY` follows the mesh's
+ * source convention, as the loaders' placeholders do.
+ */
+export async function loadTextureFile(path: string, bytes: Uint8Array, color: boolean, flipY: boolean, caps: GpuTextureCaps = ALL_CAPS): Promise<Texture | { error: string }> {
+  const decoded = await decode(path, bytes, caps);
+  if ('error' in decoded) return decoded;
+  const placeholder = new Texture();
+  placeholder.flipY = flipY;
+  placeholder.wrapS = placeholder.wrapT = RepeatWrapping;
+  adopt(decoded.texture, placeholder, color ? 'map' : 'normalMap', decoded);
+  decoded.texture.userData.sourcePath = path;
+  placeholder.dispose();
+  return decoded.texture;
 }

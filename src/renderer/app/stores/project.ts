@@ -19,13 +19,22 @@ export interface Command {
   /** Human-readable, shown in Edit → Undo "<label>" and the status bar. */
   label: string;
   apply: (draft: Draft<Project>) => void;
+  /**
+   * Rapid edits with the same key (a slider being dragged) merge into one
+   * undo step while they keep coming within a moment of each other.
+   */
+  coalesce?: string;
 }
+
+const COALESCE_MS = 1200;
 
 export interface HistoryEntry {
   id: number;
   label: string;
   patches: Patch[];
   inverse: Patch[];
+  coalesce?: string;
+  at?: number;
 }
 
 export interface ProjectState {
@@ -149,11 +158,15 @@ export function createProjectStore(): StoreApi<ProjectState> {
         for (const hook of documentHooks) hook(draft);
       });
       if (patches.length === 0) return false;
-      set((s) => ({
-        doc: next,
-        undoStack: [...s.undoStack, { id: nextEntryId++, label: command.label, patches, inverse }],
-        redoStack: [],
-      }));
+      const now = Date.now();
+      set((s) => {
+        const top = s.undoStack[s.undoStack.length - 1];
+        const merge = !!command.coalesce && top?.coalesce === command.coalesce && now - (top.at ?? 0) < COALESCE_MS && s.savedStateId !== top.id;
+        const entry: HistoryEntry = merge
+          ? { ...top, patches: [...top.patches, ...patches], inverse: [...inverse, ...top.inverse], at: now }
+          : { id: nextEntryId++, label: command.label, patches, inverse, coalesce: command.coalesce, at: now };
+        return { doc: next, undoStack: [...(merge ? s.undoStack.slice(0, -1) : s.undoStack), entry], redoStack: [] };
+      });
       return true;
     },
 

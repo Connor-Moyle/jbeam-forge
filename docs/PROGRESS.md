@@ -13,7 +13,7 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | done (0.7.0) |
-| 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | not started |
+| 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | in progress |
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | not started |
 | 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | not started |
 | 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | not started |
@@ -52,6 +52,27 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
 
 ## Phase log
+
+### Phase 8 — Materials (in progress)
+
+**Studied first:** 2,179 materials from the stock vehicles. All are format 1.5 with four "Stages", and most do their work in stage 0. Paint puts a colour palette mask with clear coat and an orange-peel detail normal on layer 0, with the real textures on layer 1. Glass is translucent PreMulAlpha with shadows off.
+
+**8a — materials in the project (done):**
+- **Project format v6:** `materials` (typed) and `materialSlots` (mesh → material per slot; split pieces use their base mesh's).
+- **Auto-import:** every material of an imported model becomes a project material with its texture files, in the same undo step as the import. Projects from before v6 get theirs the first time the model loads. The Sunburst6 FBX brings in 53.
+- **Viewport:** draws from the project materials, using MeshPhysicalMaterial with clear coat, emissive and alpha test. Textures the import already decoded are reused, and others load on demand.
+- **Export:** writes main.materials.json from the project materials, in the stock v1.5 shape (only non-default fields), and copies their textures. Game materials are referenced by name and nothing is written for them. Raw fields merge over everything.
+- **Materials panel:**
+  - Search, a colour swatch per material, how many meshes use it, and paint/glass/game badges. Picking a mesh jumps to its material.
+  - Editor: layers 1–4, colour, metallic, roughness, opacity, normal strength, clear coat, glow colour and nits, a file per texture slot with a UV2 switch, and detail normal scale/strength.
+  - Transparency (blend op, depth write, receive shadows), alpha cut-out and threshold, double-sided, shadows, reflections, vertex colours, glow, per-pixel specular, anisotropic, paint-from-instance.
+  - Raw BeamNG fields per layer and per material.
+  - Apply to the selected meshes, duplicate, delete.
+- Slider drags merge into one undo step (commands can carry a coalesce key).
+- The Materials layout shows the Inspector under the Materials panel.
+- Export Model uses the project materials too.
+
+**Next:** 8b preset library and saved materials (`.jbmat`), then 8c merging duplicates (Aluminum-1 / Aluminum-1.001…), drag-and-drop, game materials and paint slots.
 
 ### Phase 7 — Editing suite (done, 0.7.0)
 

@@ -128,6 +128,9 @@
   --size-palette-list: 360px;
   --size-palette-group: 52px;
   --size-shortcut-key: 190px;
+  --size-material-list: 220px;
+  --size-material-number: 72px;
+  --size-material-slot: 120px;
   --size-popover-min: 200px;
   --size-popover-max: 340px;
   --size-modal-sm: 400px;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MaterialDefSchema } from '../materials/schema';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -12,7 +13,7 @@ import { z } from 'zod';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 5;
+export const CURRENT_PROJECT_VERSION = 6;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -176,9 +177,9 @@ export const ProxySectionSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV5Schema = z.object({
+export const ProjectV6Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(5),
+  formatVersion: z.literal(6),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -195,7 +196,10 @@ export const ProjectV5Schema = z.object({
   nodes: z.array(StructNodeSchema),
   beams: z.array(StructBeamSchema),
   tris: z.array(StructTriSchema),
-  materials: placeholderList, // Phase 8
+  /** Vehicle materials (Phase 8). Always empty before format v6, so tightening needs no data migration. */
+  materials: z.array(MaterialDefSchema),
+  /** meshKey → material id per material slot of the mesh (split pieces fall back to their base mesh). */
+  materialSlots: z.record(z.string(), z.array(z.string())),
   hinges: placeholderList, // Phase 9
   suspension: placeholderMap, // Phase 10
   powertrain: placeholderMap, // Phase 11
@@ -203,7 +207,7 @@ export const ProjectV5Schema = z.object({
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV5Schema;
+export const ProjectSchema = ProjectV6Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

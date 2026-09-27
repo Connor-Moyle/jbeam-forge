@@ -22,6 +22,7 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
+  type Material,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
@@ -62,6 +63,8 @@ export interface ViewState {
   hover: string | null;
   /** Focus mode: only these meshes stay solid (null = off). */
   focus: readonly string[] | null;
+  /** Project materials per mesh (meshes without one keep their imported material). */
+  materials?: ReadonlyMap<string, Material | Material[]>;
 }
 
 /** Face-selection split tool, as the viewport needs it (see src/renderer/split/splitTool.ts). */
@@ -492,13 +495,17 @@ export class ViewportRuntime {
         const obj = new Mesh(m.geometry, m.material);
         obj.name = m.name;
         obj.userData.meshKey = m.key;
+        obj.userData.imported = m.material;
         obj.userData.material = m.material;
         this.meshObjects.set(m.key, obj);
         this.modelRoot.add(obj);
       }
     }
     for (const [key, obj] of this.meshObjects) obj.visible = !next.hidden[key];
-    if (next.focus !== prev.focus || next.meshes !== prev.meshes) this.applyFocus();
+    if (next.materials !== prev.materials || next.meshes !== prev.meshes) {
+      for (const [key, obj] of this.meshObjects) obj.userData.material = next.materials?.get(key) ?? (obj.userData.imported as Material | Material[]);
+    }
+    if (next.focus !== prev.focus || next.meshes !== prev.meshes || next.materials !== prev.materials) this.applyFocus();
     this.syncOverlays();
     if (this.tool) {
       this.syncToolOverlay();
