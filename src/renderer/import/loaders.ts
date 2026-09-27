@@ -7,6 +7,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js';
 import type { SourceFormat } from '@shared/project/schema';
 import { resolveToken } from '@renderer/ui/tokens';
+import { loadKn5 } from './kn5';
 
 /**
  * Format loaders → "loader space" (three.js conventions; see
@@ -200,6 +201,9 @@ export async function loadIntoLoaderSpace(format: SourceFormat, bytes: Uint8Arra
       root = mesh;
       break;
     }
+    case 'kn5':
+      root = loadKn5(bytes, manager);
+      break;
   }
 
   await idle(10_000);

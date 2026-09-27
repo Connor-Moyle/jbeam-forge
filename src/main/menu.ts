@@ -31,6 +31,7 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: command('open') },
         { type: 'separator' },
         { label: 'Import Model…', accelerator: 'CmdOrCtrl+I', click: command('import') },
+        { label: 'Import Assetto Corsa Car…', click: command('importAc') },
         { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: command('save') },
         { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: command('saveAs') },

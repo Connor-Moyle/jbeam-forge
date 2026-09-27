@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 8;
+export const CURRENT_PROJECT_VERSION = 9;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -55,7 +55,7 @@ export const ProjectV1Schema = z.object({
 // ---------------------------------------------------------------- v3 (Phase 3)
 // v2 (3a) added sources/splits/parts/assignments; v3 (3b) adds Source.textureDirs.
 
-export const SOURCE_FORMATS = ['dae', 'fbx', 'obj', 'gltf', 'glb', 'stl'] as const;
+export const SOURCE_FORMATS = ['dae', 'fbx', 'obj', 'gltf', 'glb', 'stl', 'kn5'] as const;
 export const AXES = ['+x', '-x', '+y', '-y', '+z', '-z'] as const;
 export const CONSTRUCTION_MATERIALS = ['steel', 'aluminium', 'carbon', 'fibreglass', 'plastic'] as const;
 
@@ -190,9 +190,25 @@ export const ProxySectionSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV8Schema = z.object({
+/**
+ * A car brought over from another game (Assetto Corsa for now): where it came
+ * from and the text of its data files (car.ini, engine.ini, power.lut,
+ * ui_car.json, ext_config.ini…), kept so later tools can build from them.
+ */
+export const ReferenceCarSchema = z.object({
+  kind: z.literal('assettocorsa'),
+  /** Folder name, e.g. "ks_mazda_mx5_cup". */
+  carId: z.string(),
+  folder: z.string(),
+  skin: z.string().nullable(),
+  /** Relative path ("data/car.ini", "ui/ui_car.json", "extension/ext_config.ini") → file text. */
+  files: z.record(z.string(), z.string()),
+  importedAt: z.iso.datetime(),
+});
+
+export const ProjectV9Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(8),
+  formatVersion: z.literal(9),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -215,18 +231,21 @@ export const ProjectV8Schema = z.object({
   materialSlots: z.record(z.string(), z.array(z.string())),
   /** Hinged parts (Phase 9). Always empty before v7. */
   hinges: z.array(HingeSchema),
+  /** The car this project was brought over from, if any (v9). */
+  reference: ReferenceCarSchema.nullable(),
   suspension: placeholderMap, // Phase 10
   powertrain: placeholderMap, // Phase 11
   configs: placeholderList, // Phase 13
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV8Schema;
+export const ProjectSchema = ProjectV9Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
 export type Split = z.infer<typeof SplitSchema>;
 export type Part = z.infer<typeof PartSchema>;
+export type ReferenceCar = z.infer<typeof ReferenceCarSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

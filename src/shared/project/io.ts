@@ -138,6 +138,7 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     materials: [],
     materialSlots: {},
     hinges: [],
+    reference: null,
     suspension: {},
     powertrain: {},
     configs: [],

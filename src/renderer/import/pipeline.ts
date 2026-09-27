@@ -5,6 +5,7 @@ import { call } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import { loadIntoLoaderSpace } from './loaders';
 import { bakeMeshes, boundsOf, toBeamng, triangleCount, type BakedMesh, type ImportedMesh, type ImportSettings } from './normalize';
+import { bakeAcDetail } from './acBake';
 import { applyTextures, ALL_CAPS, type GpuTextureCaps, type TextureReport } from './textures';
 
 /**
@@ -91,12 +92,27 @@ export async function finishImport(
     },
     caps,
   );
+  if (staged.format === 'kn5') await bakeAcDetail(staged.baked, staged.path);
   const meshes = toBeamng(staged.baked, sourceId, settings);
   const totalMs = Math.round(staged.parseMs + performance.now() - started);
   logger.info(
     `imported ${staged.fileName}: ${meshes.length} meshes, textures ${textures.loaded} loaded / ${textures.missing.length} missing / ${textures.unsupported.length} unsupported, ${totalMs} ms total`,
   );
   return { meshes, textures, totalMs };
+}
+
+/**
+ * A model read with its own materials and textures, still in loader space
+ * (for previews that don't import anything).
+ */
+export async function loadTextured(path: string, format: SourceFormat): Promise<BakedMesh[]> {
+  const staged = await stageImport(path, format);
+  await applyTextures(uniqueMaterials(staged.baked), {
+    resolve: (refs) => call('import:resolveTextures', { sourcePath: path, refs, textureDirs: [] }),
+    read: (p) => call('import:readFile', { path: p }),
+  });
+  if (format === 'kn5') await bakeAcDetail(staged.baked, path);
+  return staged.baked;
 }
 
 /** Defaults per format (loader-space axes; see src/shared/coords.ts). */

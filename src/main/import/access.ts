@@ -12,15 +12,16 @@ import { IMAGE_EXTENSIONS } from './textures';
  * Only these file types are ever read for the renderer, even inside granted
  * folders: model sources, their side files (MTL, glTF buffers) and images.
  */
-const READABLE_EXTENSIONS = new Set<string>(['.dae', '.fbx', '.obj', '.mtl', '.gltf', '.glb', '.bin', '.stl', ...IMAGE_EXTENSIONS, '.ktx2']);
+const READABLE_EXTENSIONS = new Set<string>(['.dae', '.fbx', '.obj', '.mtl', '.gltf', '.glb', '.bin', '.stl', '.kn5', ...IMAGE_EXTENSIONS, '.ktx2']);
 
 export const MODEL_FILTERS = [
-  { name: '3D models', extensions: ['dae', 'fbx', 'obj', 'gltf', 'glb', 'stl'] },
+  { name: '3D models', extensions: ['dae', 'fbx', 'obj', 'gltf', 'glb', 'stl', 'kn5'] },
   { name: 'COLLADA (.dae)', extensions: ['dae'] },
   { name: 'FBX', extensions: ['fbx'] },
   { name: 'Wavefront OBJ', extensions: ['obj'] },
   { name: 'glTF / GLB', extensions: ['gltf', 'glb'] },
   { name: 'STL', extensions: ['stl'] },
+  { name: 'Assetto Corsa (.kn5)', extensions: ['kn5'] },
 ];
 
 export function formatFromPath(path: string): SourceFormat | null {

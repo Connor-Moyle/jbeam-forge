@@ -100,7 +100,7 @@ export async function startImport(): Promise<void> {
  * `material` puts one ready-made material on every mesh (objects from the
  * library) instead of importing the file's own. Returns the new source id.
  */
-export async function confirmImport(staged: StagedImport, settings: ImportSettings, opts: { material?: MaterialDef; classify?: boolean } = {}): Promise<string | null> {
+export async function confirmImport(staged: StagedImport, settings: ImportSettings, opts: { material?: MaterialDef; classify?: boolean; textureDirs?: string[] } = {}): Promise<string | null> {
   const ui = useImportUi.getState();
   ui.setStaged(null);
   ui.setBusy(`Importing ${staged.fileName}…`);
@@ -112,11 +112,11 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
       absolutePath: staged.path,
       format: staged.format,
       import: { scale: settings.scale, upAxis: settings.upAxis, forwardAxis: settings.forwardAxis },
-      textureDirs: [],
+      textureDirs: opts.textureDirs ?? [],
       placement: IDENTITY_PLACEMENT,
       addedAt: new Date().toISOString(),
     };
-    const done = await finishImport(staged, sourceId, settings, EMPTY_ARR, textureCaps());
+    const done = await finishImport(staged, sourceId, settings, opts.textureDirs ?? EMPTY_ARR, textureCaps());
     useSceneStore.getState().setSource({
       sourceId,
       status: 'ready',

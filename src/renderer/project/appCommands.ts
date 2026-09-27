@@ -3,6 +3,7 @@ import { projectStore } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } from './actions';
 import { startImport } from '@renderer/import/importFlow';
+import { startAcImport } from '@renderer/import/acImport';
 import { exportModel } from '@renderer/export/modelExport';
 import { useEditStore } from '@renderer/structure/editStore';
 import { selectAll } from '@renderer/structure/editCommands';
@@ -31,6 +32,9 @@ export function runAppCommand(command: AppCommand): void {
       break;
     case 'import':
       void startImport();
+      break;
+    case 'importAc':
+      if (projectStore.getState().doc) void startAcImport();
       break;
     case 'close':
       if (projectStore.getState().doc) void closeProject();

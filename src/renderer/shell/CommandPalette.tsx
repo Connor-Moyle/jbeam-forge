@@ -7,6 +7,7 @@ import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { redo, saveProject, undo } from '@renderer/project/actions';
 import { startImport } from '@renderer/import/importFlow';
+import { startAcImport } from '@renderer/import/acImport';
 import { openExport } from '@renderer/export/exportFlow';
 import { exportModel } from '@renderer/export/modelExport';
 import { generateAll } from '@renderer/structure/generate';
@@ -54,6 +55,7 @@ function PaletteBody({ close }: { close: () => void }) {
     const actions: (Item | false)[] = [
       { id: 'save', label: 'Save project', group: 'Action', hint: 'Ctrl+S', run: () => void saveProject() },
       { id: 'import', label: 'Import model…', group: 'Action', hint: 'Ctrl+I', run: () => void startImport() },
+      { id: 'import-ac', label: 'Import Assetto Corsa car…', group: 'Action', run: () => void startAcImport() },
       hasParts && { id: 'generate', label: 'Generate structure for all parts', group: 'Action', run: () => void generateAll() },
       hasStructure && { id: 'edit', label: edit.active ? 'Stop editing nodes & beams' : 'Edit nodes & beams', group: 'Action', hint: 'Tab', run: () => edit.setActive(!edit.active) },
       hasStructure && {

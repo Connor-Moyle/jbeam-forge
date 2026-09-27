@@ -82,6 +82,11 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...doc, formatVersion: 8, sources: sources.map((s) => (typeof s === 'object' && s !== null ? { ...s, placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 } } : s)) };
     },
   },
+  {
+    from: 8,
+    describe: 'reference car data (Assetto Corsa import)',
+    migrate: (doc) => ({ ...doc, formatVersion: 9, reference: null }),
+  },
 ];
 
 export class MigrationError extends Error {

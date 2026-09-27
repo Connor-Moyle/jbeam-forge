@@ -5,6 +5,7 @@ import {
   FileCode,
   FilePlus,
   Package,
+  CarFront,
   FlaskConical,
   FileInput,
   FolderOpen,
@@ -131,6 +132,7 @@ export function Toolbar() {
         <IconButton icon={FlaskConical} label="Test results panel" onClick={() => togglePanel('test-results')} />
         <IconButton icon={FileCode} label="jbeam preview panel" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
         <IconButton icon={Package} label="Objects library: calipers, discs, gauges…" onClick={() => togglePanel('objects')} data-testid="toggle-objects" />
+        <IconButton icon={CarFront} label="Reference car: specs and data files of a car brought over from Assetto Corsa" onClick={() => togglePanel('reference')} data-testid="toggle-reference" />
         <Select<PresetId>
           aria-label="Layout preset"
           value={preset}

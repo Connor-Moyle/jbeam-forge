@@ -19,6 +19,7 @@ const FORMAT_NOTES: Record<SourceFormat, string> = {
   gltf: 'glTF gives the cleanest material mapping of all formats.',
   glb: 'glTF gives the cleanest material mapping of all formats.',
   stl: 'STL has no UVs or materials: everything imports untextured. UV tools arrive with materials (Phase 8).',
+  kn5: 'Assetto Corsa kn5: meshes, materials and the textures packed inside the file all come in. Car data from the same folder can be read with Import Assetto Corsa car.',
 };
 
 const AXIS_OPTIONS = AXES.map((a) => ({ value: a, label: a.replace('-', '−').toUpperCase() }));

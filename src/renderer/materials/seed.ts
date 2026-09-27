@@ -38,7 +38,8 @@ export function defFromThree(material: Material, id: string, name: string, sourc
   // Phong (COLLADA/OBJ/FBX) has no roughness: derive it from shininess.
   const roughness = typeof m.roughness === 'number' ? m.roughness : typeof m.shininess === 'number' ? Math.max(0.05, Math.min(1, 1 - m.shininess / 100)) : 0.5;
   const opacity = m.opacity ?? 1;
-  const translucent = (m.transparent && opacity < 1) || !!maps.opacityMap;
+  // Some loaders (kn5) blend by the base texture's alpha instead of an opacity value.
+  const translucent = (m.transparent && (opacity < 1 || material.userData.alphaFromTexture === true)) || !!maps.opacityMap;
   const clamp = (v: number) => Math.min(1, Math.max(0, v));
   return defaultMaterial(id, name, {
     origin: { sourceId, name: material.name || name },

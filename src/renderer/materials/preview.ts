@@ -17,6 +17,7 @@ import {
   TorusKnotGeometry,
   WebGLRenderer,
   type BufferGeometry,
+  type Object3D,
   type Material,
   type Texture,
 } from 'three';
@@ -28,6 +29,8 @@ import { materialFor, texturesReady } from './runtime';
 import type { SourceFormat } from '@shared/project/schema';
 import { call } from '@renderer/diagnostics/ipc';
 import { loadIntoLoaderSpace } from '@renderer/import/loaders';
+import { loadTextured } from '@renderer/import/pipeline';
+import { disposeMaterials } from '@renderer/import/dispose';
 
 /**
  * Material previews: a live stage for the Materials editor (orbit it, pick a
@@ -240,18 +243,25 @@ const objectThumbs = new Map<string, Promise<string | null>>();
  * A rendered preview of a library object (PNG data URL): its mesh loaded with
  * the importer's own loaders, dressed in its material, framed to fit.
  */
-export function objectThumbnail(item: { id: string; mesh: string; material: MaterialDef }): Promise<string | null> {
+export function objectThumbnail(item: { id: string; mesh: string; material: MaterialDef | null }): Promise<string | null> {
   const known = objectThumbs.get(item.id);
   if (known) return known;
   const job = queue.then(async () => {
     const ext = item.mesh.slice(item.mesh.lastIndexOf('.') + 1).toLowerCase() as SourceFormat;
-    const bytes = await call('import:readFile', { path: item.mesh });
-    const { root } = await loadIntoLoaderSpace(ext, bytes, item.mesh, () => Promise.resolve(null));
-    await texturesReady(item.material);
-    const material = materialFor(item.material);
-    root.traverse((o) => {
-      if (o instanceof Mesh) o.material = material;
-    });
+    let root: Object3D;
+    if (item.material) {
+      const bytes = await call('import:readFile', { path: item.mesh });
+      root = (await loadIntoLoaderSpace(ext, bytes, item.mesh, () => Promise.resolve(null))).root;
+      await texturesReady(item.material);
+      const material = materialFor(item.material);
+      root.traverse((o) => {
+        if (o instanceof Mesh) o.material = material;
+      });
+    } else {
+      // Brings its own materials (kn5): load them with their textures.
+      root = new Group();
+      for (const m of await loadTextured(item.mesh, ext)) root.add(new Mesh(m.geometry, m.material));
+    }
     // Three-quarter view of whatever the object is, sized to fill the frame.
     root.updateMatrixWorld(true);
     const box = new Box3().setFromObject(root);
@@ -268,9 +278,14 @@ export function objectThumbnail(item: { id: string; mesh: string; material: Mate
     const url = t.renderer.domElement.toDataURL('image/png');
     t.parts.scene.remove(holder);
     t.parts.mesh.visible = true;
+    const own = new Set<Material>();
     holder.traverse((o) => {
-      if (o instanceof Mesh) (o.geometry as BufferGeometry).dispose();
+      if (!(o instanceof Mesh)) return;
+      (o.geometry as BufferGeometry).dispose();
+      for (const m of Array.isArray(o.material) ? (o.material as Material[]) : [o.material as Material]) own.add(m);
     });
+    // Materials the object brought with it (not the shared project ones) go too, with their textures.
+    if (!item.material) disposeMaterials(own);
     return url;
   });
   const safe = job.catch(() => null);

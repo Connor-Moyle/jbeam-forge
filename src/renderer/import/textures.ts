@@ -91,6 +91,10 @@ function extensionOf(path: string): string {
   return path.slice(path.lastIndexOf('.') + 1).toLowerCase();
 }
 
+function isDds(bytes: Uint8Array): boolean {
+  return bytes.byteLength > 4 && bytes[0] === 0x44 && bytes[1] === 0x44 && bytes[2] === 0x53 && bytes[3] === 0x20;
+}
+
 async function decodeImage(bytes: Uint8Array): Promise<HTMLImageElement> {
   const url = URL.createObjectURL(new Blob([bytes.slice()]));
   try {
@@ -110,7 +114,8 @@ async function decodeImage(bytes: Uint8Array): Promise<HTMLImageElement> {
 type Decoded = { texture: Texture; kind: 'compressed' | 'image' | 'data'; dataFlipY?: boolean } | { error: string };
 
 async function decode(path: string, bytes: Uint8Array, caps: GpuTextureCaps): Promise<Decoded> {
-  const ext = extensionOf(path);
+  // Go by what the bytes are: kn5 files often hold DDS data under a .png or .jpg name.
+  const ext = isDds(bytes) ? 'dds' : extensionOf(path);
   if (ext === 'dds') {
     const dds = parseDds(bytes);
     if (!dds.ok) return { error: dds.reason };

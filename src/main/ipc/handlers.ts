@@ -19,7 +19,9 @@ import { getLogFolder, scoped } from '../log';
 import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
 import { resolveTextureRefs } from '../import/textures';
 import { readFile, stat, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
+import { kn5TextureDir } from '../import/kn5Textures';
+import { readAcCar } from '../import/acCar';
 import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
 
@@ -48,6 +50,8 @@ export interface HandlerServices {
   materialPack: Promise<LibraryItem[]>;
   /** The bundled objects pack. */
   objectPack: Promise<ObjectItem[]>;
+  /** Where textures embedded in kn5 files are extracted. */
+  kn5Cache: string;
   harness: boolean;
 }
 
@@ -340,13 +344,40 @@ export function registerIpcHandlers(services: HandlerServices): void {
     async ({ sourcePath, refs, textureDirs }) => {
       assertReadable(projects, sourcePath);
       const roots = textureDirs.filter((d) => projects.isUnderGrantedRoot(d));
-      const result = await resolveTextureRefs(refs, dirname(sourcePath), roots);
+      let result;
+      if (extname(sourcePath).toLowerCase() === '.kn5') {
+        // A kn5's textures live inside it. A chosen skin folder (a texture dir) overrides them;
+        // the car folder itself isn't searched, or another skin's paint could be picked up.
+        const embedded = await kn5TextureDir(sourcePath, services.kn5Cache);
+        projects.grantRoot(embedded);
+        const order = [...roots, embedded];
+        result = await resolveTextureRefs(refs, order[0]!, order.slice(1));
+      } else result = await resolveTextureRefs(refs, dirname(sourcePath), roots);
       // A texture that exists but isn't readable (e.g. ../textures next to an ungranted folder) is
       // "missing" to the user — that is what offers "Locate folder…", which grants it.
       for (const [ref, p] of Object.entries(result.resolved)) if (p && !projects.isUnderGrantedRoot(p)) result.resolved[ref] = null;
       return result;
     },
     z.object({ sourcePath: z.string().min(1).max(4096), refs: z.array(z.string().max(4096)).max(5000), textureDirs: z.array(z.string().max(4096)).max(50) }),
+  );
+
+  registerInvoke('ac:pickCar', async (_req, event) => {
+    const dir = await pickDirectory(event.sender, { title: 'Choose an Assetto Corsa car folder (content/cars/…)' });
+    if (!dir) return null;
+    projects.grantRoot(dir);
+    return readAcCar(dir);
+  });
+
+  registerInvoke(
+    'kn5:saveBaked',
+    async ({ kn5Path, name, bytes }) => {
+      assertReadable(projects, kn5Path);
+      const dir = await kn5TextureDir(kn5Path, services.kn5Cache);
+      const path = join(dir, name);
+      await writeFile(path, bytes);
+      return path;
+    },
+    z.object({ kn5Path: z.string().min(1).max(4096), name: z.string().regex(/^[\w.-]{1,200}\.png$/), bytes: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 128 * 1024 * 1024) }),
   );
 
   registerInvoke('import:pickTextureDir', async (_req, event) => {

@@ -1,6 +1,18 @@
 import type { Settings, SettingsPatch } from './settings-schema';
 import type { MaterialDef } from './materials/schema';
 
+/** An Assetto Corsa car folder as read by main (src/main/import/acCar.ts). */
+export interface AcCarInfo {
+  folder: string;
+  carId: string;
+  /** The main (LOD 0) model, or null when the folder has none. */
+  kn5: string | null;
+  skins: string[];
+  /** Relative path → file text (data/*.ini, data/*.lut, ui/ui_car.json, extension/…). */
+  files: Record<string, string>;
+  warnings: string[];
+}
+
 /** A ready-made object (brake caliper, disc, gauge…) from the objects pack. */
 export interface ObjectItem {
   id: string;
@@ -9,8 +21,10 @@ export interface ObjectItem {
   group: string;
   /** Mesh file (absolute). */
   mesh: string;
-  /** Its material, textures absolute. */
-  material: MaterialDef;
+  /** Its material, textures absolute; null when the mesh brings its own (kn5). */
+  material: MaterialDef | null;
+  /** Who made it, when the licence asks for credit. */
+  credit: string | null;
 }
 
 /** A material saved to the user's library. */
@@ -118,6 +132,10 @@ export interface InvokeContract {
   };
   /** "Locate folder…" for missing textures; grants the folder. */
   'import:pickTextureDir': { req: undefined; res: string | null };
+  /** Pick an Assetto Corsa car folder and read it (model, skins, data files). */
+  'ac:pickCar': { req: undefined; res: AcCarInfo | null };
+  /** Save a texture baked from a kn5's materials next to its extracted textures; returns its path. */
+  'kn5:saveBaked': { req: { kn5Path: string; name: string; bytes: Uint8Array }; res: string };
   /** Pick an image for a material slot; its folder becomes readable. */
   'materials:pickTexture': { req: undefined; res: string | null };
   'materials:library': { req: undefined; res: LibraryItem[] };
@@ -152,7 +170,7 @@ export interface InvokeContract {
 }
 
 /** Commands the native menu forwards to the renderer. */
-export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'settings', 'exportModelGlb', 'exportModelDae'] as const;
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'settings', 'exportModelGlb', 'exportModelDae'] as const;
 export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */
@@ -192,6 +210,8 @@ export const INVOKE_CHANNELS = [
   'import:readFile',
   'import:resolveTextures',
   'import:pickTextureDir',
+  'ac:pickCar',
+  'kn5:saveBaked',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

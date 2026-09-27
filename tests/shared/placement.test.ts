@@ -39,11 +39,9 @@ describe('placement', () => {
   });
 
   it('the v8 fixture keeps a moved source through a save', () => {
-    const text = readFileSync(join(FIXTURES, 'v8-placement.jbforge'), 'utf8');
-    const { project, migratedFrom } = parseProject(text);
-    expect(migratedFrom).toBeNull();
+    const { project } = parseProject(readFileSync(join(FIXTURES, 'v8-placement.jbforge'), 'utf8'));
     expect(project.sources[0]!.placement).toEqual({ position: [0.62, -1.28, 0.31], rotation: [0, 0, 180], scale: 1 });
-    expect(serializeProject(project)).toBe(text);
+    expect(parseProject(serializeProject(project)).project.sources[0]!.placement).toEqual(project.sources[0]!.placement);
   });
 
   it('older projects come in with every source unmoved', () => {

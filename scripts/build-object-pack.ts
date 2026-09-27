@@ -57,6 +57,14 @@ export function objectName(folder: string): string {
   return `${words.join(' ')} ${n}`;
 }
 
+/** kn5 dashes and gauges: the file name alone doesn't say what they are. */
+const KN5_NAMES: Record<string, { name: string; credit?: string }> = {
+  haltech_ic7: { name: 'Haltech iC-7' },
+  haltech_uc10: { name: 'Haltech uC-10', credit: 'MetalRoachTwo' },
+  strada_7: { name: 'Link MXG Strada 7', credit: 'HenTaiMU' },
+};
+const LICENSE_FILE = /^(license|licence|readme)|readme/i;
+
 // ---------------------------------------------------------------- textures
 
 interface Tex {
@@ -130,9 +138,12 @@ interface Obj {
   name: string;
   mesh: string;
   textures: Tex[];
+  /** null: the mesh keeps its own materials (kn5). */
   materialJson: unknown;
   source: string;
   notes: string[];
+  credit?: string;
+  extras?: string[];
 }
 
 function walkDirs(dir: string): string[] {
@@ -140,7 +151,6 @@ function walkDirs(dir: string): string[] {
 }
 
 const objects: Obj[] = [];
-const pending: string[] = [];
 for (const dir of walkDirs(root)) {
   const files = readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => join(dir, e.name));
   // LOD0 … LOD3 of one mesh are one object: keep the most detailed.
@@ -149,10 +159,25 @@ for (const dir of walkDirs(root)) {
   const byStem = new Map<string, string[]>();
   for (const f of files.filter((x) => MESH.has(extname(x).toLowerCase()))) byStem.set(lodStem(f), [...(byStem.get(lodStem(f)) ?? []), f]);
   const meshes = [...byStem.values()].map((g) => g.sort((a, b) => lodNum(a) - lodNum(b))[0]!);
-  const kn5 = files.filter((f) => extname(f).toLowerCase() === '.kn5');
-  for (const k of kn5) pending.push(relative(root, k).split(sep).join('/'));
-  if (!meshes.length) continue;
   const rel = relative(root, dir).split(sep);
+  // A kn5 carries its own materials and textures; its folder's licence and readme travel with it.
+  for (const k of files.filter((f) => extname(f).toLowerCase() === '.kn5')) {
+    const stem = basename(k, '.kn5');
+    const known = KN5_NAMES[stem.toLowerCase()];
+    objects.push({
+      group: niceCategory(rel[0] ?? 'Objects'),
+      category: niceCategory(rel[rel.length - 2] ?? rel[0] ?? 'Objects'),
+      name: known?.name ?? stem.split(/[_\s-]+/).map(titleWord).join(' '),
+      mesh: k,
+      textures: [],
+      materialJson: null,
+      source: relative(root, k).split(sep).join('/'),
+      notes: ['kn5 with its own materials and textures'],
+      credit: known?.credit,
+      extras: files.filter((f) => LICENSE_FILE.test(basename(f))),
+    });
+  }
+  if (!meshes.length) continue;
   const hasSubObjects = readdirSync(dir, { withFileTypes: true }).some((e) => e.isDirectory());
   const images = files.filter((f) => IMAGE.has(extname(f).toLowerCase()));
   // A folder with sub-folders keeps its own meshes as loose objects; otherwise the folder is the object.
@@ -190,7 +215,7 @@ const put = (entry: string, data: Buffer) => {
   mkdirSync(dirname(join(folderOut, entry)), { recursive: true });
   writeFileSync(join(folderOut, entry), data);
 };
-const index = [`# JBeam Forge objects ${version}`, '', `${objects.length} objects. Each folder holds \`object.json\`, the mesh, and \`textures/\` (basecolor, normal, ao, roughness, metallic).`, ''];
+const index = [`# JBeam Forge objects ${version}`, '', `${objects.length} objects. Each folder holds \`object.json\`, the mesh, and \`textures/\` (basecolor, normal, ao, roughness, metallic). kn5 objects carry their own materials and textures, with their licence or readme alongside.`, ''];
 let last = '';
 const taken = new Set<string>();
 for (const o of objects.sort((a, b) => a.group.localeCompare(b.group) || a.category.localeCompare(b.category) || a.name.localeCompare(b.name))) {
@@ -201,16 +226,16 @@ for (const o of objects.sort((a, b) => a.group.localeCompare(b.group) || a.categ
   const meshFile = `${`${o.category} ${o.name}`.toLowerCase().replace(/[^a-z0-9]+/g, '_')}${extname(o.mesh).toLowerCase()}`;
   put(`${dir}/${meshFile}`, readFileSync(o.mesh));
   for (const t of o.textures) put(`${dir}/${t.entry}`, t.data ?? readFileSync(t.from!));
-  put(`${dir}/object.json`, Buffer.from(JSON.stringify({ version: 1, name: o.name, category: o.category, group: o.group, mesh: meshFile, material: o.materialJson, source: o.source }, null, 2)));
+  for (const x of o.extras ?? []) put(`${dir}/${basename(x)}`, readFileSync(x));
+  put(`${dir}/object.json`, Buffer.from(JSON.stringify({ version: 1, name: o.name, category: o.category, group: o.group, mesh: meshFile, material: o.materialJson, source: o.source, ...(o.credit ? { credit: o.credit } : {}) }, null, 2)));
   const head = `${o.group} › ${o.category}`;
   if (head !== last) {
     index.push('', `## ${head}`, '', '| Object | Textures | Notes | From |', '|---|---|---|---|');
     last = head;
   }
-  index.push(`| ${o.name} | ${o.textures.map((t) => basename(t.entry).replace(/^.*_(\w+)\.\w+$/, '$1')).join(', ') || '—'} | ${o.notes.join('; ') || '—'} | ${o.source} |`);
+  index.push(`| ${o.name} | ${o.textures.map((t) => basename(t.entry).replace(/^.*_(\w+)\.\w+$/, '$1')).join(', ') || '—'} | ${[...o.notes, ...(o.credit ? [`by ${o.credit}`] : [])].join('; ') || '—'} | ${o.source} |`);
   console.log(`${head.padEnd(34)} ${o.name.padEnd(22)} ${o.textures.length} textures`);
 }
-if (pending.length) index.push('', '## Waiting for the KN5 importer', '', ...pending.map((p) => `- ${p}`));
 put('OBJECTS.md', Buffer.from(`${index.join('\n')}\n`));
 zip.end();
 await new Promise<void>((res, rej) => {
@@ -219,4 +244,4 @@ await new Promise<void>((res, rej) => {
   s.on('error', rej);
   zip.outputStream.pipe(s);
 });
-console.log(`\n${objects.length} objects → ${zipOut} (${(statSync(zipOut).size / 1e6).toFixed(1)} MB), bundled copy in ${folderOut}${pending.length ? `; ${pending.length} KN5 waiting for the importer` : ''}`);
+console.log(`\n${objects.length} objects → ${zipOut} (${(statSync(zipOut).size / 1e6).toFixed(1)} MB), bundled copy in ${folderOut}`);

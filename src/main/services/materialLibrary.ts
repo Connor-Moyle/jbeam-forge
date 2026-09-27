@@ -221,7 +221,7 @@ export async function loadBundledPack(dir: string, logger: Logger): Promise<Libr
   return items;
 }
 
-const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), group: z.string(), mesh: z.string().min(1), material: MaterialDefSchema, source: z.string().optional() });
+const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), group: z.string(), mesh: z.string().min(1), material: MaterialDefSchema.nullable(), source: z.string().optional(), credit: z.string().optional() });
 
 /** The objects pack shipped with the app: every <Group>/<Category>/<Name>/object.json under `dir`, paths made absolute. */
 export async function loadBundledObjects(dir: string, logger: Logger): Promise<ObjectItem[]> {
@@ -246,7 +246,7 @@ export async function loadBundledObjects(dir: string, logger: Logger): Promise<O
       const o = ObjectFileSchema.parse(JSON.parse(await readFile(file, 'utf8')));
       const folder = dirname(file);
       const id = `obj_${relative(dir, folder).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 80);
-      items.push({ id, name: o.name, category: o.category, group: o.group, mesh: join(folder, o.mesh), material: mapPaths({ ...o.material, id: `${id}_mat` }, (p) => join(folder, p)) });
+      items.push({ id, name: o.name, category: o.category, group: o.group, mesh: join(folder, o.mesh), material: o.material && mapPaths({ ...o.material, id: `${id}_mat` }, (p) => join(folder, p)), credit: o.credit ?? null });
     } catch (err) {
       logger.warn('objects pack: skipped', file, describeError(err).message);
     }

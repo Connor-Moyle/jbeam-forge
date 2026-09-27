@@ -33,7 +33,8 @@ export async function addObject(item: ObjectItem): Promise<string | null> {
   const format = item.mesh.slice(item.mesh.lastIndexOf('.') + 1).toLowerCase() as SourceFormat;
   const staged = await stageImport(item.mesh, format);
   const slug = `${item.category} ${item.name}`.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-  const id = await confirmImport(staged, defaultSettings(format), { material: { ...item.material, name: slug }, classify: true });
+  // Objects with their own materials (kn5) keep them; the rest get the pack's ready-made one.
+  const id = await confirmImport(staged, defaultSettings(format), item.material ? { material: { ...item.material, name: slug } } : {});
   if (id) useUiStore.getState().pushStatus(`Added ${item.name} (${item.category}). Right-click it in the Scene tree’s models list and choose Placement… to move it into position.`, 'success', 8000);
   return id;
 }
@@ -68,7 +69,7 @@ export function ObjectsPanel() {
               <span className={styles.name} title={item.name}>
                 {item.name}
               </span>
-              <span className={styles.category}>{item.category}</span>
+              <span className={styles.category}>{item.credit ? `${item.category} · by ${item.credit}` : item.category}</span>
               <Button size="sm" icon={Plus} disabled={!hasProject} onClick={() => void addObject(item)} data-testid="object-add">
                 Add
               </Button>

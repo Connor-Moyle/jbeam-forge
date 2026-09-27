@@ -56,7 +56,7 @@ async function start(): Promise<void> {
   const objectsDir = app.isPackaged ? join(process.resourcesPath, 'objects-pack') : join(app.getAppPath(), 'packs', 'objects');
   projects.grantRoot(objectsDir);
   const objectPack = loadBundledObjects(objectsDir, scoped('objects'));
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, harness });
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, kn5Cache: join(userData, 'kn5-textures'), harness });
   const rebuildMenu = () => buildAppMenu({ getWindow: () => mainWindow, settings, isDev: Boolean(devServerUrl) });
   rebuildMenu();
 

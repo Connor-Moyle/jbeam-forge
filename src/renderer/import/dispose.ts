@@ -37,7 +37,7 @@ export function disposeSharingGeometry(g: BufferGeometry): void {
   g.dispose();
 }
 
-function disposeMaterials(materials: Set<Material>): void {
+export function disposeMaterials(materials: Set<Material>): void {
   for (const mat of materials) {
     for (const value of Object.values(mat as unknown as Record<string, unknown>)) {
       if (value instanceof Texture) value.dispose();

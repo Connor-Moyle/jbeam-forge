@@ -24,6 +24,8 @@ const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split('
 const smokeModel = process.argv.find((a) => a.startsWith('--model='))?.slice(8);
 // Optional local project someone assigned by hand (opened read-only: never saved), e.g. --project="Template Car/hirochi_sunburst_6.jbforge"
 const userProject = process.argv.find((a) => a.startsWith('--project='))?.slice(10);
+// Optional local Assetto Corsa car folder, e.g. --ac-car="L:/…/assettocorsa/content/cars/ks_mazda_mx5_cup"
+const acCar = process.argv.find((a) => a.startsWith('--ac-car='))?.slice(9);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(ROOT, 'artifacts', 'run-desktop', stamp);
 const userData = mkdtempSync(join(tmpdir(), 'jbforge-harness-'));
@@ -294,7 +296,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 8 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 9 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -352,7 +354,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 8 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 9 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -817,6 +819,13 @@ const scenarios = [
         await page.waitForTimeout(200);
         assert(Math.abs((await centreX()) - x0) < 0.01, 'undo moves the object back');
         await hook(page, 'runCommand', 'undo');
+        // kn5 dashes bring their own materials and textures.
+        await page.getByLabel('Search objects').fill('');
+        await page.getByLabel('Object category').click();
+        await page.getByRole('option', { name: /Digital Gauges/ }).click();
+        await page.waitForTimeout(5000);
+        assert((await page.getByTestId('object-card').count()) === 3, 'three kn5 dashes listed');
+        await shot(page, 'objects-dashes');
         await page.getByTestId('toggle-objects').click();
       }
 
@@ -937,6 +946,42 @@ const scenarios = [
     },
   },
   {
+    id: 'ac-car',
+    name: 'local Assetto Corsa car import (--ac-car)',
+    skip: () => !acCar,
+    async run({ page }) {
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('AC Car');
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor]');
+      await hook(page, 'queueDialog', [acCar]);
+      await hook(page, 'runCommand', 'importAc');
+      await page.getByTestId('ac-import-dialog').waitFor({ timeout: 60_000 });
+      await shot(page, 'ac-import-dialog');
+      const started = Date.now();
+      await page.getByTestId('ac-import-confirm').click();
+      let st;
+      for (let i = 0; i < 3000; i++) {
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 0 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.meshes > 0, `car model imported (${JSON.stringify(st).slice(0, 300)})`);
+      if (await page.getByTestId('classify-skip').isVisible().catch(() => false)) await page.getByTestId('classify-skip').click();
+      const src = st.sources[0];
+      acReport = { wallMs: Date.now() - started, meshes: st.meshes, triangles: src.stats?.triangles, importMs: src.stats?.totalMs, textures: src.textures && { loaded: src.textures.loaded, missing: src.textures.missing, unsupported: src.textures.unsupported } };
+      await page.waitForTimeout(1500);
+      await shot(page, 'ac-car-model');
+      await page.getByTestId('toggle-reference').click();
+      await page.getByTestId('reference-panel').waitFor();
+      await shot(page, 'ac-reference-panel');
+      const saved = await hook(page, 'projectState');
+      acReport.projectName = saved.name;
+      writeFileSync(join(outDir, 'ac-car-report.json'), JSON.stringify(acReport, null, 1));
+    },
+  },
+  {
     id: 'smoke-model',
     name: 'local smoke model import (--model)',
     skip: () => !smokeModel,
@@ -1008,6 +1053,7 @@ const scenarios = [
     },
   },
 ];
+let acReport = null;
 let smokeReport = null;
 let userReport = null;
 
