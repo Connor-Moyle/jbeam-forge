@@ -93,15 +93,18 @@ function LibraryBody({ close }: { close: () => void }) {
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search" aria-label="Search the library" autoFocus />
         <IconButton
           icon={FileUp}
-          label="Import a .jbmat"
+          label="Import a .jbmat or a material pack (.zip)"
           onClick={() =>
-            void call('materials:importJbmat').then((next) => {
-              if (next) {
-                useLibrary.getState().setItems(next);
+            void call('materials:importJbmat')
+              .then((r) => {
+                if (!r) return;
+                useLibrary.getState().setItems(r.items);
                 setTab('mine');
-              }
-            })
+                useUiStore.getState().pushStatus(`Added ${r.added} material${r.added === 1 ? '' : 's'} to your library${r.skipped ? ` (${r.skipped} already there)` : ''}`, 'success');
+              })
+              .catch((err: unknown) => useUiStore.getState().pushStatus(`Import failed: ${err instanceof Error ? err.message : String(err)}`, 'danger', 8000))
           }
+          data-testid="library-import"
         />
       </div>
       <ul className={styles.grid} data-testid="library-items">

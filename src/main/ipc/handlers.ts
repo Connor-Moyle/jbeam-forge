@@ -366,8 +366,12 @@ export function registerIpcHandlers(services: HandlerServices): void {
     LibraryEntry,
   );
   registerInvoke('materials:importJbmat', async (_req, event) => {
-    const path = await pickOpenFile(event.sender, { title: 'Import material', filters: [{ name: 'JBeam Forge material (.jbmat)', extensions: ['jbmat'] }], properties: ['openFile'] });
-    return path ? materialLibrary.importJbmat(path) : null;
+    const path = await pickOpenFile(event.sender, {
+      title: 'Import materials',
+      filters: [{ name: 'Material or material pack (.jbmat, .zip)', extensions: ['jbmat', 'zip'] }],
+      properties: ['openFile'],
+    });
+    return path ? materialLibrary.importFile(path) : null;
   });
 
   registerInvoke('materials:pickTexture', async (_req, event) => {

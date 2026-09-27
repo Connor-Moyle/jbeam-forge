@@ -294,7 +294,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 6 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 7 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -352,7 +352,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 6 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 7 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -833,7 +833,39 @@ const scenarios = [
       const afterMerge = await hook(page, 'materialCount');
       await page.waitForTimeout(1500); // textures load in the background
       await shot(page, 'user-project-materials');
-      userReport = { meshes: st.meshes, named: names.length, materials: materialRows, duplicateGroups: groups, materialsAfterMerge: afterMerge, beforeMerge, glbBytes: glb.length, daeBytes: dae.length };
+      // The downloadable material pack, when built locally: import it and put a few of its materials on the car.
+      const pack = readdirSync(join(ROOT, 'release')).find((f) => /^JBeam-Forge-Materials-.*\.zip$/.test(f));
+      let packReport = null;
+      if (pack) {
+        await page.getByTestId('material-library').click();
+        await hook(page, 'queueDialog', [join(ROOT, 'release', pack)]);
+        await page.getByTestId('library-import').click();
+        const mineTab = page.getByRole('tab', { name: /My library/ });
+        let imported = 0;
+        for (let i = 0; i < 1200 && imported < 40; i++) {
+          imported = Number((await mineTab.textContent())?.match(/\((\d+)\)/)?.[1] ?? 0);
+          await page.waitForTimeout(100);
+        }
+        assert(imported >= 40, `material pack imported (${imported} in the library)`);
+        await shot(page, 'user-project-pack-library');
+        await page.keyboard.press('Escape');
+        const tree = page.getByTestId('scene-tree');
+        for (const [partName, material] of [['Sunburst 6 Chassis', 'Gold Parametric'], ['Hood', 'Carbon Fiber 01'], ['Interior trim', 'Leather 01']]) {
+          await page.getByTestId('scene-filter').fill(partName.split(' ')[0]);
+          await tree.getByText(partName, { exact: true }).first().click();
+          await page.getByTestId('material-library').click();
+          await page.getByRole('tab', { name: /My library/ }).click();
+          await page.getByLabel('Search the library').fill(material);
+          await page.getByTestId('library-apply').first().click();
+        }
+        await page.getByTestId('scene-filter').fill('');
+        await page.waitForTimeout(3000); // textures decode in the background
+        await shot(page, 'user-project-pack-applied');
+        const mm = await hook(page, 'meshMaterials');
+        packReport = { imported, chassis: Object.entries(mm).find(([k]) => /Body_Main$/.test(k))?.[1] };
+        assert(packReport.chassis?.every((n) => n.startsWith('gold')), `pack material on the chassis (${JSON.stringify(packReport.chassis)})`);
+      }
+      userReport = { pack: packReport, meshes: st.meshes, named: names.length, materials: materialRows, duplicateGroups: groups, materialsAfterMerge: afterMerge, beforeMerge, glbBytes: glb.length, daeBytes: dae.length };
     },
   },
   {

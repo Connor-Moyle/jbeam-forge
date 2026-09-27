@@ -112,8 +112,8 @@ export interface InvokeContract {
   'materials:saveToLibrary': { req: { name: string; category: string; def: MaterialDef }; res: LibraryItem[] };
   'materials:removeFromLibrary': { req: { id: string }; res: LibraryItem[] };
   'materials:exportJbmat': { req: { name: string; category: string; def: MaterialDef }; res: string | null };
-  /** Pick a .jbmat and add it to the library; null when cancelled. */
-  'materials:importJbmat': { req: undefined; res: LibraryItem[] | null };
+  /** Pick a .jbmat or a material pack (.zip) and add its materials to the library; null when cancelled. */
+  'materials:importJbmat': { req: undefined; res: { items: LibraryItem[]; added: number; skipped: number } | null };
   /** Find a project's source file on disk (relative path, absolute path, next to the project). */
   'import:locateSource': { req: { projectPath: string | null; path: string; absolutePath: string }; res: string | null };
   /** run-desktop harness only (registered only in harness mode): scripted dialog answers. */

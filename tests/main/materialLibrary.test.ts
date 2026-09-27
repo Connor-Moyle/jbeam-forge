@@ -45,7 +45,7 @@ describe('material library', () => {
     await lib.load();
     const file = join(dir, 'carbon.jbmat');
     await lib.exportJbmat(file, 'Carbon', 'Shared', defaultMaterial('c', 'carbon', { layers: [defaultLayer({ roughness: 0.2, maps: { normalMap: tex } })] }));
-    const items = await lib.importJbmat(file);
+    const { items } = await lib.importFile(file);
     const item = items.at(-1)!;
     expect(item).toMatchObject({ name: 'Carbon', category: 'Shared' });
     expect(item.def.layers[0]!.roughness).toBe(0.2);
@@ -61,5 +61,25 @@ describe('material library', () => {
     const copy = item!.def.layers[0]!.maps.baseColorMap!;
     expect(await lib.remove(item!.id)).toEqual([]);
     expect(existsSync(copy)).toBe(false);
+  });
+
+  it('imports a whole material pack, skipping ones already in the library', async () => {
+    const { ZipFile } = await import('yazl');
+    const zip = new ZipFile();
+    for (const [cat, name] of [['Metals', 'Gold'], ['Wood', 'Oak']] as const) {
+      zip.addBuffer(Buffer.from(JSON.stringify({ version: 1, name, category: cat, def: defaultMaterial('x', name.toLowerCase(), { layers: [defaultLayer({ maps: { baseColorMap: 'textures/c.png' } })] }) })), `${cat}/${name}/material.json`);
+      zip.addBuffer(Buffer.from(`${name}-pixels`), `${cat}/${name}/textures/c.png`);
+    }
+    zip.end();
+    const pack = join(dir, 'pack.zip');
+    const { createWriteStream } = await import('node:fs');
+    await new Promise<void>((res) => zip.outputStream.pipe(createWriteStream(pack)).on('close', () => res()));
+    const lib = new MaterialLibraryService(join(dir, 'lib'), silent);
+    await lib.load();
+    const first = await lib.importFile(pack);
+    expect(first).toMatchObject({ added: 2, skipped: 0 });
+    const oak = first.items.find((i) => i.name === 'Oak')!;
+    expect(await readFile(oak.def.layers[0]!.maps.baseColorMap!, 'utf8')).toBe('Oak-pixels'); // each keeps its own textures
+    expect((await lib.importFile(pack))).toMatchObject({ added: 0, skipped: 2 });
   });
 });

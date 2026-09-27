@@ -15,6 +15,8 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
   PerspectiveCamera,
+  PMREMGenerator,
+  type Texture,
   Quaternion,
   Raycaster,
   Scene,
@@ -26,6 +28,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { BEAMNG_TO_VIEW_ROTATION_X } from '@shared/coords';
 import { resolveToken } from '@renderer/ui/tokens';
@@ -198,6 +201,7 @@ export class ViewportRuntime {
   /** Centre-of-gravity marker, drawn with the structure. */
   private readonly cog: Mesh;
   private injectedFrameErrors = 0;
+  private readonly environment: Texture;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -209,6 +213,14 @@ export class ViewportRuntime {
     this.raycaster.firstHitOnly = true;
 
     this.scene.background = new Color(resolveToken('bg-0'));
+    // Studio reflections: metals and clear coat need something to reflect, or they render flat.
+    const pmrem = new PMREMGenerator(this.renderer);
+    const room = new RoomEnvironment();
+    this.environment = pmrem.fromScene(room, 0.04).texture;
+    this.scene.environment = this.environment;
+    this.scene.environmentIntensity = 0.8;
+    room.dispose();
+    pmrem.dispose();
     const grid = new GridHelper(GRID_SIZE_M, GRID_DIVISIONS, new Color(resolveToken('grid-major')), new Color(resolveToken('grid-minor')));
     const hemi = new HemisphereLight(new Color(resolveToken('viewport-sky')), new Color(resolveToken('viewport-ground')), 2.2);
     const key = new DirectionalLight(new Color(resolveToken('viewport-key')), 2.4);
@@ -1024,6 +1036,7 @@ export class ViewportRuntime {
     this.structure.dispose();
     this.reference.dispose();
     this.live.dispose();
+    this.environment.dispose();
     this.selectMaterial.dispose();
     this.hoverMaterial.dispose();
     this.ghostMaterial.dispose();

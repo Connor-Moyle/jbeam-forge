@@ -144,21 +144,41 @@ export class MaterialLibraryService {
     });
   }
 
-  /** Read a .jbmat into the library (textures unpacked into the item's folder). */
-  async importJbmat(path: string): Promise<LibraryItem[]> {
+  /**
+   * Add every material in a .jbmat or a material pack (a zip of
+   * <folder>/material.json + <folder>/textures/…) to the library. Materials
+   * already there (same name and category) are skipped, so re-importing an
+   * updated pack only adds what's new.
+   */
+  async importFile(path: string): Promise<{ items: LibraryItem[]; added: number; skipped: number }> {
     return withZip(path, async (zip) => {
-      const parsed = JbmatSchema.parse(JSON.parse((await zip.readBuffer('material.json', 4 * 1024 * 1024)).toString('utf8')));
-      const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-      const folder = join(this.dir, id);
-      await mkdir(folder, { recursive: true });
-      const def = mapPaths(parsed.def, (p) => safeJoin(folder, basename(p)));
-      for (const entry of await zip.entries()) {
-        if (!entry.name.startsWith('textures/') || entry.name.endsWith('/')) continue;
-        await writeFile(safeJoin(folder, basename(entry.name)), await zip.readBuffer(entry.name));
+      const entries = await zip.entries();
+      const docs = entries.filter((e) => e.name === 'material.json' || e.name.endsWith('/material.json'));
+      if (!docs.length) throw new Error('No materials in this file (expected material.json inside).');
+      const have = new Set(this.items.map((i) => `${i.category}/${i.name}`.toLowerCase()));
+      const added: LibraryItem[] = [];
+      let skipped = 0;
+      for (const doc of docs) {
+        const parsed = JbmatSchema.parse(JSON.parse((await zip.readBuffer(doc.name, 4 * 1024 * 1024)).toString('utf8')));
+        if (have.has(`${parsed.category}/${parsed.name}`.toLowerCase())) {
+          skipped++;
+          continue;
+        }
+        const base = doc.name.slice(0, doc.name.length - 'material.json'.length); // '' or 'Metals/Gold/'
+        const id = `m${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+        const folder = join(this.dir, id);
+        await mkdir(folder, { recursive: true });
+        for (const e of entries) {
+          if (!e.name.startsWith(`${base}textures/`) || e.name.endsWith('/')) continue;
+          await writeFile(safeJoin(folder, basename(e.name)), await zip.readBuffer(e.name));
+        }
+        const def = mapPaths(parsed.def, (p) => safeJoin(folder, basename(p)));
+        added.push(LibraryItemSchema.parse({ id, name: parsed.name, category: parsed.category, savedAt: new Date().toISOString(), def: { ...def, id } }));
+        have.add(`${parsed.category}/${parsed.name}`.toLowerCase());
       }
-      const item = LibraryItemSchema.parse({ id, name: parsed.name, category: parsed.category, savedAt: new Date().toISOString(), def: { ...def, id } });
-      this.logger.info('library: imported', parsed.name, 'from', path);
-      return this.write([...this.items, item]);
+      this.logger.info(`library: imported ${added.length} (skipped ${skipped}) from`, path);
+      const items = await this.write([...this.items, ...added]);
+      return { items, added: added.length, skipped };
     });
   }
 }
