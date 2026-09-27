@@ -908,7 +908,8 @@ const scenarios = [
         const ys = centres.map((c) => c[1]);
         assert(four.length === 4 && Math.min(...xs) < -0.2 && Math.max(...xs) > 0.2 && Math.max(...ys) - Math.min(...ys) > 0.5, `object at all four corners (${JSON.stringify(centres.map((c) => c.map((v) => +v.toFixed(2))))})`);
         await shot(page, 'object-four-corners');
-        for (let i = 0; i < 3; i++) await hook(page, 'runCommand', 'undo');
+        // Back to before the four were added (placement, copies and four parts are several steps).
+        for (let i = 0; i < 20 && (await hook(page, 'meshBounds')).length > before4.size; i++) await hook(page, 'runCommand', 'undo');
         await page.waitForTimeout(200);
         await hook(page, 'runCommand', 'undo');
         // kn5 dashes bring their own materials and textures.
@@ -930,6 +931,15 @@ const scenarios = [
       const simulated = Number(statsText.match(/([\d.]+) s simulated/)?.[1] ?? 0);
       assert(simulated > 0.3, `live sim advanced (${statsText})`);
       await shot(page, 'test-mode-live');
+      // The car's meshes, bent by the physics; then just the selected part's.
+      await page.getByRole('switch', { name: 'Car mesh' }).click();
+      await page.waitForTimeout(600);
+      await shot(page, 'test-mode-car-mesh');
+      await page.getByRole('switch', { name: 'Only selected part' }).click();
+      await page.waitForTimeout(400);
+      await shot(page, 'test-mode-isolated');
+      await page.getByRole('switch', { name: 'Only selected part' }).click();
+      await page.getByRole('switch', { name: 'Car mesh' }).click();
       await page.getByTestId('sim-pause').click();
       await page.getByTestId('scenario-drop').click();
       await page.getByTestId('sim-result').waitFor({ timeout: 60_000 });

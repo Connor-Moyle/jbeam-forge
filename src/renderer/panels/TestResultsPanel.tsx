@@ -13,6 +13,7 @@ import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import { Toggle } from '@renderer/ui/components/Toggle';
+import { useLiveView } from '@renderer/sim/liveMeshes';
 import type { ScenarioId } from '@shared/sim/scenarios';
 import styles from './TestResultsPanel.module.css';
 
@@ -70,6 +71,8 @@ function ActiveTest() {
   const running = useSim((s) => s.running);
   const speed = useSim((s) => s.speed);
   const gravity = useSim((s) => s.gravity);
+  const showMesh = useLiveView((s) => s.showMesh);
+  const isolate = useLiveView((s) => s.isolate);
   const stats = useSim((s) => s.stats);
   const nodes = useSim((s) => s.nodes);
   const beams = useSim((s) => s.beams);
@@ -93,6 +96,8 @@ function ActiveTest() {
           <IconButton icon={RotateCcw} label="Reset to the authored structure" onClick={reset} data-testid="sim-reset" />
           <Select value={String(speed)} onChange={(v) => setSpeed(Number(v))} options={SPEEDS} className={styles.speed} />
           <Toggle checked={gravity} onChange={setGravity} label="Gravity" />
+          <Toggle checked={showMesh} onChange={(v) => useLiveView.getState().set({ showMesh: v })} label="Car mesh" />
+          <Toggle checked={isolate} onChange={(v) => useLiveView.getState().set({ isolate: v, showMesh: v || showMesh })} label="Only selected part" />
           <span className={styles.spacer} />
           <Button size="sm" icon={Square} variant="ghost" onClick={stopTestMode} data-testid="sim-exit">
             Exit

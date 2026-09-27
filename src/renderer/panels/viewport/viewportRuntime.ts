@@ -42,6 +42,7 @@ import { disposeSharingGeometry } from '@renderer/import/dispose';
 import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
 import { LiveOverlay, StructureOverlay, selectionData, type StructureData } from './structureOverlay';
+import { deformVertices, type SkinBinding } from '@shared/sim/skin';
 import { beamKey } from '@shared/structure/edit';
 import { registerViewport } from './registry';
 
@@ -200,6 +201,9 @@ export class ViewportRuntime {
   private readonly reference = new StructureOverlay();
   private readonly live = new LiveOverlay();
   private liveView: LiveView | null = null;
+  /** Test Mode: the car's visual meshes, bent by the physics. */
+  private readonly liveMeshRoot = new Group();
+  private liveMeshes: { mesh: Mesh; binding: SkinBinding }[] = [];
   private liveFramedFor: unknown = null;
   private viewToggles = { mesh: true, structure: true, xray: false };
   private simDrag: { node: number; depth: number } | null = null;
@@ -253,6 +257,8 @@ export class ViewportRuntime {
     this.reference.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.live.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.scene.add(this.structure.root, this.reference.root, this.live.root);
+    this.liveMeshRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.scene.add(this.liveMeshRoot);
     this.editOverlay.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.editOverlay.root.renderOrder = 6;
     this.editFrame.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
@@ -664,6 +670,42 @@ export class ViewportRuntime {
     this.structure.root.visible = (this.viewToggles.structure || !!this.edit) && !live;
     this.editOverlay.root.visible = !!this.edit && !live;
     this.live.root.visible = live;
+    this.liveMeshRoot.visible = live;
+  }
+
+  /**
+   * Test Mode: draw these meshes deformed by the physics (each tied to its
+   * part's nodes); null or empty hides them. Geometry and material are the
+   * viewport's own; only positions are copied.
+   */
+  setLiveMeshes(items: readonly { key: string; binding: SkinBinding }[] | null): void {
+    for (const { mesh } of this.liveMeshes) {
+      this.liveMeshRoot.remove(mesh);
+      mesh.geometry.dispose();
+    }
+    this.liveMeshes = [];
+    for (const item of items ?? []) {
+      const src = this.meshObjects.get(item.key);
+      if (!src) continue;
+      const g = new BufferGeometry();
+      for (const [name, attr] of Object.entries(src.geometry.attributes)) if (name !== 'position') g.setAttribute(name, attr);
+      g.setAttribute('position', src.geometry.getAttribute('position').clone());
+      g.setIndex(src.geometry.index);
+      for (const gr of src.geometry.groups) g.addGroup(gr.start, gr.count, gr.materialIndex);
+      const mesh = new Mesh(g, src.material);
+      mesh.frustumCulled = false;
+      this.liveMeshRoot.add(mesh);
+      this.liveMeshes.push({ mesh, binding: item.binding });
+    }
+    if (this.liveView) this.deformLiveMeshes(this.liveView.positions);
+  }
+
+  private deformLiveMeshes(positions: Float32Array): void {
+    for (const { mesh, binding } of this.liveMeshes) {
+      const attr = mesh.geometry.getAttribute('position');
+      deformVertices(binding, positions, attr.array as Float32Array);
+      attr.needsUpdate = true;
+    }
   }
 
   /** Live physics frame, or null to leave Test Mode. */
@@ -671,6 +713,7 @@ export class ViewportRuntime {
     const wasLive = !!this.liveView;
     this.liveView = view;
     this.live.update(view?.model ?? null, view?.positions ?? null, view?.stress ?? null, this.structureRadius(view?.positions));
+    if (view && this.liveMeshes.length) this.deformLiveMeshes(view.positions);
     this.live.setObstacles(view?.obstacles, 1.6);
     if (!!view !== wasLive) this.applyVisibility();
     if (view && this.liveFramedFor !== view.model) {

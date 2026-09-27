@@ -23,7 +23,8 @@ import { DEFAULT_SETTINGS } from '@shared/settings-schema';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { structureData } from './structureOverlay';
-import { dragNode, onSimFrame } from '@renderer/sim/simSession';
+import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simSession';
+import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
 import { Focus, Move, Rotate3d, Scaling, X } from 'lucide-react';
@@ -178,7 +179,38 @@ export function ViewportPanel() {
     const unsubscribeMoveScene = scene.subscribe(pushMeshGizmo);
     const unsubscribeMoveEdit = useEditStore.subscribe(pushMeshGizmo);
     // Test Mode frames straight from the sim session (60 Hz, outside React).
-    const unsubscribeSim = onSimFrame((frame) => rt.setLive(frame));
+    // Test Mode: the car's meshes bent by the physics (optionally just the selected part's).
+    let latestFrame: LiveFrame | null = null;
+    let liveKey: unknown[] | null = null;
+    const pushLiveMeshes = () => {
+      const lv = useLiveView.getState();
+      const frame = latestFrame;
+      if (!frame || !lv.showMesh) {
+        if (liveKey) rt.setLiveMeshes(null);
+        liveKey = null;
+        return;
+      }
+      const sel = scene.getState().selection;
+      const key = [frame.model, lv.isolate, lv.isolate ? sel : null];
+      if (liveKey && key.every((x, i) => x === liveKey![i])) return;
+      liveKey = key;
+      const doc = projectStore.getState().doc;
+      if (!doc) return;
+      let only: Set<string> | undefined;
+      if (lv.isolate) {
+        // The selected meshes' parts, whole.
+        const parts = new Set(sel.map((k) => doc.assignments[k]).filter(Boolean));
+        only = new Set([...sel, ...Object.keys(doc.assignments).filter((k) => parts.has(doc.assignments[k]))]);
+      }
+      rt.setLiveMeshes(bindLiveMeshes(frame.model, doc, allMeshes(scene.getState().sources), only));
+    };
+    const unsubscribeSim = onSimFrame((frame) => {
+      latestFrame = frame;
+      rt.setLive(frame);
+      pushLiveMeshes();
+    });
+    const unsubscribeLiveView = useLiveView.subscribe(pushLiveMeshes);
+    const unsubscribeLiveSel = scene.subscribe(() => useLiveView.getState().isolate && pushLiveMeshes());
     let lastFrameRequest = scene.getState().frameRequest;
     const unsubscribe = scene.subscribe((s) => {
       push();
@@ -257,6 +289,8 @@ export function ViewportPanel() {
       unsubscribeMoveEdit();
       unsubscribeTextures();
       unsubscribeSim();
+      unsubscribeLiveView();
+      unsubscribeLiveSel();
       host.removeEventListener('keydown', onKey);
       host.removeEventListener('dragover', onDragOver);
       host.removeEventListener('drop', onDrop);
@@ -321,7 +355,8 @@ function MovePill() {
   const mode = useMeshMove((s) => s.mode);
   const selected = useSceneStore((s) => s.selection.length);
   const editing = useEditStore((s) => s.active);
-  if (editing || (!selected && !on)) return null;
+  const testing = useSim((s) => s.active);
+  if (editing || testing || (!selected && !on)) return null;
   return (
     <div className={styles.gizmoTools} role="toolbar" aria-label="Transform the selected meshes">
       {GIZMO_TOOLS.map((t) => (
