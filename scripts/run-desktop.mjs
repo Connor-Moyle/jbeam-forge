@@ -1080,6 +1080,13 @@ const scenarios = [
       acReport = { wallMs: Date.now() - started, meshes: st.meshes, triangles: src.stats?.triangles, importMs: src.stats?.totalMs, textures: src.textures && { loaded: src.textures.loaded, missing: src.textures.missing, unsupported: src.textures.unsupported } };
       await page.waitForTimeout(1500);
       await shot(page, 'ac-car-model');
+      await hook(page, 'maximizePanel', 'viewport');
+      for (const [name, pattern] of [['body', '^body$|carpaint|chassis|body_main|geo_body'], ['wheel', 'rim|wheel'], ['interior', 'dash|cockpit|seat'], ['light', 'light|lamp']]) {
+        if ((await hook(page, 'frameMeshes', pattern)) === 0) continue;
+        await page.waitForTimeout(1200);
+        await shot(page, `ac-close-${name}`);
+      }
+      await hook(page, 'exitMaximized');
       await page.getByTestId('toggle-reference').click();
       await page.getByTestId('reference-panel').waitFor();
       await shot(page, 'ac-reference-panel');

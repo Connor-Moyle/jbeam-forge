@@ -187,6 +187,12 @@ function AppEffects() {
           return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
         },
         selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
+        frameMeshes: (pattern: string) => {
+          const re = new RegExp(pattern, 'i');
+          const keys = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes.filter((m) => re.test(m.name)).map((m) => m.key));
+          useSceneStore.getState().requestFrame(keys);
+          return keys.length;
+        },
         materialCount: () => projectStore.getState().doc?.materials.length ?? 0,
         meshNameList: () => Object.values(projectStore.getState().doc?.meshNames ?? {}).map((e) => e.name),
         partNames: () => (projectStore.getState().doc?.parts ?? []).map((p) => p.displayName),

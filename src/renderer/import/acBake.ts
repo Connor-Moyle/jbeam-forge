@@ -50,10 +50,25 @@ function sizeOf(tex: Texture): [number, number] {
   return [w, h];
 }
 
-async function bakePair(map: Texture, detail: Texture, uvScale: number): Promise<Uint8Array> {
-  const [w, h] = sizeOf(map);
+/** txMaps' green channel is gloss (a share of ksSpecularEXP): turn it into a roughness texture. */
+const glossFragment = /* glsl */ `
+uniform sampler2D map;
+uniform float specExp;
+varying vec2 vUv;
+void main() {
+  float gloss = texture2D(map, vUv).g;
+  float r = clamp(sqrt(2.0 / (specExp * gloss + 2.0)), 0.05, 1.0);
+  gl_FragColor = vec4(vec3(r), 1.0);
+}`;
+
+function bakePair(map: Texture, detail: Texture, uvScale: number): Promise<Uint8Array> {
+  return renderPng(map, { map: { value: map }, detail: { value: detail }, uvScale: { value: uvScale } }, fragment);
+}
+
+async function renderPng(sizeFrom: Texture, uniforms: Record<string, { value: unknown }>, fragmentShader: string): Promise<Uint8Array> {
+  const [w, h] = sizeOf(sizeFrom);
   const target = new WebGLRenderTarget(w, h);
-  const material = new ShaderMaterial({ uniforms: { map: { value: map }, detail: { value: detail }, uvScale: { value: uvScale } }, vertexShader: vertex, fragmentShader: fragment });
+  const material = new ShaderMaterial({ uniforms, vertexShader: vertex, fragmentShader });
   const quad = new Mesh(new PlaneGeometry(2, 2), material);
   const scene = new Scene();
   scene.add(quad);
@@ -83,6 +98,37 @@ export async function bakeAcDetail(meshes: readonly BakedMesh[], kn5Path: string
   for (const m of meshes) for (const mat of Array.isArray(m.material) ? m.material : [m.material]) materials.add(mat);
   const done = new Map<string, Texture>();
   let baked = 0;
+  const save = async (name: string, png: Uint8Array, color: boolean): Promise<Texture> => {
+    const path = await call('kn5:saveBaked', { kn5Path, name, bytes: png });
+    const loaded = await loadTextureFile(path, png, color, false);
+    if ('error' in loaded) throw new Error(loaded.error);
+    loaded.userData.sourceRef = name;
+    return loaded;
+  };
+  // Gloss maps → roughness maps (the texture rides in the light-map slot until the texture pass has loaded it).
+  for (const mat of materials) {
+    const gloss = mat.userData.acGloss as { specExp: number } | undefined;
+    if (!gloss || !(mat instanceof MeshStandardMaterial)) continue;
+    const maps = mat.lightMap;
+    mat.lightMap = null;
+    delete mat.userData.acGloss;
+    const mapsPath = maps?.userData.sourcePath as string | undefined;
+    if (!maps || !mapsPath) continue;
+    const name = `${safe(mapsPath.split(/[\\/]/).pop()!)}__roughness_${Math.round(gloss.specExp)}.png`;
+    try {
+      let tex = done.get(name);
+      if (!tex) {
+        tex = await save(name, await renderPng(maps, { map: { value: maps }, specExp: { value: gloss.specExp } }, glossFragment), false);
+        done.set(name, tex);
+        baked++;
+      }
+      mat.roughnessMap = tex;
+      mat.roughness = 1;
+      mat.needsUpdate = true;
+    } catch (err) {
+      logger.warn(`could not bake ${name}:`, err instanceof Error ? err.message : String(err));
+    }
+  }
   for (const mat of materials) {
     const info = mat.userData.acDetail as { uvScale: number } | undefined;
     if (!info || !(mat instanceof MeshStandardMaterial)) continue;
@@ -96,12 +142,7 @@ export async function bakeAcDetail(meshes: readonly BakedMesh[], kn5Path: string
     try {
       let tex = done.get(name);
       if (!tex) {
-        const png = await bakePair(map, detail, info.uvScale);
-        const path = await call('kn5:saveBaked', { kn5Path, name, bytes: png });
-        const loaded = await loadTextureFile(path, png, true, false);
-        if ('error' in loaded) throw new Error(loaded.error);
-        loaded.userData.sourceRef = name;
-        tex = loaded;
+        tex = await save(name, await bakePair(map, detail, info.uvScale), true);
         done.set(name, tex);
         baked++;
       }

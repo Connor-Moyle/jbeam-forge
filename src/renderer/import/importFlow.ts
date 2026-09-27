@@ -3,6 +3,7 @@ import { IDENTITY_PLACEMENT } from '@shared/project/schema';
 import { samePlacement } from '@shared/placement';
 import { applyPlacement } from './placement';
 import { applyMeshEdits, editsKey } from './meshEdits';
+import { isAcHelperMesh } from '@shared/ac/helpers';
 import { planSeed, seedMaterials } from '@renderer/materials/seed';
 import type { MaterialDef } from '@shared/materials/schema';
 import { registerImportedTextures } from '@renderer/materials/runtime';
@@ -146,9 +147,13 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
     let seed = opts.material ? objectSeed(doc?.materials ?? [], opts.material, done.meshes) : doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
     // Parts cut from the game's own vehicles use the game's materials: reference them by name.
     if (opts.gameMaterials) seed = { ...seed, materials: seed.materials.map((m) => ({ ...m, gameMaterial: m.name })) };
+    // Assetto Corsa effect meshes (blurred rims, damage glass…) come in ignored.
+    const helpers = staged.format === 'kn5' ? acHelperKeys(done.meshes) : [];
+    useSceneStore.getState().setHidden(helpers, true);
     projectStore.getState().execute({
       label: `Import ${staged.fileName}`,
       apply: (d) => {
+        d.ignoredMeshes.push(...helpers.filter((k) => !d.ignoredMeshes.includes(k)));
         d.sources.push(source);
         d.materials.push(...seed.materials); // every material and texture comes along
         Object.assign(d.materialSlots, seed.slots);
@@ -182,6 +187,12 @@ function objectSeed(existing: readonly MaterialDef[], material: MaterialDef, mes
   const slots: Record<string, string[]> = {};
   for (const m of meshes) slots[m.key] = (Array.isArray(m.material) ? m.material : [m.material]).map(() => def.id);
   return { materials: [def], slots };
+}
+
+/** Keys of an Assetto Corsa import's effect meshes (see isAcHelperMesh). */
+function acHelperKeys(meshes: readonly ImportedMesh[]): string[] {
+  const detailed = meshes.some((m) => /cockpit_hr/i.test(m.name));
+  return meshes.filter((m) => isAcHelperMesh(m.name, (Array.isArray(m.material) ? m.material[0] : m.material)?.userData.acShader as string | undefined, detailed)).map((m) => m.key);
 }
 
 /** "Locate folder…" for a source's missing textures (undoable; re-runs the import). */
@@ -233,6 +244,7 @@ async function loadFromDisk(source: Source): Promise<void> {
     applyPlacement(done.meshes, IDENTITY_PLACEMENT, source.placement);
     store({ ...base, status: 'ready', placement: source.placement, raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
     seedMaterials(source.id, done.meshes); // projects from before materials existed
+    if (source.format === 'kn5') useSceneStore.getState().setHidden(acHelperKeys(done.meshes), true);
   } catch (err) {
     store({ ...base, status: 'error', error: errorText(err) });
   } finally {

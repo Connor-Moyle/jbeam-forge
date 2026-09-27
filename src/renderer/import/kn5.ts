@@ -39,6 +39,7 @@ function buildMaterial(m: Kn5Material, loader: TextureLoader): MeshStandardMater
     alphaTest: m.alphaTested ? prop('ksAlphaRef')?.a || 0.5 : 0,
     side: glass ? DoubleSide : undefined,
   });
+  material.userData.acShader = m.shader;
   material.map = tex(diffuse);
   if (m.blendMode === 1 && diffuse) material.userData.alphaFromTexture = true;
   // Some materials point the normal slot at the diffuse image; that isn't a normal map.
@@ -51,6 +52,14 @@ function buildMaterial(m: Kn5Material, loader: TextureLoader): MeshStandardMater
     material.emissiveMap = tex(detail);
     material.userData.acDetail = { uvScale: prop('detailUVMultiplier')?.a || 1 };
   }
+  // Gloss per pixel (txMaps green) → a roughness texture, baked in acBake.ts.
+  const maps = m.samplers.txMaps;
+  if (/multimap/i.test(m.shader) && maps) {
+    material.lightMap = tex(maps);
+    material.userData.acGloss = { specExp: prop('ksSpecularEXP')?.a ?? 16 };
+  }
+  // The cockpit windscreen reflection: faint, as in the game.
+  if (m.shader === 'ksWindscreen') material.opacity = 0.2;
   if (glows) {
     // AC multiplies emissive by the diffuse texture; values run well past 1, so compress them.
     const peak = Math.max(...emissive);
