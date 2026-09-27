@@ -107,6 +107,12 @@ export const MIGRATIONS: readonly Migration[] = [
       axles: (Array.isArray(doc.axles) ? (doc.axles as Record<string, unknown>[]) : []).map((a) => ({ ...a, ownMeshes: [] })),
     }),
   },
+  {
+    from: 12,
+    describe: 'settings adjustable in game',
+    // The variables placeholder was always empty.
+    migrate: (doc) => ({ ...doc, formatVersion: 13, variables: [] }),
+  },
 ];
 
 export class MigrationError extends Error {

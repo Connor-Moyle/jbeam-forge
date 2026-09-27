@@ -9,7 +9,7 @@ import { placement, positionCompat } from '../taxonomy/positions';
  * touch anything else, so every one of them is undoable and unit-testable.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes'>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes'> & Partial<Pick<Project, 'variables'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -170,6 +170,8 @@ export function deletePart(doc: Doc, partId: string): void {
     if (p.variantOf === partId) p.variantOf = null;
   }
   doc.parts.splice(doc.parts.indexOf(part), 1);
+  // Its in-game settings go with it (documents from before v13 have none).
+  if (doc.variables) doc.variables = doc.variables.filter((v) => v.partId !== partId);
 }
 
 /** Merge parts into `targetId`: their meshes move over, then they are deleted. */

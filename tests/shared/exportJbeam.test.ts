@@ -98,6 +98,25 @@ describe('jbeam export', () => {
     expect(bodySlot.inlineOptions).toEqual({ coreSlot: true });
   });
 
+  it('writes settings adjustable in game as variables the part nodes and beams use', () => {
+    const { doc, meshes } = carProject();
+    doc.variables = [
+      { id: 'v1', partId: 'p_body', setting: 'mass', min: 0.5, max: 1.5, default: 1 },
+      { id: 'v2', partId: 'p_body', setting: 'stiffness', min: 0.8, max: 1.2, default: 1 },
+    ];
+    const names = exportMeshNames(doc, meshes);
+    const body = new Map(buildJbeamFiles(doc, tax, { meshNames: names, author: 'x' }).map((f) => [f.part, parsePart(f.text)[1]])).get('test_body')!;
+    const vars = readTable(body.variables!).records;
+    expect(vars.map((r) => [r.values.name, r.values.min, r.values.max, r.values.default])).toEqual([
+      ['$test_body_mass', 0.5, 1.5, 1],
+      ['$test_body_stiffness', 0.8, 1.2, 1],
+    ]);
+    const nodes = readTable(body.nodes!).records;
+    expect(nodes.every((r) => typeof r.options.nodeWeight === 'string' && /^\$=[\d.]+\*\$test_body_mass$/.test(r.options.nodeWeight))).toBe(true);
+    const beams = readTable(body.beams!).records;
+    expect(beams.some((r) => typeof r.options.beamSpring === 'string' && String(r.options.beamSpring).endsWith('*$test_body_stiffness'))).toBe(true);
+  });
+
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {
     const { doc, meshes } = carProject();
     const names = exportMeshNames(doc, meshes);

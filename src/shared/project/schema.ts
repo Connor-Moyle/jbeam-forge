@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 12;
+export const CURRENT_PROJECT_VERSION = 13;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -275,9 +275,23 @@ export const PowertrainSchema = z.object({
   gearbox: FittedSetSchema.nullable(),
 });
 
-export const ProjectV12Schema = z.object({
+/**
+ * A part setting the player can adjust in the game's tuning menu (v13,
+ * Phase 12): a scale on the part's mass, stiffness or strength, between min
+ * and max, starting at `default`.
+ */
+export const TuningVarSchema = z.object({
+  id: z.string().min(1),
+  partId: z.string().min(1),
+  setting: z.enum(['mass', 'stiffness', 'strength']),
+  min: z.number().positive(),
+  max: z.number().positive(),
+  default: z.number().positive(),
+});
+
+export const ProjectV13Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(12),
+  formatVersion: z.literal(13),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -312,10 +326,11 @@ export const ProjectV12Schema = z.object({
   /** Engine and gearbox (v12, Phase 11). */
   powertrain: PowertrainSchema,
   configs: placeholderList, // Phase 13
-  variables: placeholderList, // Phase 12
+  /** Settings adjustable in the game's tuning menu (v13, Phase 12). */
+  variables: z.array(TuningVarSchema),
 });
 
-export const ProjectSchema = ProjectV12Schema;
+export const ProjectSchema = ProjectV13Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -326,6 +341,7 @@ export type MeshEdit = z.infer<typeof MeshEditSchema>;
 export type MeshCopy = z.infer<typeof MeshCopySchema>;
 export type Axle = z.infer<typeof AxleSchema>;
 export type FittedSet = z.infer<typeof FittedSetSchema>;
+export type TuningVar = z.infer<typeof TuningVarSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

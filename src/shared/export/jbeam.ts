@@ -1,4 +1,4 @@
-import type { Part, Project, StructBeam, StructNode, StructTri } from '../project/schema';
+import type { Part, Project, StructBeam, StructNode, StructTri, TuningVar } from '../project/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
 import type { JbeamObject, JbeamValue } from '../jbeam/parse';
 import { serializeJbeam, JbeamComment, type WritableObject, type WritableValue } from '../jbeam/serialize';
@@ -24,7 +24,7 @@ import { definedNodes, transplantSuspension } from '../suspension/transplant';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -121,17 +121,42 @@ function beamOptions(v: BeamValues): JbeamObject {
   return { beamSpring: v.beamSpring, beamDamp: v.beamDamp, beamDeform: v.beamDeform, beamStrength: v.beamStrength ?? 'FLT_MAX' };
 }
 
-function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamPresetId): WritableValue[] {
+/** Settings adjustable in game: jbeam variable names, by setting. */
+type PartVars = Partial<Record<TuningVar['setting'], string>>;
+
+/** "$=12.5*$hood_mass": a value scaled by a tuning variable (or the plain value). */
+function scaled(value: number, variable: string | undefined): JbeamValue {
+  return variable ? `$=${num(value)}*${variable}` : value;
+}
+
+export function variableName(part: Pick<Part, 'name'>, setting: TuningVar['setting']): string {
+  return `$${part.name.replace(/[^A-Za-z0-9_]/g, '_')}_${setting}`;
+}
+
+const SETTING_TEXT: Record<TuningVar['setting'], { title: string; description: string }> = {
+  mass: { title: 'Weight', description: 'Scales the part’s weight' },
+  stiffness: { title: 'Stiffness', description: 'Scales how stiff the part’s structure is' },
+  strength: { title: 'Strength', description: 'Scales how much it takes to bend or break the part' },
+};
+
+function variablesSection(part: Part, vars: readonly TuningVar[]): WritableValue[] {
+  return [
+    ['name', 'type', 'unit', 'category', 'default', 'min', 'max', 'title', 'description'],
+    ...vars.map((v) => [variableName(part, v.setting), 'range', 'x', part.displayName, num(v.default), num(v.min), num(v.max), SETTING_TEXT[v.setting].title, SETTING_TEXT[v.setting].description, { stepDis: 0.01 }] as WritableValue[]),
+  ];
+}
+
+function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamPresetId, vars: PartVars = {}): WritableValue[] {
   const p = BEAM_PRESET_VALUES[preset];
   const records: WritableRecord[] = [...nodes].sort(nodeOrder).map((n) => ({
     values: { id: n.id, posX: num(n.pos[0]), posY: num(n.pos[1]), posZ: num(n.pos[2]) },
-    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: n.weight },
+    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: scaled(n.weight, vars.mass) },
   }));
   const table = writeTable(['id', 'posX', 'posY', 'posZ'], records, { resetValues: { group: '' } });
   return [...table, { group: '' }];
 }
 
-function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined): WritableValue[] {
+function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}): WritableValue[] {
   const a = ATTACHMENT_VALUES[attachStyle];
   const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: DEFORM_LIMIT_EXPANSION };
   const order = { edge: 0, brace: 1, attach: 2, mount: 3, hinge: 4, limit: 5, support: 6, popopen: 7 } as const;
@@ -154,7 +179,14 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
           breakGroupType: v.breakGroupType ?? 0,
         }
       : {};
-    return { values, options: { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}), ...special } };
+    const options: JbeamObject = { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}), ...special };
+    // The part's own structure (skin and bracing) follows its in-game stiffness and strength.
+    if (b.kind === 'edge' || b.kind === 'brace') {
+      if (vars.stiffness && typeof options.beamSpring === 'number') options.beamSpring = scaled(options.beamSpring, vars.stiffness);
+      if (vars.strength && typeof options.beamDeform === 'number') options.beamDeform = scaled(options.beamDeform, vars.strength);
+      if (vars.strength && typeof options.beamStrength === 'number') options.beamStrength = scaled(options.beamStrength, vars.strength);
+    }
+    return { values, options };
   });
   const comments = new Map<number, string>();
   const firstBrace = sorted.findIndex((b) => b.kind === 'brace');
@@ -314,10 +346,13 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       content.cameraExternal = cameraFor(nodes);
     }
     if (meshes.length && group) content.flexbodies = [['mesh', '[group]:', 'nonFlexMaterials'], ...meshes.map((m) => [m, [group]] as WritableValue[])];
-    if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset);
+    const tuningVars = (fullDoc.variables ?? []).filter((v) => v.partId === part.id);
+    const partVars: PartVars = Object.fromEntries(tuningVars.map((v) => [v.setting, variableName(part, v.setting)]));
+    if (tuningVars.length && nodes.length) content.variables = variablesSection(part, tuningVars);
+    if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars);
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
     const posOf = (id: string) => doc.nodes.find((n) => n.id === id)?.pos;
-    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf);
+    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars);
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset);
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
     const doc1: WritableObject = { [part.name]: content };
