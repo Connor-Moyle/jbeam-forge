@@ -12,14 +12,14 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | done |
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
-| 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | not started |
+| 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | in progress |
 | 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | not started |
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | not started |
 | 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | not started |
 | 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | not started |
 | 12 | Capability layer — tuning vars, lights/electrics/plate, glass, aero, skins, hitch, nitrous, global controls | — | not started |
 | 13 | Config Manager v2 + previews | — | not started |
-| 14 | Publish helper + `npm run dist` installer + full regression script | — | not started |
+| 14 | Publish helper + `npm run dist` installer + full regression script | — | installer done early (see Releases) |
 
 ## Roadmap from your feedback (2026-09-27)
 
@@ -41,7 +41,30 @@ You asked to continue past the Phase 5 in-game gate. It stays open: every export
 | Weights and prices automated to BeamNG-sensible values, user-adjustable | 7 (derived defaults) + 13 (rollups) |
 | Part selector laid out like BeamNG's in-game parts menu, so modders see how it will look | 13 |
 
+## Releases
+
+Every finished phase ships as a Windows installer and a portable exe on GitHub Releases (`npm run release`, notes in `docs/releases/`).
+
+| Version | Contents |
+|---|---|
+| 0.6.0 | Phases 1–6 plus the grouped scene tree |
+
 ## Phase log
+
+### Phase 7 — Editing suite (in progress)
+
+**Grouped scene tree:** children of each part are gathered into Doors, Glass, Lights, Interior, Engine and so on. Corner families with four or more parts split again into front and rear (Doors → Front doors → Front left door). A group only exists when it would hold at least two parts, and groups open by themselves when they hold the selection or a search hit.
+
+**Automatic prices and weights** (`npm run study-prices`):
+- Every part of the 28 official cars and 10 trucks was classified with our own classifier. For each kind the study records its in-game price (`information.value`) and its node-weight sum.
+- Taxonomy defaults now use the median wherever there are enough samples: at least 3 prices or 5 masses.
+- Samples that measure something else are skipped: EV battery packs, wheel+tyre+hub assemblies, cargo loads, and strut/spring parts whose nodes carry the hub. Kinds without data got hand estimates.
+- Glass keeps its old, lighter masses. Official glass weighs about three times more, and our brittle-glass beams broke in the 1 m drop at those masses.
+- Prices scale by construction material: aluminium ×1.6, carbon ×3, fibreglass ×1.3, plastic ×0.8. They are rounded to shop-looking steps.
+- A part's price is automatic until you type one; "reset to automatic" brings it back. Target mass got the same reset.
+- The project format is now v4 (`price: null` = automatic). Older files migrate their untouched `0` prices to automatic.
+- Sunburst body-shell sandbox with the new masses: settles, the 1 m drop breaks nothing, and the 50 km/h pole crushes 84 mm (was 329 mm). The crush number moves a lot with mass distribution: 145 mm with the old bumper mass alone. Worth a look once suspension exists.
+
 
 ### Phase 6 — Physics sandbox (done)
 

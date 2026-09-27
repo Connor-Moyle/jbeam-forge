@@ -39,6 +39,8 @@ export const TaxonomyEntrySchema = z.object({
   /** Taxonomy id this part attaches to (drives slot nesting). null = root. */
   parent: z.string().regex(ID).nullable(),
   defaultMass: z.number().positive(),
+  /** In-game price ($) for a steel part of this kind; median of official parts where the game has enough of them. */
+  defaultPrice: z.number().nonnegative().default(100),
   nodePrefix: z.string().regex(/^[a-z][a-z0-9]{0,5}$/),
   beamPreset: z.enum(BEAM_PRESETS),
   openable: z.boolean(),

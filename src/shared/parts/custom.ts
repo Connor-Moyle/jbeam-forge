@@ -9,6 +9,7 @@ export interface CustomKindInput {
   positionAxis: PositionAxis;
   openable: boolean;
   defaultMass: number;
+  defaultPrice?: number;
   beamPreset: (typeof BEAM_PRESETS)[number];
 }
 
@@ -42,6 +43,7 @@ export function buildCustomEntry(input: CustomKindInput, existing: readonly Taxo
     slotType: id,
     parent: input.parent,
     defaultMass: input.defaultMass,
+    defaultPrice: input.defaultPrice ?? 100,
     nodePrefix: uniqueNodePrefix(id, new Set(existing.map((e) => e.nodePrefix))),
     beamPreset: input.beamPreset,
     openable: input.openable,

@@ -68,7 +68,7 @@ export function createPart(doc: Doc, tax: TaxonomyLookup, spec: NewPart): Part {
     position,
     parentPartId: spec.parentPartId ?? findParent(doc, tax, entry, position),
     variantOf: spec.variantOf ?? null,
-    price: 0,
+    price: null,
     description: '',
     constructionMaterial: 'steel',
   };

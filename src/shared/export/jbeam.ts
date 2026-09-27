@@ -3,7 +3,7 @@ import type { TaxonomyEntry } from '../taxonomy/schema';
 import type { JbeamObject, JbeamValue } from '../jbeam/parse';
 import { serializeJbeam, JbeamComment, type WritableObject, type WritableValue } from '../jbeam/serialize';
 import { writeTable, type WritableRecord } from '../jbeam/tables';
-import { materialDefaults } from '../parts/materials';
+import { materialDefaults, partPrice } from '../parts/materials';
 import { ATTACHMENT_VALUES, BEAM_PRESET_VALUES, type BeamPresetId, type BeamValues } from '../proxy/presets';
 import { partRole, partSettings } from '../proxy/generate';
 import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
@@ -187,7 +187,7 @@ export function buildJbeamFiles(doc: Doc, tax: TaxonomyLookup, opts: JbeamExport
     const meshes = meshesOf(part.id);
 
     const content: Record<string, WritableValue> = {
-      information: { authors: opts.author || 'JBeam Forge', name: part.displayName, value: part.price },
+      information: { authors: opts.author || 'JBeam Forge', name: part.displayName, value: partPrice(part, entry) },
       slotType,
     };
     const kids = childrenOf(part);

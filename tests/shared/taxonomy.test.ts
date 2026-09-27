@@ -41,6 +41,7 @@ const entry = (over: Partial<TaxonomyEntry>): TaxonomyEntry => ({
   slotType: over.id ?? 'x',
   parent: 'body',
   defaultMass: 1,
+  defaultPrice: 100,
   nodePrefix: over.id?.slice(0, 5) ?? 'x',
   beamPreset: 'mechanical',
   openable: false,

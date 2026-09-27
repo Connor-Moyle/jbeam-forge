@@ -12,7 +12,7 @@ import { z } from 'zod';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 3;
+export const CURRENT_PROJECT_VERSION = 4;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -101,7 +101,8 @@ export const PartSchema = z.object({
   parentPartId: z.string().nullable(),
   /** Set when this part is a variant of another (shares its slotType). */
   variantOf: z.string().nullable(),
-  price: z.number().nonnegative(),
+  /** In-game price ($); null = automatic (kind × construction material). */
+  price: z.number().nonnegative().nullable(),
   description: z.string(),
   constructionMaterial: z.enum(CONSTRUCTION_MATERIALS),
 });
@@ -175,9 +176,9 @@ export const ProxySectionSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV3Schema = z.object({
+export const ProjectV4Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(3),
+  formatVersion: z.literal(4),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -200,7 +201,7 @@ export const ProjectV3Schema = z.object({
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV3Schema;
+export const ProjectSchema = ProjectV4Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

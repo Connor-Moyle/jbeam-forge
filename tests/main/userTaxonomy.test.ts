@@ -17,6 +17,7 @@ const custom: TaxonomyEntry = {
   slotType: 'ducktail',
   parent: 'trunk',
   defaultMass: 2,
+  defaultPrice: 150,
   nodePrefix: 'dkt',
   beamPreset: 'panel_plastic',
   openable: false,

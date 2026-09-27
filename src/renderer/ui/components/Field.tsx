@@ -33,3 +33,16 @@ export function FieldGroup({ title, children, className }: { title: ReactNode; c
     </section>
   );
 }
+
+/** Hint for a value that's automatic until the user types one: says which, and offers a way back. */
+export function AutoHint({ custom, auto, onReset }: { custom: boolean; auto: ReactNode; onReset: () => void }) {
+  if (!custom) return <>{auto}</>;
+  return (
+    <>
+      Custom ·{' '}
+      <button type="button" className={styles.reset} onClick={onReset}>
+        reset to automatic
+      </button>
+    </>
+  );
+}

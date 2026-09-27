@@ -41,6 +41,18 @@ export const MIGRATIONS: readonly Migration[] = [
       };
     },
   },
+  {
+    from: 3,
+    describe: 'automatic part prices (Part.price null = automatic; the old 0 default becomes automatic)',
+    migrate: (doc) => {
+      const parts: unknown[] = Array.isArray(doc.parts) ? (doc.parts as unknown[]) : [];
+      return {
+        ...doc,
+        formatVersion: 4,
+        parts: parts.map((p) => (typeof p === 'object' && p !== null && (p as { price?: unknown }).price === 0 ? { ...p, price: null } : p)),
+      };
+    },
+  },
 ];
 
 export class MigrationError extends Error {

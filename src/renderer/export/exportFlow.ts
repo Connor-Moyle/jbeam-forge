@@ -93,7 +93,7 @@ export function prepareExport(): PreparedExport | null {
     { path: `${root}/main.materials.json`, text: `${JSON.stringify(materialsJson(slug, mats.materials), null, 2)}\n` },
     { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author), null, 2)}\n` },
     { path: `${root}/${DEFAULT_CONFIG}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` },
-    { path: `${root}/info_${DEFAULT_CONFIG}.json`, text: `${JSON.stringify(configInfo(doc, pc), null, 2)}\n` },
+    { path: `${root}/info_${DEFAULT_CONFIG}.json`, text: `${JSON.stringify(configInfo(doc, tax, pc), null, 2)}\n` },
   ];
   const preview = capturePreview();
   if (preview) files.push({ path: `${root}/${DEFAULT_CONFIG}.jpg`, base64: base64FromDataUrl(preview) });

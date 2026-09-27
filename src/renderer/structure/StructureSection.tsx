@@ -6,7 +6,7 @@ import { Badge } from '@renderer/ui/components/Badge';
 import { Button } from '@renderer/ui/components/Button';
 import { Callout } from '@renderer/ui/components/Callout';
 import { CollapsibleSection } from '@renderer/ui/components/CollapsibleSection';
-import { Field, FieldGroup } from '@renderer/ui/components/Field';
+import { AutoHint, Field, FieldGroup } from '@renderer/ui/components/Field';
 import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { Select } from '@renderer/ui/components/Select';
 import { Slider } from '@renderer/ui/components/Slider';
@@ -99,7 +99,7 @@ export function StructureSection({ part }: { part: Part }) {
         </Field>
       </div>
       <div className={styles.row}>
-        <Field label="Target mass" hint={settings.massKg === null ? 'From type × material' : 'Custom'}>
+        <Field label="Target mass" hint={<AutoHint custom={settings.massKg !== null} auto="From type × material" onReset={() => set({ massKg: null })} />}>
           <NumberInput value={mass} onChange={(v) => set({ massKg: v })} min={0.05} max={5000} step={0.5} precision={2} unit="kg" />
         </Field>
         <Field label="Symmetry">

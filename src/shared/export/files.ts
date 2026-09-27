@@ -1,6 +1,7 @@
 import type { Part, Project } from '../project/schema';
 import { commonPrefix } from '../taxonomy/tokenize';
 import { slotTypeOf, type TaxonomyLookup } from './jbeam';
+import { partPrice } from '../parts/materials';
 
 /**
  * Names and the small JSON files of an exported vehicle (SPEC §4.15):
@@ -78,9 +79,12 @@ export function defaultConfig(doc: Doc, tax: TaxonomyLookup): { format: 2; model
   return { format: 2, model: doc.meta.slug, parts, vars: {} };
 }
 
-export function configInfo(doc: Doc, config: ReturnType<typeof defaultConfig>): Record<string, string | number> {
+export function configInfo(doc: Doc, tax: TaxonomyLookup, config: ReturnType<typeof defaultConfig>): Record<string, string | number> {
   const byName = new Map(doc.parts.map((p) => [p.name, p]));
-  const value = Object.values(config.parts).reduce((sum, name) => sum + (byName.get(name)?.price ?? 0), 0);
+  const value = Object.values(config.parts).reduce((sum, name) => {
+    const part = byName.get(name);
+    return sum + (part ? partPrice(part, tax.entry(part.taxonomyId)) : 0);
+  }, 0);
   return { Configuration: 'Default', 'Config Type': 'Factory', Description: `Default ${doc.meta.name} configuration.`, Value: value };
 }
 
