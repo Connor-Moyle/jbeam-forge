@@ -18,7 +18,7 @@ import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } 
 import { getLogFolder, scoped } from '../log';
 import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
 import { resolveTextureRefs } from '../import/textures';
-import { readFile, stat, writeFile } from 'node:fs/promises';
+import { readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { kn5TextureDir } from '../import/kn5Textures';
 import { readAcCar } from '../import/acCar';
@@ -176,6 +176,28 @@ export function registerIpcHandlers(services: HandlerServices): void {
     },
     ExportBundleSchema,
   );
+  registerInvoke(
+    'export:publish',
+    async ({ bundle, listing }, event) => {
+      checkBundle(bundle, (p) => projects.isUnderGrantedRoot(p));
+      const dir = await pickDirectory(event.sender, { title: 'Choose where to put the repository package' });
+      if (!dir) return null;
+      const safeVersion = listing.version.replace(/[^\w.-]+/g, '_') || '1.0';
+      const out = join(dir, `${bundle.slug}_${safeVersion}`);
+      await mkdir(join(out, 'pictures'), { recursive: true });
+      const zip = await writeZip(join(out, `${bundle.slug}_${safeVersion}.zip`), bundle);
+      // The config previews double as the listing's pictures.
+      for (const f of bundle.files) if (f.base64 && /\.(jpg|png)$/i.test(f.path)) await writeFile(join(out, 'pictures', f.path.split('/').pop()!), Buffer.from(f.base64, 'base64'));
+      const readme = [`# ${listing.title} ${listing.version}`, '', listing.tagline, '', listing.description, '', `Tags: ${listing.tags.join(', ')}`, '', '## Checks', '', ...listing.checklist.map((c) => `- ${c}`), ''].join('\n');
+      await writeFile(join(out, 'README.md'), readme);
+      await writeFile(join(out, 'description.txt'), `${listing.tagline}\n\n${listing.description}\n`);
+      lastExport = out;
+      logger.info(`publish package for ${bundle.slug} at ${out}`);
+      return { path: out, bytes: zip.bytes };
+    },
+    z.object({ bundle: ExportBundleSchema, listing: z.object({ title: z.string().min(1).max(120), tagline: z.string().max(300), version: z.string().max(40), description: z.string().max(20000), tags: z.array(z.string().max(40)).max(30), checklist: z.array(z.string().max(300)).max(50) }) }),
+  );
+
   registerInvoke(
     'export:zip',
     async (bundle, event) => {

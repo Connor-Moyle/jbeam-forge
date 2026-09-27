@@ -818,6 +818,26 @@ const scenarios = [
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();
 
+      // Repository package: listing + checklist, then a folder with the zip, pictures and listing text.
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-publish').click();
+      await page.getByTestId('publish-form').waitFor();
+      await page.getByTestId('publish-description').fill('A test car made from scratch in JBeam Forge, with a stripped configuration.');
+      const checks = await page.getByTestId('publish-checks').textContent();
+      assert(checks.includes('Description written') && checks.includes('preview picture for every configuration'), `publish checklist (${checks})`);
+      await shot(page, 'publish-form');
+      const pubRoot = join(fakeUserDir, 'publish');
+      await hook(page, 'queueDialog', [pubRoot]);
+      await page.getByTestId('publish-save').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 30_000 });
+      const pubDir = join(pubRoot, 'generate_test_1.0');
+      const pub = readdirSync(pubDir).sort();
+      assert(pub.includes('generate_test_1.0.zip') && pub.includes('README.md') && pub.includes('description.txt'), `publish package (${pub.join(', ')})`);
+      const pics = readdirSync(join(pubDir, 'pictures'));
+      assert(pics.includes('default.jpg') && pics.includes('stripped.jpg'), `publish pictures (${pics.join(', ')})`);
+      assert(readFileSync(join(pubDir, 'README.md'), 'utf8').includes('- ✓ Validation passed'), 'README lists the checks');
+      await page.getByRole('button', { name: 'Done' }).click();
+
       // Objects library (bundled locally in packs/objects): thumbnails render and an object comes in with its material.
       if (existsSync(join(ROOT, 'packs', 'objects'))) {
         await page.getByTestId('toggle-objects').click();

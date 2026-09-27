@@ -8,7 +8,7 @@ import { useSceneStore } from '@renderer/app/stores/scene';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { capturePreview } from '@renderer/panels/viewport/registry';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
-import type { ExportBundle } from '@shared/ipc-contract';
+import type { ExportBundle, PublishListing } from '@shared/ipc-contract';
 import { buildJbeamFiles, damagedMaterialName } from '@shared/export/jbeam';
 import type { Project } from '@shared/project/schema';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
@@ -38,7 +38,7 @@ interface ExportUiState {
   open: boolean;
   prepared: PreparedExport | null;
   busy: string | null;
-  result: { path: string; bytes: number; mode: 'install' | 'zip' } | null;
+  result: { path: string; bytes: number; mode: 'install' | 'zip' | 'publish' } | null;
   error: string | null;
   setOpen: (open: boolean) => void;
   set: (patch: Partial<Omit<ExportUiState, 'setOpen' | 'set'>>) => void;
@@ -229,6 +229,25 @@ export async function runExport(mode: 'install' | 'zip'): Promise<void> {
     if (r) {
       ui.set({ result: { ...r, mode } });
       logger.info(`export ${mode}: ${r.path}`);
+    }
+  } catch (err) {
+    ui.set({ error: errorText(err) });
+  } finally {
+    useExportUi.getState().set({ busy: null });
+  }
+}
+
+/** Write the repository package: the zip, its pictures and the listing text, in a folder the user picks. */
+export async function runPublish(listing: PublishListing): Promise<void> {
+  const ui = useExportUi.getState();
+  const prepared = ui.prepared;
+  if (!prepared || prepared.report.errors.length) return;
+  ui.set({ busy: 'Writing the repository package…', error: null });
+  try {
+    const r = await call('export:publish', { bundle: prepared.bundle, listing });
+    if (r) {
+      ui.set({ result: { ...r, mode: 'publish' } });
+      logger.info(`export publish: ${r.path}`);
     }
   } catch (err) {
     ui.set({ error: errorText(err) });

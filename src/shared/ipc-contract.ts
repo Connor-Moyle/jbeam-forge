@@ -113,6 +113,17 @@ export interface ProjectFile {
 }
 
 /** An exported mod: files (text or base64) and texture copies, all under vehicles/<slug>/. */
+/** What the repository page says about the mod. */
+export interface PublishListing {
+  title: string;
+  tagline: string;
+  version: string;
+  description: string;
+  tags: string[];
+  /** The checks the app ran, as shown to the user ("✓ …" / "✗ …"). */
+  checklist: string[];
+}
+
 export interface ExportBundle {
   slug: string;
   projectName: string;
@@ -208,6 +219,8 @@ export interface InvokeContract {
   'export:install': { req: ExportBundle; res: { path: string; bytes: number } };
   /** Save the exported mod as a zip (save dialog); null when cancelled. */
   'export:zip': { req: ExportBundle; res: { path: string; bytes: number } | null };
+  /** A folder ready to upload to the BeamNG repository: the mod zip, README, description, pictures and the checklist. */
+  'export:publish': { req: { bundle: ExportBundle; listing: PublishListing }; res: { path: string; bytes: number } | null };
   /** Save a re-exported model (.glb binary or .dae text) wherever the user picks. */
   'export:saveModel': { req: { suggestedName: string; format: 'glb' | 'dae'; data: Uint8Array | string }; res: { path: string; bytes: number } | null };
   /** Reveal the last export in Explorer. */
@@ -283,6 +296,7 @@ export const INVOKE_CHANNELS = [
   'taxonomy:saveUser',
   'export:install',
   'export:zip',
+  'export:publish',
   'export:saveModel',
   'export:reveal',
 ] as const satisfies readonly InvokeChannel[];

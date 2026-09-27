@@ -57,3 +57,31 @@
 .steps li {
   margin-bottom: var(--space-1);
 }
+
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-label);
+}
+
+.checks li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ok {
+  color: var(--text-1);
+}
+
+.ok svg {
+  color: var(--success, var(--accent));
+}
+
+.bad {
+  color: var(--warning, var(--text-1));
+}
