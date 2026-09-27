@@ -20,6 +20,8 @@ import { currentTaxonomy, loadUserTaxonomy } from '@renderer/parts/taxonomy';
 import { buildSimModel } from '@shared/sim/model';
 import { offerAutoClassify } from '@renderer/parts/commands';
 import { useStructureUi } from '@renderer/structure/generate';
+import { useEditStore } from '@renderer/structure/editStore';
+import { mirrorPartners } from '@shared/structure/edit';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
 
@@ -52,6 +54,18 @@ function AppEffects() {
             activePart: useSceneStore.getState().activePart,
             focus: useSceneStore.getState().focus,
           };
+        },
+        editState: () => {
+          const e = useEditStore.getState();
+          return { active: e.active, nodes: e.nodes, beams: e.beams };
+        },
+        editSelect: (ids: string[]) => useEditStore.getState().select(ids, []),
+        nodeInfo: (ids: string[]) => (projectStore.getState().doc?.nodes ?? []).filter((n) => ids.includes(n.id)).map((n) => ({ id: n.id, pos: n.pos, manual: !!n.manual, weight: n.weight })),
+        /** A left/right node pair (by position) to exercise symmetry; [some node, null] when nothing is mirrored. */
+        mirrorPair: () => {
+          const nodes = projectStore.getState().doc?.nodes ?? [];
+          const first = [...mirrorPartners(nodes)][0];
+          return first ?? (nodes[0] ? [nodes[0].id, null] : null);
         },
         structureState: () => {
           const d = projectStore.getState().doc;

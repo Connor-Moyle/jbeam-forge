@@ -30,7 +30,13 @@ const CATEGORY_TOKEN: Record<string, Parameters<typeof resolveToken>[0]> = {
 
 /** Flatten the document's structure into GPU-ready arrays. */
 /** `only`: focus mode draws just these parts' nodes and beams (their attachment beams included). */
-export function structureData(doc: Pick<Project, 'nodes' | 'beams' | 'parts'>, entry: (id: string) => TaxonomyEntry | undefined, only?: ReadonlySet<string>): StructureData {
+export function structureData(
+  doc: Pick<Project, 'nodes' | 'beams' | 'parts'>,
+  entry: (id: string) => TaxonomyEntry | undefined,
+  only?: ReadonlySet<string>,
+  /** Live drag preview: positions that override the document's. */
+  moved?: ReadonlyMap<string, [number, number, number]> | null,
+): StructureData {
   const colorOf = new Map<string, Color>();
   const partColor = (partId: string) => {
     let c = colorOf.get(partId);
@@ -43,12 +49,12 @@ export function structureData(doc: Pick<Project, 'nodes' | 'beams' | 'parts'>, e
   };
   const attach = new Color(resolveToken('warning') || undefined);
   const pos = new Map<string, [number, number, number]>();
-  for (const n of doc.nodes) pos.set(n.id, n.pos);
+  for (const n of doc.nodes) pos.set(n.id, moved?.get(n.id) ?? n.pos);
   const nodes = only ? doc.nodes.filter((n) => only.has(n.partId)) : doc.nodes;
   const nodePositions = new Float32Array(nodes.length * 3);
   const nodeColors = new Float32Array(nodes.length * 3);
   nodes.forEach((n, i) => {
-    nodePositions.set(n.pos, i * 3);
+    nodePositions.set(pos.get(n.id)!, i * 3);
     const c = partColor(n.partId);
     nodeColors.set([c.r, c.g, c.b], i * 3);
   });
@@ -74,6 +80,8 @@ export class StructureOverlay {
   private readonly sphere = new SphereGeometry(1, 8, 6);
   private readonly nodeMaterial = new MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.95 });
   private readonly beamMaterial = new LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.8 });
+  /** Node sphere radius of the last set() (m). */
+  nodeRadius = 0.012;
 
   constructor() {
     this.root.renderOrder = 3;
@@ -81,6 +89,7 @@ export class StructureOverlay {
 
   set(data: StructureData | null, nodeRadius: number): void {
     this.clear();
+    if (nodeRadius > 0) this.nodeRadius = nodeRadius;
     if (!data || data.nodePositions.length === 0) return;
     const count = data.nodePositions.length / 3;
     const nodes = new InstancedMesh(this.sphere, this.nodeMaterial, count);
@@ -272,4 +281,19 @@ export class LiveOverlay {
     this.beamMaterial.dispose();
     this.obstacleMaterial.dispose();
   }
+}
+
+/** Edit-mode selection highlight: selected nodes and beams in the accent colour. */
+export function selectionData(positions: ReadonlyMap<string, [number, number, number]>, nodes: readonly string[], beams: readonly [string, string][]): StructureData {
+  const accent = new Color(resolveToken('accent') || undefined);
+  const picked = nodes.map((id) => positions.get(id)).filter((p): p is [number, number, number] => !!p);
+  const nodePositions = new Float32Array(picked.flat());
+  const nodeColors = new Float32Array(picked.flatMap(() => [accent.r, accent.g, accent.b]));
+  const bp: number[] = [];
+  for (const [a, b] of beams) {
+    const pa = positions.get(a);
+    const pb = positions.get(b);
+    if (pa && pb) bp.push(...pa, ...pb);
+  }
+  return { nodePositions, nodeColors, beamPositions: new Float32Array(bp), beamColors: new Float32Array(bp.length).map((_, i) => [accent.r, accent.g, accent.b][i % 3]!) };
 }

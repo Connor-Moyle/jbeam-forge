@@ -7,6 +7,7 @@ import {
   FileInput,
   FolderOpen,
   LayoutGrid,
+  MousePointer2,
   Play,
   Save,
   Redo2,
@@ -26,6 +27,7 @@ import { openProject, redo, saveProject, undo } from '@renderer/project/actions'
 import { startImport } from '@renderer/import/importFlow';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { generateAll, useStructureUi } from '@renderer/structure/generate';
+import { useEditStore } from '@renderer/structure/editStore';
 import { openExport } from '@renderer/export/exportFlow';
 import { startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
@@ -67,6 +69,8 @@ export function Toolbar() {
   const generating = useStructureUi((s) => s.busy);
   const view = useUiStore((s) => s.view);
   const toggleView = useUiStore((s) => s.toggleView);
+  const editing = useEditStore((s) => s.active);
+  const setEditing = useEditStore((s) => s.setActive);
 
   return (
     <header className={styles.toolbar} role="toolbar" aria-label="Main toolbar">
@@ -91,6 +95,7 @@ export function Toolbar() {
         <span className={styles.divider} aria-hidden />
         <IconButton icon={Eye} label={view.mesh ? 'Hide mesh' : 'Show mesh'} active={view.mesh} onClick={() => toggleView('mesh')} data-testid="toolbar-view-mesh" />
         <IconButton icon={Box} label={view.structure ? 'Hide nodes & beams' : 'Show nodes & beams'} active={view.structure} onClick={() => toggleView('structure')} data-testid="toolbar-view-structure" />
+        <IconButton icon={MousePointer2} label={editing ? 'Stop editing nodes & beams' : hasStructure ? 'Edit nodes & beams' : 'Edit nodes & beams (generate the structure first)'} shortcut="Tab" active={editing} disabled={!hasStructure && !editing} onClick={() => setEditing(!editing)} data-testid="toolbar-edit" />
       </div>
       <div className={styles.group} role="group" aria-label="Test">
         <span className={styles.divider} aria-hidden />

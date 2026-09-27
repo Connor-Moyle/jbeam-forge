@@ -611,6 +611,51 @@ const scenarios = [
       await hook(page, 'runCommand', 'redo');
       assert((await hook(page, 'structureState')).nodes === st.nodes, 'redo restores it');
 
+      // Edit mode: pick, type an exact coordinate, nudge, symmetry, box select, delete, all undoable.
+      await page.getByTestId('toolbar-edit').click();
+      assert((await hook(page, 'editState')).active && (await page.getByTestId('edit-toolbar').isVisible()), 'edit mode on');
+      const pair = await hook(page, 'mirrorPair');
+      assert(pair, 'a node to edit');
+      const [nl, nr] = pair; // nr is null when the test car has no mirrored pair
+      const [before] = await hook(page, 'nodeInfo', [nl]);
+      const [twinBefore] = nr ? await hook(page, 'nodeInfo', [nr]) : [null];
+      await hook(page, 'editSelect', [nl]);
+      await page.getByTestId('inspector-nodes').waitFor();
+      const zField = page.getByLabel('Z position');
+      await zField.fill(String((before.pos[2] + 0.05).toFixed(3)));
+      await zField.press('Enter');
+      let [moved] = await hook(page, 'nodeInfo', [nl]);
+      assert(Math.abs(moved.pos[2] - (before.pos[2] + 0.05)) < 0.002 && moved.manual, `typed Z moved the node (${JSON.stringify(moved)})`);
+      await page.getByTestId('viewport').focus();
+      await page.keyboard.press('ArrowUp'); // screen-up snaps to +Z from the default camera
+      [moved] = await hook(page, 'nodeInfo', [nl]);
+      assert(Math.abs(moved.pos[2] - (before.pos[2] + 0.055)) < 0.002, `arrow key nudged 5 mm up (${moved.pos[2]})`);
+      if (nr) {
+        const [twin] = await hook(page, 'nodeInfo', [nr]);
+        assert(Math.abs(twin.pos[2] - moved.pos[2]) < 1e-6 && Math.abs(twin.pos[0] + moved.pos[0]) < 1e-6, `symmetry moved the mirror partner (${JSON.stringify(twin)})`);
+      }
+      await shot(page, 'edit-mode');
+      await hook(page, 'runCommand', 'undo');
+      await hook(page, 'runCommand', 'undo');
+      [moved] = await hook(page, 'nodeInfo', [nl]);
+      const [twinAfter] = nr ? await hook(page, 'nodeInfo', [nr]) : [null];
+      assert(JSON.stringify(moved.pos) === JSON.stringify(before.pos) && JSON.stringify(twinAfter) === JSON.stringify(twinBefore), 'undo puts the nodes back');
+      // Box select across the whole viewport grabs nodes; an empty click clears.
+      const vp = await page.getByTestId('viewport').boundingBox();
+      await page.mouse.move(vp.x + 5, vp.y + 5);
+      await page.mouse.down();
+      await page.mouse.move(vp.x + vp.width - 5, vp.y + vp.height - 5, { steps: 5 });
+      await page.mouse.up();
+      const boxed = (await hook(page, 'editState')).nodes.length;
+      assert(boxed > 10, `box select picked nodes (${boxed})`);
+      await page.getByTestId('viewport').focus();
+      await page.keyboard.press('Delete');
+      assert((await hook(page, 'structureState')).nodes === st.nodes - boxed, 'Delete removes the selected nodes');
+      await hook(page, 'runCommand', 'undo');
+      assert((await hook(page, 'structureState')).nodes === st.nodes, 'undo restores them');
+      await page.getByTestId('edit-exit').click();
+      assert(!(await hook(page, 'editState')).active, 'edit mode off');
+
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();

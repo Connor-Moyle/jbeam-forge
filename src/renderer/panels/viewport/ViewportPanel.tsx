@@ -6,7 +6,10 @@ import { reportError } from '@renderer/diagnostics/globalHandlers';
 import { allMeshes, useSceneStore } from '@renderer/app/stores/scene';
 import { startImport } from '@renderer/import/importFlow';
 import type { ImportedMesh } from '@renderer/import/normalize';
-import { ViewportRuntime, webglAvailable, type GlState, type ToolState, type ViewState } from './viewportRuntime';
+import { ViewportRuntime, webglAvailable, type EditView, type GlState, type ToolState, type ViewState } from './viewportRuntime';
+import { useEditStore } from '@renderer/structure/editStore';
+import { deleteSelection, invertSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts } from '@renderer/structure/editCommands';
+import { EditToolbar } from '@renderer/structure/EditToolbar';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
 import { SplitToolbar } from '@renderer/split/SplitToolbar';
 import { projectStore, useProjectStore } from '@renderer/app/stores/project';
@@ -51,6 +54,28 @@ export function ViewportPanel() {
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
         onSimDrag: (node, target) => dragNode(node, target),
+        onEditPick: (node, beam, op) => {
+          const edit = useEditStore.getState();
+          if (!node && !beam) {
+            if (op === 'replace') edit.clear();
+            return;
+          }
+          edit.select(node ? [node] : [], beam ? [beam] : [], op);
+        },
+        onEditBox: (nodes, op) => useEditStore.getState().select(nodes, [], op),
+        onEditDouble: (node) => {
+          if (!node) return;
+          useEditStore.getState().select([node], []);
+          selectParts();
+        },
+        onGizmoMove: (delta, done) => {
+          if (!done) {
+            previewSelectionMove(delta);
+            return;
+          }
+          previewSelectionMove(null);
+          if (Math.hypot(...delta) > 1e-6) moveSelection(delta);
+        },
       });
     } catch (err) {
       reportError('viewport init failed', err);
@@ -89,11 +114,14 @@ export function ViewportPanel() {
     const pushStructure = () => {
       const doc = projectStore.getState().doc;
       const focus = scene.getState().focus;
-      const key = doc ? [doc.nodes, doc.beams, doc.parts, focus] : null;
+      const edit = useEditStore.getState();
+      const key = doc ? [doc.nodes, doc.beams, doc.parts, focus, edit.preview, edit.active, edit.nodes, edit.beams] : null;
       if (!key || !lastStructure || (lastStructure as unknown[]).some((x, i) => x !== key[i])) {
+        const structureChanged = !lastStructure || (lastStructure as unknown[]).slice(0, 5).some((x, i) => x !== key?.[i]);
         lastStructure = key;
         const only = focus?.partId ? new Set(focus.parts) : undefined;
-        rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id), only) : null);
+        if (structureChanged) rt.setStructure(doc && doc.nodes.length ? structureData(doc, (id) => currentTaxonomy().entry(id), only, edit.preview) : null);
+        rt.setEdit(doc && edit.active ? editView(doc, only, edit) : null);
       }
     };
     pushStructure();
@@ -106,6 +134,7 @@ export function ViewportPanel() {
     ghost();
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
     const unsubscribeView = useUiStore.subscribe((s) => rt.setView(s.view));
+    const unsubscribeEdit = useEditStore.subscribe(pushStructure);
     // Test Mode frames straight from the sim session (60 Hz, outside React).
     const unsubscribeSim = onSimFrame((frame) => rt.setLive(frame));
     let lastFrameRequest = scene.getState().frameRequest;
@@ -121,6 +150,16 @@ export function ViewportPanel() {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const splitting = useSplitTool.getState().meshKey !== null;
+      const edit = useEditStore.getState();
+      if (!splitting && e.key === 'Tab' && !e.ctrlKey && !e.altKey) {
+        edit.setActive(!edit.active);
+        e.preventDefault();
+        return;
+      }
+      if (edit.active && !splitting && editKey(e, rt)) {
+        e.preventDefault();
+        return;
+      }
       if (splitting && e.key === 'Escape') useSplitTool.getState().cancel();
       else if (splitting && e.key === 'Enter') void applySplitSelection();
       else if (e.key === 'f' || e.key === 'F') {
@@ -139,6 +178,7 @@ export function ViewportPanel() {
       unsubscribeStructure();
       unsubscribeSettings();
       unsubscribeView();
+      unsubscribeEdit();
       unsubscribeSim();
       host.removeEventListener('keydown', onKey);
       rt.dispose();
@@ -158,6 +198,7 @@ export function ViewportPanel() {
     <div ref={hostRef} className={styles.host} data-testid="viewport" data-gl-state={glState} tabIndex={0}>
       <canvas ref={canvasRef} className={styles.canvas} />
       <SplitToolbar />
+      <EditToolbar />
       <FocusPill />
       {toolShape && toolShape.length >= 4 && (
         <svg className={splitStyles.shape} aria-hidden>
@@ -205,4 +246,31 @@ function FocusPill() {
       </button>
     </div>
   );
+}
+
+/** What edit mode can pick: the (focused) nodes at their previewed positions, and beams between them. */
+function editView(doc: { nodes: readonly { id: string; partId: string; pos: [number, number, number] }[]; beams: readonly { id1: string; id2: string; partId: string }[] }, only: ReadonlySet<string> | undefined, edit: { preview: ReadonlyMap<string, [number, number, number]> | null; nodes: readonly string[]; beams: readonly string[] }): EditView {
+  const nodes = doc.nodes.filter((n) => !only || only.has(n.partId)).map((n) => ({ id: n.id, pos: edit.preview?.get(n.id) ?? n.pos }));
+  const ids = new Set(nodes.map((n) => n.id));
+  const beams = doc.beams.filter((b) => ids.has(b.id1) && ids.has(b.id2)).map((b) => [b.id1, b.id2] as [string, string]);
+  return { nodes, beams, selectedNodes: edit.nodes, selectedBeams: edit.beams };
+}
+
+/** Edit-mode keys. Returns true when the key was handled. */
+function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
+  const edit = useEditStore.getState();
+  const ctrl = e.ctrlKey || e.metaKey;
+  if (e.key === 'Delete' || e.key === 'Backspace') deleteSelection();
+  else if (ctrl && (e.key === 'a' || e.key === 'A')) selectAll();
+  else if (ctrl && (e.key === 'i' || e.key === 'I')) invertSelection();
+  else if (!ctrl && (e.key === 'l' || e.key === 'L')) selectConnected();
+  else if (e.key === 'Escape' && (edit.nodes.length || edit.beams.length)) edit.clear();
+  else if (e.key.startsWith('Arrow') && edit.nodes.length) {
+    // 5 mm steps; Shift for 25 mm, Alt for 1 mm. Left/right and up/down follow the screen, snapped to the nearest axis.
+    const step = e.shiftKey ? 0.025 : e.altKey ? 0.001 : 0.005;
+    const { right, up } = rt.nudgeAxes();
+    const dir = e.key === 'ArrowRight' ? right : e.key === 'ArrowLeft' ? right.map((v) => -v) : e.key === 'ArrowUp' ? up : up.map((v) => -v);
+    moveSelection([dir[0]! * step, dir[1]! * step, dir[2]! * step], 'Nudge nodes');
+  } else return false;
+  return true;
 }

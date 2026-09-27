@@ -64,6 +64,19 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 - **Esc**, the pill's close button or double-clicking empty space leaves focus.
 - Ghost opacity is in Settings → Viewport (0–60%, default 12%; 0 hides the rest).
 
+**Structure editing** (edit mode: toolbar pointer button or **Tab**):
+- **Selecting:** click a node or beam; drag a box on empty space. Shift adds, Ctrl removes. **L** selects connected, **Ctrl+A** all, **Ctrl+I** inverts, and double-clicking a node takes its whole part. In focus mode only the focused parts' nodes can be picked.
+- **Moving:**
+  - Drag the gizmo; it uses BeamNG axes: X left, Y rear, Z up.
+  - Arrow keys nudge 5 mm along the screen direction snapped to the nearest axis (Shift 25 mm, Alt 1 mm).
+  - Or type exact X/Y/Z in the inspector. With several nodes selected, the typed value places the selection's centre.
+  - Symmetry is on by default: partners are found by mirrored position, and centre-line nodes stay on the centre line.
+  - Soft-move drags nearby nodes of the same parts with a smooth falloff, with an adjustable radius.
+  - Drags preview live and commit as one undo step. Moved nodes are marked as moved by hand.
+- **Inspector:** node id rename (every beam, triangle and reference node follows), weight for one or many nodes, and delete.
+- **Delete** removes nodes along with their beams and triangles, or deletes selected beams.
+- While editing, orbit moves to the right mouse button and pan to the middle button, the same as the split tool.
+
 **Automatic prices and weights** (`npm run study-prices`):
 - Every part of the 28 official cars and 10 trucks was classified with our own classifier. For each kind the study records its in-game price (`information.value`) and its node-weight sum.
 - Taxonomy defaults now use the median wherever there are enough samples: at least 3 prices or 5 masses.

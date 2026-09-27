@@ -9,19 +9,21 @@ import {
   HemisphereLight,
   MOUSE,
   Mesh,
+  Object3D,
   MeshBasicMaterial,
   MeshStandardMaterial,
   PlaneGeometry,
   PerspectiveCamera,
+  Quaternion,
   Raycaster,
   Scene,
   Sphere,
   Vector2,
   Vector3,
   WebGLRenderer,
-  type Object3D,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { BEAMNG_TO_VIEW_ROTATION_X } from '@shared/coords';
 import { resolveToken } from '@renderer/ui/tokens';
@@ -33,7 +35,8 @@ import { subsetGeometry } from '@renderer/import/applySplits';
 import { disposeSharingGeometry } from '@renderer/import/dispose';
 import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
-import { LiveOverlay, StructureOverlay, type StructureData } from './structureOverlay';
+import { LiveOverlay, StructureOverlay, selectionData, type StructureData } from './structureOverlay';
+import { beamKey } from '@shared/structure/edit';
 import { registerViewport } from './registry';
 
 // three-mesh-bvh: BVH-accelerated raycasting for all point-picking (SPEC §2).
@@ -72,6 +75,20 @@ export interface ToolState {
 
 export type ToolOp = 'replace' | 'add' | 'subtract';
 
+type Vec3 = [number, number, number];
+
+/** Structure edit mode, as the viewport needs it: what can be picked and what is selected. */
+export interface EditView {
+  /** Editable nodes (focused parts only in focus mode), at their current or previewed positions. */
+  nodes: readonly { id: string; pos: Vec3 }[];
+  beams: readonly [string, string][];
+  selectedNodes: readonly string[];
+  selectedBeams: readonly string[];
+}
+
+const PICK_NODE_PX = 12;
+const PICK_BEAM_PX = 6;
+
 export interface ViewportCallbacks {
   onState: (s: GlState) => void;
   onFatal: (e: Error) => void;
@@ -84,6 +101,13 @@ export interface ViewportCallbacks {
   onToolShape?: (points: number[] | null) => void;
   /** Test Mode: a node is being dragged towards `target` (BeamNG space); null = released. */
   onSimDrag?: (node: number | null, target: [number, number, number]) => void;
+  /** Edit mode: a click picked a node or beam (both null = empty space). */
+  onEditPick?: (node: string | null, beam: string | null, op: ToolOp) => void;
+  /** Edit mode: nodes inside a box drag. */
+  onEditBox?: (nodes: string[], op: ToolOp) => void;
+  onEditDouble?: (node: string | null) => void;
+  /** Edit mode: the move gizmo was dragged by `delta` (BeamNG space); done = released. */
+  onGizmoMove?: (delta: Vec3, done: boolean) => void;
 }
 
 /** What the live physics view needs from a frame. */
@@ -159,6 +183,14 @@ export class ViewportRuntime {
   private liveFramedFor: unknown = null;
   private viewToggles = { mesh: true, structure: true };
   private simDrag: { node: number; depth: number } | null = null;
+  private edit: EditView | null = null;
+  private readonly editOverlay = new StructureOverlay();
+  /** BeamNG-space frame for the gizmo, so its axes are BeamNG's X/Y/Z. */
+  private readonly editFrame = new Group();
+  private readonly pivot = new Object3D();
+  private readonly gizmo: TransformControls;
+  private gizmoStart: Vector3 | null = null;
+  private gizmoHot = false;
   private injectedFrameErrors = 0;
 
   constructor(
@@ -186,6 +218,11 @@ export class ViewportRuntime {
     this.reference.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.live.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.scene.add(this.structure.root, this.reference.root, this.live.root);
+    this.editOverlay.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.editOverlay.root.renderOrder = 6;
+    this.editFrame.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.editFrame.add(this.pivot);
+    this.scene.add(this.editOverlay.root, this.editFrame);
 
     const accent = new Color(resolveToken('accent') || undefined);
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -200,6 +237,26 @@ export class ViewportRuntime {
     this.controls.dampingFactor = 0.12;
     this.controls.target.set(0, 0.6, 0);
     this.controls.update();
+
+    this.gizmo = new TransformControls(this.camera, canvas);
+    this.gizmo.setSpace('local'); // the pivot's frame is BeamNG space
+    this.gizmo.setSize(0.8);
+    this.scene.add(this.gizmo.getHelper());
+    this.gizmo.addEventListener('dragging-changed', (e) => {
+      const dragging = (e as unknown as { value: boolean }).value;
+      this.controls.enabled = !dragging;
+      if (dragging) this.gizmoStart = this.pivot.position.clone();
+      else if (this.gizmoStart) {
+        const d = this.pivot.position.clone().sub(this.gizmoStart);
+        this.gizmoStart = null;
+        this.callbacks.onGizmoMove?.([d.x, d.y, d.z], true);
+      }
+    });
+    this.gizmo.addEventListener('objectChange', () => {
+      if (!this.gizmoStart) return;
+      const d = this.pivot.position.clone().sub(this.gizmoStart);
+      this.callbacks.onGizmoMove?.([d.x, d.y, d.z], false);
+    });
 
     this.loop = new GuardedLoop(() => this.tick(), {
       maxConsecutiveErrors: MAX_CONSECUTIVE_FRAME_ERRORS,
@@ -293,6 +350,34 @@ export class ViewportRuntime {
       this.callbacks.onSimDrag?.(null, [0, 0, 0]);
     });
 
+    // Edit mode: left-drag on empty space draws a selection box (orbit moves to the right button).
+    let editDrag: { op: ToolOp; points: number[] } | null = null;
+    this.listen(canvas, 'pointerdown', (e) => {
+      this.gizmoHot = this.gizmo.axis !== null;
+      if (!this.edit || e.button !== 0 || this.gizmoHot || this.tool) return;
+      const [x, y] = local(e);
+      editDrag = { op: opOf(e), points: [x, y] };
+    });
+    this.listen(canvas, 'pointermove', (e) => {
+      if (!editDrag) return;
+      const [x, y] = local(e);
+      editDrag.points = [editDrag.points[0]!, editDrag.points[1]!, x, y];
+      this.callbacks.onToolShape?.(rectPolygon(editDrag.points[0]!, editDrag.points[1]!, x, y));
+    });
+    this.listen(canvas, 'pointerup', (e) => {
+      const d = editDrag;
+      editDrag = null;
+      if (!d || e.button !== 0 || !this.edit) return;
+      this.callbacks.onToolShape?.(null);
+      const [x, y] = local(e);
+      if (Math.hypot(x - d.points[0]!, y - d.points[1]!) > CLICK_MAX_DRAG_PX) {
+        this.callbacks.onEditBox?.(this.nodesInRect(d.points[0]!, d.points[1]!, x, y), d.op);
+        return;
+      }
+      const hit = this.pickEdit(x, y);
+      this.callbacks.onEditPick?.(hit.node, hit.beam, d.op);
+    });
+
     // Split tool gestures take the left button (orbit moves to the right button meanwhile).
     this.listen(canvas, 'pointerdown', (e) => {
       const t = this.tool;
@@ -315,7 +400,7 @@ export class ViewportRuntime {
         } else this.pendingPaint = { x: e.clientX, y: e.clientY, op: drag.op };
         return;
       }
-      if (!this.tool) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
+      if (!this.tool && !this.edit) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
     });
     this.listen(canvas, 'pointerup', (e) => {
       if (!drag || e.button !== 0) return;
@@ -345,10 +430,17 @@ export class ViewportRuntime {
         }
         return; // clicks never change the mesh selection while splitting
       }
+      if (this.edit) return; // edit mode picks nodes instead (handled above)
       this.callbacks.onPick(this.pick(e.clientX, e.clientY), { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
     });
     this.listen(canvas, 'dblclick', (e) => {
-      if (!this.tool) this.callbacks.onDoublePick(this.pick(e.clientX, e.clientY));
+      if (this.tool) return;
+      if (this.edit) {
+        const r = canvas.getBoundingClientRect();
+        this.callbacks.onEditDouble?.(this.pickEdit(e.clientX - r.left, e.clientY - r.top).node);
+        return;
+      }
+      this.callbacks.onDoublePick(this.pick(e.clientX, e.clientY));
     });
   }
 
@@ -501,7 +593,8 @@ export class ViewportRuntime {
     const live = !!this.liveView;
     this.modelRoot.visible = this.viewToggles.mesh && !live;
     this.overlayRoot.visible = this.viewToggles.mesh && !live;
-    this.structure.root.visible = this.viewToggles.structure && !live;
+    this.structure.root.visible = (this.viewToggles.structure || !!this.edit) && !live;
+    this.editOverlay.root.visible = !!this.edit && !live;
     this.live.root.visible = live;
   }
 
@@ -560,16 +653,139 @@ export class ViewportRuntime {
     return [local.x, local.y, local.z];
   }
 
+  // ---------------------------------------------------------------- structure edit mode
+
+  /** Enter/update/leave edit mode. */
+  setEdit(view: EditView | null): void {
+    const was = !!this.edit;
+    this.edit = view;
+    if (!!view !== was) {
+      this.applyVisibility();
+      this.updateMouseButtons();
+      if (view) this.callbacks.onHover(null);
+    }
+    if (!view) {
+      this.editOverlay.set(null, 0);
+      this.gizmo.detach();
+      return;
+    }
+    const pos = new Map(view.nodes.map((n) => [n.id, n.pos]));
+    const beams = view.selectedBeams.map((k) => k.split('|') as [string, string]);
+    this.editOverlay.set(selectionData(pos, view.selectedNodes, beams), this.structure.nodeRadius * 1.7);
+    const picked = view.selectedNodes.map((id) => pos.get(id)).filter((p): p is Vec3 => !!p);
+    if (!picked.length) {
+      this.gizmo.detach();
+      return;
+    }
+    if (!this.gizmoStart) {
+      // Park the gizmo on the selection's centre (not mid-drag: then it's the preview moving).
+      let cx = 0;
+      let cy = 0;
+      let cz = 0;
+      for (const p of picked) {
+        cx += p[0];
+        cy += p[1];
+        cz += p[2];
+      }
+      this.pivot.position.set(cx / picked.length, cy / picked.length, cz / picked.length);
+    }
+    if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
+  }
+
+  /** Screen-right and screen-up as the nearest BeamNG axes, for arrow-key nudging. */
+  nudgeAxes(): { right: Vec3; up: Vec3 } {
+    this.editFrame.updateMatrixWorld(true);
+    const toLocal = this.editFrame.getWorldQuaternion(new Quaternion()).invert();
+    const snap = (v: Vector3): Vec3 => {
+      v.applyQuaternion(toLocal);
+      const c = [v.x, v.y, v.z];
+      const a = c.map(Math.abs);
+      const i = a.indexOf(Math.max(...a));
+      const out: Vec3 = [0, 0, 0];
+      out[i] = Math.sign(c[i]!) || 1;
+      return out;
+    };
+    return { right: snap(new Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion)), up: snap(new Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion)) };
+  }
+
+  private updateMouseButtons(): void {
+    const t = this.tool;
+    const gesture = !!this.edit || (!!t && (t.mode === 'box' || t.mode === 'lasso' || t.mode === 'paint'));
+    this.controls.mouseButtons = gesture ? { LEFT: -1 as MOUSE, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.ROTATE } : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
+  }
+
+  /** Canvas-pixel projection of a BeamNG-space point, or null when behind the camera. */
+  private projectEdit(p: Vec3, v: Vector3): [number, number] | null {
+    const rect = this.canvas.getBoundingClientRect();
+    v.set(p[0], p[1], p[2]).applyMatrix4(this.editFrame.matrixWorld).project(this.camera);
+    if (v.z > 1 || v.z < -1) return null;
+    return [((v.x + 1) / 2) * rect.width, ((1 - v.y) / 2) * rect.height];
+  }
+
+  /** Nearest node under the cursor (the front one when several overlap), else the nearest beam. */
+  private pickEdit(x: number, y: number): { node: string | null; beam: string | null } {
+    const view = this.edit;
+    if (!view) return { node: null, beam: null };
+    this.editFrame.updateMatrixWorld(true);
+    const v = new Vector3();
+    const screen = new Map<string, [number, number]>();
+    let best: string | null = null;
+    let bestScore = Infinity;
+    for (const n of view.nodes) {
+      const s = this.projectEdit(n.pos, v);
+      if (!s) continue;
+      screen.set(n.id, s);
+      const d = Math.hypot(s[0] - x, s[1] - y);
+      if (d > PICK_NODE_PX) continue;
+      const score = d + v.z * 4;
+      if (score < bestScore) {
+        bestScore = score;
+        best = n.id;
+      }
+    }
+    if (best) return { node: best, beam: null };
+    let beam: string | null = null;
+    let bestD = PICK_BEAM_PX;
+    for (const [a, b] of view.beams) {
+      const pa = screen.get(a);
+      const pb = screen.get(b);
+      if (!pa || !pb) continue;
+      const dx = pb[0] - pa[0];
+      const dy = pb[1] - pa[1];
+      const t = Math.max(0, Math.min(1, ((x - pa[0]) * dx + (y - pa[1]) * dy) / (dx * dx + dy * dy || 1)));
+      const d = Math.hypot(pa[0] + t * dx - x, pa[1] + t * dy - y);
+      if (d < bestD) {
+        bestD = d;
+        beam = beamKey(a, b);
+      }
+    }
+    return { node: null, beam };
+  }
+
+  private nodesInRect(x0: number, y0: number, x1: number, y1: number): string[] {
+    const view = this.edit;
+    if (!view) return [];
+    this.editFrame.updateMatrixWorld(true);
+    const lx = Math.min(x0, x1);
+    const hx = Math.max(x0, x1);
+    const ly = Math.min(y0, y1);
+    const hy = Math.max(y0, y1);
+    const v = new Vector3();
+    const out: string[] = [];
+    for (const n of view.nodes) {
+      const s = this.projectEdit(n.pos, v);
+      if (s && s[0] >= lx && s[0] <= hx && s[1] >= ly && s[1] <= hy) out.push(n.id);
+    }
+    return out;
+  }
+
   // ---------------------------------------------------------------- split tool
 
   /** Enter/leave/update the face-selection tool. */
   setTool(tool: ToolState | null): void {
     const prev = this.tool;
     this.tool = tool;
-    if (!!prev !== !!tool || prev?.mode !== tool?.mode) {
-      const gesture = !!tool && (tool.mode === 'box' || tool.mode === 'lasso' || tool.mode === 'paint');
-      this.controls.mouseButtons = gesture ? { LEFT: -1 as MOUSE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE } : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
-    }
+    if (!!prev !== !!tool || prev?.mode !== tool?.mode) this.updateMouseButtons();
     if (tool && !prev) this.callbacks.onHover(null);
     this.syncToolOverlay();
     this.syncPlane();
@@ -764,6 +980,10 @@ export class ViewportRuntime {
     this.resizeObserver.disconnect();
     for (const d of this.disposers) d();
     this.controls.dispose();
+    this.gizmo.detach();
+    this.gizmo.getHelper().removeFromParent();
+    this.gizmo.dispose();
+    this.editOverlay.dispose();
     // Only what this viewport created: imported geometry/materials belong to the scene store
     // (the viewport remounts on every layout change while the meshes live on).
     for (const o of this.owned) {

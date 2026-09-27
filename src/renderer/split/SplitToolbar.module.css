@@ -76,3 +76,9 @@
   stroke-width: var(--border-width);
   stroke-dasharray: 4 3;
 }
+
+.hint {
+  color: var(--text-2);
+  font-size: var(--text-label);
+  white-space: nowrap;
+}
