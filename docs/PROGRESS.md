@@ -14,8 +14,8 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | done (0.7.0) |
 | 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | done (0.8.0); UV/AO in 0.8.x |
-| 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | not started |
-| 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | not started |
+| 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | in progress (9a model/export, 9b Inspector section in 0.8.5) |
+| 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | in progress (10a/b in 0.9.0: workshop, sets, transplant, tuning) |
 | 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | not started |
 | 12 | Capability layer — tuning vars, lights/electrics/plate, glass, aero, skins, hitch, nitrous, global controls | — | not started |
 | 13 | Config Manager v2 + previews | — | not started |
@@ -48,6 +48,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.9.0 | Suspension workshop (Phase 10a/b): axles (format v11), Type → Brand → Car picker over 145 sets cut from the install, fit complete sets, jbeam transplant on export, tuning page |
 | 0.8.5 | Per-mesh move/turn/resize + mirror copies + per-mesh texture mapping (format v10), Inspector material quick edits, objects placed by corner, hinge section (9b), AC helper meshes hidden + gloss maps |
 | 0.8.4 | Library folders scanned at startup (your own materials and objects); 1,030 suspension/brake/steering parts cut from your BeamNG install into the objects library |
 | 0.8.3 | Assetto Corsa import: kn5 models, whole car folders (skins, data/ or data.acd, ui, extension), Reference car panel, painted liveries; kn5 dashes in the objects library |
