@@ -10,6 +10,7 @@ import { capturePreview } from '@renderer/panels/viewport/registry';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle } from '@shared/ipc-contract';
 import { buildJbeamFiles } from '@shared/export/jbeam';
+import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
 import { configInfo, DEFAULT_CONFIG, defaultConfig, exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
@@ -96,13 +97,41 @@ export function prepareExport(): PreparedExport | null {
     };
   });
   const dae = writeDae(daeMeshes, [...project.colors, ...mats.materials.map((m) => ({ name: m.name, color: m.baseColor }))]);
-  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data });
+  // Lights: materials used only by light parts glow with their signal (an "on" twin of each).
+  const partOf = (key: string) => doc.parts.find((p) => p.id === doc.assignments[key]);
+  const { glowMap, shared: sharedLights } = buildGlowMap(
+    daeMeshes.flatMap((dm, i) => {
+      const part = partOf(exported[i]!.key);
+      const light = part ? lightFunction(part.taxonomyId, part.position) : null;
+      return dm.materials.map((material) => ({ material, light }));
+    }),
+  );
+  const materialJsonAll: Record<string, unknown> = { ...project.json, ...materialsJson(slug, mats.materials) };
+  for (const name of Object.keys(glowMap)) {
+    const off = materialJsonAll[name] as { Stages?: Record<string, unknown>[] } | undefined;
+    if (!off) {
+      delete glowMap[name]; // a game material: its own glow is the game's business
+      continue;
+    }
+    const on = structuredClone(off) as { name?: string; mapTo?: string; Stages?: Record<string, unknown>[] };
+    on.name = onMaterialName(name);
+    on.mapTo = onMaterialName(name);
+    const stage = on.Stages?.[0];
+    if (stage) {
+      const color = Array.isArray(stage.baseColorFactor) ? (stage.baseColorFactor as number[]).slice(0, 3) : [1, 1, 1];
+      stage.emissiveFactor = color;
+      stage.glow = true;
+      if (typeof stage.baseColorMap === 'string') stage.emissiveMap = stage.baseColorMap;
+    }
+    materialJsonAll[onMaterialName(name)] = on;
+  }
+  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data, glowMap });
   const pc = defaultConfig(doc, tax);
   const root = `vehicles/${slug}`;
   const files: ExportBundle['files'] = [
     { path: `${root}/${slug}.dae`, text: dae },
     ...jbeams.map((j) => ({ path: `${root}/${j.file}`, text: j.text })),
-    { path: `${root}/main.materials.json`, text: `${JSON.stringify({ ...project.json, ...materialsJson(slug, mats.materials) }, null, 2)}\n` },
+    { path: `${root}/main.materials.json`, text: `${JSON.stringify(materialJsonAll, null, 2)}\n` },
     { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author), null, 2)}\n` },
     { path: `${root}/${DEFAULT_CONFIG}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` },
     { path: `${root}/info_${DEFAULT_CONFIG}.json`, text: `${JSON.stringify(configInfo(doc, tax, pc), null, 2)}\n` },
@@ -118,6 +147,7 @@ export function prepareExport(): PreparedExport | null {
     missingTextures,
     loadedMeshKeys: allMeshes.map((m) => m.key),
   });
+  for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {
     bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies },
     report,

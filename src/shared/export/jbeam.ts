@@ -34,6 +34,8 @@ export interface JbeamExportOptions {
   /** meshKey → exported DAE node name (only exported meshes). */
   meshNames: ReadonlyMap<string, string>;
   author: string;
+  /** Lights: material → signal and on/off materials, on the main part. */
+  glowMap?: Readonly<Record<string, { simpleFunction: JbeamValue; off: string; on: string }>>;
   /** Fitted suspensions' jbeam (by catalogue set id), brought over into the mod. */
   suspensions?: Readonly<Record<string, SuspensionSetData>>;
 }
@@ -308,6 +310,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     [slug]: {
       information: { authors: opts.author || 'JBeam Forge', name: doc.meta.name },
       slotType: 'main',
+      ...(opts.glowMap && Object.keys(opts.glowMap).length ? { glowMap: opts.glowMap as unknown as WritableValue } : {}),
       slots2: slotsFor(doc, roots, bodySlot),
     },
   };
