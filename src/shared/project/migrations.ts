@@ -100,7 +100,12 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     from: 11,
     describe: 'engine and gearbox',
-    migrate: (doc) => ({ ...doc, formatVersion: 12, powertrain: { engine: null, gearbox: null } }),
+    migrate: (doc) => ({
+      ...doc,
+      formatVersion: 12,
+      powertrain: { engine: null, gearbox: null },
+      axles: (Array.isArray(doc.axles) ? (doc.axles as Record<string, unknown>[]) : []).map((a) => ({ ...a, ownMeshes: [] })),
+    }),
   },
 ];
 

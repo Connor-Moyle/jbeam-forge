@@ -1066,15 +1066,15 @@ const scenarios = [
       await page.getByTestId('toggle-suspension').click();
       await page.getByRole('button', { name: 'Set up axles' }).click();
       await page.getByTestId('suspension-picker').waitFor();
-      await page.getByTestId('suspension-type').filter({ hasText: 'MacPherson strut' }).click();
+      await page.getByTestId('workshop-type').filter({ hasText: 'MacPherson strut' }).click();
       await page.waitForTimeout(800);
       await shot(page, 'suspension-brands');
-      await page.getByTestId('suspension-brand').filter({ hasText: 'ETK' }).click();
-      await page.getByTestId('suspension-vehicle').first().click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
       await page.waitForTimeout(3000);
       await shot(page, 'suspension-sets');
       const before = (await hook(page, 'sceneStats')).meshes;
-      await page.getByTestId('suspension-fit').first().click();
+      await page.getByTestId('workshop-fit').first().click();
       for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes === before; i++) await page.waitForTimeout(100);
       await page.getByTestId('suspension-panel').waitFor();
       const st = await hook(page, 'sceneStats');
@@ -1085,7 +1085,7 @@ const scenarios = [
       await shot(page, 'suspension-fitted');
       // Tuning page, then the jbeam brought over into the mod.
       await page.getByTestId('axle-tune').first().click();
-      await page.getByTestId('suspension-tuning').waitFor();
+      await page.getByTestId('workshop-tuning').waitFor();
       await page.waitForTimeout(800);
       await shot(page, 'suspension-tuning');
       const prepared = await hook(page, 'preparedJbeams');
@@ -1095,6 +1095,36 @@ const scenarios = [
       assert(root && /"f_[a-z0-9]+"/.test(root.text) && /parts_F_etk800_suspension_F/.test(prepared.files.map((f) => f.text).join(' ')), 'nodes renamed and the slot added');
       partsReport.jbeam = susp.map((f) => f.path);
       writeFileSync(join(outDir, 'suspension-root.jbeam'), root.text);
+
+      // Engine and gearbox workshop.
+      await page.getByTestId('toggle-powertrain').click();
+      await page.getByTestId('powertrain-panel').waitFor();
+      await page.getByTestId('engine-choose').click();
+      await page.getByTestId('workshop-type').filter({ hasText: 'Inline-6' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.waitForTimeout(3000);
+      await shot(page, 'engine-choices');
+      const before2 = (await hook(page, 'sceneStats')).meshes;
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
+      assert((await hook(page, 'sceneStats')).meshes > before2, 'engine fitted');
+      await page.getByTestId('gearbox-choose').click();
+      await page.getByTestId('workshop-type').filter({ hasText: 'Manual' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
+      await page.waitForTimeout(800);
+      await shot(page, 'powertrain-fitted');
+      const prepared2 = await hook(page, 'preparedJbeams');
+      const eng = prepared2.files.filter((f) => /parts_E_/.test(f.path));
+      const gbx = prepared2.files.filter((f) => /parts_G_/.test(f.path));
+      const allText = prepared2.files.map((f) => f.text).join(' ');
+      assert(eng.length >= 3 && gbx.length >= 1, `engine and gearbox jbeam brought over (${eng.length} + ${gbx.length})`);
+      assert(eng.some((f) => /"parts_G_[^"]*transmission/i.test(f.text)), "the engine's transmission slot points at the fitted gearbox");
+      assert(/parts_E_[^"]*engine/.test(allText), 'the body carries the engine slot');
+      partsReport.powertrain = { engine: eng.map((f) => f.path), gearbox: gbx.map((f) => f.path) };
       writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
     },
   },

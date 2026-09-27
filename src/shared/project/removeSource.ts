@@ -29,7 +29,10 @@ export function removeSourceFromDoc(d: Project, sourceId: string): void {
   for (const rec of [d.assignments, d.meshNames, d.materialSlots, d.meshEdits] as Record<string, unknown>[]) {
     for (const k of Object.keys(rec)) if (drop(k)) delete rec[k];
   }
-  for (const a of d.axles) if (a.fitted?.sourceId === sourceId) a.fitted = null;
+  for (const a of d.axles) {
+    if (a.fitted?.sourceId === sourceId) a.fitted = null;
+    a.ownMeshes = a.ownMeshes.filter((k) => !drop(k));
+  }
   if (d.powertrain.engine?.sourceId === sourceId) d.powertrain.engine = null;
   if (d.powertrain.gearbox?.sourceId === sourceId) d.powertrain.gearbox = null;
 }

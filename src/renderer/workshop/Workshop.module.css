@@ -23,7 +23,7 @@
   gap: var(--space-2);
 }
 
-.axle {
+.card {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -56,12 +56,12 @@
   gap: var(--space-2);
 }
 
-.fittedName {
+.cardTitle {
   color: var(--text-0);
   font-size: var(--text-control);
 }
 
-.pickerHead {
+.head {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -193,4 +193,28 @@
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: var(--space-2);
+}
+
+.spec {
+  color: var(--text-1);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.dyno {
+  width: 100%;
+  height: var(--size-control);
+  margin-top: var(--space-1);
+}
+
+.dynoTorque {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.dynoPower {
+  fill: none;
+  stroke: var(--warning);
+  stroke-width: 1.5;
 }

@@ -209,6 +209,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const setParts = new Set(fullDoc.parts.filter((p) => SET_KINDS.has(p.taxonomyId)).map((p) => p.id));
   const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
   const extraSlots: WritableValue[] = [];
+  const data = (setId: string) => opts.suspensions?.[setId];
   const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>) => {
     const data = opts.suspensions?.[setId];
     if (!data) return null;
@@ -222,7 +223,22 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   (fullDoc.axles ?? []).forEach((axle, i) => {
     if (!axle.fitted) return;
     const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), bodyNodes, axle.tuning);
-    if (t) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
+    if (!t) return;
+    extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
+    // The user's own meshes ride on the set's nodes (every node group the set's meshes used).
+    const own = axle.ownMeshes.filter((k) => opts.meshNames.has(k) && !fullDoc.ignoredMeshes.includes(k)).map((k) => opts.meshNames.get(k)!);
+    if (own.length) {
+      const groups = new Set<string>();
+      for (const p of Object.values(data(axle.fitted.setId)?.parts ?? {})) {
+        if (!Array.isArray(p.flexbodies)) continue;
+        for (const row of p.flexbodies.slice(1)) if (Array.isArray(row) && Array.isArray(row[1])) for (const g of row[1]) if (typeof g === 'string') groups.add(g);
+      }
+      const root = t.parts[t.rootPart]!;
+      const rows = Array.isArray(root.flexbodies) ? root.flexbodies : [['mesh', '[group]:', 'nonFlexMaterials']];
+      root.flexbodies = [...rows, ...own.map((m) => [m, [...groups]])];
+      const file = files.find((f) => f.part === t.rootPart);
+      if (file) file.text = serializeJbeam({ [t.rootPart]: root });
+    }
   });
   // The gearbox plugs into the engine's transmission slot (renamed ahead so the engine can point at it).
   const box = pt?.gearbox ? opts.suspensions?.[pt.gearbox.setId] : undefined;

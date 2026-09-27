@@ -245,6 +245,8 @@ export const AxleSchema = z.object({
   steered: z.boolean(),
   /** Tuning values for the fitted suspension's variables ($springheight_F…); unset = the game's default. */
   tuning: z.record(z.string(), z.number()),
+  /** The user's own meshes shown for this suspension instead of the game's (the game's jbeam still does the physics). */
+  ownMeshes: z.array(z.string()),
   fitted: z
     .object({
       /** Catalogue id (vehicle/part). */

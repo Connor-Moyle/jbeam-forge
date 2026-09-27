@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Box, CarFront, FileCode, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, type LucideIcon } from 'lucide-react';
+import { Box, CarFront, FileCode, Gauge, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 import { ScenePanel } from '@renderer/panels/ScenePanel';
 import { InspectorPanel } from '@renderer/panels/InspectorPanel';
 import { MaterialsPanel } from '@renderer/panels/MaterialsPanel';
@@ -10,6 +10,7 @@ import { JbeamPreviewPanel } from '@renderer/panels/JbeamPreviewPanel';
 import { ObjectsPanel } from '@renderer/panels/ObjectsPanel';
 import { ReferencePanel } from '@renderer/panels/ReferencePanel';
 import { SuspensionPanel } from '@renderer/suspension/SuspensionPanel';
+import { PowertrainPanel } from '@renderer/powertrain/PowertrainPanel';
 
 export interface PanelDef {
   title: string;
@@ -29,6 +30,7 @@ export const PANELS = {
   objects: { title: 'Objects', icon: Package, component: ObjectsPanel },
   reference: { title: 'Reference car', icon: CarFront, component: ReferencePanel },
   suspension: { title: 'Suspension', icon: Wrench, component: SuspensionPanel },
+  powertrain: { title: 'Engine & gearbox', icon: Gauge, component: PowertrainPanel },
   'kit-gallery': { title: 'Component Kit', icon: LayoutGrid, component: KitGalleryPanel, devOnly: true },
 } as const satisfies Record<string, PanelDef>;
 

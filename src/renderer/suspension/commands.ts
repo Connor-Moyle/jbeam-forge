@@ -40,9 +40,11 @@ export const useSetData = create<{ data: Record<string, SuspensionSetData>; ensu
   },
 }));
 
-/** Load the jbeam of every suspension fitted in the project. */
+/** Load the jbeam of every suspension, engine and gearbox fitted in the project. */
 export async function loadFittedSets(): Promise<void> {
-  const ids = (projectStore.getState().doc?.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.setId] : []));
+  const doc = projectStore.getState().doc;
+  const pt = doc?.powertrain;
+  const ids = [...(doc?.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.setId] : [])), ...(pt?.engine ? [pt.engine.setId] : []), ...(pt?.gearbox ? [pt.gearbox.setId] : [])];
   if (ids.length) await useSetData.getState().ensure(ids);
 }
 
@@ -70,8 +72,8 @@ export function setUpAxles(): void {
   }
   const track = (fl: number[], fr: number[]) => Math.max(0.5, Math.abs(fl[0]! - fr[0]!));
   const axles: Axle[] = [
-    { id: newId(), name: 'Front axle', y: (t.at.FL[1] + t.at.FR[1]) / 2, track: track(t.at.FL, t.at.FR), steered: true, tuning: {}, fitted: null },
-    { id: newId(), name: 'Rear axle', y: (t.at.RL[1] + t.at.RR[1]) / 2, track: track(t.at.RL, t.at.RR), steered: false, tuning: {}, fitted: null },
+    { id: newId(), name: 'Front axle', y: (t.at.FL[1] + t.at.FR[1]) / 2, track: track(t.at.FL, t.at.FR), steered: true, tuning: {}, ownMeshes: [], fitted: null },
+    { id: newId(), name: 'Rear axle', y: (t.at.RL[1] + t.at.RR[1]) / 2, track: track(t.at.RL, t.at.RR), steered: false, tuning: {}, ownMeshes: [], fitted: null },
   ];
   projectStore.getState().execute({ label: 'Set up axles', apply: (d) => void (d.axles = axles) });
   useSuspensionUi.getState().pick(axles[0]!.id);
@@ -82,7 +84,7 @@ export function addAxle(): void {
   const doc = projectStore.getState().doc;
   const last = doc?.axles.at(-1);
   if (!doc || !last) return setUpAxles();
-  const axle: Axle = { id: newId(), name: `Axle ${doc.axles.length + 1}`, y: last.y + 1.3, track: last.track, steered: false, tuning: {}, fitted: null };
+  const axle: Axle = { id: newId(), name: `Axle ${doc.axles.length + 1}`, y: last.y + 1.3, track: last.track, steered: false, tuning: {}, ownMeshes: [], fitted: null };
   projectStore.getState().execute({ label: 'Add axle', apply: (d) => void d.axles.push(axle) });
 }
 
@@ -198,4 +200,55 @@ export function setTuning(axleId: string, name: string, value: number | null): v
       else a.tuning[name] = value;
     },
   });
+}
+
+/**
+ * Show the user's own meshes for an axle's suspension: the game's set keeps
+ * doing the physics (its jbeam), its meshes are hidden and left out of the
+ * export, and the user's meshes ride on its nodes instead.
+ */
+export function showOwnMeshes(axleId: string, keys: readonly string[]): void {
+  const doc = projectStore.getState().doc;
+  const axle = doc?.axles.find((a) => a.id === axleId);
+  if (!doc || !axle?.fitted) return;
+  const setSource = axle.fitted.sourceId;
+  const own = keys.filter((k) => !k.startsWith(`${setSource}:`));
+  if (!own.length) {
+    useUiStore.getState().pushStatus('Select your suspension meshes first (arms, hubs, springs…), then choose Use my meshes.', 'warning');
+    return;
+  }
+  const setKeys = (useSceneStore.getState().sources[setSource]?.meshes ?? []).map((m) => m.key);
+  const partId = doc.assignments[setKeys[0] ?? ''];
+  projectStore.getState().execute({
+    label: 'Use my own suspension meshes',
+    apply: (d) => {
+      const a = d.axles.find((x) => x.id === axleId);
+      if (!a) return;
+      a.ownMeshes = own;
+      d.ignoredMeshes = [...new Set([...d.ignoredMeshes, ...setKeys])];
+      if (partId) for (const k of own) d.assignments[k] = partId;
+    },
+  });
+  useSceneStore.getState().setHidden(setKeys, true);
+  useUiStore.getState().pushStatus(`${own.length} of your meshes now ride on the ${axle.fitted.vehicle} suspension; its own meshes are hidden and won't be exported.`, 'success', 8000);
+}
+
+/** Back to the game's meshes for an axle's suspension. */
+export function showGameMeshes(axleId: string): void {
+  const doc = projectStore.getState().doc;
+  const axle = doc?.axles.find((a) => a.id === axleId);
+  if (!doc || !axle?.fitted) return;
+  const setKeys = new Set((useSceneStore.getState().sources[axle.fitted.sourceId]?.meshes ?? []).map((m) => m.key));
+  const own = axle.ownMeshes;
+  projectStore.getState().execute({
+    label: 'Use the game’s suspension meshes',
+    apply: (d) => {
+      const a = d.axles.find((x) => x.id === axleId);
+      if (!a) return;
+      a.ownMeshes = [];
+      d.ignoredMeshes = d.ignoredMeshes.filter((k) => !setKeys.has(k));
+      for (const k of own) delete d.assignments[k];
+    },
+  });
+  useSceneStore.getState().setHidden([...setKeys], false);
 }
