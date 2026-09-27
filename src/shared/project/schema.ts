@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { MaterialDefSchema } from '../materials/schema';
+import { HingeSchema } from '../hinges/schema';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -13,7 +14,7 @@ import { MaterialDefSchema } from '../materials/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 6;
+export const CURRENT_PROJECT_VERSION = 7;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -113,7 +114,8 @@ export const PartSchema = z.object({
 
 const Vec3 = z.tuple([z.number(), z.number(), z.number()]);
 export const NODE_ID = /^[A-Za-z][A-Za-z0-9_]*$/;
-export const BEAM_KINDS = ['edge', 'brace', 'attach'] as const;
+/** edge/brace: the part's own skin and bracing; attach: to its parent; hinge…popopen: a hinged part's hinge, limiter, seals and mounts (Phase 9). */
+export const BEAM_KINDS = ['edge', 'brace', 'attach', 'hinge', 'mount', 'limit', 'support', 'popopen'] as const;
 export const PROXY_MODE_VALUES = ['surface', 'decimate', 'hull', 'box', 'cylinder'] as const;
 export const BRACING_VALUES = ['none', 'light', 'standard', 'heavy'] as const;
 export const ATTACHMENT_STYLE_VALUES = ['bolted', 'clipped', 'rivets', 'welded'] as const;
@@ -177,9 +179,9 @@ export const ProxySectionSchema = z.object({
 /** Project-local taxonomy entries (from "Add Custom Part"). Shape is validated by the taxonomy module. */
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
-export const ProjectV6Schema = z.object({
+export const ProjectV7Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(6),
+  formatVersion: z.literal(7),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -200,14 +202,15 @@ export const ProjectV6Schema = z.object({
   materials: z.array(MaterialDefSchema),
   /** meshKey → material id per material slot of the mesh (split pieces fall back to their base mesh). */
   materialSlots: z.record(z.string(), z.array(z.string())),
-  hinges: placeholderList, // Phase 9
+  /** Hinged parts (Phase 9). Always empty before v7. */
+  hinges: z.array(HingeSchema),
   suspension: placeholderMap, // Phase 10
   powertrain: placeholderMap, // Phase 11
   configs: placeholderList, // Phase 13
   variables: placeholderList, // Phase 12
 });
 
-export const ProjectSchema = ProjectV6Schema;
+export const ProjectSchema = ProjectV7Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

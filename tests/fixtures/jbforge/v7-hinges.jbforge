@@ -1,0 +1,160 @@
+{
+  "format": "jbforge",
+  "formatVersion": 7,
+  "appVersion": "0.1.0",
+  "meta": {
+    "name": "Fixture Car v3",
+    "slug": "fixture_car_v3",
+    "author": "Fatkiwi",
+    "description": "Frozen v3 fixture (texture folders). Never edit.",
+    "brand": "Forge",
+    "type": "Car",
+    "createdAt": "2026-09-26T00:00:00.000Z",
+    "modifiedAt": "2026-09-26T00:00:00.000Z"
+  },
+  "sources": [
+    {
+      "id": "src_1",
+      "path": "models/test_car.dae",
+      "absolutePath": "C:/Projects/fixture/models/test_car.dae",
+      "format": "dae",
+      "import": {
+        "scale": 1,
+        "upAxis": "+y",
+        "forwardAxis": "+z"
+      },
+      "textureDirs": [
+        "C:/Projects/fixture/textures"
+      ],
+      "addedAt": "2026-09-26T00:00:00.000Z"
+    }
+  ],
+  "splits": [
+    {
+      "id": "split_1",
+      "meshKey": "src_1:body",
+      "name": "body_hood",
+      "triangleRuns": [
+        [
+          0,
+          12
+        ],
+        [
+          40,
+          8
+        ]
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "id": "part_body",
+      "taxonomyId": "main_body",
+      "name": "fixture_body",
+      "displayName": "Body",
+      "position": null,
+      "parentPartId": null,
+      "variantOf": null,
+      "price": 1000,
+      "description": "",
+      "constructionMaterial": "steel"
+    },
+    {
+      "id": "part_hood",
+      "taxonomyId": "hood",
+      "name": "fixture_hood",
+      "displayName": "Hood",
+      "position": null,
+      "parentPartId": "part_body",
+      "variantOf": null,
+      "price": null,
+      "description": "",
+      "constructionMaterial": "aluminium"
+    }
+  ],
+  "assignments": {
+    "src_1:body": "part_body",
+    "split:split_1": "part_hood"
+  },
+  "ignoredMeshes": [
+    "src_1:helper_plane"
+  ],
+  "meshNames": {
+    "src_1:body": {
+      "name": "main_body",
+      "manual": false
+    }
+  },
+  "customTaxonomy": [],
+  "proxy": {},
+  "nodes": [],
+  "beams": [],
+  "tris": [],
+  "materials": [
+    {
+      "id": "mat_body",
+      "name": "body",
+      "origin": {
+        "sourceId": "src_1",
+        "name": "body"
+      },
+      "layers": [
+        {
+          "baseColor": [
+            0.8,
+            0.1,
+            0.1,
+            1
+          ],
+          "metallic": 1,
+          "roughness": 0.3,
+          "opacity": 1,
+          "normalStrength": 1,
+          "clearCoat": 1,
+          "clearCoatRoughness": 0.05,
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveIntensity": 0,
+          "detailScale": [
+            1,
+            1
+          ],
+          "detailNormalStrength": 1,
+          "maps": {},
+          "uv2": [],
+          "instanceDiffuse": false,
+          "vertColor": false,
+          "glow": false,
+          "pixelSpecular": false,
+          "useAnisotropic": false,
+          "extra": {}
+        }
+      ],
+      "paint": true,
+      "translucent": false,
+      "blend": "None",
+      "translucentZWrite": false,
+      "translucentRecvShadows": true,
+      "alphaTest": false,
+      "alphaRef": 0,
+      "doubleSided": false,
+      "castShadows": true,
+      "dynamicCubemap": true,
+      "gameMaterial": null,
+      "extra": {}
+    }
+  ],
+  "materialSlots": {
+    "src_1:body": [
+      "mat_body"
+    ]
+  },
+  "hinges": [],
+  "suspension": {},
+  "powertrain": {},
+  "configs": [],
+  "variables": []
+}

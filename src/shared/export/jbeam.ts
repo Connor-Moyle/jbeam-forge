@@ -7,6 +7,9 @@ import { materialDefaults, partPrice } from '../parts/materials';
 import { ATTACHMENT_VALUES, BEAM_PRESET_VALUES, type BeamPresetId, type BeamValues } from '../proxy/presets';
 import { partRole, partSettings } from '../proxy/generate';
 import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
+import { couplerFor, type Hinge } from '../hinges/schema';
+import { hingeIds } from '../hinges/build';
+import { limiterBound } from '../hinges/geometry';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -20,7 +23,7 @@ import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy'>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -100,22 +103,45 @@ function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamP
   return [...table, { group: '' }];
 }
 
-function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES): WritableValue[] {
+function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined): WritableValue[] {
   const a = ATTACHMENT_VALUES[attachStyle];
   const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: DEFORM_LIMIT_EXPANSION };
-  const order = { edge: 0, brace: 1, attach: 2 } as const;
+  const order = { edge: 0, brace: 1, attach: 2, mount: 3, hinge: 4, limit: 5, support: 6, popopen: 7 } as const;
   const sorted = [...beams].sort((x, y) => order[x.kind] - order[y.kind]);
   const records: WritableRecord[] = sorted.map((b) => {
     const values = { 'id1:': b.id1, 'id2:': b.id2 };
-    const v = beamPhysics(b.kind, preset, attachStyle, part.name);
-    return { values, options: { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}) } };
+    // The limiter's bound comes from the opening angle and where its two ends are.
+    const p1 = pos(b.id1);
+    const p2 = pos(b.id2);
+    const bound = b.kind === 'limit' && hinge && p1 && p2 ? limiterBound(p1, p2, hinge.axis, hinge.openAngle * hinge.direction) : 1;
+    const v = beamPhysics(b.kind, preset, attachStyle, part.name, hinge, bound);
+    const special: JbeamObject = v.beamType
+      ? {
+          beamType: `|${v.beamType}`,
+          beamPrecompression: v.precompression ?? 1,
+          beamLongBound: num(v.longBound ?? 1),
+          beamShortBound: num(v.shortBound ?? 1),
+          beamLimitSpring: v.limitSpring ?? 0,
+          beamLimitDamp: v.limitDamp ?? 0,
+          breakGroupType: v.breakGroupType ?? 0,
+        }
+      : {};
+    return { values, options: { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}), ...special } };
   });
   const comments = new Map<number, string>();
   const firstBrace = sorted.findIndex((b) => b.kind === 'brace');
   const firstAttach = sorted.findIndex((b) => b.kind === 'attach');
+  const firstHinge = sorted.findIndex((b) => b.kind === 'mount' || b.kind === 'hinge');
+  const firstLimit = sorted.findIndex((b) => b.kind === 'limit');
+  const firstSeal = sorted.findIndex((b) => b.kind === 'support');
+  const firstPop = sorted.findIndex((b) => b.kind === 'popopen');
   if (sorted.length) comments.set(0, 'skin');
   if (firstBrace > 0) comments.set(firstBrace, 'bracing');
   if (firstAttach >= 0) comments.set(firstAttach, `attachment to parent (${a.label.toLowerCase()})`);
+  if (firstHinge >= 0) comments.set(firstHinge, 'hinge');
+  if (firstLimit >= 0) comments.set(firstLimit, `opening limit (${hinge?.openAngle ?? '?'}°)`);
+  if (firstSeal >= 0) comments.set(firstSeal, 'seal supports');
+  if (firstPop >= 0) comments.set(firstPop, 'pops open when unlatched');
   const table = writeTable(['id1:', 'id2:'], records, { resetValues: { breakGroup: '' }, comments });
   return firstAttach >= 0 && a.breakGroup ? [...table, { breakGroup: '' }] : table;
 }
@@ -199,12 +225,87 @@ export function buildJbeamFiles(doc: Doc, tax: TaxonomyLookup, opts: JbeamExport
     }
     if (meshes.length && group) content.flexbodies = [['mesh', '[group]:', 'nonFlexMaterials'], ...meshes.map((m) => [m, [group]] as WritableValue[])];
     if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset);
-    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment);
+    const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
+    const posOf = (id: string) => doc.nodes.find((n) => n.id === id)?.pos;
+    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf);
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset);
+    if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
     const doc1: WritableObject = { [part.name]: content };
     files.push({ file: `${part.name}.jbeam`, part: part.name, text: serializeJbeam(doc1) });
   }
   return files;
+}
+
+/**
+ * The latch coupler, handle triggers and the input action wiring of a hinged
+ * part, in the form the stock doors use (advancedCouplerControl + triggers2).
+ */
+function hingeSections(doc: Doc, part: Part, hinge: Hinge, nodes: readonly StructNode[]): Record<string, WritableValue> {
+  const ids = hingeIds(doc, part.id);
+  const out: Record<string, WritableValue> = {};
+  const coupler = couplerFor(hinge.action);
+  if (ids.latchPart && ids.latchBody) {
+    out.controller = [['fileName'], ['advancedCouplerControl', { name: coupler }]];
+    out[coupler] = {
+      couplerNodes: [
+        ['cid1', 'cid2', 'autoCouplingStrength', 'autoCouplingRadius', 'autoCouplingLockRadius', 'autoCouplingSpeed', 'couplingStartRadius', 'breakGroup'],
+        [ids.latchBody, ids.latchPart, hinge.latchStrength, hinge.autoLatch ? 0.01 : 0, 0.005, 0.2, 0.1, `${part.name}_latch`],
+      ],
+      groupType: 'autoCoupling',
+      attachSoundVolume: 1,
+      detachSoundVolume: 1,
+      'soundNode:': [ids.latchPart],
+      attachSoundEvent: 'event:>Vehicle>Latches>Door>modern_06_close',
+      detachSoundEvent: 'event:>Vehicle>Latches>Door>modern_06_open',
+      breakSoundEvent: '',
+      openForceMagnitude: 50,
+      openForceDuration: 0.45,
+      closeForceMagnitude: 60,
+      closeForceDuration: 0.5,
+    };
+  }
+  // Trigger ids: the action for the first outside handle (the stock convention), _int for inside, numbered after that.
+  const used = new Map<string, number>();
+  const triggers = hinge.handles.map((h) => {
+    const t = triggerFrame(nodes, h.pos);
+    const base = h.inside ? `${hinge.action}_int` : hinge.action;
+    const n = (used.get(base) ?? 0) + 1;
+    used.set(base, n);
+    const id = n === 1 ? base : `${base}${n}`;
+    const size = h.inside ? { x: 0.12, y: 0.03, z: 0.08 } : { x: 0.16, y: 0.03, z: 0.05 };
+    return { id, row: [id, t.ref, t.x, t.y, 'box', size, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, t.offset] as WritableValue[] };
+  });
+  if (triggers.length) {
+    out.triggers2 = [['id', 'idRef:', 'idX:', 'idY:', 'type', 'size', 'baseRotation', 'rotation', 'translation', 'baseTranslation'], ...triggers.map((t) => t.row)];
+    out.triggerEventLinks2 = [['triggerId:triggers2', 'triggerInput', 'inputAction'], ...triggers.map((t) => [t.id, 'action0', hinge.action])];
+  }
+  out.actionsEnabled = [['id'], [hinge.action]];
+  return out;
+}
+
+/**
+ * A trigger box is placed relative to three of the part's nodes: the
+ * reference node, one towards its X and one towards its Y. The box centre is
+ * the handle position in that frame.
+ */
+function triggerFrame(nodes: readonly StructNode[], at: readonly number[]): { ref: string; x: string; y: string; offset: JbeamObject } {
+  const byDist = [...nodes].sort((a, b) => Math.hypot(a.pos[0] - at[0]!, a.pos[1] - at[1]!, a.pos[2] - at[2]!) - Math.hypot(b.pos[0] - at[0]!, b.pos[1] - at[1]!, b.pos[2] - at[2]!));
+  const ref = byDist[0]!;
+  const sub = (p: readonly number[], q: readonly number[]) => [p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!];
+  const norm = (v: number[]) => {
+    const l = Math.hypot(v[0]!, v[1]!, v[2]!) || 1;
+    return v.map((c) => c / l);
+  };
+  const dot = (a: number[], b: number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+  // X towards the next node; Y towards the first node that isn't along X.
+  const xNode = byDist.find((n) => n !== ref && Math.hypot(...sub(n.pos, ref.pos)) > 0.02) ?? byDist[1]!;
+  const ex = norm(sub(xNode.pos, ref.pos));
+  const yNode = byDist.find((n) => n !== ref && n !== xNode && Math.abs(dot(norm(sub(n.pos, ref.pos)), ex)) < 0.9) ?? byDist[2]!;
+  const yRaw = sub(yNode.pos, ref.pos);
+  const ey = norm(yRaw.map((c, i) => c - dot(yRaw, ex) * ex[i]!));
+  const ez = [ex[1]! * ey[2]! - ex[2]! * ey[1]!, ex[2]! * ey[0]! - ex[0]! * ey[2]!, ex[0]! * ey[1]! - ex[1]! * ey[0]!];
+  const d = sub(at, ref.pos);
+  return { ref: ref.id, x: xNode.id, y: yNode.id, offset: { x: num(dot(d, ex)), y: num(dot(d, ey)), z: num(dot(d, ez)) } };
 }
 
 /** Chase camera sized from the body (official Sunburst: distance 5.1 for a ~4.3 m car). */

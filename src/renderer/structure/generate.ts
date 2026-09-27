@@ -85,7 +85,7 @@ export async function generateParts(partIds: readonly string[], label?: string):
     // then commit it as one undoable assignment.
     const base = projectStore.getState().doc;
     if (!base) return [];
-    const work = { parts: base.parts, nodes: [...base.nodes], beams: [...base.beams], tris: [...base.tris], proxy: { parts: { ...base.proxy.parts }, refNodes: base.proxy.refNodes } };
+    const work = { parts: base.parts, hinges: base.hinges, nodes: [...base.nodes], beams: [...base.beams], tris: [...base.tris], proxy: { parts: { ...base.proxy.parts }, refNodes: base.proxy.refNodes } };
     const r = generateStructure(work, currentTaxonomy(), geometries);
     const genMs = Math.round(performance.now() - started);
     projectStore.getState().execute({

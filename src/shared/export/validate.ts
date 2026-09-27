@@ -8,7 +8,7 @@ import { bodyPart, flexGroupOf, slotTypeOf, type TaxonomyLookup } from './jbeam'
  * broken in-game; warnings don't.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy'>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'>;
 
 export interface ExportIssue {
   code: string;
@@ -82,7 +82,7 @@ export function validateExport(doc: Doc, tax: TaxonomyLookup, input: ValidationI
       const name = input.meshNames.get(k);
       if (!name || !input.daeNodes.has(name)) err('flexbody-missing-mesh', `${part.displayName}: mesh ${k.slice(k.indexOf(':') + 1)} is not in the exported DAE.`, part.id);
     }
-    if (entry.openable && hasNodes) warn('openable-unhinged', `${part.displayName} opens, but until hinges are added (Phase 9) it is bolted shut.`, part.id);
+    if (entry.openable && hasNodes && !doc.hinges.some((h) => h.partId === part.id)) warn('openable-unhinged', `${part.displayName} opens, but it has no hinge yet, so it is bolted shut. Add one from the Inspector.`, part.id);
   }
 
   if (body && doc.nodes.some((n) => n.partId === body.id)) {

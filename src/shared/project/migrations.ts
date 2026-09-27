@@ -66,6 +66,14 @@ export const MIGRATIONS: readonly Migration[] = [
       return { ...doc, formatVersion: 6, materials: [], materialSlots: {} };
     },
   },
+  {
+    from: 6,
+    describe: 'hinges (typed) and hinge beam kinds',
+    migrate: (doc) => {
+      if (Array.isArray(doc.hinges) && doc.hinges.length) throw new Error('v6 project has hinges, which no v6 app could write');
+      return { ...doc, formatVersion: 7, hinges: [] };
+    },
+  },
 ];
 
 export class MigrationError extends Error {

@@ -6,6 +6,7 @@ import type { ProxyMesh } from './mesh';
 import { attachToParent, deriveStructure, FAR_FROM_PARENT, parentGap, placeRefNodes, positionTag, predictStability, presetSprings, type StabilityReport } from './derive';
 import { BEAM_PRESET_VALUES, kindDefaults, targetVertices } from './presets';
 import { adoptManualNodes } from '../structure/edit';
+import { applyHinge } from '../hinges/apply';
 
 /**
  * Generate parts' structure into the document (SPEC §4.4). Pure: works on
@@ -13,7 +14,7 @@ import { adoptManualNodes } from '../structure/edit';
  * render geometry. Requires `await meshoptReady` beforehand.
  */
 
-type Doc = Pick<Project, 'parts' | 'nodes' | 'beams' | 'tris' | 'proxy'>;
+type Doc = Pick<Project, 'parts' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -157,7 +158,9 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
 
     const attach = attachBeams(doc, part, entry, partNodes, settings.attachment);
     doc.beams.push(...attach.beams);
-    if (attach.warning) warnings.push(attach.warning);
+    // A hinged part swaps its temporary bolts for its hinge, limiter and latch.
+    const hinged = hingeUp(doc, part, entry);
+    if (attach.warning && !hinged) warnings.push(attach.warning);
     doc.proxy.parts[partId] = settings;
     regenerated.add(partId);
 
@@ -177,6 +180,7 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     if (!entry || !nodes.length) continue;
     doc.beams = doc.beams.filter((b) => !(b.partId === child.id && b.kind === 'attach'));
     doc.beams.push(...attachBeams(doc, child, entry, nodes, partSettings(doc, child, entry).attachment).beams);
+    hingeUp(doc, child, entry);
   }
 
   // refNodes follow the body (placed once, or re-placed when the body regenerates).
@@ -185,6 +189,14 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     doc.proxy.refNodes = placeRefNodes(doc.nodes.filter((n) => n.partId === body.id));
   }
   return { reports, skipped, notProxies };
+}
+
+/** Build the part's hinge if it has one (true when built). */
+export function hingeUp(doc: Doc, part: Part, entry: TaxonomyEntry): boolean {
+  const hinge = doc.hinges.find((h) => h.partId === part.id);
+  if (!hinge || !part.parentPartId) return false;
+  const parentIds = new Set(swapSafeParentNodes(doc, part.parentPartId).map((n) => n.id));
+  return applyHinge(doc, hinge, parentIds, nodePrefix(part, entry));
 }
 
 function attachBeams(doc: Doc, part: Part, entry: TaxonomyEntry, nodes: readonly StructNode[], style: PartProxy['attachment']) {
