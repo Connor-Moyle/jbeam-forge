@@ -22,8 +22,11 @@ if (!process.argv.includes('--no-build')) execSync('npm run dist', { cwd: root, 
 const assets = [`JBeam-Forge-Setup-${version}.exe`, `JBeam-Forge-${version}-portable.exe`].map((f) => join(root, 'release', f));
 for (const a of assets) if (!existsSync(a)) throw new Error(`Missing build output: ${a}`);
 // The material pack as its own download, when it was built for this version.
-const pack = join(root, 'release', `JBeam-Forge-Materials-${version}.zip`);
-if (existsSync(pack)) assets.push(pack);
+// The optional packs, each its own download.
+for (const name of ['Materials', 'Objects']) {
+  const pack = join(root, 'release', `JBeam-Forge-${name}-${version}.zip`);
+  if (existsSync(pack)) assets.push(pack);
+}
 
 const [titleLine, ...body] = readFileSync(notesPath, 'utf8').split('\n');
 const title = titleLine.replace(/^#\s*/, '').trim();
