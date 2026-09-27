@@ -17,7 +17,7 @@ import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
-import { collectMaterials, createTextureNamer, projectMaterialExport } from './materials';
+import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson } from './materials';
 
 const logger = rlog('export');
 
@@ -108,7 +108,7 @@ export function prepareExport(): PreparedExport | null {
       return dm.materials.map((material) => ({ material, light }));
     }),
   );
-  const materialJsonAll: Record<string, unknown> = { ...project.json, ...materialsJson(slug, mats.materials) };
+  const materialJsonAll: Record<string, unknown> = { ...project.json, ...materialsJson(slug, mats.materials), ...skinMaterialsJson(slug, doc.materials, doc.features.skins, project.names, namer) };
   for (const name of Object.keys(glowMap)) {
     const off = materialJsonAll[name] as { Stages?: Record<string, unknown>[] } | undefined;
     if (!off) {

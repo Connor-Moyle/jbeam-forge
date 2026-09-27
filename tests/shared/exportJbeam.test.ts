@@ -134,6 +134,38 @@ describe('jbeam export', () => {
     expect(beams.some((r) => r.options.deformGroup === flex.options.deformGroup && r.options.deformationTriggerRatio === 0.02)).toBe(true);
   });
 
+  it('writes licence plates, a tow hitch and paint designs the way the stock cars do', () => {
+    const { doc, meshes } = carProject();
+    doc.features = {
+      plates: { front: { partId: 'p_bumper', pos: [0, -2.31, 0.4], tilt: 5 }, rear: { partId: 'gone', pos: [0, 2.02, 0.6], tilt: 0 } },
+      hitch: { partId: 'p_body', pos: [0, 2.1, 0.35] },
+      nitrous: { partId: 'p_body', pos: [0, 1.5, 0.5], bottle: '10lb', shotKw: 100 },
+      skins: [{ id: 'k1', name: 'Race Stripes', overrides: {} }],
+    };
+    const files = new Map(buildJbeamFiles(doc, tax, { meshNames: exportMeshNames(doc, meshes), author: 'x' }).map((f) => [f.part, parsePart(f.text)[1]]));
+    // Nitrous needs an engine; there's none fitted.
+    expect([...files.keys()].filter((k) => /plate|hitch|n2o|skin/.test(k)).sort()).toEqual(['test_licenseplate_F', 'test_licenseplate_R', 'test_skin_race_stripes', 'test_towhitch']);
+    const slotNames = (part: string) => readTable(files.get(part)!.slots2!).records.map((r) => r.values.name);
+    // The front plate hangs on the bumper's slot (both variants); the rear's mount is gone, so it goes on the body.
+    expect(slotNames('test_bumper_F')).toContain('test_licenseplate_F');
+    expect(slotNames('test_bumper_F_race')).toContain('test_licenseplate_F');
+    expect(slotNames('test_body')).toEqual(expect.arrayContaining(['test_licenseplate_R', 'test_towhitch']));
+    expect(slotNames('test')).toEqual(expect.arrayContaining(['paint_design', 'skin_glass', 'licenseplate_design_2_1']));
+    const front = readTable(files.get('test_licenseplate_F')!.flexbodies!).records[0]!;
+    expect(front.values.mesh).toBe('licenseplate');
+    expect(front.values['[group]:']).toEqual(['test_bumper_F']);
+    expect(front.inlineOptions).toMatchObject({ pos: { x: 0, y: -2.31, z: 0.4 }, rot: { x: 5, y: 0, z: 0 } });
+    expect(readTable(files.get('test_licenseplate_R')!.flexbodies!).records[0]!.inlineOptions).toMatchObject({ rot: { z: 180 } });
+    const hitch = files.get('test_towhitch')!;
+    const node = readTable(hitch.nodes!).records[0]!;
+    expect(node.options).toMatchObject({ couplerTag: 'tow_hitch' });
+    const bodyIds = new Set(doc.nodes.filter((n) => n.partId === 'p_body').map((n) => n.id));
+    const anchors = readTable(hitch.beams!).records.map((r) => r.values['id2:']);
+    expect(anchors).toHaveLength(6);
+    expect(anchors.every((id) => bodyIds.has(id as string))).toBe(true);
+    expect(files.get('test_skin_race_stripes')).toMatchObject({ slotType: 'paint_design', globalSkin: 'race_stripes' });
+  });
+
   it('resolves configurations: slots, overrides, empty slots and what ends up on the car', () => {
     const { doc } = carProject();
     const slots = slotChoices(doc, tax);

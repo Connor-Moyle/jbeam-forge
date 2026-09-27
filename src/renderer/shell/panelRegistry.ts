@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Box, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, type LucideIcon } from 'lucide-react';
+import { Box, BadgePlus, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, type LucideIcon } from 'lucide-react';
 import { ScenePanel } from '@renderer/panels/ScenePanel';
 import { InspectorPanel } from '@renderer/panels/InspectorPanel';
 import { MaterialsPanel } from '@renderer/panels/MaterialsPanel';
@@ -12,6 +12,7 @@ import { ReferencePanel } from '@renderer/panels/ReferencePanel';
 import { SuspensionPanel } from '@renderer/suspension/SuspensionPanel';
 import { PowertrainPanel } from '@renderer/powertrain/PowertrainPanel';
 import { ConfigsPanel } from '@renderer/configs/ConfigsPanel';
+import { FeaturesPanel } from '@renderer/features/FeaturesPanel';
 
 export interface PanelDef {
   title: string;
@@ -33,6 +34,7 @@ export const PANELS = {
   suspension: { title: 'Suspension', icon: Wrench, component: SuspensionPanel },
   powertrain: { title: 'Engine & gearbox', icon: Gauge, component: PowertrainPanel },
   configs: { title: 'Configurations', icon: ListTree, component: ConfigsPanel },
+  features: { title: 'Extras', icon: BadgePlus, component: FeaturesPanel },
   'kit-gallery': { title: 'Component Kit', icon: LayoutGrid, component: KitGalleryPanel, devOnly: true },
 } as const satisfies Record<string, PanelDef>;
 

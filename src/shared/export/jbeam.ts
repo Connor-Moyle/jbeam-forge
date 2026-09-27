@@ -11,6 +11,7 @@ import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
+import { buildFeatureParts } from './features';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -24,7 +25,7 @@ import { definedNodes, transplantSuspension } from '../suspension/transplant';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -315,13 +316,33 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   };
   const roots = doc.parts.filter((p) => !p.parentPartId || !byId.has(p.parentPartId));
   const bodySlot = body ? slotTypeOf(doc.parts, body) : null;
+  const ownNodes = (part: Part) => {
+    const entry = tax.entry(part.taxonomyId);
+    return entry && partRole(entry, partSettings(doc, part, entry)) === 'own' ? doc.nodes.filter((n) => n.partId === part.id) : [];
+  };
+  const groupOf = (part: Part) => (ownNodes(part).length ? slotTypeOf(doc.parts, part) : flexGroupOf(doc, part));
+
+  // Plates, tow hitch, nitrous, paint designs, and the game's global slots.
+  const fx = buildFeatureParts(fullDoc.features ?? { plates: { front: null, rear: null }, hitch: null, nitrous: null, skins: [] }, {
+    slug,
+    author: opts.author,
+    groupOf: (id) => {
+      const p = byId.get(id);
+      return p ? groupOf(p) : null;
+    },
+    nodes: bodyNodes.map((n) => ({ id: n.id, pos: n.pos, partId: n.partId })),
+    hasPart: (id) => !!byId.get(id) && !!tax.entry(byId.get(id)!.taxonomyId),
+    bodyPartId: body?.id ?? null,
+    hasEngine: !!pt?.engine && !!opts.suspensions?.[pt.engine.setId],
+  });
+  for (const [name, content] of Object.entries(fx.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
 
   const main: WritableObject = {
     [slug]: {
       information: { authors: opts.author || 'JBeam Forge', name: doc.meta.name },
       slotType: 'main',
       ...(opts.glowMap && Object.keys(opts.glowMap).length ? { glowMap: opts.glowMap as unknown as WritableValue } : {}),
-      slots2: slotsFor(doc, roots, bodySlot),
+      slots2: [...slotsFor(doc, roots, bodySlot), ...fx.mainSlots],
     },
   };
   files.push({ file: `${slug}.jbeam`, part: slug, text: serializeJbeam(main) });
@@ -338,7 +359,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const settings = partSettings(doc, part, entry);
     const preset = materialDefaults(entry, part.constructionMaterial).beamPreset;
     const own = partRole(entry, settings) === 'own';
-    const nodes = own ? doc.nodes.filter((n) => n.partId === part.id) : [];
+    const nodes = own ? ownNodes(part) : [];
     const beams = own ? doc.beams.filter((b) => b.partId === part.id) : [];
     const tris = own ? doc.tris.filter((t) => t.partId === part.id) : [];
     const slotType = slotTypeOf(doc.parts, part);
@@ -352,7 +373,10 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const kids = childrenOf(part);
     if (kids.length) content.slots2 = slotsFor(doc, kids, null);
     // The body carries the fitted suspensions' slots.
-    if (part.id === body?.id && extraSlots.length) content.slots2 = [...((content.slots2 as WritableValue[] | undefined) ?? [['name', 'allowTypes', 'denyTypes', 'default', 'description']]), ...extraSlots];
+    // Plates and the hitch hang on the mount's slot, so every variant of it carries them.
+    const featureSlots = doc.parts.filter((p) => slotTypeOf(doc.parts, p) === slotType).flatMap((p) => fx.partSlots.get(p.id) ?? []);
+    const moreSlots = [...(part.id === body?.id ? extraSlots : []), ...featureSlots];
+    if (moreSlots.length) content.slots2 = [...((content.slots2 as WritableValue[] | undefined) ?? [['name', 'allowTypes', 'denyTypes', 'default', 'description']]), ...moreSlots];
     if (part.id === body?.id && doc.proxy.refNodes) {
       const r = doc.proxy.refNodes;
       content.refNodes = [['ref:', 'back:', 'left:', 'up:', 'leftCorner:', 'rightCorner:'], [r.ref, r.back, r.left, r.up, r.leftCorner, r.rightCorner]];

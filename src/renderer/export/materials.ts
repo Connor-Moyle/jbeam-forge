@@ -2,6 +2,8 @@ import { Color, DoubleSide, SRGBColorSpace, Texture, type Material } from 'three
 import { exportMaterialName, type ExportMaterial } from '@shared/export/files';
 import { materialJson } from '@shared/materials/beamng';
 import type { MaterialDef } from '@shared/materials/schema';
+import type { Skin } from '@shared/project/schema';
+import { skinMaterialName } from '@shared/export/features';
 import { previewLayer } from '@renderer/materials/runtime';
 
 /**
@@ -70,6 +72,28 @@ export function projectMaterialExport(slug: string, defs: readonly MaterialDef[]
     colors.push({ name, color: [...previewLayer(def).baseColor] });
   }
   return { names, json, colors, copies: namer.copies };
+}
+
+/**
+ * Paint designs: each overridden material again as `<name>.skin.<skin>`, with
+ * the skin's colour or texture on its first layer. The game swaps them in
+ * when the design is picked.
+ */
+export function skinMaterialsJson(slug: string, defs: readonly MaterialDef[], skins: readonly Skin[], names: ReadonlyMap<string, string>, namer: ReturnType<typeof createTextureNamer>): Record<string, unknown> {
+  const json: Record<string, unknown> = {};
+  const byId = new Map(defs.map((d) => [d.id, d]));
+  for (const skin of skins) {
+    for (const [id, o] of Object.entries(skin.overrides)) {
+      const def = byId.get(id);
+      const name = names.get(id);
+      if (!def || !name || def.gameMaterial || (!o.baseColor && !o.baseColorMap)) continue;
+      const [first, ...rest] = def.layers;
+      const layer = { ...first!, baseColor: o.baseColor ?? first!.baseColor, maps: { ...first!.maps, ...(o.baseColorMap ? { baseColorMap: o.baseColorMap } : {}) } };
+      const skinName = skinMaterialName(name, skin);
+      json[skinName] = materialJson({ ...def, layers: [layer, ...rest] }, skinName, (path) => `/vehicles/${slug}/${namer.file(path)}`);
+    }
+  }
+  return json;
 }
 
 export function collectMaterials(slug: string, materials: Iterable<Material>, namer = createTextureNamer(slug), taken = new Set<string>()): MaterialExport {

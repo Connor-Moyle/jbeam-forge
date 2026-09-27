@@ -29,6 +29,7 @@
     "make-icon": "node scripts/make-icon.mjs",
     "dist": "electron-vite build && electron-builder --win --publish never",
     "release": "node scripts/release.mjs",
+    "regress": "node scripts/regress.mjs",
     "study-prices": "tsx --tsconfig tsconfig.node.json scripts/study-prices.ts",
     "project-bench": "tsx --tsconfig tsconfig.node.json scripts/project-bench.ts",
     "build-material-pack": "tsx --tsconfig tsconfig.node.json scripts/build-material-pack.ts",

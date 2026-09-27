@@ -119,6 +119,11 @@ export const MIGRATIONS: readonly Migration[] = [
     // The configs placeholder was always empty.
     migrate: (doc) => ({ ...doc, formatVersion: 14, configs: [] }),
   },
+  {
+    from: 14,
+    describe: 'plates, tow hitch, nitrous and paint designs',
+    migrate: (doc) => ({ ...doc, formatVersion: 15, features: { plates: { front: null, rear: null }, hitch: null, nitrous: null, skins: [] } }),
+  },
 ];
 
 export class MigrationError extends Error {

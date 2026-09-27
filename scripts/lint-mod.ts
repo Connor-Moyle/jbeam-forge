@@ -63,11 +63,14 @@ for (const f of daeFiles) {
 const slotTypes = new Set([...parts.values()].map((p) => s(p.slotType)));
 const partsBySlot = new Map<string, string[]>();
 for (const [name, p] of parts) partsBySlot.set(s(p.slotType), [...(partsBySlot.get(s(p.slotType)) ?? []), name]);
+// Filled by the game's own common parts (every stock car declares them), and meshes from vehicles/common.
+const GAME_SLOT_TYPES = new Set(['paint_design', 'skin_glass', 'licenseplate_design_2_1']);
+const GAME_MESHES = new Set(['licenseplate', 'towhitch', 'n2o_bottle_10lb', 'n2o_bottle_20lb']);
 for (const [name, p] of parts) {
   if (!p.slots2) continue;
   for (const r of readTable(p.slots2).records) {
     const allow = r.values.allowTypes;
-    for (const t of Array.isArray(allow) ? allow : []) if (!slotTypes.has(s(t))) errors.push(`${name}: slot ${s(r.values.name)} allows "${s(t)}" but no part has that slotType`);
+    for (const t of Array.isArray(allow) ? allow : []) if (!slotTypes.has(s(t)) && !GAME_SLOT_TYPES.has(s(t))) errors.push(`${name}: slot ${s(r.values.name)} allows "${s(t)}" but no part has that slotType`);
     const def = s(r.values.default);
     if (def && !parts.has(def)) errors.push(`${name}: slot ${s(r.values.name)} defaults to missing part ${def}`);
   }
@@ -121,7 +124,7 @@ for (const name of installed) {
     for (const r of readTable(p.flexbodies).records) {
       flexCount++;
       const mesh = s(r.values.mesh);
-      if (!daeNodes.has(mesh)) errors.push(`${name}: flexbody mesh ${mesh} is not in the DAE`);
+      if (!daeNodes.has(mesh) && !GAME_MESHES.has(mesh)) errors.push(`${name}: flexbody mesh ${mesh} is not in the DAE`);
       const gs = r.values['[group]:'];
       for (const g of Array.isArray(gs) ? gs : []) if (!groups.has(s(g))) errors.push(`${name}: flexbody ${mesh} binds to node group ${s(g)}, which no installed part has`);
     }

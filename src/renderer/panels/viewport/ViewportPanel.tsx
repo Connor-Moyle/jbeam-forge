@@ -26,6 +26,8 @@ import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simSession';
 import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
 import { useHingeUi } from '@renderer/hinges/commands';
+import { useFeatureUi } from '@renderer/features/commands';
+import { PLATE_SIZE } from '@shared/export/features';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
 import { Focus, Move, Rotate3d, Scaling, X } from 'lucide-react';
@@ -222,6 +224,16 @@ export function ViewportPanel() {
     };
     pushHinge();
     const unsubscribeHinge = useHingeUi.subscribe(pushHinge);
+    // Extras preview: plates, tow ball and nitrous bottle where they'll go.
+    const pushFeatures = () => {
+      const f = projectStore.getState().doc?.features;
+      if (!f || !useFeatureUi.getState().preview) return rt.setFeaturePreview(null);
+      const plates = [f.plates.front && { pos: f.plates.front.pos, tilt: f.plates.front.tilt, turn: 0, size: PLATE_SIZE }, f.plates.rear && { pos: f.plates.rear.pos, tilt: f.plates.rear.tilt, turn: 180, size: PLATE_SIZE }].filter((p) => !!p);
+      rt.setFeaturePreview({ plates, hitch: f.hitch?.pos ?? null, bottle: f.nitrous ? { pos: f.nitrous.pos, length: f.nitrous.bottle === '10lb' ? 0.5 : 0.7 } : null });
+    };
+    pushFeatures();
+    const unsubscribeFeatures = useFeatureUi.subscribe(pushFeatures);
+    const unsubscribeFeaturesDoc = projectStore.subscribe(pushFeatures);
     const unsubscribeHingeDoc = projectStore.subscribe(pushHinge);
     const unsubscribeLiveSel = scene.subscribe(() => useLiveView.getState().isolate && pushLiveMeshes());
     let lastFrameRequest = scene.getState().frameRequest;
@@ -305,6 +317,8 @@ export function ViewportPanel() {
       unsubscribeLiveView();
       unsubscribeHinge();
       unsubscribeHingeDoc();
+      unsubscribeFeatures();
+      unsubscribeFeaturesDoc();
       unsubscribeLiveSel();
       host.removeEventListener('keydown', onKey);
       host.removeEventListener('dragover', onDragOver);

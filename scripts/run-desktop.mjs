@@ -10,7 +10,7 @@
  *        node scripts/run-desktop.mjs --only=crash,gl
  */
 import { _electron } from 'playwright-core';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -323,7 +323,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 14 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 15 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await hook(page, 'projectState');
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -381,7 +381,7 @@ const scenarios = [
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 14 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 15 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -790,6 +790,17 @@ const scenarios = [
       await page.getByTestId('config-preview').click();
       await page.getByTestId('toggle-configs').click();
 
+      // Extras: plates on the bumper and the back, a tow hitch, and a paint design recolouring a material.
+      await page.getByTestId('toggle-features').click();
+      await page.getByTestId('features-panel').waitFor();
+      for (const kind of ['plateFront', 'plateRear', 'hitch']) await page.getByTestId(`feature-${kind}`).getByRole('switch').click();
+      assert((await page.getByTestId('feature-plateFront').getByLabel('Front plate part').textContent()).includes('Front bumper'), 'front plate goes on the front bumper');
+      await page.getByTestId('skin-add').click();
+      await page.getByTestId('skin-name').fill('Race');
+      await page.getByTestId('skin-materials').locator('input[type=color]').first().fill('#d02020');
+      await shot(page, 'features-panel');
+      await page.getByTestId('toggle-features').click();
+
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
@@ -802,6 +813,9 @@ const scenarios = [
       for (const f of ['generate_test.dae', 'generate_test.jbeam', 'generate_test_body.jbeam', 'generate_test_engine.jbeam', 'generate_test_bumper_F.jbeam', 'info.json', 'default.pc', 'info_default.json', 'main.materials.json', 'default.jpg']) {
         assert(files.includes(f), `exported ${f} (got ${files.join(', ')})`);
       }
+      for (const f of ['generate_test_licenseplate_F.jbeam', 'generate_test_licenseplate_R.jbeam', 'generate_test_towhitch.jbeam', 'generate_test_skin_race.jbeam']) assert(files.includes(f), `exported ${f}`);
+      assert(readFileSync(join(vdir, 'generate_test_bumper_F.jbeam'), 'utf8').includes('"generate_test_licenseplate_F"'), 'front plate slot on the bumper');
+      assert(Object.keys(JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'))).some((k) => k.endsWith('.skin.race')), 'paint design material exported');
       const stripped = JSON.parse(readFileSync(join(vdir, 'stripped.pc'), 'utf8'));
       assert(stripped.parts.generate_test_bumper_F === '' && existsSync(join(vdir, 'info_stripped.json')), `stripped.pc exported (${JSON.stringify(stripped)})`);
       const pc = JSON.parse(readFileSync(join(vdir, 'default.pc'), 'utf8'));
@@ -811,6 +825,8 @@ const scenarios = [
       const flexMesh = body.match(/\["(generate_test_[a-z0-9_]+)",\s*\["generate_test_body"\]\]/)?.[1];
       assert(flexMesh && dae.includes(`<node id="${flexMesh}" name="${flexMesh}"`), `body flexbody mesh ${flexMesh} is a DAE node`);
       assert(existsSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test', 'jbforge-export.json')), 'export marker written');
+      // Kept with the screenshots so `npm run regress` can lint it the way the game reads it.
+      cpSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test'), join(outDir, 'exported-mod'), { recursive: true });
       const matsJson = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       assert(Object.values(matsJson).some((m) => m.Stages?.[0]?.roughnessFactor === 0.27 && m.version === 1.5), `edited material exported (${JSON.stringify(matsJson).slice(0, 300)})`);
       assert(matsJson.generate_test_chrome?.Stages?.[0]?.metallicFactor === 1, `library preset exported (${Object.keys(matsJson)})`);

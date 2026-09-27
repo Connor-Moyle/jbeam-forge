@@ -222,8 +222,11 @@ exports[`jbeam export > writes the body part deterministically (snapshot) 2`] = 
     "information": {"authors":"Fatkiwi", "name":"Test Car"},
     "slotType": "main",
     "slots2": [
-        ["name",      "allowTypes",  "denyTypes", "default",   "description"],
-        ["test_body", ["test_body"], [],          "test_body", "Body shell", {"coreSlot":true}]
+        ["name",                    "allowTypes",                "denyTypes", "default",   "description"],
+        ["test_body",               ["test_body"],               [],          "test_body", "Body shell", {"coreSlot":true}],
+        ["paint_design",            ["paint_design"],            [],          "",          "Paint Design"],
+        ["skin_glass",              ["skin_glass"],              [],          "",          "Glass Tint"],
+        ["licenseplate_design_2_1", ["licenseplate_design_2_1"], [],          "",          "License Plate Design"]
     ]
 }
 }

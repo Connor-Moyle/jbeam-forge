@@ -207,6 +207,7 @@ export class ViewportRuntime {
   private liveMeshes: { mesh: Mesh; binding: SkinBinding }[] = [];
   /** Hinge wizard: the hinge line, latch, handles and a ghost of the part swung open. */
   private readonly hingeRoot = new Group();
+  private readonly featureRoot = new Group();
   private readonly hingeGhostMaterial: MeshStandardMaterial;
   private liveFramedFor: unknown = null;
   private viewToggles = { mesh: true, structure: true, xray: false };
@@ -266,6 +267,8 @@ export class ViewportRuntime {
     this.hingeRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.hingeRoot.renderOrder = 7;
     this.scene.add(this.hingeRoot);
+    this.featureRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.scene.add(this.featureRoot);
     this.hingeGhostMaterial = new MeshStandardMaterial({ color: new Color(resolveToken('accent') || undefined), transparent: true, opacity: 0.35, depthWrite: false });
     this.editOverlay.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.editOverlay.root.renderOrder = 6;
@@ -918,6 +921,43 @@ export class ViewportRuntime {
       ghost.matrix.copy(turn);
       ghost.renderOrder = 7;
       this.hingeRoot.add(ghost);
+    }
+  }
+
+  /**
+   * Extras preview (BeamNG space): licence plates as plate-sized panels, the
+   * tow ball, and the nitrous bottle. null clears it.
+   */
+  setFeaturePreview(view: { plates: { pos: Vec3; tilt: number; turn: number; size: [number, number] }[]; hitch: Vec3 | null; bottle: { pos: Vec3; length: number } | null } | null): void {
+    for (const child of [...this.featureRoot.children]) {
+      this.featureRoot.remove(child);
+      if (child instanceof Mesh) {
+        (child.geometry as BufferGeometry).dispose();
+        (child.material as Material).dispose();
+      }
+    }
+    if (!view) return;
+    const material = (token: 'accent' | 'warning' | 'success', opacity = 1) => new MeshBasicMaterial({ color: new Color(resolveToken(token) || undefined), side: DoubleSide, transparent: opacity < 1, opacity });
+    for (const p of view.plates) {
+      // A plate faces forward (−Y) unturned: its plane is X–Z.
+      const plate = new Mesh(new PlaneGeometry(p.size[0], p.size[1]), material('warning', 0.85));
+      plate.rotation.order = 'ZYX';
+      plate.rotation.set(Math.PI / 2 + (p.tilt * Math.PI) / 180, 0, (p.turn * Math.PI) / 180);
+      plate.position.set(...p.pos);
+      plate.renderOrder = 8;
+      this.featureRoot.add(plate);
+    }
+    if (view.hitch) {
+      const ball = new Mesh(new OctahedronGeometry(0.025, 2), material('success'));
+      ball.position.set(...view.hitch);
+      this.featureRoot.add(ball);
+    }
+    if (view.bottle) {
+      // Lying across the car, like the game's bottle.
+      const bottle = new Mesh(new CylinderGeometry(0.08, 0.08, view.bottle.length, 16), material('accent', 0.8));
+      bottle.rotation.z = Math.PI / 2;
+      bottle.position.set(...view.bottle.pos);
+      this.featureRoot.add(bottle);
     }
   }
 

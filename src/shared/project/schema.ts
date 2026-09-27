@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 14;
+export const CURRENT_PROJECT_VERSION = 15;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -306,9 +306,35 @@ export const VehicleConfigSchema = z.object({
   vars: z.record(z.string(), z.number()),
 });
 
-export const ProjectV14Schema = z.object({
+const Mount = z.object({ partId: z.string().min(1), pos: Vec3 });
+const unit = z.number().min(0).max(1);
+
+/** A paint design: some materials recoloured or given another texture (the game's `<material>.skin.<name>`). */
+export const SkinSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** material id → its look in this skin (null keeps the material's own). */
+  overrides: z.record(z.string(), z.object({ baseColor: z.tuple([unit, unit, unit, unit]).nullable(), baseColorMap: z.string().min(1).nullable() })),
+});
+
+/**
+ * The game's extras (v15, Phase 12d): licence plates (the game's own plate
+ * mesh, placed on a part), a tow hitch, nitrous, and paint designs.
+ */
+export const FeaturesSchema = z.object({
+  plates: z.object({
+    /** tilt: degrees about the car's left–right axis. */
+    front: Mount.extend({ tilt: z.number() }).nullable(),
+    rear: Mount.extend({ tilt: z.number() }).nullable(),
+  }),
+  hitch: Mount.nullable(),
+  nitrous: Mount.extend({ bottle: z.enum(['10lb', '20lb']), shotKw: z.number().positive() }).nullable(),
+  skins: z.array(SkinSchema),
+});
+
+export const ProjectV15Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(14),
+  formatVersion: z.literal(15),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -346,9 +372,11 @@ export const ProjectV14Schema = z.object({
   configs: z.array(VehicleConfigSchema),
   /** Settings adjustable in the game's tuning menu (v13, Phase 12). */
   variables: z.array(TuningVarSchema),
+  /** Plates, tow hitch, nitrous, paint designs (v15). */
+  features: FeaturesSchema,
 });
 
-export const ProjectSchema = ProjectV14Schema;
+export const ProjectSchema = ProjectV15Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -361,6 +389,8 @@ export type Axle = z.infer<typeof AxleSchema>;
 export type FittedSet = z.infer<typeof FittedSetSchema>;
 export type TuningVar = z.infer<typeof TuningVarSchema>;
 export type VehicleConfig = z.infer<typeof VehicleConfigSchema>;
+export type Features = z.infer<typeof FeaturesSchema>;
+export type Skin = z.infer<typeof SkinSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

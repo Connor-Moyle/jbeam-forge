@@ -146,5 +146,6 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     powertrain: { engine: null, gearbox: null },
     configs: [],
     variables: [],
+    features: { plates: { front: null, rear: null }, hitch: null, nitrous: null, skins: [] },
   });
 }
