@@ -526,4 +526,4 @@ BeamNG.drive is a trademark of BeamNG GmbH. This project isn't affiliated with o
 
 ---
 
-Made in Perth by **Fatkiwi**. If you make something cool with it, I'd love to see it.
+Made by **Fatkiwi**. If you make something cool with it, I'd love to see it.
