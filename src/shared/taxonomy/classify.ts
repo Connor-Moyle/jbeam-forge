@@ -28,6 +28,22 @@ export interface Classification {
 export const CONFIDENT = 0.75;
 export const MINIMUM = 0.5;
 
+/**
+ * Words whose meaning depends on where the thing is: a light at the front is a
+ * headlight, at the back a taillight; a window at a corner is door glass.
+ */
+const POSITIONAL: Record<string, { front: string; rear: string; corner?: string }> = {
+  light: { front: 'headlight', rear: 'taillight' },
+  lights: { front: 'headlight', rear: 'taillight' },
+  lamp: { front: 'headlight', rear: 'taillight' },
+  window: { front: 'windshield', rear: 'rear_window', corner: 'door_glass' },
+  windows: { front: 'windshield', rear: 'rear_window', corner: 'door_glass' },
+  glass: { front: 'windshield', rear: 'rear_window', corner: 'door_glass' },
+};
+/** Grouping words that say where a part lives, not what it is. */
+const CONTEXT_WORDS = new Set(['interior', 'exterior', 'body', 'extra']);
+const POSITIONAL_CONFIDENCE = 0.8;
+
 interface Phrase {
   words: string[];
   weight: number;
@@ -95,6 +111,8 @@ export class Classifier {
       for (let a = e.parent ? this.byId.get(e.parent) : undefined, guard = 0; a && guard < 32; a = a.parent ? this.byId.get(a.parent) : undefined, guard++) {
         for (const p of this.phrases.get(a.id) ?? []) if (p.words.every((w) => present.has(w))) p.words.forEach((w) => covered.add(w));
       }
+      // "interior_Dash" is fully explained by the dashboard: its category says it's interior.
+      for (const w of words(`${e.category} ${e.subcategory}`)) if (present.has(w)) covered.add(w);
       const score = [...covered].reduce((s, w) => s + this.weight(w), 0) / total;
       const hasHead = own;
       const better =
@@ -103,9 +121,22 @@ export class Classifier {
         (Math.abs(score - best.score) <= 1e-9 && ((hasHead && !best.head) || (hasHead === best.head && longest > best.phraseLen)));
       if (better) best = { id: e.id, score, head: hasHead, phraseLen: longest };
     }
-    if (!best || best.score < MINIMUM) return { ...empty, confidence: best?.score ?? 0 };
+    if (!best || best.score < MINIMUM) return this.byPosition(tokens) ?? { ...empty, confidence: best?.score ?? 0 };
     const entry = this.byId.get(best.id)!;
     return { taxonomyId: best.id, position: resolvePosition(entry.positionAxis, tokens), variant: variantKey(tokens), confidence: Math.min(1, best.score), tokens };
+  }
+
+  /** Names like light_FL or window_R: the one part word only makes sense with its position. */
+  private byPosition(tokens: Tokenized): Classification | null {
+    const meaningful = [...tokens.words, ...tokens.unknown].filter((w) => !CONTEXT_WORDS.has(w));
+    if (meaningful.length !== 1) return null;
+    const rule = POSITIONAL[meaningful[0]!];
+    if (!rule) return null;
+    const fore = tokens.corner ? tokens.corner[0] : (tokens.fore ?? (tokens.ambiguousR ? 'R' : null));
+    const id = tokens.corner && rule.corner ? rule.corner : fore === 'F' ? rule.front : fore === 'R' ? rule.rear : null;
+    const entry = id ? this.byId.get(id) : undefined;
+    if (!entry) return null;
+    return { taxonomyId: entry.id, position: resolvePosition(entry.positionAxis, tokens), variant: variantKey(tokens), confidence: POSITIONAL_CONFIDENCE, tokens };
   }
 }
 
@@ -167,7 +198,7 @@ export interface Proposal {
 
 /** Group classified meshes into parts, link variants, and resolve parents by taxonomy + position. */
 export function proposeParts(meshes: readonly MeshRef[], classifier: Classifier): Proposal {
-  const prefix = commonPrefix(meshes.map((m) => m.name));
+  const prefix = commonPrefix(meshes.map((m) => m.name), classifier.vocab);
   const groups = new Map<string, ProposedPart>();
   const assignments: Record<string, string> = {};
   const unassigned: string[] = [];

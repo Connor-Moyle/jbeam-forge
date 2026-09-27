@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import shipped from '../../src/shared/taxonomy/taxonomy.json';
 import fixture from '../fixtures/classify/sunburst2-expected.json';
 import { TaxonomyFileSchema } from '../../src/shared/taxonomy/schema';
-import { Classifier, proposeParts, resolvePosition } from '../../src/shared/taxonomy/classify';
+import { CONFIDENT, Classifier, proposeParts, resolvePosition } from '../../src/shared/taxonomy/classify';
 import { commonPrefix, editDistance, rawTokens, segment, tokenize } from '../../src/shared/taxonomy/tokenize';
 
 const classifier = new Classifier(TaxonomyFileSchema.parse(shipped).entries);
@@ -134,5 +134,47 @@ describe('proposeParts', () => {
     expect(partOf('car_door_FL')?.parentPartId).toBe(partOf('car_body_main')?.id);
     // foglight_L (side) must not attach to bumper_R because "R" there is rear, not right: front wins the tie
     expect(partOf('car_foglight_L')?.parentPartId).toBe(partOf('car_bumper_F')?.id);
+  });
+});
+
+describe('game-rip and Blender naming (a converted car with mixed conventions)', () => {
+  const names = [
+    'Sunburst6_Body_Main', 'Sunburst6_body_Door_FL', 'Sunburst6_body_Hood_2', 'Sunburst6_light_FL_1', 'Sunburst6_light_RR_1',
+    'Sunburst6_Window_F', 'Sunburst6_window_R', 'Sunburst6_window_RL', 'Sunburst6_extra_gasCap_1', 'Sunburst6_extra_gasCap_1.001',
+    'Sunburst6_interior_Dials_Temp', 'Sunburst6_interior_Dash_1', 'Sunburst6_Interior_Carpet_boot', 'Sunburst6_interior_DoorCard_RL_2.001',
+    'CINTURE_OFF_SUB0', 'GEO_Cockpit_HR_SUB1', 'Evo6_RollCage', 'Front-Left-rotor.003',
+    'Circle.004', 'Circle.085', 'Plane.202', 'Plane.203', 'Cylinder.013',
+  ];
+
+  it('finds the vehicle prefix even with tool-default names mixed in', () => {
+    expect(commonPrefix(names, classifier.vocab)).toBe('sunburst6');
+    expect(commonPrefix(['door_FL', 'door_FR', 'door_RL', 'hood_main'], classifier.vocab)).toBeNull(); // a part word is never a prefix
+  });
+
+  it.each([
+    ['Sunburst6_light_FL_1', 'headlight', 'L'],
+    ['Sunburst6_light_RR_1', 'taillight', 'R'],
+    ['Sunburst6_Window_F', 'windshield', null],
+    ['Sunburst6_window_R', 'rear_window', null],
+    ['Sunburst6_window_RL', 'door_glass', 'RL'],
+    ['Sunburst6_extra_gasCap_1', 'fuel_door', null],
+    ['Sunburst6_interior_Dials_Temp', 'gauges', null],
+    ['Sunburst6_interior_Dash_1', 'dashboard', null],
+    ['Sunburst6_Interior_Carpet_boot', 'trunk_trim', null],
+    ['CINTURE_OFF_SUB0', 'seatbelt', null],
+    ['GEO_Cockpit_HR_SUB1', 'dashboard', null],
+    ['Front-Left-rotor.003', 'brake_disc', 'FL'],
+  ])('%s → %s %s', (name, id, position) => {
+    const c = classifier.classify(name, 'sunburst6');
+    expect(c.taxonomyId).toBe(id);
+    expect(c.position).toBe(position);
+    expect(c.confidence).toBeGreaterThanOrEqual(CONFIDENT);
+  });
+
+  it('treats Blender .001 duplicates as the same part, not a variant', () => {
+    const proposal = proposeParts(names.map((n) => ({ key: n, name: n })), classifier);
+    const partOf = (name: string) => proposal.assignments[name];
+    expect(partOf('Sunburst6_extra_gasCap_1.001')).toBe(partOf('Sunburst6_extra_gasCap_1'));
+    expect(proposal.unassigned.sort()).toEqual(['Circle.004', 'Circle.085', 'Cylinder.013', 'Plane.202', 'Plane.203']);
   });
 });

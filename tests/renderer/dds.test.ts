@@ -89,3 +89,53 @@ describe('parseDds', () => {
     expect(r).toEqual({ ok: false, reason: 'DXGI format 95 not supported' });
   });
 });
+
+/** An uncompressed DDS: `pixels` is the raw little-endian pixel bytes of the top level. */
+function makeRawDds(opts: { width: number; height: number; flags: number; bits: number; masks: [number, number, number, number]; pixels: number[] }): Uint8Array {
+  const bytes = new Uint8Array(128 + opts.pixels.length);
+  const v = new DataView(bytes.buffer);
+  v.setUint32(0, 0x20534444, true);
+  v.setUint32(4, 124, true);
+  v.setUint32(8, 0x1 | 0x2 | 0x4 | 0x1000, true);
+  v.setUint32(12, opts.height, true);
+  v.setUint32(16, opts.width, true);
+  v.setUint32(76, 32, true);
+  v.setUint32(80, opts.flags, true);
+  v.setUint32(88, opts.bits, true);
+  opts.masks.forEach((m, i) => v.setUint32(92 + i * 4, m, true));
+  bytes.set(opts.pixels, 128);
+  return bytes;
+}
+
+describe('parseDds (uncompressed)', () => {
+  it('expands 24-bit BGR to RGBA with opaque alpha', () => {
+    const r = parseDds(makeRawDds({ width: 2, height: 1, flags: 0x40, bits: 24, masks: [0xff0000, 0xff00, 0xff, 0], pixels: [10, 20, 30, 40, 50, 60] }));
+    expect(r.ok && r.kind).toBe('rgba8');
+    if (!r.ok) return;
+    expect([...r.mipmaps[0]!.data]).toEqual([30, 20, 10, 255, 60, 50, 40, 255]);
+  });
+
+  it('reads 32-bit BGRA alpha from its mask', () => {
+    const r = parseDds(makeRawDds({ width: 1, height: 1, flags: 0x41, bits: 32, masks: [0xff0000, 0xff00, 0xff, 0xff000000], pixels: [1, 2, 3, 128] }));
+    if (!r.ok) throw new Error(r.reason);
+    expect([...r.mipmaps[0]!.data]).toEqual([3, 2, 1, 128]);
+  });
+
+  it('spreads 16-bit luminance+alpha across RGB', () => {
+    const r = parseDds(makeRawDds({ width: 1, height: 1, flags: 0x20001, bits: 16, masks: [0xff, 0, 0, 0xff00], pixels: [200, 77] }));
+    if (!r.ok) throw new Error(r.reason);
+    expect([...r.mipmaps[0]!.data]).toEqual([200, 200, 200, 77]);
+  });
+
+  it('scales narrow channels (RGB565) up to 8 bits', () => {
+    // pure red in 565: 0xf800
+    const r = parseDds(makeRawDds({ width: 1, height: 1, flags: 0x40, bits: 16, masks: [0xf800, 0x07e0, 0x001f, 0], pixels: [0x00, 0xf8] }));
+    if (!r.ok) throw new Error(r.reason);
+    expect([...r.mipmaps[0]!.data]).toEqual([255, 0, 0, 255]);
+  });
+
+  it('reports truncated uncompressed data', () => {
+    const r = parseDds(makeRawDds({ width: 4, height: 4, flags: 0x40, bits: 24, masks: [0xff0000, 0xff00, 0xff, 0], pixels: [1, 2, 3] }));
+    expect(r).toEqual({ ok: false, reason: 'truncated pixel data' });
+  });
+});

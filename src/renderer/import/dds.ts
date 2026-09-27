@@ -2,6 +2,8 @@
  * Minimal DDS reader for the block-compressed formats BeamNG ships.
  * Verified on 0.39.1: every Sunburst texture is a DX10-header DDS with
  * DXGI format 99 (BC7_UNORM_SRGB), which three's DDSLoader can't read.
+ * Uncompressed files (8–32 bit RGB(A), luminance(+alpha), as older mods and
+ * converted cars use) are expanded to RGBA8 from their channel masks.
  *
  * Pure (no three/WebGL imports) so it's unit-testable; the texture pass maps
  * `kind` to a three.js compressed format and checks GPU support.
@@ -17,10 +19,16 @@ export interface DdsMip {
 
 export type DdsResult =
   | { ok: true; kind: BlockKind; srgb: boolean; width: number; height: number; mipmaps: DdsMip[] }
+  /** Uncompressed: mip data is RGBA8, top row first. */
+  | { ok: true; kind: 'rgba8'; srgb: boolean; width: number; height: number; mipmaps: DdsMip[] }
   | { ok: false; reason: string };
 
 const DDS_MAGIC = 0x20534444; // "DDS "
+const DDPF_ALPHAPIXELS = 0x1;
+const DDPF_ALPHA = 0x2;
 const DDPF_FOURCC = 0x4;
+const DDPF_RGB = 0x40;
+const DDPF_LUMINANCE = 0x20000;
 const DDSD_MIPMAPCOUNT = 0x20000;
 const HEADER_BYTES = 128; // magic + 124-byte header
 const DX10_BYTES = 20;
@@ -78,7 +86,7 @@ export function parseDds(bytes: Uint8Array): DdsResult {
   const mipCount = flags & DDSD_MIPMAPCOUNT ? Math.max(1, view.getUint32(28, true)) : 1;
   const pfFlags = view.getUint32(80, true);
   const pfFourCC = view.getUint32(84, true);
-  if (!(pfFlags & DDPF_FOURCC)) return { ok: false, reason: 'uncompressed DDS (not supported yet)' };
+  if (!(pfFlags & DDPF_FOURCC)) return parseUncompressed(bytes, view, width, height, mipCount, pfFlags);
 
   let kind: BlockKind | undefined;
   let srgb = false;
@@ -114,4 +122,50 @@ export function parseDds(bytes: Uint8Array): DdsResult {
     h = Math.max(1, h >> 1);
   }
   return { ok: true, kind, srgb, width, height, mipmaps };
+}
+
+/** One channel of a packed pixel: where its bits are and how to scale them to 0–255. */
+function channel(mask: number): { shift: number; max: number } | null {
+  if (!mask) return null;
+  let shift = 0;
+  while (!((mask >>> shift) & 1)) shift++;
+  return { shift, max: mask >>> shift };
+}
+
+function parseUncompressed(bytes: Uint8Array, view: DataView, width: number, height: number, mipCount: number, pfFlags: number): DdsResult {
+  const bits = view.getUint32(88, true);
+  if (bits !== 8 && bits !== 16 && bits !== 24 && bits !== 32) return { ok: false, reason: `${bits}-bit uncompressed DDS not supported` };
+  if (!(pfFlags & (DDPF_RGB | DDPF_LUMINANCE | DDPF_ALPHA))) return { ok: false, reason: 'unsupported uncompressed DDS layout' };
+  const luminance = !!(pfFlags & DDPF_LUMINANCE);
+  const alphaOnly = !!(pfFlags & DDPF_ALPHA) && !(pfFlags & (DDPF_RGB | DDPF_LUMINANCE));
+  const [r, g, b] = [channel(view.getUint32(92, true)), channel(view.getUint32(96, true)), channel(view.getUint32(100, true))];
+  const a = pfFlags & (DDPF_ALPHAPIXELS | DDPF_ALPHA) ? channel(view.getUint32(104, true)) : null;
+  const bpp = bits / 8;
+  const scale = (v: number, c: { shift: number; max: number } | null, fallback: number) => (c ? Math.round((((v >>> c.shift) & c.max) * 255) / c.max) : fallback);
+
+  const mipmaps: DdsMip[] = [];
+  let offset = HEADER_BYTES;
+  let w = width;
+  let h = height;
+  for (let level = 0; level < mipCount; level++) {
+    const size = w * h * bpp;
+    if (offset + size > bytes.byteLength) {
+      if (mipmaps.length === 0) return { ok: false, reason: 'truncated pixel data' };
+      break;
+    }
+    const out = new Uint8Array(w * h * 4);
+    for (let i = 0, o = offset; i < w * h; i++, o += bpp) {
+      const v = bpp === 1 ? bytes[o]! : bpp === 2 ? view.getUint16(o, true) : bpp === 3 ? bytes[o]! | (bytes[o + 1]! << 8) | (bytes[o + 2]! << 16) : view.getUint32(o, true);
+      const red = alphaOnly ? 255 : scale(v, r, 0);
+      out[i * 4] = red;
+      out[i * 4 + 1] = luminance || alphaOnly ? red : scale(v, g, 0);
+      out[i * 4 + 2] = luminance || alphaOnly ? red : scale(v, b, 0);
+      out[i * 4 + 3] = scale(v, a, 255);
+    }
+    mipmaps.push({ data: out, width: w, height: h });
+    offset += size;
+    w = Math.max(1, w >> 1);
+    h = Math.max(1, h >> 1);
+  }
+  return { ok: true, kind: 'rgba8', srgb: false, width, height, mipmaps };
 }

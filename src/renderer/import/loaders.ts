@@ -1,4 +1,4 @@
-import { LoadingManager, Mesh, MeshStandardMaterial, TextureLoader, type Object3D } from 'three';
+import { LoadingManager, Mesh, MeshStandardMaterial, PropertyBinding, TextureLoader, type Object3D } from 'three';
 import { ColladaLoader } from 'three/examples/jsm/loaders/ColladaLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
@@ -132,6 +132,23 @@ export interface LoaderResult {
   root: Object3D;
 }
 
+/**
+ * FBXLoader runs every object name through PropertyBinding.sanitizeNodeName,
+ * which deletes dots: Blender's "Door.001" duplicate becomes "Door001" and the
+ * copy number glues onto the name. We don't bind animations, so keep the names
+ * as the artist typed them (spaces still become underscores). The parse is
+ * synchronous, so swapping the function around it is safe.
+ */
+function parseFbxKeepingNames(bytes: Uint8Array, manager: LoadingManager): Object3D {
+  const original = Object.getOwnPropertyDescriptor(PropertyBinding, 'sanitizeNodeName')!;
+  Object.defineProperty(PropertyBinding, 'sanitizeNodeName', { ...original, value: (name: string) => name.replace(/\s/g, '_') });
+  try {
+    return new FBXLoader(manager).parse(toArrayBuffer(bytes), '');
+  } finally {
+    Object.defineProperty(PropertyBinding, 'sanitizeNodeName', original);
+  }
+}
+
 export async function loadIntoLoaderSpace(format: SourceFormat, bytes: Uint8Array, fileName: string, readSide: ReadSideFile): Promise<LoaderResult> {
   const { manager, idle } = trackedManager();
   let root: Object3D;
@@ -144,7 +161,7 @@ export async function loadIntoLoaderSpace(format: SourceFormat, bytes: Uint8Arra
       break;
     }
     case 'fbx':
-      root = new FBXLoader(manager).parse(toArrayBuffer(bytes), '');
+      root = parseFbxKeepingNames(bytes, manager);
       break;
     case 'obj': {
       const text = decodeText(bytes);

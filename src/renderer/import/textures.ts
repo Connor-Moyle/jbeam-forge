@@ -113,6 +113,15 @@ async function decode(path: string, bytes: Uint8Array, caps: GpuTextureCaps): Pr
   if (ext === 'dds') {
     const dds = parseDds(bytes);
     if (!dds.ok) return { error: dds.reason };
+    if (dds.kind === 'rgba8') {
+      // Rows are top-first like a decoded image, so it follows the slot's flipY the same way.
+      const top = dds.mipmaps[0]!;
+      const tex = new DataTexture(top.data, top.width, top.height, RGBAFormat);
+      tex.generateMipmaps = true;
+      tex.minFilter = LinearMipmapLinearFilter;
+      tex.magFilter = LinearFilter;
+      return { texture: tex, kind: 'image' };
+    }
     if (!caps[dds.kind]) return { error: `${dds.kind.toUpperCase()} textures aren't supported by this GPU/driver` };
     const tex = new CompressedTexture(
       dds.mipmaps.map((m) => ({ data: m.data, width: m.width, height: m.height })),

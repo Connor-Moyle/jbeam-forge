@@ -21,10 +21,15 @@ export const VARIANT_WORDS = new Set([
   'cut', 'pro', 'plain', 'simple', 'amateur', 'stock', 'old', 'new', 'alt', 'alternate', 'heavy', 'lowered', 'lifted', 'black', 'chrome',
   'carbon', 'welded', 'rev', 'kmh', 'mph', 'cup', 'dmg', 'damaged', 'basic', 'premium', 'luxury', 'taxi', 'tuner', 'aero', 'na', 'at', 'mt', 'awd', 'fwd', 'rwd',
   'blank', 'empty', 'grp', 'rs', 'gt', 'sp', 'track', 'street', 'drag', 'dirt', 'gravel', 'snow', 'short', 'long', 'tall', 'extended',
+  'on', 'off', // two states of one part (belt buckled/unbuckled, lights on/off)
 ]);
 
 /** Words naming a piece of the same part (merged, not a separate part or variant). */
-export const SUBMESH_WORDS = new Set(['sheet', 'inner', 'outer', 'base', 'cap', 'support', 'bracket', 'int', 'ext', 'top', 'bottom', 'mesh', 'geo', 'pipe', 'pipes', 'lod', 'lod0', 'main', 'stuff', 'part', 'parts', 'body2', 'obj', 'shape']);
+export const SUBMESH_WORDS = new Set([
+  'sheet', 'inner', 'outer', 'base', 'cap', 'support', 'bracket', 'int', 'ext', 'top', 'bottom', 'mesh', 'geo', 'geom', 'pipe', 'pipes', 'lod', 'lod0', 'main', 'stuff', 'part', 'parts', 'body2', 'obj', 'shape',
+  // Game-rip and Assetto Corsa conventions: GEO_Cockpit_HR_SUB1, *_extra_*
+  'sub', 'hr', 'hires', 'lowres', 'extra', 'extras',
+]);
 
 /** Known misspellings and spelling variants → canonical text (may be several words). */
 export const SYNONYMS: Record<string, string> = {
@@ -58,6 +63,28 @@ export const SYNONYMS: Record<string, string> = {
   steeringwheel: 'steering wheel',
   steeringrack: 'steering rack',
   fueltank: 'fuel tank',
+  gascap: 'fuel door',
+  fuelcap: 'fuel door',
+  fueldoor: 'fuel door',
+  dial: 'gauges',
+  dials: 'gauges',
+  cluster: 'gauges',
+  cockpit: 'dashboard',
+  details: 'trim',
+  detail: 'trim',
+  cinture: 'seatbelt', // Italian, common in Assetto Corsa conversions
+  cintura: 'seatbelt',
+  cinturon: 'seatbelt',
+};
+
+/** Two-word phrases with their own meaning (a gas cap is the fuel door, not a cap). */
+export const BIGRAMS: Record<string, string> = {
+  'gas cap': 'fuel door',
+  'fuel cap': 'fuel door',
+  'filler cap': 'fuel door',
+  'carpet boot': 'trunk carpet',
+  'boot carpet': 'trunk carpet',
+  'boot trim': 'trunk trim',
 };
 
 /**
@@ -168,7 +195,15 @@ export function tokenize(name: string, vocab: ReadonlySet<string>, fuzzyVocab: r
       else out.unknown.push(t);
     }
   };
-  for (const t of tokens) place(t, false);
+  for (let i = 0; i < tokens.length; i++) {
+    const pair = BIGRAMS[`${tokens[i]} ${tokens[i + 1]}`];
+    if (pair) {
+      for (const w of pair.split(' ')) place(w, true, true);
+      i++;
+      continue;
+    }
+    place(tokens[i]!, false);
+  }
   return out;
 }
 
@@ -189,18 +224,29 @@ export function firstSegment(name: string): string {
   return (name.split(/[\s_\-.:/\\]/)[0] ?? '').toLowerCase();
 }
 
+/** Default object names modelling tools give (Circle.004, Plane.202): never a vehicle prefix. */
+const TOOL_DEFAULTS = new Set(['circle', 'plane', 'cube', 'cylinder', 'sphere', 'cone', 'torus', 'object', 'mesh', 'geo', 'box', 'line', 'shape', 'group', 'null', 'default']);
+
 /**
  * The vehicle prefix shared by most names in one source ("sunburst2" in
- * sunburst2_door_FL), stripped before matching. Needs ≥ 60% agreement.
+ * sunburst2_door_FL), stripped before matching. Only names with more than one
+ * segment vote (a pile of "Plane.202" leftovers shouldn't hide the prefix of
+ * the named parts), and a word that names a part ("door") is never a prefix.
+ * Needs ≥ 60% agreement.
  */
-export function commonPrefix(names: readonly string[]): string | null {
-  if (names.length < 3) return null;
+export function commonPrefix(names: readonly string[], vocab?: ReadonlySet<string>): string | null {
   const counts = new Map<string, number>();
+  let voters = 0;
   for (const n of names) {
+    if (!/[\s_\-.:/\\]/.test(n.replace(/\.\d+$/, ''))) continue;
     const first = firstSegment(n);
-    if (first) counts.set(first, (counts.get(first) ?? 0) + 1);
+    if (!first || TOOL_DEFAULTS.has(first.replace(/\d+$/, ''))) continue;
+    voters++;
+    counts.set(first, (counts.get(first) ?? 0) + 1);
   }
+  if (voters < 3) return null;
   let best: [string, number] | null = null;
   for (const e of counts) if (!best || e[1] > best[1]) best = e;
-  return best && best[1] / names.length >= 0.6 ? best[0] : null;
+  if (!best || best[1] / voters < 0.6) return null;
+  return vocab?.has(best[0]) ? null : best[0];
 }
