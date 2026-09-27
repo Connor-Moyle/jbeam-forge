@@ -9,7 +9,7 @@ import { useSettingsStore } from '@renderer/app/stores/settings';
 import { capturePreview } from '@renderer/panels/viewport/registry';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle } from '@shared/ipc-contract';
-import { buildJbeamFiles } from '@shared/export/jbeam';
+import { buildJbeamFiles, damagedMaterialName } from '@shared/export/jbeam';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
 import { configInfo, DEFAULT_CONFIG, defaultConfig, exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
@@ -125,7 +125,25 @@ export function prepareExport(): PreparedExport | null {
     }
     materialJsonAll[onMaterialName(name)] = on;
   }
-  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data, glowMap });
+  // Glass: a frosted, cracked-looking twin of each glass material for when it shatters.
+  for (const [i, dm] of daeMeshes.entries()) {
+    const part = partOf(exported[i]!.key);
+    if (!part || tax.entry(part.taxonomyId)?.beamPreset !== 'glass_brittle') continue;
+    const name = dm.materials[0];
+    const base = name ? (materialJsonAll[name] as { Stages?: Record<string, unknown>[] } | undefined) : undefined;
+    if (!name || !base || materialJsonAll[damagedMaterialName(name)]) continue;
+    const dmg = structuredClone(base) as { name?: string; mapTo?: string; Stages?: Record<string, unknown>[] };
+    dmg.name = damagedMaterialName(name);
+    dmg.mapTo = damagedMaterialName(name);
+    const stage = dmg.Stages?.[0];
+    if (stage) {
+      stage.roughnessFactor = 0.85;
+      stage.opacityFactor = Math.max(0.75, typeof stage.opacityFactor === 'number' ? stage.opacityFactor : 0);
+    }
+    materialJsonAll[damagedMaterialName(name)] = dmg;
+  }
+  const meshMaterials = new Map(daeMeshes.map((dm) => [dm.name, dm.materials]));
+  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data, glowMap, meshMaterials });
   const pc = defaultConfig(doc, tax);
   const root = `vehicles/${slug}`;
   const files: ExportBundle['files'] = [

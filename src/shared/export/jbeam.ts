@@ -34,6 +34,8 @@ export interface JbeamExportOptions {
   /** meshKey → exported DAE node name (only exported meshes). */
   meshNames: ReadonlyMap<string, string>;
   author: string;
+  /** Exported mesh name → its materials (as exported), for glass that shatters. */
+  meshMaterials?: ReadonlyMap<string, readonly string[]>;
   /** Lights: material → signal and on/off materials, on the main part. */
   glowMap?: Readonly<Record<string, { simpleFunction: JbeamValue; off: string; on: string }>>;
   /** Fitted suspensions' jbeam (by catalogue set id), brought over into the mod. */
@@ -158,7 +160,11 @@ function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamP
   return [...table, { group: '' }];
 }
 
-function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}): WritableValue[] {
+/** Glass shatters: its beams deforming past a little trigger its flexbodies to swap to the damaged material. */
+export const glassBreakGroup = (part: Pick<Part, 'name'>) => `${part.name}_break`;
+export const damagedMaterialName = (name: string) => `${name}_dmg`;
+
+function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}, glass = false): WritableValue[] {
   const a = ATTACHMENT_VALUES[attachStyle];
   const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: DEFORM_LIMIT_EXPANSION };
   const order = { edge: 0, brace: 1, attach: 2, mount: 3, hinge: 4, limit: 5, support: 6, popopen: 7 } as const;
@@ -183,6 +189,10 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
       : {};
     const options: JbeamObject = { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}), ...special };
     // The part's own structure (skin and bracing) follows its in-game stiffness and strength.
+    if (glass && (b.kind === 'edge' || b.kind === 'brace')) {
+      options.deformGroup = glassBreakGroup(part);
+      options.deformationTriggerRatio = 0.02;
+    }
     if (b.kind === 'edge' || b.kind === 'brace') {
       if (vars.stiffness && typeof options.beamSpring === 'number') options.beamSpring = scaled(options.beamSpring, vars.stiffness);
       if (vars.strength && typeof options.beamDeform === 'number') options.beamDeform = scaled(options.beamDeform, vars.strength);
@@ -204,7 +214,7 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
   if (firstLimit >= 0) comments.set(firstLimit, `opening limit (${hinge?.openAngle ?? '?'}°)`);
   if (firstSeal >= 0) comments.set(firstSeal, 'seal supports');
   if (firstPop >= 0) comments.set(firstPop, 'pops open when unlatched');
-  const table = writeTable(['id1:', 'id2:'], records, { resetValues: { breakGroup: '' }, comments });
+  const table = writeTable(['id1:', 'id2:'], records, { resetValues: { breakGroup: '', deformGroup: '', deformationTriggerRatio: '' }, comments });
   return firstAttach >= 0 && a.breakGroup ? [...table, { breakGroup: '' }] : table;
 }
 
@@ -348,14 +358,24 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       content.refNodes = [['ref:', 'back:', 'left:', 'up:', 'leftCorner:', 'rightCorner:'], [r.ref, r.back, r.left, r.up, r.leftCorner, r.rightCorner]];
       content.cameraExternal = cameraFor(nodes);
     }
-    if (meshes.length && group) content.flexbodies = [['mesh', '[group]:', 'nonFlexMaterials'], ...meshes.map((m) => [m, [group]] as WritableValue[])];
+    const glass = entry.beamPreset === 'glass_brittle' && nodes.length > 0;
+    if (meshes.length && group) {
+      const rows: WritableValue[] = [['mesh', '[group]:', 'nonFlexMaterials']];
+      for (const m of meshes) {
+        const mat = glass ? opts.meshMaterials?.get(m)?.[0] : undefined;
+        if (mat) rows.push({ deformGroup: glassBreakGroup(part), deformMaterialBase: mat, deformMaterialDamaged: damagedMaterialName(mat) });
+        rows.push([m, [group]]);
+      }
+      if (glass && rows.length > meshes.length + 1) rows.push({ deformGroup: '' });
+      content.flexbodies = rows;
+    }
     const tuningVars = (fullDoc.variables ?? []).filter((v) => v.partId === part.id);
     const partVars: PartVars = Object.fromEntries(tuningVars.map((v) => [v.setting, variableName(part, v.setting)]));
     if (tuningVars.length && nodes.length) content.variables = variablesSection(part, tuningVars);
     if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars);
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
     const posOf = (id: string) => doc.nodes.find((n) => n.id === id)?.pos;
-    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars);
+    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass);
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset);
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
     const doc1: WritableObject = { [part.name]: content };

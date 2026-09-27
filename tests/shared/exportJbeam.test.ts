@@ -117,6 +117,22 @@ describe('jbeam export', () => {
     expect(beams.some((r) => typeof r.options.beamSpring === 'string' && String(r.options.beamSpring).endsWith('*$test_body_stiffness'))).toBe(true);
   });
 
+  it('makes glass shatter: its beams trigger the damaged material on its flexbodies', () => {
+    const { doc, meshes } = carProject();
+    const glass = createPart(doc, tax, { taxonomyId: 'windshield', id: 'p_ws', parentPartId: 'p_body' });
+    assignMeshes(doc, ['s:ws'], glass.id);
+    generateStructure(doc, tax, [{ partId: glass.id, mesh: box(0.7, -0.8, -0.3, 1.2, 1.4, 3) }]);
+    const names = exportMeshNames(doc, [...meshes, { key: 's:ws', name: 'windshield_glass', sourceId: 's' }]);
+    const wsMesh = names.get('s:ws')!;
+    const files = new Map(buildJbeamFiles(doc, tax, { meshNames: names, author: 'x', meshMaterials: new Map([[wsMesh, ['test_glass']]]) }).map((f) => [f.part, parsePart(f.text)[1]]));
+    const ws = [...files.values()].find((p) => p.flexbodies && readTable(p.flexbodies).records.some((r) => r.values.mesh === wsMesh))!;
+    const flex = readTable(ws.flexbodies!).records.find((r) => r.values.mesh === wsMesh)!;
+    expect(flex.options).toMatchObject({ deformMaterialBase: 'test_glass', deformMaterialDamaged: 'test_glass_dmg' });
+    expect(String(flex.options.deformGroup)).toMatch(/_break$/);
+    const beams = readTable(ws.beams!).records;
+    expect(beams.some((r) => r.options.deformGroup === flex.options.deformGroup && r.options.deformationTriggerRatio === 0.02)).toBe(true);
+  });
+
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {
     const { doc, meshes } = carProject();
     const names = exportMeshNames(doc, meshes);
