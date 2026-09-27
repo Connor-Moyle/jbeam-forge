@@ -48,12 +48,42 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.8.3 | Assetto Corsa import: kn5 models, whole car folders (skins, data/ or data.acd, ui, extension), Reference car panel, painted liveries; kn5 dashes in the objects library |
+| 0.8.2 | Objects library (58 calipers and discs, rendered previews, separate download); model placement (position/rotation/scale) |
 | 0.8.1 | Materials pack built in (284 materials from the user's library, consistent names, textures) + separate pack download; viewport reflections; pack import |
 | 0.8.0 | Phase 8: materials in the project, full editor, 34 presets + personal library + .jbmat, duplicate merge, drag-and-drop |
 | 0.7.1 | Friendly mesh names from parts, model re-export (.glb/.dae), centre-line split, name-vs-position check, fix for pre-0.7.1 FBX projects |
 | 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
 
 ## Phase log
+
+### Between phases: objects library and Assetto Corsa import (0.8.2–0.8.3)
+
+**Objects library (0.8.2):**
+- `npm run build-object-pack -- "Objects Libary"` builds `packs/objects/` (bundled as `resources/objects-pack`) and `JBeam-Forge-Objects-<version>.zip`.
+  - Keeps LOD0 and splits packed NAO/ORM textures into separate maps.
+  - Untextured calipers get gloss red and discs cast iron.
+  - Names follow one pattern: `Brembo 03`, `AP Lockheed 01`.
+- **Objects panel:** rendered previews, search and category filter. **Add** brings an object in as its own model with its material.
+- **Placement** (project format v8): position, rotation and scale per model, from the Scene tree's right-click menu. It moves the loaded geometry directly, with no reload, and is undoable.
+
+**Assetto Corsa (0.8.3):**
+- **kn5 reader** (`src/shared/kn5/parse.ts`):
+  - Reads textures, materials (shader, properties and samplers) and the node tree, including skinned meshes.
+  - Works on 181 installed cars and the three dashes. The E30's 180 MB kn5 parses in 41 ms.
+  - Coordinates need no mirroring: dash text reads the right way round.
+- **kn5 import:**
+  - Embedded textures are extracted once to `userData/kn5-textures/<hash>/`.
+  - AC material properties map to PBR: ambient+diffuse → brightness, specular exponent → roughness, emissive, alpha blend and alpha test.
+  - Multi-map materials are baked on the GPU into a single texture (the diffuse colour mixed with the detail texture by alpha), which is where a Kunos car's paint lives.
+- **Car folders** (File → Import Assetto Corsa Car…):
+  - Picks the LOD_0 model from `lods.ini`, with a biggest-kn5 fallback. Offers the skins; a chosen skin overrides the embedded textures.
+  - Reads `data/` or `data.acd`. The key is derived from the folder name, and all 178 installed `data.acd` files unpack.
+  - Project format v9 keeps the text of the data files, `ui_car.json` and `extension/` as `reference`.
+  - The **Reference car panel** shows the spec sheet (mass, weight split, wheelbase, track, tyres, power/torque curve peaks clipped at the limiter, gearing, diff, brakes, steering) and every file. The skin can be switched there.
+- Tested on the user's E30 (306 meshes, 1.24M triangles, 65 textures, 3.7 s) and the MX5 Cup (livery matches its preview).
+
+**Next:** scanning library folders at startup, suspension meshes from the local BeamNG install into the objects library, and objects offered when picking a suspension (Phase 10).
 
 ### Phase 8 — Materials (done, 0.8.0)
 
@@ -506,6 +536,8 @@ Decisions recorded with you:
 **Next:** Phase 2 — Ground truth (BeamNG install-dir setting, `npm run study-vehicle`, docs/ format notes, lenient jbeam parser + serializer with snapshot/round-trip tests).
 
 ## Known issues
+
+- Structure generation is very slow on small, dense meshes: the 130k-triangle uC-10 dash took 131 s and made no beams. Imports aren't affected. To look at alongside proxy tuning.
 
 - **Repo file layout (needs the user):** root `SPEC.md` and `docs/SPEC.md` both contain the Claude Code project instructions, which belong in `CLAUDE.md`. The full rebuild spec is at `%USERPROFILE%\Downloads\SPEC.md` and needs copying to `docs/SPEC.md`. Both files were left out of the Phase 1 commit until this is fixed.
 - **npm 11 allow-scripts:** `package.json` → `allowScripts` approves Electron and esbuild. A `postinstall` (`install-electron`) fetches the Electron binary on a fresh clone.
