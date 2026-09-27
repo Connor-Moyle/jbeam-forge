@@ -1,6 +1,6 @@
 {
   "name": "jbeam-forge",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Turn a 3D vehicle model into an installable BeamNG.drive mod",
   "author": "Fatkiwi",

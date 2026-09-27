@@ -48,6 +48,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.7.1 | Friendly mesh names from parts, model re-export (.glb/.dae), centre-line split, name-vs-position check, fix for pre-0.7.1 FBX projects |
 | 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
 
 ## Phase log
