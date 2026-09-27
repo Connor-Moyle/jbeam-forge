@@ -90,11 +90,22 @@ button.pill:hover {
   color: var(--text-0);
 }
 
-.movePill {
+.gizmoTools {
   position: absolute;
   top: var(--space-3);
   left: var(--space-3);
   z-index: var(--z-overlay);
+  display: flex;
+  gap: var(--space-1);
+}
+
+.kbd {
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+.movePill {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);

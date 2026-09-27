@@ -70,10 +70,14 @@ function baked(g: BufferGeometry, matrix: number[] | null, uv: MeshEdit['uv'] | 
 
 function edited(m: ImportedMesh, e: MeshEdit | undefined): ImportedMesh {
   if (!e) return m;
-  const matrix = isIdentityTransform(e) ? null : editMatrix(e, centre(m.geometry));
+  const pivot = centre(m.geometry);
+  const matrix = isIdentityTransform(e) ? null : editMatrix(e, pivot);
   const uv = isIdentityUv(e) ? null : e.uv;
   if (!matrix && !uv) return m;
-  return { ...m, geometry: baked(m.geometry, matrix, uv) };
+  const geometry = baked(m.geometry, matrix, uv);
+  // The centre the edit turns about, for the viewport gizmo's maths.
+  geometry.userData.editPivot = pivot;
+  return { ...m, geometry };
 }
 
 export function applyMeshEdits(meshes: readonly ImportedMesh[], edits: Readonly<Record<string, MeshEdit>>, copies: readonly MeshCopy[]): ImportedMesh[] {

@@ -868,6 +868,32 @@ const scenarios = [
         await hook(page, 'runCommand', 'undo');
         await page.waitForTimeout(200);
 
+        // The gizmo: turn the caliper 90° about Z around its centre, then scale it ×2 (Blender's R and S).
+        await hook(page, 'selectMeshes', objKeys);
+        await page.getByTestId('mesh-rotate-toggle').click();
+        await page.getByTestId('mesh-rotate-toggle').and(page.locator('[aria-pressed=true]')).waitFor();
+        await shot(page, 'mesh-rotate-gizmo');
+        const extent = async () => {
+          const own = (await hook(page, 'meshBounds')).filter((m) => objKeys.includes(m.key));
+          const lo = [0, 1, 2].map((i) => Math.min(...own.map((m) => m.min[i])));
+          const hi = [0, 1, 2].map((i) => Math.max(...own.map((m) => m.max[i])));
+          return { size: hi.map((h, i) => h - lo[i]), centre: hi.map((h, i) => (h + lo[i]) / 2) };
+        };
+        const e0 = await extent();
+        const s = Math.SQRT1_2;
+        await hook(page, 'gizmoTransform', { pivot: e0.centre, translate: [0, 0, 0], rotate: [0, 0, s, s], scale: [1, 1, 1] });
+        await page.waitForTimeout(300);
+        const e1 = await extent();
+        assert(Math.abs(e1.size[0] - e0.size[1]) < 0.01 && Math.abs(e1.size[1] - e0.size[0]) < 0.01 && e1.centre.every((v, i) => Math.abs(v - e0.centre[i]) < 0.01), `rotated 90° in place (${JSON.stringify(e0)} → ${JSON.stringify(e1)})`);
+        await hook(page, 'gizmoTransform', { pivot: e1.centre, translate: [0, 0, 0], rotate: [0, 0, 0, 1], scale: [2, 2, 2] });
+        await page.waitForTimeout(300);
+        const e2 = await extent();
+        assert(e2.size.every((v, i) => Math.abs(v - e1.size[i] * 2) < 0.01), `scaled ×2 (${JSON.stringify(e2.size)})`);
+        await page.getByTestId('mesh-rotate-toggle').click();
+        await hook(page, 'runCommand', 'undo');
+        await hook(page, 'runCommand', 'undo');
+        await page.waitForTimeout(200);
+
         // "All four corners": the object and three copies, left/right mirrored, front/rear apart.
         const before4 = new Set((await hook(page, 'meshBounds')).map((m) => m.key));
         await page.getByTestId('object-add').nth(1).click();

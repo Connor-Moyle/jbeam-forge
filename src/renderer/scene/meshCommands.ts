@@ -1,4 +1,6 @@
+import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
 import { projectStore } from '@renderer/app/stores/project';
+import type { MeshGizmoTransform } from '@renderer/panels/viewport/viewportRuntime';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { copyKey } from '@renderer/import/meshEdits';
@@ -137,4 +139,68 @@ export function removeModel(sourceId: string): void {
   const doc = projectStore.getState().doc;
   const name = doc?.sources.find((s) => s.id === sourceId)?.path.split(/[\\/]/).pop() ?? 'model';
   projectStore.getState().execute({ label: `Remove ${name}`, apply: (d) => removeSourceFromDoc(d, sourceId) });
+}
+
+const round = (v: number) => Math.round(v * 1e6) / 1e6;
+const deg = (r: number) => round((r * 180) / Math.PI);
+
+/** Where a mesh's edit turns about: its centre before the edit. */
+function editPivot(key: string): Vector3 {
+  for (const src of Object.values(useSceneStore.getState().sources)) {
+    const m = src.meshes.find((x) => x.key === key);
+    if (!m) continue;
+    const saved = m.geometry.userData.editPivot as [number, number, number] | undefined;
+    if (saved) return new Vector3(...saved);
+    if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+    return m.geometry.boundingBox?.getCenter(new Vector3()) ?? new Vector3();
+  }
+  return new Vector3();
+}
+
+/**
+ * Apply a viewport gizmo drag (move, turn, resize about a shared pivot). A
+ * model whose meshes are all selected moves as a whole (its placement), so a
+ * fitted suspension or an object stays in one piece; other meshes get their
+ * own edits. One undo step.
+ */
+export function transformMeshes(keys: readonly string[], t: MeshGizmoTransform): void {
+  const doc = projectStore.getState().doc;
+  if (!doc || !keys.length) return;
+  const selected = new Set(keys);
+  const sources = useSceneStore.getState().sources;
+  const whole = doc.sources.filter((s) => {
+    const meshes = sources[s.id]?.meshes ?? [];
+    return meshes.length > 0 && meshes.every((m) => selected.has(m.key));
+  });
+  const wholeIds = new Set(whole.map((s) => s.id));
+  const loose = keys.filter((k) => k.startsWith('copy:') || !wholeIds.has(k.slice(0, k.indexOf(':'))));
+  const p = new Vector3(...t.pivot);
+  const d = new Vector3(...t.translate);
+  const q = new Quaternion(...t.rotate);
+  const s = new Vector3(...t.scale);
+  const uniform = (s.x + s.y + s.z) / 3;
+  const pivots = new Map(loose.map((k) => [k, editPivot(k)]));
+  const turned = (euler: readonly number[]) => {
+    const r = new Matrix4().makeRotationFromEuler(new Euler((euler[0]! * Math.PI) / 180, (euler[1]! * Math.PI) / 180, (euler[2]! * Math.PI) / 180, 'ZYX'));
+    const e = new Euler().setFromRotationMatrix(new Matrix4().makeRotationFromQuaternion(q).multiply(r), 'ZYX');
+    return [deg(e.x), deg(e.y), deg(e.z)] as [number, number, number];
+  };
+  const kind = Math.abs(q.w) < 0.999999 ? 'Turn' : Math.abs(uniform - 1) > 1e-6 || Math.abs(s.x - s.y) > 1e-6 ? 'Resize' : 'Move';
+  projectStore.getState().execute({
+    label: `${kind} ${keys.length === 1 ? 'mesh' : `${keys.length} meshes`}`,
+    apply: (dd) => {
+      for (const src of whole) {
+        const cur = dd.sources.find((x) => x.id === src.id);
+        if (!cur) continue;
+        const at = new Vector3(...cur.placement.position).sub(p).multiplyScalar(uniform).applyQuaternion(q).add(p).add(d);
+        cur.placement = { position: [round(at.x), round(at.y), round(at.z)], rotation: turned(cur.placement.rotation), scale: round(cur.placement.scale * uniform) };
+      }
+      for (const k of loose) {
+        const c = pivots.get(k)!;
+        const cur = dd.meshEdits[k] ?? structuredClone(IDENTITY_EDIT);
+        const at = new Vector3(...cur.position).add(c).sub(p).multiply(s).applyQuaternion(q).add(p).add(d).sub(c);
+        dd.meshEdits[k] = { ...cur, position: [round(at.x), round(at.y), round(at.z)], rotation: turned(cur.rotation), scale: [round(cur.scale[0] * s.x), round(cur.scale[1] * s.y), round(cur.scale[2] * s.z)] };
+      }
+    },
+  });
 }

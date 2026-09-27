@@ -29,6 +29,8 @@ import { mirrorPartners } from '@shared/structure/edit';
 import { useObjects } from '@renderer/panels/ObjectsPanel';
 import { loadFittedSets } from '@renderer/suspension/commands';
 import { prepareExport } from '@renderer/export/exportFlow';
+import { transformMeshes } from '@renderer/scene/meshCommands';
+import type { MeshGizmoTransform } from '@renderer/panels/viewport/viewportRuntime';
 import { useLibrary } from '@renderer/materials/LibraryDialog';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
@@ -189,6 +191,7 @@ function AppEffects() {
           return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
         },
         selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
+        gizmoTransform: (t: MeshGizmoTransform) => transformMeshes(useSceneStore.getState().selection, t),
         preparedJbeams: async () => {
           await loadFittedSets();
           const p = prepareExport();

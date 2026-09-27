@@ -8,6 +8,7 @@ import {
   DoubleSide,
   HemisphereLight,
   MOUSE,
+  Matrix4,
   Mesh,
   Object3D,
   OctahedronGeometry,
@@ -115,6 +116,18 @@ export interface ViewportCallbacks {
   onEditDouble?: (node: string | null) => void;
   /** Edit mode: the move gizmo was dragged by `delta` (BeamNG space); done = released. */
   onGizmoMove?: (delta: Vec3, done: boolean) => void;
+  /** Modelling: the gizmo on the selected meshes moved, turned or resized them about `pivot` (BeamNG space). */
+  onMeshTransform?: (t: MeshGizmoTransform, done: boolean) => void;
+}
+
+export type GizmoMode = 'translate' | 'rotate' | 'scale';
+
+/** A gizmo drag on meshes: about `pivot`, move by `translate`, turn by `rotate` (quaternion x, y, z, w), resize by `scale`. */
+export interface MeshGizmoTransform {
+  pivot: Vec3;
+  translate: Vec3;
+  rotate: [number, number, number, number];
+  scale: Vec3;
 }
 
 /** What the live physics view needs from a frame. */
@@ -197,6 +210,8 @@ export class ViewportRuntime {
   private readonly pivot = new Object3D();
   private readonly gizmo: TransformControls;
   private gizmoStart: Vector3 | null = null;
+  private gizmoStartQ = new Quaternion();
+  private gizmoStartS = new Vector3(1, 1, 1);
   private gizmoHot = false;
   /** Modelling: meshes the move gizmo is on (outside edit mode). */
   private meshGizmoKeys: readonly string[] | null = null;
@@ -269,15 +284,28 @@ export class ViewportRuntime {
     this.gizmo.addEventListener('dragging-changed', (e) => {
       const dragging = (e as unknown as { value: boolean }).value;
       this.controls.enabled = !dragging;
-      if (dragging) this.gizmoStart = this.pivot.position.clone();
-      else if (this.gizmoStart) {
-        const d = this.pivot.position.clone().sub(this.gizmoStart);
+      if (dragging) {
+        this.gizmoStart = this.pivot.position.clone();
+        this.gizmoStartQ = this.pivot.quaternion.clone();
+        this.gizmoStartS = this.pivot.scale.clone();
+      } else if (this.gizmoStart) {
+        if (this.meshGizmoKeys) this.callbacks.onMeshTransform?.(this.meshTransform(), true);
+        else {
+          const d = this.pivot.position.clone().sub(this.gizmoStart);
+          this.callbacks.onGizmoMove?.([d.x, d.y, d.z], true);
+        }
         this.gizmoStart = null;
-        this.callbacks.onGizmoMove?.([d.x, d.y, d.z], true);
+        // Fresh handles for the next drag.
+        this.pivot.quaternion.identity();
+        this.pivot.scale.set(1, 1, 1);
       }
     });
     this.gizmo.addEventListener('objectChange', () => {
       if (!this.gizmoStart) return;
+      if (this.meshGizmoKeys) {
+        this.callbacks.onMeshTransform?.(this.meshTransform(), false);
+        return;
+      }
       const d = this.pivot.position.clone().sub(this.gizmoStart);
       this.callbacks.onGizmoMove?.([d.x, d.y, d.z], false);
     });
@@ -729,19 +757,30 @@ export class ViewportRuntime {
       }
       this.pivot.position.set(cx / picked.length, cy / picked.length, cz / picked.length);
     }
+    this.gizmo.setMode('translate');
     if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
   }
 
+  /** The drag so far, relative to where it started. */
+  private meshTransform(): MeshGizmoTransform {
+    const start = this.gizmoStart ?? this.pivot.position;
+    const d = this.pivot.position.clone().sub(start);
+    const q = this.pivot.quaternion.clone().multiply(this.gizmoStartQ.clone().invert());
+    const sc = this.pivot.scale.clone().divide(this.gizmoStartS);
+    return { pivot: [start.x, start.y, start.z], translate: [d.x, d.y, d.z], rotate: [q.x, q.y, q.z, q.w], scale: [sc.x, sc.y, sc.z] };
+  }
+
   /**
-   * Modelling: put the move gizmo on these meshes (null = off). Its drags
-   * come through onGizmoMove like edit mode's; previewMeshOffset shows them.
+   * Modelling: put the gizmo on these meshes (null = off), in move, rotate or
+   * scale mode. Drags come through onMeshTransform; previewMeshTransform shows them.
    */
-  setMeshGizmo(keys: readonly string[] | null): void {
+  setMeshGizmo(keys: readonly string[] | null, mode: GizmoMode = 'translate'): void {
     this.meshGizmoKeys = keys && keys.length && !this.edit ? keys : null;
     if (!this.meshGizmoKeys) {
       if (!this.edit) this.gizmo.detach();
       return;
     }
+    if (!this.gizmoStart) this.gizmo.setMode(mode);
     if (!this.gizmoStart) {
       const box = new Box3();
       for (const k of this.meshGizmoKeys) {
@@ -759,9 +798,29 @@ export class ViewportRuntime {
     if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
   }
 
-  /** Show meshes moved by `delta` (BeamNG space) while the gizmo drags; null puts them back. */
-  previewMeshOffset(keys: readonly string[], delta: Vec3 | null): void {
-    for (const k of keys) this.meshObjects.get(k)?.position.set(delta?.[0] ?? 0, delta?.[1] ?? 0, delta?.[2] ?? 0);
+  /** Show meshes transformed (BeamNG space) while the gizmo drags; null puts them back. */
+  previewMeshTransform(keys: readonly string[], t: MeshGizmoTransform | null): void {
+    const m = new Matrix4();
+    if (t) {
+      const p = new Vector3(...t.pivot);
+      m.makeTranslation(p.x + t.translate[0], p.y + t.translate[1], p.z + t.translate[2])
+        .multiply(new Matrix4().makeRotationFromQuaternion(new Quaternion(...t.rotate)))
+        .multiply(new Matrix4().makeScale(...t.scale))
+        .multiply(new Matrix4().makeTranslation(-p.x, -p.y, -p.z));
+    }
+    for (const k of keys) {
+      const o = this.meshObjects.get(k);
+      if (!o) continue;
+      o.matrixAutoUpdate = !t;
+      if (t) o.matrix.copy(m);
+      else {
+        o.position.set(0, 0, 0);
+        o.quaternion.identity();
+        o.scale.set(1, 1, 1);
+        o.updateMatrix();
+      }
+      o.matrixWorldNeedsUpdate = true;
+    }
   }
 
   /** Screen-right and screen-up as the nearest BeamNG axes, for arrow-key nudging. */

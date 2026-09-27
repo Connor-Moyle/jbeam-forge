@@ -6,7 +6,7 @@ import { reportError } from '@renderer/diagnostics/globalHandlers';
 import { allMeshes, useSceneStore } from '@renderer/app/stores/scene';
 import { startImport } from '@renderer/import/importFlow';
 import type { ImportedMesh } from '@renderer/import/normalize';
-import { ViewportRuntime, webglAvailable, type EditView, type GlState, type ToolState, type ViewState } from './viewportRuntime';
+import { ViewportRuntime, webglAvailable, type EditView, type GizmoMode, type GlState, type ToolState, type ViewState } from './viewportRuntime';
 import { useEditStore } from '@renderer/structure/editStore';
 import { massBalance } from '@shared/structure/balance';
 import type { MaterialDef } from '@shared/materials/schema';
@@ -26,10 +26,10 @@ import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame } from '@renderer/sim/simSession';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
-import { Focus, Move, X } from 'lucide-react';
+import { Focus, Move, Rotate3d, Scaling, X } from 'lucide-react';
 import { cx } from '@renderer/ui/cx';
 import { useMeshMove } from '@renderer/scene/meshMove';
-import { nudgeMeshes } from '@renderer/scene/meshCommands';
+import { transformMeshes } from '@renderer/scene/meshCommands';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
@@ -77,18 +77,17 @@ export function ViewportPanel() {
           useEditStore.getState().select([node], []);
           selectParts();
         },
-        onGizmoMove: (delta, done) => {
-          // Modelling: the gizmo is on the selected meshes.
-          if (!useEditStore.getState().active) {
-            const keys = useSceneStore.getState().selection;
-            if (!done) {
-              runtime?.previewMeshOffset(keys, delta);
-              return;
-            }
-            runtime?.previewMeshOffset(keys, null);
-            if (Math.hypot(...delta) > 1e-6) nudgeMeshes(keys, delta);
+        onMeshTransform: (t, done) => {
+          const keys = useSceneStore.getState().selection;
+          if (!done) {
+            runtime?.previewMeshTransform(keys, t);
             return;
           }
+          runtime?.previewMeshTransform(keys, null);
+          const changed = Math.hypot(...t.translate) > 1e-6 || Math.abs(t.rotate[3]) < 0.999999 || t.scale.some((v) => Math.abs(v - 1) > 1e-6);
+          if (changed) transformMeshes(keys, t);
+        },
+        onGizmoMove: (delta, done) => {
           if (!done) {
             previewSelectionMove(delta);
             return;
@@ -170,8 +169,9 @@ export function ViewportPanel() {
     const unsubscribeEdit = useEditStore.subscribe(pushStructure);
     // Move gizmo on the selected meshes (Modelling), re-parked whenever they change.
     const pushMeshGizmo = () => {
-      const on = useMeshMove.getState().on && !useEditStore.getState().active && !useSplitTool.getState().meshKey;
-      rt.setMeshGizmo(on ? scene.getState().selection : null);
+      const move = useMeshMove.getState();
+      const on = move.on && !useEditStore.getState().active && !useSplitTool.getState().meshKey;
+      rt.setMeshGizmo(on ? scene.getState().selection : null, move.mode);
     };
     pushMeshGizmo();
     const unsubscribeMove = useMeshMove.subscribe(pushMeshGizmo);
@@ -193,8 +193,15 @@ export function ViewportPanel() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const splitting = useSplitTool.getState().meshKey !== null;
       const edit = useEditStore.getState();
-      if (!splitting && !edit.active && (e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        useMeshMove.getState().toggle();
+      // Blender-style: G move, R rotate, S scale (M too, for move); Esc puts the gizmo away.
+      const gizmoKey = { g: 'translate', m: 'translate', r: 'rotate', s: 'scale' }[e.key.toLowerCase()] as GizmoMode | undefined;
+      if (!splitting && !edit.active && gizmoKey && !e.ctrlKey && !e.altKey && !e.metaKey && scene.getState().selection.length) {
+        useMeshMove.getState().setMode(gizmoKey);
+        e.preventDefault();
+        return;
+      }
+      if (!splitting && !edit.active && e.key === 'Escape' && useMeshMove.getState().on) {
+        useMeshMove.getState().set(false);
         e.preventDefault();
         return;
       }
@@ -302,16 +309,37 @@ function svgPoints(flat: readonly number[]): string {
 }
 
 /** Modelling: turn the move arrows on the selected meshes on and off (M). */
+const GIZMO_TOOLS: { mode: GizmoMode; label: string; key: string; icon: typeof Move }[] = [
+  { mode: 'translate', label: 'Move', key: 'G', icon: Move },
+  { mode: 'rotate', label: 'Rotate', key: 'R', icon: Rotate3d },
+  { mode: 'scale', label: 'Scale', key: 'S', icon: Scaling },
+];
+
+/** Modelling: move / rotate / scale the selected meshes with a gizmo (G, R, S like Blender; Esc to put it away). */
 function MovePill() {
   const on = useMeshMove((s) => s.on);
+  const mode = useMeshMove((s) => s.mode);
   const selected = useSceneStore((s) => s.selection.length);
   const editing = useEditStore((s) => s.active);
   if (editing || (!selected && !on)) return null;
   return (
-    <button type="button" className={cx(styles.movePill, on && styles.movePillOn)} onClick={() => useMeshMove.getState().toggle()} title="Move the selected meshes with arrows (M)" data-testid="mesh-move-toggle">
-      <Move size={iconSize('size-icon-sm')} aria-hidden />
-      {on ? 'Moving: drag the arrows' : 'Move'}
-    </button>
+    <div className={styles.gizmoTools} role="toolbar" aria-label="Transform the selected meshes">
+      {GIZMO_TOOLS.map((t) => (
+        <button
+          key={t.mode}
+          type="button"
+          className={cx(styles.movePill, on && mode === t.mode && styles.movePillOn)}
+          onClick={() => useMeshMove.getState().setMode(t.mode)}
+          title={`${t.label} the selected meshes (${t.key})`}
+          aria-pressed={on && mode === t.mode}
+          data-testid={t.mode === 'translate' ? 'mesh-move-toggle' : `mesh-${t.mode}-toggle`}
+        >
+          <t.icon size={iconSize('size-icon-sm')} aria-hidden />
+          {t.label}
+          <kbd className={styles.kbd}>{t.key}</kbd>
+        </button>
+      ))}
+    </div>
   );
 }
 
