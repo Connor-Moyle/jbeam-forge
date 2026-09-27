@@ -143,7 +143,7 @@ export function Toolbar() {
           className={styles.preset}
         />
         <span className={styles.divider} aria-hidden />
-        <Button variant="primary" icon={Download} onClick={openExport} disabled={!hasParts} data-testid="toolbar-export">
+        <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!hasParts} data-testid="toolbar-export">
           Export
         </Button>
         <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />

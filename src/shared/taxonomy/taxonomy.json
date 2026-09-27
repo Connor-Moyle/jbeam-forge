@@ -133,6 +133,21 @@
       ]
     },
     {
+      "id": "suspension_set",
+      "label": "Suspension",
+      "category": "Mechanical",
+      "subcategory": "Suspension",
+      "positionAxis": "fr",
+      "slotType": "suspension_set",
+      "parent": "body",
+      "defaultMass": 85,
+      "defaultPrice": 2800,
+      "nodePrefix": "sq",
+      "beamPreset": "structure_stiff",
+      "openable": false,
+      "nameHints": []
+    },
+    {
       "id": "engine_bay",
       "label": "Engine bay",
       "category": "Body & Structure",

@@ -1057,6 +1057,18 @@ const scenarios = [
       partsReport.parts = (await hook(page, 'partNames')).slice(-12);
       await page.waitForTimeout(800);
       await shot(page, 'suspension-fitted');
+      // Tuning page, then the jbeam brought over into the mod.
+      await page.getByTestId('axle-tune').first().click();
+      await page.getByTestId('suspension-tuning').waitFor();
+      await page.waitForTimeout(800);
+      await shot(page, 'suspension-tuning');
+      const prepared = await hook(page, 'preparedJbeams');
+      const susp = prepared.files.filter((f) => /_F_etk800/.test(f.path));
+      assert(susp.length >= 3, `suspension jbeam brought over (${prepared.files.map((f) => f.path).join(', ')})`);
+      const root = susp.find((f) => /suspension_F\.jbeam$/.test(f.path));
+      assert(root && /"f_[a-z0-9]+"/.test(root.text) && /parts_F_etk800_suspension_F/.test(prepared.files.map((f) => f.text).join(' ')), 'nodes renamed and the slot added');
+      partsReport.jbeam = susp.map((f) => f.path);
+      writeFileSync(join(outDir, 'suspension-root.jbeam'), root.text);
       writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
     },
   },

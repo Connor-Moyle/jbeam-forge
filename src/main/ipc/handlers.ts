@@ -22,6 +22,7 @@ import { readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import { kn5TextureDir } from '../import/kn5Textures';
 import { readAcCar } from '../import/acCar';
+import type { JbeamObject } from '@shared/jbeam/parse';
 import type { UserLibrary } from '../library/userLibrary';
 import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
@@ -393,6 +394,22 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('materials:pack', async () => [...(await materialPack), ...services.userLibrary.items.materials]);
   registerInvoke('objects:list', async () => [...(await objectPack), ...services.userLibrary.items.objects]);
   registerInvoke('suspension:catalogue', () => services.userLibrary.items.sets);
+  registerInvoke(
+    'suspension:set',
+    async ({ id }) => {
+      const set = services.userLibrary.items.sets.find((s) => s.id === id);
+      if (!set) return null;
+      const parts = JSON.parse(await readFile(set.jbeam, 'utf8')) as Record<string, JbeamObject>;
+      let anchors: Record<string, [number, number, number]> = {};
+      try {
+        anchors = JSON.parse(await readFile(join(dirname(set.jbeam), 'anchors.json'), 'utf8')) as typeof anchors;
+      } catch {
+        // cut before anchors were recorded: attachments stay on the suspension
+      }
+      return { parts, anchors, root: set.part };
+    },
+    z.object({ id: z.string().min(1).max(300) }),
+  );
   const libraryStatus = () => ({ scanning: services.userLibrary.items.scanning, folders: services.userLibrary.items.folders });
   registerInvoke('library:status', libraryStatus);
   registerInvoke('library:rescan', async () => {

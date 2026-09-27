@@ -66,7 +66,7 @@ function PaletteBody({ close }: { close: () => void }) {
           if (startTestMode()) shell.showPanel('test-results');
         },
       },
-      { id: 'export', label: 'Export mod…', group: 'Action', run: () => openExport() },
+      { id: 'export', label: 'Export mod…', group: 'Action', run: () => void openExport() },
       { id: 'export-glb', label: 'Export model as .glb (for Blender)…', group: 'Action', run: () => void exportModel('glb') },
       { id: 'export-dae', label: 'Export model as .dae…', group: 'Action', run: () => void exportModel('dae') },
       { id: 'settings', label: 'Settings…', group: 'Action', hint: 'Ctrl+,', run: () => useDialogStore.getState().setSettingsOpen(true) },

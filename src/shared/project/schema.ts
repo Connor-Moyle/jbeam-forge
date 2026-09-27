@@ -243,6 +243,8 @@ export const AxleSchema = z.object({
   /** Wheel centre to wheel centre, metres. */
   track: z.number().positive(),
   steered: z.boolean(),
+  /** Tuning values for the fitted suspension's variables ($springheight_F…); unset = the game's default. */
+  tuning: z.record(z.string(), z.number()),
   fitted: z
     .object({
       /** Catalogue id (vehicle/part). */

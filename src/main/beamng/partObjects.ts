@@ -3,6 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isJbeamObject, parseJbeam, type JbeamObject } from '@shared/jbeam/parse';
 import { withZip, type ZipReader } from './zip';
+import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
 
 /**
  * Suspension, brake and steering meshes from the user's own BeamNG.drive
@@ -293,6 +294,9 @@ async function writeSets(
 ): Promise<void> {
   const own = await allParts(zip);
   const find = (n: string) => own.get(n) ?? commonParts.get(n);
+  // Every node the car defines, so a set's attachments to the body can be placed.
+  const vehicleNodes = new Map<string, V3>();
+  for (const body of own.values()) for (const [id, pos] of definedNodes(body)) if (!vehicleNodes.has(id)) vehicleNodes.set(id, pos);
   const logoFile = join(out, '_logos', `${vehicle}.png`);
   let logo: Buffer | null = brandLogos.get(info.brand.toLowerCase()) ?? null;
   if (!logo) {
@@ -334,7 +338,9 @@ async function writeSets(
     mkdirSync(dir, { recursive: true });
     const meshFile = `${vehicle}_${safe(partName)}.dae`;
     writeFileSync(join(dir, meshFile), dae);
-    writeFileSync(join(dir, 'jbeam.json'), JSON.stringify(Object.fromEntries(parts.map((p) => [p, find(p)])), null, 1));
+    const closure = Object.fromEntries(parts.map((p) => [p, find(p)!]));
+    writeFileSync(join(dir, 'jbeam.json'), JSON.stringify(closure, null, 1));
+    writeFileSync(join(dir, 'anchors.json'), JSON.stringify(externalNodeRefs(closure, vehicleNodes)));
     writeFileSync(
       join(dir, 'set.json'),
       JSON.stringify(

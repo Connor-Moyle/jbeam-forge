@@ -10,6 +10,7 @@ import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
 import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
+import { transplantSuspension } from '../suspension/transplant';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -23,7 +24,7 @@ import { limiterBound } from '../hinges/geometry';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -33,6 +34,19 @@ export interface JbeamExportOptions {
   /** meshKey → exported DAE node name (only exported meshes). */
   meshNames: ReadonlyMap<string, string>;
   author: string;
+  /** Fitted suspensions' jbeam (by catalogue set id), brought over into the mod. */
+  suspensions?: Readonly<Record<string, SuspensionSetData>>;
+}
+
+export interface SuspensionSetData {
+  parts: Record<string, JbeamObject>;
+  anchors: Record<string, [number, number, number]>;
+  root: string;
+}
+
+/** Axle tags for part and node names: F, R, R2, R3… */
+function axleTag(i: number): string {
+  return i === 0 ? 'F' : i === 1 ? 'R' : `R${i}`;
 }
 
 export interface JbeamFile {
@@ -168,9 +182,36 @@ function slotsFor(doc: Doc, children: readonly Part[], coreSlotType: string | nu
 }
 
 /** Build every jbeam file of the mod. */
-export function buildJbeamFiles(doc: Doc, tax: TaxonomyLookup, opts: JbeamExportOptions): JbeamFile[] {
-  const slug = doc.meta.slug;
+export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamExportOptions): JbeamFile[] {
+  const slug = fullDoc.meta.slug;
   const files: JbeamFile[] = [];
+  // Fitted suspensions: their project part is replaced by the game's own jbeam, brought over.
+  const fitted = new Set((fullDoc.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.sourceId] : [])));
+  const fromFitted = (k: string) => fitted.has(k.slice(0, k.indexOf(':')));
+  const doc: Doc = { ...fullDoc, parts: fullDoc.parts.filter((p) => p.taxonomyId !== 'suspension_set') };
+  const suspensionSlots: WritableValue[] = [];
+  (fullDoc.axles ?? []).forEach((axle, i) => {
+    const data = axle.fitted ? opts.suspensions?.[axle.fitted.setId] : undefined;
+    if (!axle.fitted || !data) return;
+    const sourceId = axle.fitted.sourceId;
+    const meshNames: Record<string, string> = {};
+    for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
+    const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
+    const suspensionParts = new Set(fullDoc.parts.filter((p) => p.taxonomyId === 'suspension_set').map((p) => p.id));
+    const t = transplantSuspension({
+      parts: data.parts,
+      root: data.root,
+      anchors: data.anchors,
+      offset,
+      partPrefix: `${slug}_${axleTag(i)}_`,
+      nodePrefix: `${axleTag(i).toLowerCase()}_`,
+      target: fullDoc.nodes.filter((n) => !suspensionParts.has(n.partId)),
+      meshNames,
+      tuning: axle.tuning,
+    });
+    for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
+    suspensionSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
+  });
   const body = bodyPart(doc, tax);
   const byId = new Map(doc.parts.map((p) => [p.id, p]));
   // Children hang on the parent's *slot*: every variant of the parent declares the same child slots.
@@ -195,7 +236,7 @@ export function buildJbeamFiles(doc: Doc, tax: TaxonomyLookup, opts: JbeamExport
 
   const meshesOf = (partId: string) =>
     Object.keys(doc.assignments)
-      .filter((k) => doc.assignments[k] === partId && !doc.ignoredMeshes.includes(k) && opts.meshNames.has(k))
+      .filter((k) => doc.assignments[k] === partId && !doc.ignoredMeshes.includes(k) && opts.meshNames.has(k) && !fromFitted(k))
       .map((k) => opts.meshNames.get(k)!)
       .sort();
 
@@ -218,6 +259,8 @@ export function buildJbeamFiles(doc: Doc, tax: TaxonomyLookup, opts: JbeamExport
     };
     const kids = childrenOf(part);
     if (kids.length) content.slots2 = slotsFor(doc, kids, null);
+    // The body carries the fitted suspensions' slots.
+    if (part.id === body?.id && suspensionSlots.length) content.slots2 = [...((content.slots2 as WritableValue[] | undefined) ?? [['name', 'allowTypes', 'denyTypes', 'default', 'description']]), ...suspensionSlots];
     if (part.id === body?.id && doc.proxy.refNodes) {
       const r = doc.proxy.refNodes;
       content.refNodes = [['ref:', 'back:', 'left:', 'up:', 'leftCorner:', 'rightCorner:'], [r.ref, r.back, r.left, r.up, r.leftCorner, r.rightCorner]];

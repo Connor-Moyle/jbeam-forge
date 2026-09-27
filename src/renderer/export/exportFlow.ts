@@ -10,6 +10,7 @@ import { capturePreview } from '@renderer/panels/viewport/registry';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle } from '@shared/ipc-contract';
 import { buildJbeamFiles } from '@shared/export/jbeam';
+import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
 import { configInfo, DEFAULT_CONFIG, defaultConfig, exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
@@ -95,7 +96,7 @@ export function prepareExport(): PreparedExport | null {
     };
   });
   const dae = writeDae(daeMeshes, [...project.colors, ...mats.materials.map((m) => ({ name: m.name, color: m.baseColor }))]);
-  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author });
+  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data });
   const pc = defaultConfig(doc, tax);
   const root = `vehicles/${slug}`;
   const files: ExportBundle['files'] = [
@@ -124,9 +125,10 @@ export function prepareExport(): PreparedExport | null {
   };
 }
 
-export function openExport(): void {
+export async function openExport(): Promise<void> {
   const ui = useExportUi.getState();
   ui.setOpen(true);
+  await loadFittedSets().catch((err: unknown) => logger.warn('suspension jbeam not loaded:', errorText(err)));
   try {
     ui.set({ prepared: prepareExport(), error: null, result: null });
   } catch (err) {

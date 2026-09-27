@@ -13,7 +13,9 @@ import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { cx } from '@renderer/ui/cx';
-import { addAxle, axleKind, fitSuspension, removeAxle, removeSuspension, setUpAxles, updateAxle, useSuspensionCatalogue, useSuspensionUi } from './commands';
+import { addAxle, axleKind, fitSuspension, removeAxle, removeSuspension, setTuning, setUpAxles, updateAxle, useSetData, useSuspensionCatalogue, useSuspensionUi } from './commands';
+import { tuningVariables } from '@shared/suspension/transplant';
+import { Slider } from '@renderer/ui/components/Slider';
 import styles from './SuspensionPanel.module.css';
 
 /** A local image file (brand logo) as an object URL. */
@@ -50,8 +52,11 @@ export function SuspensionPanel() {
     return off;
   }, [load]);
 
+  const tuning = useSuspensionUi((s) => s.tuneId);
   const axle = axles.find((a) => a.id === picking);
   if (axle && sets) return <Picker axle={axle} axles={axles} sets={sets} />;
+  const tuned = axles.find((a) => a.id === tuning);
+  if (tuned?.fitted) return <Tuning axle={tuned} />;
   if (!axles.length) {
     return <EmptyState icon={Wrench} message="Suspension works axle by axle. Set up the car's axles first: front and rear go where its wheels are, and you can add more." action={{ label: 'Set up axles', icon: Plus, onClick: setUpAxles }} />;
   }
@@ -95,6 +100,9 @@ function AxleCard({ axle }: { axle: Axle }) {
             </div>
           </div>
           <div className={styles.row}>
+            <Button size="sm" variant="primary" onClick={() => useSuspensionUi.getState().tune(axle.id)} data-testid="axle-tune">
+              Tune
+            </Button>
             <Button size="sm" onClick={() => useSuspensionUi.getState().pick(axle.id)}>
               Change
             </Button>
@@ -222,4 +230,54 @@ function SetThumb({ set }: { set: SuspensionSet }) {
     };
   }, [set]);
   return <span className={cx(styles.thumb)}>{src && <img src={src} alt="" />}</span>;
+}
+
+/** The fitted suspension's tuning: the variables its jbeam offers, as in the game's tuning menu. */
+function Tuning({ axle }: { axle: Axle }) {
+  const setId = axle.fitted!.setId;
+  const data = useSetData((s) => s.data[setId]);
+  useEffect(() => void useSetData.getState().ensure([setId]), [setId]);
+  const vars = useMemo(() => (data ? tuningVariables(data.parts) : []), [data]);
+  const groups = useMemo(() => [...new Set(vars.map((v) => v.category || 'Other'))], [vars]);
+  return (
+    <div className={styles.panel} data-testid="suspension-tuning">
+      <header className={styles.pickerHead}>
+        <Button icon={ChevronLeft} size="sm" variant="ghost" onClick={() => useSuspensionUi.getState().tune(null)}>
+          Back
+        </Button>
+        <span className={styles.crumbs}>
+          {axle.name} · {axle.fitted!.vehicle} {axle.fitted!.name}
+        </span>
+      </header>
+      <p className={styles.note}>These become the defaults in your mod, and stay adjustable in the game&rsquo;s tuning menu.</p>
+      <ScrollArea className={styles.scroll}>
+        {!data && <p className={styles.note}>Reading its jbeam…</p>}
+        {data && !vars.length && <p className={styles.note}>This suspension has no tuning settings of its own.</p>}
+        {groups.map((g) => (
+          <section key={g} className={styles.axle}>
+            <strong className={styles.fittedName}>{g}</strong>
+            {vars
+              .filter((v) => (v.category || 'Other') === g)
+              .map((v) => {
+                const value = axle.tuning[v.name] ?? v.default;
+                const step = v.step ?? (v.max - v.min) / 100;
+                const digits = Math.max(0, Math.min(4, -Math.floor(Math.log10(step || 1))));
+                return (
+                  <Field key={v.name} label={v.title} hint={v.description || undefined}>
+                    <div className={styles.tuneRow}>
+                      <Slider value={value} onChange={(x) => setTuning(axle.id, v.name, x)} min={v.min} max={v.max} step={step} format={(x) => `${x.toFixed(digits)}${v.unit ? ` ${v.unit}` : ''}`} aria-label={v.title} />
+                      {axle.tuning[v.name] !== undefined && (
+                        <Button size="sm" variant="ghost" onClick={() => setTuning(axle.id, v.name, null)}>
+                          Reset
+                        </Button>
+                      )}
+                    </div>
+                  </Field>
+                );
+              })}
+          </section>
+        ))}
+      </ScrollArea>
+    </div>
+  );
 }

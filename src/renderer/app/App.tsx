@@ -27,6 +27,8 @@ import { splitCentreLine } from '@renderer/split/splitTool';
 import { installNamingRules, renameFromParts } from '@renderer/parts/naming';
 import { mirrorPartners } from '@shared/structure/edit';
 import { useObjects } from '@renderer/panels/ObjectsPanel';
+import { loadFittedSets } from '@renderer/suspension/commands';
+import { prepareExport } from '@renderer/export/exportFlow';
 import { useLibrary } from '@renderer/materials/LibraryDialog';
 import type { AppCommand } from '@shared/ipc-contract';
 import styles from './App.module.css';
@@ -187,6 +189,11 @@ function AppEffects() {
           return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
         },
         selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
+        preparedJbeams: async () => {
+          await loadFittedSets();
+          const p = prepareExport();
+          return p ? { files: p.bundle.files.filter((f) => f.path.endsWith('.jbeam')).map((f) => ({ path: f.path, text: f.text ?? '' })), errors: p.report.errors } : null;
+        },
         frameMeshes: (pattern: string) => {
           const re = new RegExp(pattern, 'i');
           const keys = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes.filter((m) => re.test(m.name)).map((m) => m.key));

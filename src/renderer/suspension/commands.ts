@@ -1,6 +1,7 @@
 import { Box3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
+import type { SuspensionSetData } from '@shared/export/jbeam';
 import type { Axle } from '@shared/project/schema';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
 import { projectStore } from '@renderer/app/stores/project';
@@ -11,7 +12,7 @@ import { confirmImport } from '@renderer/import/importFlow';
 import { setPlacement } from '@renderer/import/PlacementDialog';
 import { defaultSettings, stageImport } from '@renderer/import/pipeline';
 import { cornerTargets } from '@renderer/objects/placeObject';
-import { applyPendingClassification, offerAutoClassify } from '@renderer/parts/commands';
+import { assignToNewPart } from '@renderer/parts/commands';
 
 /**
  * Suspension workshop (Phase 10): the car's axles, and complete suspensions
@@ -27,8 +28,31 @@ export const useSuspensionCatalogue = create<{ sets: SuspensionSet[] | null; loa
   },
 }));
 
+/** Sets' jbeam and attachment points, loaded on demand (the exporter and the tuning page read them). */
+export const useSetData = create<{ data: Record<string, SuspensionSetData>; ensure: (ids: readonly string[]) => Promise<void> }>()((set, get) => ({
+  data: {},
+  ensure: async (ids) => {
+    const missing = ids.filter((id) => !get().data[id]);
+    for (const id of missing) {
+      const d = await call('suspension:set', { id });
+      if (d) set((s) => ({ data: { ...s.data, [id]: d } }));
+    }
+  },
+}));
+
+/** Load the jbeam of every suspension fitted in the project. */
+export async function loadFittedSets(): Promise<void> {
+  const ids = (projectStore.getState().doc?.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.setId] : []));
+  if (ids.length) await useSetData.getState().ensure(ids);
+}
+
 /** Which axle the picker is choosing for. */
-export const useSuspensionUi = create<{ axleId: string | null; pick: (id: string | null) => void }>()((set) => ({ axleId: null, pick: (axleId) => set({ axleId }) }));
+export const useSuspensionUi = create<{ axleId: string | null; tuneId: string | null; pick: (id: string | null) => void; tune: (id: string | null) => void }>()((set) => ({
+  axleId: null,
+  tuneId: null,
+  pick: (axleId) => set({ axleId, tuneId: null }),
+  tune: (tuneId) => set({ tuneId, axleId: null }),
+}));
 
 /** Which sets suit an axle: front sets for the first, rear for the others; "any" fits both. */
 export function axleKind(axles: readonly Axle[], axle: Axle): 'front' | 'rear' {
@@ -46,8 +70,8 @@ export function setUpAxles(): void {
   }
   const track = (fl: number[], fr: number[]) => Math.max(0.5, Math.abs(fl[0]! - fr[0]!));
   const axles: Axle[] = [
-    { id: newId(), name: 'Front axle', y: (t.at.FL[1] + t.at.FR[1]) / 2, track: track(t.at.FL, t.at.FR), steered: true, fitted: null },
-    { id: newId(), name: 'Rear axle', y: (t.at.RL[1] + t.at.RR[1]) / 2, track: track(t.at.RL, t.at.RR), steered: false, fitted: null },
+    { id: newId(), name: 'Front axle', y: (t.at.FL[1] + t.at.FR[1]) / 2, track: track(t.at.FL, t.at.FR), steered: true, tuning: {}, fitted: null },
+    { id: newId(), name: 'Rear axle', y: (t.at.RL[1] + t.at.RR[1]) / 2, track: track(t.at.RL, t.at.RR), steered: false, tuning: {}, fitted: null },
   ];
   projectStore.getState().execute({ label: 'Set up axles', apply: (d) => void (d.axles = axles) });
   useSuspensionUi.getState().pick(axles[0]!.id);
@@ -58,7 +82,7 @@ export function addAxle(): void {
   const doc = projectStore.getState().doc;
   const last = doc?.axles.at(-1);
   if (!doc || !last) return setUpAxles();
-  const axle: Axle = { id: newId(), name: `Axle ${doc.axles.length + 1}`, y: last.y + 1.3, track: last.track, steered: false, fitted: null };
+  const axle: Axle = { id: newId(), name: `Axle ${doc.axles.length + 1}`, y: last.y + 1.3, track: last.track, steered: false, tuning: {}, fitted: null };
   projectStore.getState().execute({ label: 'Add axle', apply: (d) => void d.axles.push(axle) });
 }
 
@@ -137,16 +161,19 @@ export async function fitSuspension(axleId: string, set: SuspensionSet): Promise
     const p = src.placement;
     setPlacement(sourceId, { ...p, position: [p.position[0] + carX - at[0]!, p.position[1] + axle.y - at[1]!, p.position[2] + wheelZ - at[2]!] });
   }
-  // Its meshes become parts (arms, hubs, coilovers…) straight away.
-  const meshes = useSceneStore.getState().sources[sourceId]?.meshes ?? [];
-  offerAutoClassify(set.name, meshes);
-  applyPendingClassification();
+  // The whole set is one part: on export its meshes go with the game's own jbeam for them.
+  const keys = (useSceneStore.getState().sources[sourceId]?.meshes ?? []).map((m) => m.key);
+  const axles = projectStore.getState().doc?.axles ?? [];
+  assignToNewPart(keys, { taxonomyId: 'suspension_set', position: axleKind(axles, axle) === 'front' ? 'F' : 'R' });
   projectStore.getState().execute({
     label: `Fit ${set.vehicleName} ${set.name}`,
     apply: (d) => {
       if (old) removeSourceFromDoc(d, old);
       const a = d.axles.find((x) => x.id === axleId);
-      if (a) a.fitted = { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId };
+      if (a) {
+        a.fitted = { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId };
+        a.tuning = {};
+      }
     },
   });
   const setTrack = all.max.x - all.min.x;
@@ -157,4 +184,18 @@ export async function fitSuspension(axleId: string, set: SuspensionSet): Promise
       'success',
       10000,
     );
+}
+
+/** A tuning value for the fitted suspension (null = back to the game's default). */
+export function setTuning(axleId: string, name: string, value: number | null): void {
+  projectStore.getState().execute({
+    label: 'Tune suspension',
+    coalesce: `tune:${axleId}:${name}`,
+    apply: (d) => {
+      const a = d.axles.find((x) => x.id === axleId);
+      if (!a) return;
+      if (value === null) delete a.tuning[name];
+      else a.tuning[name] = value;
+    },
+  });
 }

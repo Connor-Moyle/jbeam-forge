@@ -20,6 +20,8 @@ export interface SuspensionSet {
   /** MacPherson strut, Double wishbone, Solid axle, Leaf spring… */
   type: string;
   name: string;
+  /** The suspension part itself. */
+  part: string;
   /** The part and the defaults of its slots. */
   parts: string[];
   /** The set's meshes (absolute DAE). */
@@ -68,6 +70,7 @@ import type { StoredLayout } from './layout-schema';
 import type { BeamngDetection, InstallValidation } from './beamng';
 import type { SourceFormat } from './project/schema';
 import type { TaxonomyEntry } from './taxonomy/schema';
+import type { JbeamObject } from './jbeam/parse';
 
 /**
  * Single source of truth for every IPC channel. The preload bridge only
@@ -165,6 +168,8 @@ export interface InvokeContract {
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
   /** Complete suspensions from the BeamNG install (empty until the install is set and read). */
   'suspension:catalogue': { req: undefined; res: SuspensionSet[] };
+  /** A set's jbeam part definitions and the body nodes it attaches to (original positions). */
+  'suspension:set': { req: { id: string }; res: { parts: Record<string, JbeamObject>; anchors: Record<string, [number, number, number]>; root: string } | null };
   /** Your library folders: what each one gave, and whether a scan is running. */
   'library:status': { req: undefined; res: LibraryStatus };
   /** Scan your library folders again now. */
@@ -249,6 +254,7 @@ export const INVOKE_CHANNELS = [
   'import:pickTextureDir',
   'ac:pickCar',
   'suspension:catalogue',
+  'suspension:set',
   'library:status',
   'library:rescan',
   'kn5:saveBaked',
