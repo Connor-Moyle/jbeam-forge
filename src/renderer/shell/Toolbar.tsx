@@ -13,6 +13,7 @@ import {
   Save,
   Redo2,
   ScanEye,
+  ScanLine,
   Settings,
   Square,
   Undo2,
@@ -96,6 +97,7 @@ export function Toolbar() {
         <span className={styles.divider} aria-hidden />
         <IconButton icon={Eye} label={view.mesh ? 'Hide mesh' : 'Show mesh'} active={view.mesh} onClick={() => toggleView('mesh')} data-testid="toolbar-view-mesh" />
         <IconButton icon={Box} label={view.structure ? 'Hide nodes & beams' : 'Show nodes & beams'} active={view.structure} onClick={() => toggleView('structure')} data-testid="toolbar-view-structure" />
+        <IconButton icon={ScanLine} label={view.xray ? 'X-ray off' : 'X-ray: see through the mesh'} active={view.xray} onClick={() => toggleView('xray')} data-testid="toolbar-view-xray" />
         <IconButton icon={MousePointer2} label={editing ? 'Stop editing nodes & beams' : hasStructure ? 'Edit nodes & beams' : 'Edit nodes & beams (generate the structure first)'} shortcut="Tab" active={editing} disabled={!hasStructure && !editing} onClick={() => setEditing(!editing)} data-testid="toolbar-edit" />
       </div>
       <div className={styles.group} role="group" aria-label="Test">

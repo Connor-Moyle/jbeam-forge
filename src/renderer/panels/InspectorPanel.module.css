@@ -91,3 +91,15 @@
   height: var(--size-icon);
   color: var(--accent);
 }
+
+.measure {
+  margin: 0;
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+}
+
+.measure strong {
+  color: var(--text-0);
+  font-size: var(--text-control);
+}

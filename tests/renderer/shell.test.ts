@@ -113,7 +113,7 @@ describe('ui store', () => {
     useUiStore.getState().setCollapsed('sec', true);
     useUiStore.getState().pushStatus('hi');
     const stored = JSON.parse(localStorage.getItem('jbforge.ui') ?? '{}') as { state: Record<string, unknown> };
-    expect(stored.state).toEqual({ collapsed: { sec: true }, view: { mesh: true, structure: true } }); // view toggles persist too
+    expect(stored.state).toEqual({ collapsed: { sec: true }, view: { mesh: true, structure: true, xray: false } }); // view toggles persist too
   });
 
   it('status messages expire, and a newer message is not cleared by an older timer', () => {

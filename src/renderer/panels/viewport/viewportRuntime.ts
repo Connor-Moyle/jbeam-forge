@@ -182,7 +182,7 @@ export class ViewportRuntime {
   private readonly live = new LiveOverlay();
   private liveView: LiveView | null = null;
   private liveFramedFor: unknown = null;
-  private viewToggles = { mesh: true, structure: true };
+  private viewToggles = { mesh: true, structure: true, xray: false };
   private simDrag: { node: number; depth: number } | null = null;
   private edit: EditView | null = null;
   private readonly editOverlay = new StructureOverlay();
@@ -510,8 +510,9 @@ export class ViewportRuntime {
   private applyFocus(): void {
     const focus = this.view.focus ? new Set(this.view.focus) : null;
     this.focusSet = focus;
+    const xray = this.viewToggles.xray;
     for (const [key, obj] of this.meshObjects) {
-      const ghost = !!focus && !focus.has(key);
+      const ghost = xray || (!!focus && !focus.has(key));
       obj.material = ghost ? this.ghostMaterial : (obj.userData.material as Mesh['material']);
       obj.renderOrder = ghost ? 2 : 0; // ghosts draw after the solid part so it shows through
     }
@@ -598,9 +599,11 @@ export class ViewportRuntime {
     this.reference.set(data, 0.012);
   }
 
-  setView(view: { mesh: boolean; structure: boolean }): void {
+  setView(view: { mesh: boolean; structure: boolean; xray: boolean }): void {
+    const xrayChanged = view.xray !== this.viewToggles.xray;
     this.viewToggles = view;
     this.applyVisibility();
+    if (xrayChanged) this.applyFocus();
   }
 
   /** Test Mode draws the solver's structure; the static mesh/structure step aside (the sim doesn't bend them). */

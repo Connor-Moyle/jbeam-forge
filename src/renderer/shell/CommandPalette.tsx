@@ -65,6 +65,7 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'export', label: 'Export mod…', group: 'Action', run: () => openExport() },
       { id: 'mesh', label: view.mesh ? 'Hide mesh' : 'Show mesh', group: 'Action', run: () => useUiStore.getState().toggleView('mesh') },
       { id: 'structure', label: view.structure ? 'Hide nodes & beams' : 'Show nodes & beams', group: 'Action', run: () => useUiStore.getState().toggleView('structure') },
+      { id: 'xray', label: view.xray ? 'X-ray off' : 'X-ray on', group: 'Action', run: () => useUiStore.getState().toggleView('xray') },
       !!useSceneStore.getState().focus && { id: 'unfocus', label: 'Leave focus mode', group: 'Action', hint: 'Esc', run: () => void exitFocus() },
       { id: 'undo', label: 'Undo', group: 'Action', hint: 'Ctrl+Z', run: undo },
       { id: 'redo', label: 'Redo', group: 'Action', hint: 'Ctrl+Y', run: redo },

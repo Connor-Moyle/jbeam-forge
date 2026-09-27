@@ -61,6 +61,7 @@ export function NodeInspector() {
             ))}
           </div>
         </FieldGroup>
+        {nodes.length === 2 && <Measure a={nodes[0]!.pos} b={nodes[1]!.pos} />}
         <FieldGroup title="Mass">
           <Field label={single ? 'Weight' : 'Weight of each'} hint={weights.size > 1 ? `Mixed; total ${total.toFixed(2)} kg. Typing a value sets them all.` : `Total ${total.toFixed(2)} kg`}>
             <NumberInput value={nodes[0]!.weight} onChange={(v) => setWeight(ids, v)} min={0.01} max={1000} step={0.1} precision={3} unit="kg" aria-label="Node weight" />
@@ -102,5 +103,18 @@ function NodeName({ id }: { id: string }) {
     <Field label="Node id" hint={problem ?? 'Renaming updates every beam and triangle that uses it.'}>
       <Input value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} mono data-testid="inspector-node-id" />
     </Field>
+  );
+}
+
+/** Two nodes picked: how far apart they are. */
+function Measure({ a, b }: { a: readonly number[]; b: readonly number[] }) {
+  const d = [b[0]! - a[0]!, b[1]! - a[1]!, b[2]! - a[2]!];
+  const mm = (v: number) => `${Math.round(v * 1000)} mm`;
+  return (
+    <FieldGroup title="Distance">
+      <p className={styles.measure} data-testid="node-distance">
+        <strong>{mm(Math.hypot(d[0]!, d[1]!, d[2]!))}</strong> · X {mm(Math.abs(d[0]!))} · Y {mm(Math.abs(d[1]!))} · Z {mm(Math.abs(d[2]!))}
+      </p>
+    </FieldGroup>
   );
 }

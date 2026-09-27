@@ -20,6 +20,8 @@ export interface ViewToggles {
   mesh: boolean;
   /** Generated nodes and beams drawn over the model. */
   structure: boolean;
+  /** X-ray: every mesh see-through (same look and opacity as focus mode's ghost). */
+  xray: boolean;
 }
 
 interface UiState {
@@ -41,7 +43,7 @@ export const useUiStore = create<UiState>()(
   persist(
     (set, get) => ({
       collapsed: {},
-      view: { mesh: true, structure: true },
+      view: { mesh: true, structure: true, xray: false },
       toggleView: (key) => set((s) => ({ view: { ...s.view, [key]: !s.view[key] } })),
       status: null,
       setCollapsed: (id, collapsed) => {
@@ -63,6 +65,11 @@ export const useUiStore = create<UiState>()(
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ collapsed: s.collapsed, view: s.view }),
+      // Older saved views lack newer toggles: fill them from the defaults.
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<Pick<UiState, 'collapsed' | 'view'>>;
+        return { ...current, ...p, view: { ...current.view, ...p.view } };
+      },
     },
   ),
 );
