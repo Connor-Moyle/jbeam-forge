@@ -17,6 +17,7 @@ import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
+import { withPaintedFaces } from '@renderer/paint/facePaint';
 import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson } from './materials';
 
 const logger = rlog('export');
@@ -80,6 +81,8 @@ export function prepareExport(): PreparedExport | null {
   const namer = createTextureNamer(slug);
   const takenNames = new Set<string>();
   const usedIds = new Set(exported.flatMap((m) => slotsOf(doc, m.key) ?? []));
+  // Materials painted onto meshes' triangles go too.
+  for (const m of exported) for (const e of doc.faceMaterials[m.key] ?? []) if (doc.materials.some((d) => d.id === e.materialId)) usedIds.add(e.materialId);
   // Two-sided materials bring their back material along.
   const backOf = (id: string) => {
     const back = doc.materials.find((d) => d.id === id)?.backMaterialId;
@@ -100,11 +103,19 @@ export function prepareExport(): PreparedExport | null {
   const daeMeshes: DaeMesh[] = exported.map((m) => {
     const imported = Array.isArray(m.material) ? m.material : [m.material];
     const ids = slotsOf(doc, m.key);
+    const materials = ids?.length ? ids.map((id) => project.names.get(id) ?? `${slug}_missing`) : imported.map((mat) => mats.names.get(mat)!);
+    const back = ids?.some((id) => backOf(id)) ? ids.map((id) => (backOf(id) ? (project.names.get(backOf(id)!) ?? null) : null)) : undefined;
+    // Painted materials: their triangles become material groups of their own.
+    const painted = withPaintedFaces(m.geometry, doc.faceMaterials[m.key], { materials, ...(back ? { back } : {}) }, (id) => {
+      const name = project.names.get(id);
+      const b = backOf(id);
+      return name ? { name, back: b ? (project.names.get(b) ?? null) : null } : null;
+    });
     return {
       name: meshNames.get(m.key)!,
-      geometry: m.geometry,
-      materials: ids?.length ? ids.map((id) => project.names.get(id) ?? `${slug}_missing`) : imported.map((mat) => mats.names.get(mat)!),
-      ...(ids?.some((id) => backOf(id)) ? { backMaterials: ids.map((id) => (backOf(id) ? (project.names.get(backOf(id)!) ?? null) : null)) } : {}),
+      geometry: painted.geometry,
+      materials: painted.materials,
+      ...(painted.backMaterials ? { backMaterials: painted.backMaterials } : {}),
       flipV: formatOf.get(m.sourceId) === 'gltf' || formatOf.get(m.sourceId) === 'glb',
     };
   });

@@ -333,7 +333,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 17 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 18 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await waitSaved(page);
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -392,7 +392,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       await waitSaved(page);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 17 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 18 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -1154,6 +1154,19 @@ const scenarios = [
       await page.waitForTimeout(800);
       await shot(page, 'vinyl-mirrored-right');
 
+      // Material brush: carbon fibre over a smooth area of the car (the real material, not a picture of it).
+      await page.getByTestId('paint-tool-material').click();
+      await page.getByTestId('material-weave-carbon').click();
+      await page.getByTestId('material-mode-smooth').click();
+      const vp3 = await page.locator('[data-panel=viewport] canvas').first().boundingBox();
+      await page.mouse.click(vp3.x + vp3.width / 2, vp3.y + vp3.height / 2);
+      await page.waitForTimeout(600);
+      const fs = await hook(page, 'faceState');
+      const carbonCount = Object.values(fs)[0];
+      assert(carbonCount > 10, `carbon laid over a smooth area (${JSON.stringify(fs)})`);
+      await shot(page, 'material-carbon');
+      await page.getByTestId('material-mode-brush').click();
+
       // Both pictures are saved, and the material uses them.
       const painted = join(userData, 'painted-textures');
       let files = [];
@@ -1185,6 +1198,11 @@ const scenarios = [
       assert(out.includes(maskFile), `mask texture exported (${maskFile} in ${out.join(', ')})`);
       assert(liveryStage && out.includes(liveryStage.baseColorMap.split('/').pop()), `livery layer exported (${JSON.stringify(paint.Stages)})`);
       assert(readdirSync(painted).some((f) => f.endsWith('_livery_base.png')), 'the freehand painting is kept apart from the vinyls');
+      const carbonMat = Object.entries(mats).find(([, m]) => typeof m.Stages?.[0]?.detailNormalMap === 'string');
+      assert(carbonMat, `carbon fibre exported with its weave (${Object.keys(mats)})`);
+      assert(out.includes(carbonMat[1].Stages[0].detailNormalMap.split('/').pop()), 'weave texture exported');
+      const dae2 = readFileSync(join(vdir, 'paint_test.dae'), 'utf8');
+      assert(new RegExp(`<triangles material="${carbonMat[0]}" count="\\d+"`).test(dae2), `carbon triangles are their own group in the DAE`);
       const info = JSON.parse(readFileSync(join(vdir, 'info.json'), 'utf8'));
       assert(info.defaultPaintName2 === 'Hot Pink', `scheme paints in info.json (${info.defaultPaintName1}, ${info.defaultPaintName2})`);
       await page.getByRole('button', { name: 'Done' }).click();

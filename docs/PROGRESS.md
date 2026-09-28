@@ -113,6 +113,20 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - **Harness:** a new `paint` scenario on a UV-mapped box (`tests/fixtures/models/uv_box.obj`) covers paint material, camo over the material, mirrored brush, stamp, eyedropper and export, checking that the mask and livery PNGs are saved and exported.
 - **Verification:** `npm test` 648/648 ✔ · `npm run run-desktop` 17/17 ✔.
 
+**Material brush** (Paint studio → material tool, A; project format v18)
+- **What it does:** pick a material and drag over the car to give its triangles that material. Modes:
+  - brush (connected triangles within the brush),
+  - smooth area (out to folds sharper than an angle you set),
+  - whole piece, whole mesh,
+  - erase (back to the mesh's own material).
+  - Mirror paints both sides, and a stroke is one undo step.
+- **Why triangles:** BeamNG gives each triangle one material, so this is the real material, not a picture. Painted triangles are exported as their own material group of the mesh (`withPaintedFaces`, `src/shared/paints/faceMaterials.ts`); the edges follow the mesh's triangles.
+- **In the viewport:** painted triangles are drawn in their material just over the mesh. Each mesh gets one overlay that shares its vertex buffers and updates its index in place.
+- **One-click materials:**
+  - Carbon fibre, red carbon, blue carbon and Kevlar: a generated, seamless 2×2 twill weave as a tiled detail normal map, sized in centimetres from the car's UV density (`src/shared/paints/weave.ts`). The viewport previews it too.
+  - Chrome, gloss and textured black plastic, brushed aluminium, gold anodised, burnt titanium, Alcantara and black leather from the preset library.
+- **Verification:** `npm test` 671/671 ✔ · `npm run run-desktop` 17/17 ✔. The paint scenario lays carbon over a smooth area, then checks the exported DAE has a carbon triangle group and the weave texture ships with the mod.
+
 **Vinyl editor, livery-editor style** (Paints panel → Vinyl layers; project format v17)
 - **Non-destructive layers stored in the project**, so every change is undoable and a layer can be moved or recoloured any time later. Each layer is a shape, text or image with:
   - side (left, right, top, front or back), position and size in metres, rotation, slant, flips;

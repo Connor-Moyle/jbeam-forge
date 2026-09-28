@@ -144,6 +144,11 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'vinyl layers',
     migrate: (doc) => ({ ...doc, formatVersion: 17, vinyls: [] }),
   },
+  {
+    from: 17,
+    describe: 'material painting',
+    migrate: (doc) => ({ ...doc, formatVersion: 18, faceMaterials: {} }),
+  },
 ];
 
 export class MigrationError extends Error {

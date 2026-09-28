@@ -676,11 +676,40 @@ export class ViewportRuntime {
       for (const [key, obj] of this.meshObjects) obj.userData.material = next.materials?.get(key) ?? (obj.userData.imported as Material | Material[]);
     }
     if (next.backMaterials !== prev.backMaterials || next.meshes !== prev.meshes) this.syncBackFaces();
+    if (next.meshes !== prev.meshes) this.applyFaceOverlays();
     if (next.focus !== prev.focus || next.meshes !== prev.meshes || next.materials !== prev.materials) this.applyFocus();
     this.syncOverlays();
     if (this.tool) {
       this.syncToolOverlay();
       this.syncPlane();
+    }
+  }
+
+  private faceOverlays: ReadonlyMap<string, { geometry: BufferGeometry; materials: Material[] }> = new Map();
+
+  /** Material painting: the painted triangles, drawn in their material over each mesh. */
+  setFaceOverlays(map: ReadonlyMap<string, { geometry: BufferGeometry; materials: Material[] }>): void {
+    this.faceOverlays = map;
+    this.applyFaceOverlays();
+  }
+
+  private applyFaceOverlays(): void {
+    for (const [key, obj] of this.meshObjects) {
+      const want = this.faceOverlays.get(key);
+      let child = obj.userData.faceOverlay as Mesh | undefined;
+      if (!want) {
+        if (child) obj.remove(child);
+        obj.userData.faceOverlay = undefined;
+        continue;
+      }
+      if (!child || child.geometry !== want.geometry) {
+        if (child) obj.remove(child);
+        child = new Mesh(want.geometry, want.materials);
+        child.raycast = () => undefined;
+        obj.add(child);
+        obj.userData.faceOverlay = child;
+      }
+      child.material = want.materials;
     }
   }
 

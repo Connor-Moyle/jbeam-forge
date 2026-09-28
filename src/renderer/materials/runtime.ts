@@ -1,4 +1,4 @@
-import { BackSide, Color, DoubleSide, FrontSide, MeshPhysicalMaterial, SRGBColorSpace, Texture, type Material } from 'three';
+import { BackSide, Color, DoubleSide, FrontSide, RepeatWrapping, MeshPhysicalMaterial, SRGBColorSpace, Texture, type Material } from 'three';
 import { create } from 'zustand';
 import { liveryLayerIndex, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
 import { call } from '@renderer/diagnostics/ipc';
@@ -121,6 +121,16 @@ export function buildMaterial(def: MaterialDef): Material {
   m.aoMap = map('ambientOcclusionMap');
   m.emissiveMap = map('emissiveMap');
   m.alphaMap = map('opacityMap');
+  // A woven detail normal (carbon fibre) repeats across the part: shown as the normal map when there's none.
+  const detail = !m.normalMap && layer.maps.detailNormalMap && !layer.maps.detailNormalMap.startsWith('/vehicles/') ? texture(layer.maps.detailNormalMap, 'detailNormalMap') : null;
+  if (detail) {
+    const tiled = detail.clone();
+    tiled.wrapS = tiled.wrapT = RepeatWrapping;
+    tiled.repeat.set(layer.detailScale[0], layer.detailScale[1]);
+    tiled.needsUpdate = true;
+    m.normalMap = tiled;
+    m.normalScale.setScalar(layer.detailNormalStrength);
+  }
   // With factory paints set up, paint shows the paint slots through its mask, and the livery on top.
   if (def.paint && paintPreviewActive()) {
     const mask = top.maps.colorPaletteMap;
@@ -142,6 +152,23 @@ export function materialFor(def: MaterialDef): Material {
   hit?.material.dispose();
   const material = buildMaterial(def);
   built.set(def.id, { def, version, paint, material });
+  return material;
+}
+
+/** The same look drawn just in front of the surface, for triangles painted with another material over a mesh. */
+const builtOverlay = new Map<string, { def: MaterialDef; version: number; paint: boolean; material: Material }>();
+
+export function overlayMaterialFor(def: MaterialDef): Material {
+  const version = useTextureVersion.getState().version;
+  const paint = paintPreviewActive();
+  const hit = builtOverlay.get(def.id);
+  if (hit && hit.def === def && hit.version === version && hit.paint === paint) return hit.material;
+  hit?.material.dispose();
+  const material = buildMaterial(def);
+  material.polygonOffset = true;
+  material.polygonOffsetFactor = -1;
+  material.polygonOffsetUnits = -4;
+  builtOverlay.set(def.id, { def, version, paint, material });
   return material;
 }
 

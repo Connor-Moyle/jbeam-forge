@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Brush, Download, SquareDashed, Eraser, FlipHorizontal2, FlipVertical2, Grid3x3, ImagePlus, PaintBucket, Pipette, Redo2, RotateCcw, Shuffle, Stamp, Undo2, Upload, Wand2 } from 'lucide-react';
+import { Brush, Download, Layers, SquareDashed, Eraser, FlipHorizontal2, FlipVertical2, Grid3x3, ImagePlus, PaintBucket, Pipette, Redo2, RotateCcw, Shuffle, Stamp, Undo2, Upload, Wand2 } from 'lucide-react';
 import type { Axis, PatternKind, PatternSpec } from '@shared/paints/patterns';
 import { EMPTY_ARR } from '@shared/empty';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -14,6 +14,7 @@ import { cx } from '@renderer/ui/cx';
 import { setMaterialSlot } from './commands';
 import { clearSurface, exportImage, exportUvTemplate, FONTS, importImage, patternWholeMaterial, pickStampImage, redoStroke, setPainterOn, surfacePreview, undoStroke, usePainter, type BrushTool, type Rgb, type Slot } from './painter';
 import { fromHex, hex, Swatch } from './PaintsPanel';
+import { MaterialBrush } from './MaterialBrush';
 import styles from './PaintsPanel.module.css';
 
 /**
@@ -31,6 +32,7 @@ const TOOLS: { tool: BrushTool; label: string; icon: typeof Brush }[] = [
   { tool: 'stamp', label: 'Stamp text or an image (T)', icon: Stamp },
   { tool: 'picker', label: 'Eyedropper (I)', icon: Pipette },
   { tool: 'vinyl', label: 'Vinyl layers: pick, move, resize, turn (V)', icon: SquareDashed },
+  { tool: 'material', label: 'Material brush: carbon fibre, chrome… (A)', icon: Layers },
 ];
 
 const PATTERNS: { value: PatternKind; label: string }[] = [
@@ -121,7 +123,7 @@ export function PaintStudio() {
         <IconButton icon={RotateCcw} size="sm" label={p.target === 'mask' ? 'Start again: all paint 1' : 'Clear the livery'} disabled={!painting} onClick={() => void clearSurface()} />
       </div>
 
-      {p.tool !== 'pattern' && p.tool !== 'picker' && p.tool !== 'vinyl' && (
+      {p.tool !== 'pattern' && p.tool !== 'picker' && p.tool !== 'vinyl' && p.tool !== 'material' && (
         <>
           {p.target === 'mask' ? (
             <div className={styles.row}>
@@ -280,7 +282,9 @@ export function PaintStudio() {
       {p.tool === 'vinyl' && <p className={styles.note}>Vinyl layers are edited below: click one on the car to pick it, drag to move it.</p>}
       {p.tool === 'picker' && <p className={styles.note}>Click the car to take the {p.target === 'mask' ? 'paint slot' : 'livery colour'} there; the brush comes back with it.</p>}
 
-      {p.tool !== 'picker' && p.tool !== 'vinyl' && <NumberSlider label="Strength" value={p.strength} min={0.05} max={1} step={0.01} onChange={(strength) => p.set({ strength })} />}
+      {p.tool === 'material' && <MaterialBrush />}
+
+      {p.tool !== 'picker' && p.tool !== 'vinyl' && p.tool !== 'material' && <NumberSlider label="Strength" value={p.strength} min={0.05} max={1} step={0.01} onChange={(strength) => p.set({ strength })} />}
 
       <div className={styles.studioFoot}>
         {preview ? <img src={preview} alt={`${p.target === 'mask' ? 'Paint slots' : 'Livery'} texture`} className={cx(styles.preview, p.target === 'livery' && styles.checker)} /> : <span className={styles.previewEmpty}>Nothing painted yet</span>}

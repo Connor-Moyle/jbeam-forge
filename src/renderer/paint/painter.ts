@@ -35,7 +35,8 @@ import { addPaint, canvasPng, MASK_COLORS } from './commands';
 const logger = rlog('paint');
 
 export type PaintTarget = 'mask' | 'livery';
-export type BrushTool = 'brush' | 'erase' | 'fill' | 'pattern' | 'stamp' | 'picker' | 'vinyl';
+export type BrushTool = 'brush' | 'erase' | 'fill' | 'pattern' | 'stamp' | 'picker' | 'vinyl' | 'material';
+export type FaceMode = 'brush' | 'smooth' | 'piece' | 'mesh' | 'erase';
 export type Rgb = [number, number, number];
 export type Slot = 0 | 1 | 2;
 
@@ -91,6 +92,10 @@ interface PainterState {
   recent: Rgb[];
   /** Bumped after every change to a picture (for previews). */
   rev: number;
+  /** Material painting: the material to paint with, how, and the fold angle a smooth fill stops at. */
+  faceMaterialId: string | null;
+  faceMode: FaceMode;
+  faceAngle: number;
   set: (patch: Partial<Omit<PainterState, 'set'>>) => void;
 }
 
@@ -117,6 +122,9 @@ export const usePainter = create<PainterState>()((set) => ({
   stamp: { kind: 'text', text: '23', font: 'Impact', bold: false, italic: false, size: 30, rotation: 0, flipX: false, flipY: false, outline: 1.5, outlineColor: [0, 0, 0], image: null },
   recent: [],
   rev: 0,
+  faceMaterialId: null,
+  faceMode: 'brush',
+  faceAngle: 25,
   set: (patch) => set(patch),
 }));
 
@@ -166,7 +174,7 @@ export interface MeshInfo {
   flipY: boolean;
 }
 
-function meshInfo(key: string): MeshInfo | null {
+export function meshInfo(key: string): MeshInfo | null {
   const sourceId = key.slice(0, key.indexOf(':'));
   const mesh = useSceneStore.getState().sources[sourceId]?.meshes.find((m) => m.key === key);
   if (!mesh) return null;

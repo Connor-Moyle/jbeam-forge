@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 17;
+export const CURRENT_PROJECT_VERSION = 18;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -435,9 +435,9 @@ export const FeaturesSchema = z.object({
   skins: z.array(SkinSchema),
 });
 
-export const ProjectV17Schema = z.object({
+export const ProjectV18Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(17),
+  formatVersion: z.literal(18),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -481,9 +481,14 @@ export const ProjectV17Schema = z.object({
   paints: PaintsSchema,
   /** Vinyl layers per material (v17). */
   vinyls: z.array(VinylSetSchema),
+  /**
+   * Material painting (v18): mesh key → triangles given another material,
+   * as runs of triangle numbers ([start, count, …]) per material.
+   */
+  faceMaterials: z.record(z.string(), z.array(z.object({ materialId: z.string().min(1), runs: z.array(z.number().int().min(0)) }))),
 });
 
-export const ProjectSchema = ProjectV17Schema;
+export const ProjectSchema = ProjectV18Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

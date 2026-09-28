@@ -15,6 +15,7 @@ import { backMaterialFor, materialFor, useTextureVersion } from '@renderer/mater
 import { startPaintSync } from '@renderer/paint/sync';
 import { onBrush, usePainter } from '@renderer/paint/painter';
 import { SIDE_FRAMES, startVinylSync, useVinylUi, vinylKey, vinylPointer } from '@renderer/paint/vinyls';
+import { facePointer, startFacePaintSync, useFaceOverlays } from '@renderer/paint/facePaint';
 import { assignMaterial, MIME_MATERIAL } from '@renderer/materials/commands';
 import { slotsOf } from '@renderer/materials/seed';
 import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
@@ -69,7 +70,12 @@ export function ViewportPanel() {
         onDoublePick: (key) => focusMesh(key),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
-        onBrush: (hit, phase) => (usePainter.getState().tool === 'vinyl' ? vinylPointer(hit, phase) : onBrush(hit, phase)),
+        onBrush: (hit, phase) => {
+          const tool = usePainter.getState().tool;
+          if (tool === 'vinyl') vinylPointer(hit, phase);
+          else if (tool === 'material') facePointer(hit, phase);
+          else onBrush(hit, phase);
+        },
         onSimDrag: (node, target) => dragNode(node, target),
         onEditPick: (node, beam, op) => {
           const edit = useEditStore.getState();
@@ -173,6 +179,9 @@ export function ViewportPanel() {
     };
     startPaintSync();
     startVinylSync();
+    startFacePaintSync();
+    rt.setFaceOverlays(useFaceOverlays.getState().map);
+    const unsubscribeFaces = useFaceOverlays.subscribe((f) => rt.setFaceOverlays(f.map));
     const unsubscribeVinylView = useVinylUi.subscribe((ui, prev) => {
       if (ui.view && ui.view !== prev.view) rt.viewFrom(SIDE_FRAMES[ui.view.side].n);
     });
@@ -282,7 +291,7 @@ export function ViewportPanel() {
         return;
       }
       // Painting: tool keys (B brush, E erase, F fill, P pattern, T stamp, I eyedropper; M mirror).
-      const paintTool = ({ b: 'brush', e: 'erase', f: 'fill', p: 'pattern', t: 'stamp', i: 'picker', v: 'vinyl' } as const)[e.key.toLowerCase() as 'b'];
+      const paintTool = ({ b: 'brush', e: 'erase', f: 'fill', p: 'pattern', t: 'stamp', i: 'picker', v: 'vinyl', a: 'material' } as const)[e.key.toLowerCase() as 'b'];
       if (painter.on && !e.ctrlKey && !e.altKey && !e.metaKey && (paintTool || e.key.toLowerCase() === 'm')) {
         painter.set(paintTool ? { tool: paintTool } : { mirror: !painter.mirror });
         e.preventDefault();
@@ -345,6 +354,7 @@ export function ViewportPanel() {
       unsubscribeTool();
       unsubscribeBrush();
       unsubscribeVinylView();
+      unsubscribeFaces();
       unsubscribeStructure();
       unsubscribeSettings();
       unsubscribeView();

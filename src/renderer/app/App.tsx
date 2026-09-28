@@ -35,6 +35,7 @@ import { useLibrary } from '@renderer/materials/LibraryDialog';
 import type { AppCommand } from '@shared/ipc-contract';
 import { usePainter } from '@renderer/paint/painter';
 import { currentSet, useVinylUi } from '@renderer/paint/vinyls';
+import { paintedCounts } from '@renderer/paint/facePaint';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -173,6 +174,10 @@ function AppEffects() {
         offerAutoClassify: () => {
           const meshes = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);
           offerAutoClassify('harness', meshes);
+        },
+        faceState: () => {
+          const doc = projectStore.getState().doc;
+          return doc ? Object.fromEntries(paintedCounts(doc)) : {};
         },
         vinylState: () => {
           const set = currentSet();
