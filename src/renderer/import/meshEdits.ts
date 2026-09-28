@@ -1,5 +1,5 @@
-import { Box3, Matrix4, Vector3, type BufferGeometry } from 'three';
-import { editMatrix, flipsWinding, isIdentityTransform, isIdentityUv, mapUv, MIRROR_X, mirroredName } from '@shared/mesh/meshEdit';
+import { Box3, BufferAttribute, Matrix4, Vector3, type BufferGeometry } from 'three';
+import { editMatrix, flipsWinding, isIdentityTransform, isIdentityUv, mapUv, MIRROR_X, mirroredName, projectUvs } from '@shared/mesh/meshEdit';
 import type { MeshCopy, MeshEdit } from '@shared/project/schema';
 import type { ImportedMesh } from './normalize';
 
@@ -46,14 +46,19 @@ function flipWinding(g: BufferGeometry): void {
 
 /** A new geometry: `matrix` applied (null = none), textures remapped (null = none). */
 function baked(g: BufferGeometry, matrix: number[] | null, uv: MeshEdit['uv'] | null): BufferGeometry {
-  const out = g.clone();
+  let out = g.clone();
   out.boundsTree = undefined;
   if (matrix) {
     out.applyMatrix4(new Matrix4().fromArray(matrix));
     if (flipsWinding(matrix)) flipWinding(out);
   }
+  if (uv?.project) {
+    // Each triangle gets its own corners (triangle order, and so material groups and painted faces, unchanged).
+    if (out.index) out = out.toNonIndexed();
+    out.setAttribute('uv', new BufferAttribute(projectUvs(out.getAttribute('position').array, uv.project), 2));
+  }
   if (uv) {
-    for (const name of ['uv', 'uv1']) {
+    for (const name of uv.project ? ['uv'] : ['uv', 'uv1']) {
       const attr = out.getAttribute(name);
       if (!attr) continue;
       for (let i = 0; i < attr.count; i++) {

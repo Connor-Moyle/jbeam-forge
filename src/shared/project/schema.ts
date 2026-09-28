@@ -220,7 +220,17 @@ export const MeshEditSchema = z.object({
   /** Degrees about X, Y, Z (applied X, then Y, then Z) around the mesh's centre. */
   rotation: V3,
   scale: V3,
-  uv: z.object({ scale: V2, offset: V2, rotation: z.number() }),
+  uv: z.object({
+    scale: V2,
+    offset: V2,
+    rotation: z.number(),
+    /**
+     * Fresh texture coordinates projected from the shape (fork): 'box' picks
+     * each triangle's facing side, 'x'/'y'/'z' project along one axis. `size`
+     * is metres per texture repeat. Absent = the model's own UVs.
+     */
+    project: z.object({ kind: z.enum(['box', 'x', 'y', 'z']), size: z.number().positive() }).optional(),
+  }),
 });
 
 /** A copy of a mesh (v10), e.g. a caliper mirrored to the other side. Its key is `copy:<id>`. */

@@ -970,6 +970,7 @@ const scenarios = [
         await hook(page, 'runCommand', 'undo');
         await page.waitForTimeout(200);
 
+
         // The gizmo: turn the caliper 90° about Z around its centre, then scale it ×2 (Blender's R and S).
         await hook(page, 'selectMeshes', objKeys);
         await page.getByTestId('mesh-rotate-toggle').click();
@@ -1086,6 +1087,20 @@ const scenarios = [
       await page.getByRole('switch', { name: /Car paint/ }).click();
       await hook(page, 'exitMaximized');
       await hook(page, 'applyPreset', 'modelling');
+
+      // UV tools: the body's UV layout, then fresh box-projected texture coordinates (undone after).
+      await hook(page, 'selectMeshes', [(await hook(page, 'meshBounds'))[0].key]);
+      const texSection = page.getByRole('button', { name: 'Texture mapping' });
+      if ((await texSection.getAttribute('aria-expanded')) !== 'true') await texSection.click();
+      await page.getByTestId('uv-layout').waitFor();
+      await page.getByRole('combobox', { name: 'Texture coordinates' }).click();
+      await page.getByRole('option', { name: /^Box/ }).click();
+      await page.waitForTimeout(300);
+      assert((await hook(page, 'projectState')).undoLabels.at(-1) === 'Project texture coordinates', 'box projection is an undoable step');
+      await page.getByTestId('uv-layout').waitFor();
+      await shot(page, 'uv-box-projection');
+      await hook(page, 'runCommand', 'undo');
+      await page.waitForTimeout(200);
 
       // Paints: a three-paint scheme, then the studio.
       await page.getByTestId('toggle-paints').click();

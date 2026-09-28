@@ -17,7 +17,44 @@ export function isIdentityTransform(e: MeshEdit): boolean {
 }
 
 export function isIdentityUv(e: MeshEdit): boolean {
-  return same(e.uv.scale, [1, 1]) && same(e.uv.offset, [0, 0]) && Math.abs(e.uv.rotation) < 1e-9;
+  return same(e.uv.scale, [1, 1]) && same(e.uv.offset, [0, 0]) && Math.abs(e.uv.rotation) < 1e-9 && !e.uv.project;
+}
+
+export type UvProjection = NonNullable<MeshEdit['uv']['project']>;
+
+const AXIS = { x: 0, y: 1, z: 2 } as const;
+
+/**
+ * Texture coordinates projected from triangle positions (three floats per
+ * vertex, three vertices per triangle, unindexed). Each triangle is laid flat
+ * along its axis (for 'box', the one its normal points along most), scaled
+ * so one texture repeat covers `size` metres, and flipped on the far side so
+ * text and weaves never read backwards.
+ */
+export function projectUvs(pos: ArrayLike<number>, p: UvProjection): Float32Array {
+  const verts = Math.floor(pos.length / 3);
+  const out = new Float32Array(verts * 2);
+  const k = 1 / p.size;
+  for (let t = 0; t + 2 < verts; t += 3) {
+    const a = t * 3;
+    const e1 = [pos[a + 3]! - pos[a]!, pos[a + 4]! - pos[a + 1]!, pos[a + 5]! - pos[a + 2]!];
+    const e2 = [pos[a + 6]! - pos[a]!, pos[a + 7]! - pos[a + 1]!, pos[a + 8]! - pos[a + 2]!];
+    const n = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+    let axis: 0 | 1 | 2;
+    if (p.kind === 'box') {
+      const ax = Math.abs(n[0]!), ay = Math.abs(n[1]!), az = Math.abs(n[2]!);
+      axis = ax >= ay && ax >= az ? 0 : ay >= az ? 1 : 2;
+    } else axis = AXIS[p.kind];
+    // The other two axes, in an order that reads the right way round from the positive side.
+    const [ua, va] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1];
+    const flip = (axis === 1 ? -1 : 1) * (n[axis]! < 0 ? -1 : 1);
+    for (let v = 0; v < 3; v++) {
+      const i = (t + v) * 3;
+      out[(t + v) * 2] = pos[i + ua]! * k * flip;
+      out[(t + v) * 2 + 1] = pos[i + va]! * k;
+    }
+  }
+  return out;
 }
 
 type M = number[]; // 4×4 column-major

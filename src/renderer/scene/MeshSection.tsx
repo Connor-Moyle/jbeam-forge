@@ -7,13 +7,23 @@ import { Button } from '@renderer/ui/components/Button';
 import { CollapsibleSection } from '@renderer/ui/components/CollapsibleSection';
 import { Field, FieldGroup } from '@renderer/ui/components/Field';
 import { NumberInput } from '@renderer/ui/components/NumberInput';
+import { Select } from '@renderer/ui/components/Select';
 import { Slider } from '@renderer/ui/components/Slider';
 import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MeshEdit } from '@shared/project/schema';
 import { deleteCopies, duplicateMeshes, mirrorCopy, resetMeshEdit, setMeshEdit } from './meshCommands';
+import { UvLayout } from './UvLayout';
 import styles from './MeshSection.module.css';
 
 const AXES = ['X', 'Y', 'Z'] as const;
+type Projection = 'own' | 'box' | 'x' | 'y' | 'z';
+const PROJECTIONS: { value: Projection; label: string }[] = [
+  { value: 'own', label: 'The model’s own' },
+  { value: 'box', label: 'Box (each side flat)' },
+  { value: 'x', label: 'From the side' },
+  { value: 'y', label: 'From the front' },
+  { value: 'z', label: 'From above' },
+];
 const hex = (c: readonly number[]) => `#${c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
 const fromHex = (h: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number];
 
@@ -84,6 +94,20 @@ export function MeshSection({ keys }: { keys: readonly string[] }) {
 
       <CollapsibleSection id="mesh-texture" title="Texture mapping" defaultOpen={false}>
         <p className={styles.note}>Just {count}: other parts using the same material keep theirs. Baked into the exported mesh.</p>
+        {keys.length === 1 && <UvLayout meshKey={last} />}
+        <Field label="Texture coordinates" hint="Project new ones when the model has none or they stretch: box suits most parts">
+          <Select<Projection>
+            value={edit.uv.project?.kind ?? 'own'}
+            onChange={(kind) => uv({ project: kind === 'own' ? undefined : { kind, size: edit.uv.project?.size ?? 1 } }, 'Project texture coordinates')}
+            options={PROJECTIONS}
+            aria-label="Texture coordinates"
+          />
+        </Field>
+        {edit.uv.project && (
+          <Field label="One texture repeat covers">
+            <NumberInput aria-label="Texture repeat size" value={edit.uv.project.size * 100} step={5} precision={1} min={1} max={10000} unit="cm" onChange={(v) => uv({ project: { ...edit.uv.project!, size: v / 100 } }, 'Project texture coordinates')} />
+          </Field>
+        )}
         <Field label="Scale (tiling)">
           <div className={styles.pair}>
             <NumberInput aria-label="Texture scale U" value={edit.uv.scale[0]} step={0.1} precision={2} min={0.01} max={1000} unit="U" onChange={(v) => uv({ scale: [v, edit.uv.scale[1]] }, 'Scale texture')} />

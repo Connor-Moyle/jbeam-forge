@@ -37,3 +37,13 @@
   background: none;
   cursor: pointer;
 }
+
+.uvLayout {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin: 0 auto var(--space-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-1);
+}
