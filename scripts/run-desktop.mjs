@@ -56,7 +56,8 @@ let shotIndex = 0;
 
 async function launch() {
   const app = await _electron.launch({
-    args: ['.'],
+    // JBFORGE_SWIFTSHADER=1: software WebGL, for machines without a usable GPU (CI containers, VMs).
+    args: ['.', ...(process.env.JBFORGE_SWIFTSHADER ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : [])],
     cwd: ROOT,
     env: {
       ...process.env,
@@ -85,6 +86,15 @@ async function shot(page, name) {
 }
 
 const hook = (page, fn, ...args) => page.evaluate(([f, a]) => window.__jbforgeTest[f](...a), [fn, args]);
+/** A save's file lands before the renderer hears back from main: wait until it has recorded the save. */
+async function waitSaved(page) {
+  for (let i = 0; i < 50; i++) {
+    const st = await hook(page, 'projectState');
+    if (st.filePath && !st.dirty) return st;
+    await page.waitForTimeout(100);
+  }
+  return hook(page, 'projectState');
+}
 
 function assert(cond, msg) {
   if (!cond) throw new Error(`assertion failed: ${msg}`);
@@ -226,7 +236,7 @@ const scenarios = [
     name: 'layout presets',
     async run({ page }) {
       const expected = {
-        materials: ['inspector', 'materials', 'scene', 'viewport'],
+        materials: ['inspector', 'materials', 'paints', 'scene', 'viewport'],
         testing: ['scene', 'test-results', 'viewport'],
         modelling: ['inspector', 'scene', 'viewport'],
       };
@@ -323,8 +333,8 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 15 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
-      let state = await hook(page, 'projectState');
+      assert(saved.formatVersion === 16 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      let state = await waitSaved(page);
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
 
@@ -380,8 +390,9 @@ const scenarios = [
       await waitMeshes(5);
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
+      await waitSaved(page);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 15 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 16 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -467,6 +478,7 @@ const scenarios = [
       await page.keyboard.press('Escape');
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).parts.length; i++) await page.waitForTimeout(100);
+      await waitSaved(page);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
       assert(saved.parts.length === 4 && Object.keys(saved.assignments).length === 5, `parts + assignments saved (${saved.parts.length} parts)`);
     },
@@ -587,6 +599,7 @@ const scenarios = [
       await hook(page, 'queueDialog', [splitProject]);
       await page.getByTestId('toolbar-save').click();
       for (let i = 0; i < 50 && !existsSync(splitProject); i++) await page.waitForTimeout(100);
+      await waitSaved(page);
       const saved = JSON.parse(readFileSync(splitProject, 'utf8'));
       assert(saved.splits.length === 3, `3 splits saved (${saved.splits.length})`);
       await hook(page, 'runCommand', 'close');
@@ -801,6 +814,31 @@ const scenarios = [
       await shot(page, 'features-panel');
       await page.getByTestId('toggle-features').click();
 
+      // Paints: a three-paint scheme, then the brush on the car (these boxes have no UVs or paint material, so it says why instead).
+      await page.getByTestId('toggle-paints').click();
+      await page.getByTestId('paints-panel').waitFor();
+      await page.getByTestId('paint-scheme').filter({ hasText: 'Gulf' }).click();
+      assert((await page.getByTestId('paint-row').count()) === 3, 'scheme added three paints');
+      await page.getByRole('switch', { name: /Paint in the viewport/ }).click();
+      const vpBox = await page.locator('[data-panel=viewport] canvas').first().boundingBox();
+      await page.mouse.click(vpBox.x + vpBox.width / 2, vpBox.y + vpBox.height / 2);
+      await page.waitForTimeout(300);
+      await shot(page, 'paints-panel');
+      await page.getByRole('switch', { name: /Paint in the viewport/ }).click();
+      await page.getByTestId('toggle-paints').click();
+
+      // Two-sided: chrome outside, another material on the back faces.
+      await hook(page, 'applyPreset', 'materials');
+      await hook(page, 'maximizePanel', 'materials'); // room for the whole editor
+      await page.getByTestId('material-row').filter({ hasText: 'chrome' }).first().click();
+      await page.getByLabel('Sides').click();
+      const insideOption = page.getByRole('option', { name: /^Different inside: / }).first();
+      const insideName = (await insideOption.textContent()).replace('Different inside: ', '').trim();
+      await insideOption.click();
+      await shot(page, 'material-two-sided');
+      await hook(page, 'exitMaximized');
+      await hook(page, 'applyPreset', 'modelling');
+
       // Export: validation passes, install writes an unpacked mod into the (fake) BeamNG user folder.
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
@@ -821,6 +859,11 @@ const scenarios = [
       const pc = JSON.parse(readFileSync(join(vdir, 'default.pc'), 'utf8'));
       assert(pc.format === 2 && pc.model === 'generate_test' && pc.parts.generate_test_body === 'generate_test_body', `default.pc (${JSON.stringify(pc)})`);
       const dae = readFileSync(join(vdir, 'generate_test.dae'), 'utf8');
+      const info = JSON.parse(readFileSync(join(vdir, 'info.json'), 'utf8'));
+      assert(Object.keys(info.paints ?? {}).length === 3 && info.defaultPaintName1 === 'Frozen Blue', `factory paints in info.json (${JSON.stringify(info).slice(0, 300)})`);
+      assert(Array.isArray(pc.paints) && pc.paints.length === 3 && pc.paints[1].baseColor.length === 4, `paints in default.pc (${JSON.stringify(pc.paints)})`);
+      const insideExport = `generate_test_${insideName.replace(/[^A-Za-z0-9_]+/g, '_')}`.toLowerCase();
+      assert(new RegExp(`<triangles material="${insideExport}`, 'i').test(dae), `back faces written with the inside material ${insideExport}`);
       const body = readFileSync(join(vdir, 'generate_test_body.jbeam'), 'utf8');
       const flexMesh = body.match(/\["(generate_test_[a-z0-9_]+)",\s*\["generate_test_body"\]\]/)?.[1];
       assert(flexMesh && dae.includes(`<node id="${flexMesh}" name="${flexMesh}"`), `body flexbody mesh ${flexMesh} is a DAE node`);
