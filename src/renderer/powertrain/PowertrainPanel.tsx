@@ -9,6 +9,7 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
 import { fitPowertrain, removePowertrain, setPowertrainTuning, usePowertrainCatalogue, usePowertrainUi, type PowertrainKind } from './commands';
 import styles from '@renderer/workshop/Workshop.module.css';
+import { EngineBuilder, GearboxBuilder } from './Builder';
 
 const LABEL: Record<PowertrainKind, string> = { engine: 'Engine', gearbox: 'Gearbox' };
 
@@ -39,6 +40,7 @@ export function PowertrainPanel() {
       />
     );
   }
+  if (view?.page === 'build' && powertrain?.[view.kind]) return view.kind === 'engine' ? <EngineBuilder /> : <GearboxBuilder />;
   const tuned = view?.page === 'tune' ? powertrain?.[view.kind] : null;
   if (view && tuned) {
     return <TuningView title={`${LABEL[view.kind]} · ${tuned.vehicle} ${tuned.name}`} setId={tuned.setId} tuning={tuned.tuning} onChange={(name, v) => setPowertrainTuning(view.kind, name, v)} onBack={() => usePowertrainUi.getState().show(null)} />;
@@ -73,9 +75,13 @@ function Card({ kind, fitted }: { kind: PowertrainKind; fitted: FittedSet | null
               {fitted.name} · {fitted.type}
             </div>
             {set && (kind === 'engine' ? <EngineLine set={set} /> : <GearboxLine set={set} />)}
+            {Object.keys(fitted.edits.fields).length + (fitted.edits.torque ? 1 : 0) + (fitted.edits.gearRatios ? 1 : 0) > 0 && <span className={styles.spec}>Changed in the builder: the figures above are the game&rsquo;s.</span>}
           </div>
           <div className={styles.row}>
-            <Button size="sm" variant="primary" onClick={() => usePowertrainUi.getState().show({ kind, page: 'tune' })} data-testid={`${kind}-tune`}>
+            <Button size="sm" variant="primary" onClick={() => usePowertrainUi.getState().show({ kind, page: 'build' })} data-testid={`${kind}-build`}>
+              Build
+            </Button>
+            <Button size="sm" onClick={() => usePowertrainUi.getState().show({ kind, page: 'tune' })} data-testid={`${kind}-tune`}>
               Tune
             </Button>
             <Button size="sm" onClick={() => usePowertrainUi.getState().show({ kind, page: 'pick' })}>

@@ -22,7 +22,7 @@ export function addConfig(from: VehicleConfig | null): string {
   const taken = new Set((doc?.configs ?? []).map((c) => c.name.toLowerCase()));
   let name = from ? `${from.name} copy` : 'New configuration';
   for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${from ? `${from.name} copy` : 'New configuration'} ${i}`;
-  const config: VehicleConfig = { id, name, description: from?.description ?? '', type: from?.type ?? 'Custom', parts: { ...(from?.parts ?? {}) }, vars: { ...(from?.vars ?? {}) } };
+  const config: VehicleConfig = { id, name, description: from?.description ?? '', type: from?.type ?? 'Custom', parts: { ...(from?.parts ?? {}) }, vars: { ...(from?.vars ?? {}) }, paints: [...(from?.paints ?? [null, null, null])] as VehicleConfig['paints'] };
   projectStore.getState().execute({ label: 'Add configuration', apply: (d) => void d.configs.push(config) });
   useConfigUi.getState().select(id);
   return id;
@@ -66,6 +66,17 @@ export function setConfigVar(id: string, name: string, value: number | null): vo
       if (!c) return;
       if (value === null) delete c.vars[name];
       else c.vars[name] = value;
+    },
+  });
+}
+
+/** The paint in one of a configuration's three slots (null: the factory default). */
+export function setConfigPaint(id: string, slot: 0 | 1 | 2, paintId: string | null): void {
+  projectStore.getState().execute({
+    label: 'Change configuration paint',
+    apply: (d) => {
+      const c = d.configs.find((x) => x.id === id);
+      if (c) c.paints[slot] = paintId;
     },
   });
 }

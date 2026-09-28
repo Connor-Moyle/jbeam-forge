@@ -3,7 +3,7 @@ import { checkLine, parseTags, publishChecklist } from '../../src/renderer/expor
 
 const doc = {
   meta: { name: 'Sunburst', slug: 'sunburst', author: 'Connor', description: '', brand: '', type: 'Car', createdAt: '', modifiedAt: '' },
-  configs: [{ id: 'c1', name: 'Race Spec', description: '', type: 'Race', parts: {}, vars: {} }],
+  configs: [{ id: 'c1', name: 'Race Spec', description: '', type: 'Race', parts: {}, vars: {}, paints: [null, null, null] as [null, null, null] }],
 };
 const files = (paths: string[]) => paths.map((path) => ({ path, text: '' }));
 const listing = { title: 'Sunburst', description: 'A small hatchback with a boxer four and a very eager rear end.', version: '1.0' };

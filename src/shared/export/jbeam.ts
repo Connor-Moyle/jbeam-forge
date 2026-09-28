@@ -1,4 +1,4 @@
-import type { Part, Project, StructBeam, StructNode, StructTri, TuningVar } from '../project/schema';
+import type { Part, Project, StructBeam, StructNode, StructTri, TuningVar, PowertrainEdits } from '../project/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
 import type { JbeamObject, JbeamValue } from '../jbeam/parse';
 import { serializeJbeam, JbeamComment, type WritableObject, type WritableValue } from '../jbeam/serialize';
@@ -12,6 +12,7 @@ import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
 import { buildFeatureParts } from './features';
+import { applyPowertrainEdits } from '../powertrain/edits';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -282,9 +283,11 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
   const extraSlots: WritableValue[] = [];
   const data = (setId: string) => opts.suspensions?.[setId];
-  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>) => {
-    const data = opts.suspensions?.[setId];
-    if (!data) return null;
+  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>, edits?: PowertrainEdits) => {
+    const found = opts.suspensions?.[setId];
+    if (!found) return null;
+    // The engine and gearbox builders' changes go onto the game's parts before they're renamed.
+    const data = edits ? { ...found, parts: applyPowertrainEdits(found.parts, found.root, edits) } : found;
     const meshNames: Record<string, string> = {};
     for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
     const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
@@ -320,14 +323,14 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const rewrites = Object.fromEntries(engineTransmissionSlots.map((st) => [st, { slotType: `${slug}_G_${boxSlot}`, part: `${slug}_G_${box!.root}` }]));
   let engineNodes: { id: string; pos: [number, number, number] }[] = [];
   if (pt?.engine) {
-    const t = bring(pt.engine.setId, pt.engine.sourceId, 'E', bodyNodes, pt.engine.tuning, rewrites);
+    const t = bring(pt.engine.setId, pt.engine.sourceId, 'E', bodyNodes, pt.engine.tuning, rewrites, pt.engine.edits);
     if (t) {
       extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Engine']);
       engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
     }
   }
   if (pt?.gearbox) {
-    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...bodyNodes], pt.gearbox.tuning);
+    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...bodyNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits);
     // Without an engine of ours to plug into, the gearbox hangs off the body.
     if (t && !engineTransmissionSlots.length) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Transmission']);
   }

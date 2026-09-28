@@ -124,6 +124,21 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'plates, tow hitch, nitrous and paint designs',
     migrate: (doc) => ({ ...doc, formatVersion: 15, features: { plates: { front: null, rear: null }, hitch: null, nitrous: null, skins: [] } }),
   },
+  {
+    from: 15,
+    describe: 'engine and gearbox builder edits, factory paints',
+    migrate: (doc) => {
+      const pt = (doc.powertrain ?? {}) as Record<string, Record<string, unknown> | null>;
+      const withEdits = (f: Record<string, unknown> | null | undefined) => (f ? { ...f, edits: { fields: {}, torque: null, gearRatios: null } } : null);
+      return {
+        ...doc,
+        formatVersion: 16,
+        powertrain: { engine: withEdits(pt.engine), gearbox: withEdits(pt.gearbox) },
+        configs: (Array.isArray(doc.configs) ? (doc.configs as Record<string, unknown>[]) : []).map((c) => ({ ...c, paints: [null, null, null] })),
+        paints: { list: [], defaults: [null, null, null] },
+      };
+    },
+  },
 ];
 
 export class MigrationError extends Error {

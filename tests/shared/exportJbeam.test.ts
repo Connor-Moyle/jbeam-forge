@@ -200,7 +200,7 @@ describe('jbeam export', () => {
       ['test_badge_R', 1, ['test_badge_R']],
     ]);
     expect(resolveConfig(doc, tax, null)).toEqual(defaultConfig(doc, tax));
-    const race = { id: 'c1', name: 'Race Spec!', description: 'Lighter', type: 'Custom', parts: { test_bumper_F: 'test_bumper_F_race', test_badge_R: '' }, vars: { $test_body_mass: 0.8 } };
+    const race = { id: 'c1', name: 'Race Spec!', description: 'Lighter', type: 'Custom', parts: { test_bumper_F: 'test_bumper_F_race', test_badge_R: '' }, vars: { $test_body_mass: 0.8 }, paints: [null, null, null] as [null, null, null] };
     const pc = resolveConfig(doc, tax, race);
     expect(pc.parts).toMatchObject({ test_bumper_F: 'test_bumper_F_race', test_badge_R: '' });
     expect(pc.vars).toEqual({ $test_body_mass: 0.8 });
@@ -226,7 +226,7 @@ describe('jbeam export', () => {
     const base = resolveConfig(doc, tax, null, sets);
     expect(base.parts.test_R_pickup_suspension_R).toBe('test_R_pickup_leaf_R');
     expect(includedParts(doc, tax, base, sets).has('p_rear_set')).toBe(true);
-    const noRear = resolveConfig(doc, tax, { id: 'c', name: 'Trike', description: '', type: 'Custom', parts: { test_R_pickup_suspension_R: '' }, vars: {} }, sets);
+    const noRear = resolveConfig(doc, tax, { id: 'c', name: 'Trike', description: '', type: 'Custom', parts: { test_R_pickup_suspension_R: '' }, vars: {}, paints: [null, null, null] as [null, null, null] }, sets);
     expect(includedParts(doc, tax, noRear, sets).has('p_rear_set')).toBe(false);
   });
 

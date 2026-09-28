@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 15;
+export const CURRENT_PROJECT_VERSION = 16;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -259,6 +259,22 @@ export const AxleSchema = z.object({
     .nullable(),
 });
 
+/**
+ * Edits to a fitted engine or gearbox's jbeam (v16), applied on export after
+ * the transplant. `fields` keys are "<part>/<section>/<key>" in the game's
+ * names, e.g. "etk_engine_i6_3.0/mainEngine/maxRPM"; only numbers the game
+ * already has are offered, so nothing unknown to it is written.
+ */
+export const PowertrainEditsSchema = z.object({
+  fields: z.record(z.string(), z.number()),
+  /** The engine's torque curve, [rpm, Nm] rising in rpm; null keeps the game's. */
+  torque: z.array(z.tuple([z.number().min(0), z.number()])).nullable(),
+  /** Gear ratios as the jbeam has them (reverse, neutral 0, forward…); null keeps the game's. */
+  gearRatios: z.array(z.number()).nullable(),
+});
+
+export const emptyEdits = (): z.infer<typeof PowertrainEditsSchema> => ({ fields: {}, torque: null, gearRatios: null });
+
 /** An engine or gearbox fitted from the game (v12, Phase 11): its own model, its jbeam brought over on export. */
 export const FittedSetSchema = z.object({
   setId: z.string(),
@@ -268,6 +284,8 @@ export const FittedSetSchema = z.object({
   sourceId: z.string(),
   /** Tuning values for its variables; unset = the game's default. */
   tuning: z.record(z.string(), z.number()),
+  /** Changes to the game's own numbers (v16): the engine builder and gearbox builder. */
+  edits: PowertrainEditsSchema,
 });
 
 export const PowertrainSchema = z.object({
@@ -304,6 +322,30 @@ export const VehicleConfigSchema = z.object({
   parts: z.record(z.string(), z.string()),
   /** jbeam variable ($hood_mass…) → value. */
   vars: z.record(z.string(), z.number()),
+  /** Paint id for each of the game's three paint slots (v16); null = the factory default. */
+  paints: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]),
+});
+
+/**
+ * A factory paint (v16), as the game's info.json `paints` and .pc `paints`
+ * hold them. A car has three paint slots; a paint material's colour palette
+ * mask decides where each slot shows (red = 1, green = 2, blue = 3).
+ */
+export const PaintSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** sRGB 0–1. */
+  color: z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]),
+  metallic: z.number().min(0).max(1),
+  roughness: z.number().min(0).max(1),
+  clearcoat: z.number().min(0).max(1),
+  clearcoatRoughness: z.number().min(0).max(1),
+});
+
+export const PaintsSchema = z.object({
+  list: z.array(PaintSchema),
+  /** The default configuration's paint for slots 1–3 (info.json defaultPaintName1–3). */
+  defaults: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]),
 });
 
 const Mount = z.object({ partId: z.string().min(1), pos: Vec3 });
@@ -332,9 +374,9 @@ export const FeaturesSchema = z.object({
   skins: z.array(SkinSchema),
 });
 
-export const ProjectV15Schema = z.object({
+export const ProjectV16Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(15),
+  formatVersion: z.literal(16),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -374,9 +416,11 @@ export const ProjectV15Schema = z.object({
   variables: z.array(TuningVarSchema),
   /** Plates, tow hitch, nitrous, paint designs (v15). */
   features: FeaturesSchema,
+  /** Factory paints and the default car's paint slots (v16). */
+  paints: PaintsSchema,
 });
 
-export const ProjectSchema = ProjectV15Schema;
+export const ProjectSchema = ProjectV16Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -391,6 +435,8 @@ export type TuningVar = z.infer<typeof TuningVarSchema>;
 export type VehicleConfig = z.infer<typeof VehicleConfigSchema>;
 export type Features = z.infer<typeof FeaturesSchema>;
 export type Skin = z.infer<typeof SkinSchema>;
+export type Paint = z.infer<typeof PaintSchema>;
+export type PowertrainEdits = z.infer<typeof PowertrainEditsSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];
 export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];

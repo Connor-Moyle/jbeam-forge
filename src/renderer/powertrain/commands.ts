@@ -2,6 +2,7 @@ import { Box3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
+import { emptyEdits } from '@shared/project/schema';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -28,7 +29,9 @@ export const usePowertrainCatalogue = create<{ sets: SuspensionSet[] | null; loa
 }));
 
 /** What the panel shows: the two cards, a picker, or a tuning page. */
-export const usePowertrainUi = create<{ view: { kind: PowertrainKind; page: 'pick' | 'tune' } | null; show: (view: { kind: PowertrainKind; page: 'pick' | 'tune' } | null) => void }>()((set) => ({
+export type PowertrainPage = 'pick' | 'tune' | 'build';
+
+export const usePowertrainUi = create<{ view: { kind: PowertrainKind; page: PowertrainPage } | null; show: (view: { kind: PowertrainKind; page: PowertrainPage } | null) => void }>()((set) => ({
   view: null,
   show: (view) => set({ view }),
 }));
@@ -96,7 +99,7 @@ export async function fitPowertrain(kind: PowertrainKind, set: SuspensionSet): P
     label: `Fit ${set.vehicleName} ${set.name}`,
     apply: (d) => {
       if (old) removeSourceFromDoc(d, old);
-      d.powertrain[kind] = { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId, tuning: {} };
+      d.powertrain[kind] = { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId, tuning: {}, edits: emptyEdits() };
     },
   });
   useUiStore.getState().pushStatus(`Fitted the ${set.vehicleName} ${set.name}. Fine-tune where it sits with the gizmo (G / R / S).`, 'success', 8000);
@@ -121,6 +124,55 @@ export function setPowertrainTuning(kind: PowertrainKind, name: string, value: n
       if (!f) return;
       if (value === null) delete f.tuning[name];
       else f.tuning[name] = value;
+    },
+  });
+}
+
+/** One of the game's numbers in the engine or gearbox (null: back to the game's value). */
+export function setPowertrainField(kind: PowertrainKind, key: string, value: number | null): void {
+  projectStore.getState().execute({
+    label: kind === 'engine' ? 'Edit engine' : 'Edit gearbox',
+    coalesce: `build:${kind}:${key}`,
+    apply: (d) => {
+      const f = d.powertrain[kind];
+      if (!f) return;
+      if (value === null) delete f.edits.fields[key];
+      else f.edits.fields[key] = value;
+    },
+  });
+}
+
+/** The engine's torque curve (null: the game's). `coalesce` groups a drag into one undo step. */
+export function setTorqueCurve(curve: [number, number][] | null, coalesce?: string): void {
+  projectStore.getState().execute({
+    label: 'Edit torque curve',
+    ...(coalesce ? { coalesce } : {}),
+    apply: (d) => {
+      const f = d.powertrain.engine;
+      if (f) f.edits.torque = curve;
+    },
+  });
+}
+
+/** The gearbox's ratios (null: the game's). */
+export function setGearRatios(ratios: number[] | null, coalesce?: string): void {
+  projectStore.getState().execute({
+    label: 'Edit gear ratios',
+    ...(coalesce ? { coalesce } : {}),
+    apply: (d) => {
+      const f = d.powertrain.gearbox;
+      if (f) f.edits.gearRatios = ratios;
+    },
+  });
+}
+
+/** Undo every builder change to one of them. */
+export function resetPowertrainEdits(kind: PowertrainKind): void {
+  projectStore.getState().execute({
+    label: kind === 'engine' ? 'Reset engine' : 'Reset gearbox',
+    apply: (d) => {
+      const f = d.powertrain[kind];
+      if (f) f.edits = emptyEdits();
     },
   });
 }
