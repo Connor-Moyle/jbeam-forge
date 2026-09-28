@@ -636,6 +636,34 @@ export class ViewportRuntime {
     this.frame();
   }
 
+  private orbitFov = 45;
+
+  /**
+   * Look through an interior camera (BeamNG eye position, vertical field of
+   * view in degrees), facing forward (−Y); null goes back to the orbit view.
+   */
+  lookFrom(view: { pos: [number, number, number]; fov: number } | null): void {
+    this.modelRoot.updateMatrixWorld();
+    if (!view) {
+      if (this.camera.fov !== this.orbitFov) {
+        this.camera.fov = this.orbitFov;
+        this.camera.near = 0.05;
+        this.camera.updateProjectionMatrix();
+        this.frame();
+      }
+      return;
+    }
+    const eye = new Vector3(...view.pos).applyMatrix4(this.modelRoot.matrixWorld);
+    const ahead = new Vector3(view.pos[0], view.pos[1] - 1, view.pos[2]).applyMatrix4(this.modelRoot.matrixWorld);
+    this.camera.fov = view.fov;
+    this.camera.near = 0.01;
+    this.camera.updateProjectionMatrix();
+    this.camera.up.set(0, 1, 0);
+    this.camera.position.copy(eye);
+    this.controls.target.copy(eye).lerp(ahead, 0.05);
+    this.controls.update();
+  }
+
   /** Paint on both sides at once (mirrored down the centre line). */
   setBrushMirror(on: boolean): void {
     this.brushMirror = on;

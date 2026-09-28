@@ -1,3 +1,4 @@
+import { CamerasSection } from '@renderer/cameras/CamerasSection';
 import { useState } from 'react';
 import { Eye, EyeOff, FolderOpen, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { Features } from '@shared/project/schema';
@@ -154,6 +155,7 @@ export function FeaturesPanel() {
             )}
           </div>
         </FieldGroup>
+        <CamerasSection />
       </ScrollArea>
     </div>
   );

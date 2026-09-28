@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { PropSchema } from '../props/props';
+import { CameraSchema } from '../cameras/cameras';
 import { MaterialDefSchema } from '../materials/schema';
 import { HingeSchema } from '../hinges/schema';
 
@@ -497,6 +498,8 @@ export const ProjectV18Schema = z.object({
   /** Engine and gearbox (v12, Phase 11). */
   /** Animated parts (fork): meshes the game turns or slides by an electrics value (steering wheel, needles, pedals). */
   props: z.array(PropSchema).optional(),
+  /** Interior cameras (fork): the driver's view and others, as camerasInternal. */
+  cameras: z.array(CameraSchema).optional(),
   powertrain: PowertrainSchema,
   /** Vehicle configurations beyond the default (v14, Phase 13). */
   configs: z.array(VehicleConfigSchema),

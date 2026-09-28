@@ -13,6 +13,7 @@ import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { propRow, PROPS_HEADER, referenceNodes } from '../props/props';
+import { camerasInternalSection } from '../cameras/cameras';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
@@ -29,7 +30,7 @@ import { applyPowertrainEdits } from '../powertrain/edits';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features' | 'props'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features' | 'props' | 'cameras'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -436,6 +437,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       const r = doc.proxy.refNodes;
       content.refNodes = [['ref:', 'back:', 'left:', 'up:', 'leftCorner:', 'rightCorner:'], [r.ref, r.back, r.left, r.up, r.leftCorner, r.rightCorner]];
       content.cameraExternal = cameraFor(nodes);
+      const internal = fullDoc.cameras?.length ? camerasInternalSection(fullDoc.cameras, nodes) : null;
+      if (internal) content.camerasInternal = internal;
     }
     const glass = entry.beamPreset === 'glass_brittle' && nodes.length > 0;
     if (meshes.length && group) {

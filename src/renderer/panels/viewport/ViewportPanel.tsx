@@ -31,6 +31,7 @@ import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simS
 import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
 import { useHingeUi } from '@renderer/hinges/commands';
 import { usePropUi } from '@renderer/props/commands';
+import { useCameraUi } from '@renderer/cameras/commands';
 import { propAmount } from '@shared/props/props';
 import { useFeatureUi } from '@renderer/features/commands';
 import { PLATE_SIZE } from '@shared/export/features';
@@ -265,6 +266,10 @@ export function ViewportPanel() {
     pushHinge();
     const unsubscribeHinge = useHingeUi.subscribe(pushHinge);
     const unsubscribeProp = usePropUi.subscribe(pushHinge);
+    // Interior cameras: look through one from the Extras panel.
+    const unsubscribeLook = useCameraUi.subscribe((st, prev) => {
+      if (st.look !== prev.look) rt.lookFrom(st.look);
+    });
     // Extras preview: plates, tow ball and nitrous bottle where they'll go.
     const pushFeatures = () => {
       const f = projectStore.getState().doc?.features;
@@ -381,6 +386,7 @@ export function ViewportPanel() {
       unsubscribeLiveView();
       unsubscribeHinge();
       unsubscribeProp();
+      unsubscribeLook();
       unsubscribeHingeDoc();
       unsubscribeFeatures();
       unsubscribeFeaturesDoc();

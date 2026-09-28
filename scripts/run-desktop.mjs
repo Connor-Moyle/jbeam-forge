@@ -1241,6 +1241,16 @@ const scenarios = [
       // Export: the painted textures go into the mod with the material pointing at them.
       await page.getByTestId('toolbar-generate').click();
       for (let i = 0; i < 100 && !((await hook(page, 'structureState'))?.nodes > 0); i++) await page.waitForTimeout(100);
+
+      // Interior camera: the driver's eyes, looked through in the viewport, then exported as camerasInternal.
+      await page.getByTestId('toggle-features').click();
+      await page.getByRole('combobox', { name: 'Add a camera' }).click();
+      await page.getByRole('option', { name: 'Driver (left-hand drive)' }).click();
+      await page.getByTestId('camera-look').click();
+      await page.waitForTimeout(400);
+      await shot(page, 'camera-driver-view');
+      await page.getByTestId('camera-look').click();
+      await page.getByTestId('toggle-features').click();
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
       await page.getByTestId('export-install').click();
@@ -1250,6 +1260,8 @@ const scenarios = [
       const mats = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       const paint = Object.values(mats).find((m) => typeof m.Stages?.[0]?.colorPaletteMap === 'string');
       assert(paint, `a material with a paint mask (${JSON.stringify(mats).slice(0, 400)})`);
+      const withCamera = out.filter((f) => f.endsWith('.jbeam')).find((f) => readFileSync(join(vdir, f), 'utf8').includes('camerasInternal'));
+      assert(withCamera, `the driver camera is exported (${out.join(', ')})`);
       assert(typeof paint.Stages[0].ambientOcclusionMap === 'string' && out.includes(paint.Stages[0].ambientOcclusionMap.split('/').pop()), `baked AO exported (${paint.Stages[0].ambientOcclusionMap})`);
       const maskFile = paint.Stages[0].colorPaletteMap.split('/').pop();
       const liveryStage = paint.Stages.find((st) => typeof st.baseColorMap === 'string' && st.baseColorMap.includes('livery'));
