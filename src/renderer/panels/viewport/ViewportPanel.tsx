@@ -144,8 +144,13 @@ export function ViewportPanel() {
     };
     pushTool();
     const unsubscribeTool = useSplitTool.subscribe(pushTool);
-    rt.setBrush(usePainter.getState().on);
-    const unsubscribeBrush = usePainter.subscribe((p) => rt.setBrush(p.on));
+    const pushBrush = () => {
+      const p = usePainter.getState();
+      rt.setBrush(p.on);
+      rt.setBrushMirror(p.mirror);
+    };
+    pushBrush();
+    const unsubscribeBrush = usePainter.subscribe(pushBrush);
 
     // Generated structure + view toggles → runtime (rebuilt only when the structure changes).
     let lastStructure: unknown = null;
@@ -262,7 +267,14 @@ export function ViewportPanel() {
       const painter = usePainter.getState();
       if (painter.on && (e.key === '[' || e.key === ']' || e.key === 'Escape')) {
         if (e.key === 'Escape') painter.set({ on: false });
-        else painter.set({ size: Math.max(1, Math.min(400, Math.round(painter.size * (e.key === ']' ? 1.25 : 0.8)))) });
+        else painter.set({ size: Math.max(0.5, Math.min(100, Math.round(painter.size * (e.key === ']' ? 1.25 : 0.8) * 2) / 2)) });
+        e.preventDefault();
+        return;
+      }
+      // Painting: tool keys (B brush, E erase, F fill, P pattern, T stamp, I eyedropper; M mirror).
+      const paintTool = ({ b: 'brush', e: 'erase', f: 'fill', p: 'pattern', t: 'stamp', i: 'picker' } as const)[e.key.toLowerCase() as 'b'];
+      if (painter.on && !e.ctrlKey && !e.altKey && !e.metaKey && (paintTool || e.key.toLowerCase() === 'm')) {
+        painter.set(paintTool ? { tool: paintTool } : { mirror: !painter.mirror });
         e.preventDefault();
         return;
       }

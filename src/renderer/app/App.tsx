@@ -33,6 +33,7 @@ import { transformMeshes } from '@renderer/scene/meshCommands';
 import type { MeshGizmoTransform } from '@renderer/panels/viewport/viewportRuntime';
 import { useLibrary } from '@renderer/materials/LibraryDialog';
 import type { AppCommand } from '@shared/ipc-contract';
+import { usePainter } from '@renderer/paint/painter';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -171,6 +172,10 @@ function AppEffects() {
         offerAutoClassify: () => {
           const meshes = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);
           offerAutoClassify('harness', meshes);
+        },
+        painterState: () => {
+          const p = usePainter.getState();
+          return { on: p.on, tool: p.tool, target: p.target, materialId: p.materialId, mirror: p.mirror, rev: p.rev };
         },
         sceneStats: () => {
           const s = useSceneStore.getState();

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Brush, Copy, Eraser, PaintBucket, Plus, RotateCcw, Sparkles, Trash2, Undo2 } from 'lucide-react';
+import { Copy, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { PAINT_PRESETS, PAINT_SCHEMES } from '@shared/paints/paints';
 import type { Paint } from '@shared/project/schema';
 import { EMPTY_ARR } from '@shared/empty';
@@ -11,10 +11,9 @@ import { Input } from '@renderer/ui/components/Input';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import { Slider } from '@renderer/ui/components/Slider';
-import { Toggle } from '@renderer/ui/components/Toggle';
 import { cx } from '@renderer/ui/cx';
-import { addPaint, applyScheme, deletePaint, setDefaultPaint, setMaterialSlot, updatePaint } from './commands';
-import { clearSurface, setPainterOn, undoStroke, usePainter, type BrushTool } from './painter';
+import { addPaint, applyScheme, deletePaint, setDefaultPaint, updatePaint } from './commands';
+import { PaintStudio } from './PaintStudio';
 import styles from './PaintsPanel.module.css';
 
 /**
@@ -72,7 +71,7 @@ export function PaintsPanel() {
           </div>
         </FieldGroup>
 
-        <PainterSection />
+        <PaintStudio />
 
         <FieldGroup title={`Factory paints (${paints.length})`}>
           <div className={styles.list} role="listbox" aria-label="Paints">
@@ -131,84 +130,5 @@ function PaintEditor({ paint }: { paint: Paint }) {
       {slider('Clear coat', 'clearcoat')}
       {slider('Clear coat roughness', 'clearcoatRoughness')}
     </div>
-  );
-}
-
-const TOOLS: { tool: BrushTool; label: string; icon: typeof Brush }[] = [
-  { tool: 'brush', label: 'Brush', icon: Brush },
-  { tool: 'fill', label: 'Fill a whole mesh', icon: PaintBucket },
-  { tool: 'erase', label: 'Erase', icon: Eraser },
-];
-
-function PainterSection() {
-  const p = usePainter();
-  const paints = useProjectStore((s) => s.doc?.paints);
-  const materials = useProjectStore((s) => s.doc?.materials ?? EMPTY_ARR);
-  const painting = materials.find((m) => m.id === p.materialId);
-  const paintMats = materials.filter((m) => m.paint && !m.gameMaterial);
-  const slotPaint = (i: number) => paints?.list.find((x) => x.id === paints.defaults[i]);
-  return (
-    <FieldGroup title="Paint on the car">
-      <Toggle checked={p.on} onChange={setPainterOn} label="Paint in the viewport (left-drag paints, right-drag orbits, [ ] brush size, Esc stops)" />
-      <div className={styles.segment} role="radiogroup" aria-label="What to paint">
-        <button type="button" role="radio" aria-checked={p.target === 'mask'} className={cx(styles.segButton, p.target === 'mask' && styles.segOn)} onClick={() => p.set({ target: 'mask' })}>
-          Paint slots
-        </button>
-        <button type="button" role="radio" aria-checked={p.target === 'livery'} className={cx(styles.segButton, p.target === 'livery' && styles.segOn)} onClick={() => p.set({ target: 'livery' })}>
-          Livery (any colours)
-        </button>
-      </div>
-      {p.target === 'mask' ? (
-        <div className={styles.row}>
-          {[0, 1, 2].map((i) => (
-            <button key={i} type="button" className={cx(styles.slotPick, p.slot === i && styles.segOn)} onClick={() => p.set({ slot: i as 0 | 1 | 2 })} aria-pressed={p.slot === i} data-testid={`brush-slot-${i + 1}`}>
-              <Swatch paint={slotPaint(i)} />
-              {SLOT_NAMES[i]}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className={styles.row}>
-          <input type="color" className={styles.color} value={hex(p.color)} onChange={(e) => p.set({ color: fromHex(e.target.value) })} aria-label="Livery colour" />
-          <Toggle checked={p.rainbow} onChange={(rainbow) => p.set({ rainbow })} label="Rainbow brush" />
-        </div>
-      )}
-      <div className={styles.row}>
-        {TOOLS.map((t) => (
-          <IconButton key={t.tool} icon={t.icon} size="sm" label={t.label} active={p.tool === t.tool} onClick={() => p.set({ tool: t.tool })} />
-        ))}
-        <span className={styles.grow} />
-        <IconButton icon={Undo2} size="sm" label="Undo the last stroke" onClick={undoStroke} />
-        <IconButton icon={RotateCcw} size="sm" label={p.target === 'mask' ? 'Start again: all paint 1' : 'Clear the livery'} disabled={!painting} onClick={() => void clearSurface()} />
-      </div>
-      <Field label="Size">
-        <Slider value={p.size} onChange={(size) => p.set({ size })} min={1} max={400} step={1} format={(v) => `${Math.round(v)} px`} aria-label="Brush size" />
-      </Field>
-      <Field label="Hardness">
-        <Slider value={p.hardness} onChange={(hardness) => p.set({ hardness })} min={0} max={1} step={0.01} format={(v) => v.toFixed(2)} aria-label="Brush hardness" />
-      </Field>
-      <Field label="Strength">
-        <Slider value={p.strength} onChange={(strength) => p.set({ strength })} min={0.05} max={1} step={0.01} format={(v) => v.toFixed(2)} aria-label="Brush strength" />
-      </Field>
-      <Field label="New texture size" hint="Painted masks and liveries are saved as PNGs and exported with the mod.">
-        <Select value={String(p.resolution)} onChange={(v) => p.set({ resolution: Number(v) as 1024 | 2048 | 4096 })} options={[1024, 2048, 4096].map((r) => ({ value: String(r), label: `${r} × ${r}` }))} aria-label="Texture size" />
-      </Field>
-      <p className={styles.note}>{painting ? `Painting ${painting.name}.` : 'Click a painted panel of the car to start. Meshes need UVs, and a paint material (tick "Car paint" in Materials).'}</p>
-      {!!paintMats.length && (
-        <div className={styles.matList}>
-          <span className={styles.muted}>Whole paint materials on one slot</span>
-          {paintMats.map((m) => (
-            <div key={m.id} className={styles.matRow}>
-              <span className={styles.grow}>{m.name}</span>
-              {[0, 1, 2].map((i) => (
-                <Button key={i} size="sm" variant="ghost" title={`All of ${m.name} in ${SLOT_NAMES[i]}`} onClick={() => void setMaterialSlot(m.id, i as 0 | 1 | 2)}>
-                  <Swatch paint={slotPaint(i)} /> {i + 1}
-                </Button>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-    </FieldGroup>
   );
 }

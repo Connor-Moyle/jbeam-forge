@@ -7,6 +7,7 @@ import { startAcImport } from '@renderer/import/acImport';
 import { exportModel } from '@renderer/export/modelExport';
 import { useEditStore } from '@renderer/structure/editStore';
 import { selectAll } from '@renderer/structure/editCommands';
+import { redoStroke, undoStroke, usePainter } from '@renderer/paint/painter';
 
 function isEditableTarget(el: Element | null): boolean {
   if (!el) return false;
@@ -42,10 +43,13 @@ export function runAppCommand(command: AppCommand): void {
     case 'undo':
       // Text fields keep their own undo; everything else undoes document edits.
       if (isEditableTarget(document.activeElement)) document.execCommand('undo');
+      // While painting on the car, undo takes back strokes (they aren't document edits).
+      else if (usePainter.getState().on) undoStroke();
       else undo();
       break;
     case 'redo':
       if (isEditableTarget(document.activeElement)) document.execCommand('redo');
+      else if (usePainter.getState().on) redoStroke();
       else redo();
       break;
     case 'selectAll':

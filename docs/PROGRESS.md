@@ -96,6 +96,23 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - Textures are PNGs under `userData/painted-textures` (new IPC `materials:saveTexture`) and are exported with the mod.
 - Meshes need UVs and a paint material; the brush says so when they're missing. A whole paint material can also be put on one slot from the Materials editor.
 
+**Paint studio, round 2** (Paints panel → Paint studio)
+- **Tools:** brush, erase, fill a whole panel, pattern, stamp and eyedropper. Keys B/E/F/P/T/I, M for mirror, [ ] for brush size. Ctrl+Z/Ctrl+Y undo and redo strokes while painting (12 steps).
+- **Mirror both sides:** the camera ray is reflected across the car's centre line, so every stroke, fill, pattern and stamp also lands on the matching point of the other side.
+- **Patterns worked out on the car in 3D** (`src/shared/paints/patterns.ts`), seamless across panels and UV seams:
+  - racing, side and pinstriped stripes;
+  - front-to-back and bottom-to-top fades (2 or 3 colours);
+  - checks, woodland and digital camo, metal flake.
+  - Ten one-click presets. Click a panel, or lay the pattern over the whole material.
+  - On the paint slots each pattern colour is a slot, so e.g. a three-colour camo is one the player recolours in game.
+- **Stamps:** text or numbers (10 fonts, bold, italic, outline) and images (logos, decals).
+  - Each stamp is laid along the surface: upright and reading correctly from outside on any panel or side, whatever the UV layout. The orientation comes from each triangle's positions and UVs (`src/shared/paints/frame.ts`).
+  - Stamps are sized in centimetres on the car. The brush is sized in centimetres too, so it's the same on every panel.
+- **Eyedropper, recent colours**, and a thumbnail of the texture being painted.
+- **Image round trip:** save the UV template (panel outlines over the painting) or the painting itself as a PNG, finish it in an image editor, and bring it back (IPC `paint:saveImage`).
+- **Harness:** a new `paint` scenario on a UV-mapped box (`tests/fixtures/models/uv_box.obj`) covers paint material, camo over the material, mirrored brush, stamp, eyedropper and export, checking that the mask and livery PNGs are saved and exported.
+- **Verification:** `npm test` 648/648 ✔ · `npm run run-desktop` 17/17 ✔.
+
 **Two-sided materials** (Materials → Rendering → Sides)
 - Choices: front only, both sides the same, or a different inside (another material on the back faces).
 - The back faces are exported as the triangles again, turned round with reversed normals, and previewed in the viewport.

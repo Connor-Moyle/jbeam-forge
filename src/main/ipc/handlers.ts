@@ -477,6 +477,19 @@ export function registerIpcHandlers(services: HandlerServices): void {
     z.object({ name: z.string().regex(/^[\w.-]{1,200}\.png$/), bytes: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 128 * 1024 * 1024) }),
   );
 
+  registerInvoke(
+    'paint:saveImage',
+    async ({ suggestedName, bytes }, event) => {
+      const picked = await pickSaveFile(event.sender, { title: 'Save image', defaultPath: suggestedName, filters: [{ name: 'PNG image', extensions: ['png'] }] });
+      if (!picked) return null;
+      const path = picked.toLowerCase().endsWith('.png') ? picked : `${picked}.png`;
+      await writeFile(path, bytes);
+      projects.grantRoot(dirname(path)); // so it can be brought back in
+      return path;
+    },
+    z.object({ suggestedName: z.string().regex(/^[^\\/:*?"<>|]{1,200}$/), bytes: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 256 * 1024 * 1024) }),
+  );
+
   registerInvoke('materials:pickTexture', async (_req, event) => {
     const path = await pickOpenFile(event.sender, {
       title: 'Choose a texture',

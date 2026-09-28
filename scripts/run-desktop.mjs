@@ -10,7 +10,7 @@
  *        node scripts/run-desktop.mjs --only=crash,gl
  */
 import { _electron } from 'playwright-core';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -819,12 +819,12 @@ const scenarios = [
       await page.getByTestId('paints-panel').waitFor();
       await page.getByTestId('paint-scheme').filter({ hasText: 'Gulf' }).click();
       assert((await page.getByTestId('paint-row').count()) === 3, 'scheme added three paints');
-      await page.getByRole('switch', { name: /Paint in the viewport/ }).click();
+      await page.getByRole('switch', { name: 'Paint on the car' }).click();
       const vpBox = await page.locator('[data-panel=viewport] canvas').first().boundingBox();
       await page.mouse.click(vpBox.x + vpBox.width / 2, vpBox.y + vpBox.height / 2);
       await page.waitForTimeout(300);
       await shot(page, 'paints-panel');
-      await page.getByRole('switch', { name: /Paint in the viewport/ }).click();
+      await page.getByRole('switch', { name: 'Paint on the car' }).click();
       await page.getByTestId('toggle-paints').click();
 
       // Two-sided: chrome outside, another material on the back faces.
@@ -1044,6 +1044,110 @@ const scenarios = [
       await shot(page, 'test-mode-crash');
       await page.getByTestId('sim-exit').click();
       await page.getByTestId('test-panel').waitFor({ state: 'detached' });
+      await hook(page, 'runCommand', 'close');
+      await page.getByTestId('unsaved-discard').click();
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+    },
+  },
+  {
+    id: 'paint',
+    name: 'paint studio: paint material · camo over the whole material · mirrored brush · stamp · eyedropper · export',
+    async run({ page }) {
+      const model = join(ROOT, 'tests', 'fixtures', 'models', 'uv_box.obj');
+      const stats = () => hook(page, 'sceneStats');
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Paint Test');
+      await hook(page, 'queueDialog', [model]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').click();
+      for (let i = 0; i < 100 && (await stats()).meshes !== 1; i++) await page.waitForTimeout(100);
+      if (await page.getByTestId('classify-skip').isVisible().catch(() => false)) await page.getByTestId('classify-skip').click();
+      // A part for it, so it's exported.
+      const tree = page.getByTestId('scene-tree');
+      await tree.getByText('car_body', { exact: true }).click();
+      await page.getByTestId('scene-assign').click();
+      await page.getByTestId('assign-search').fill('body shell');
+      await page.getByTestId('assign-search').press('Enter');
+      await page.getByTestId('assign-confirm').click();
+
+      // Its material becomes car paint.
+      await hook(page, 'applyPreset', 'materials');
+      await hook(page, 'maximizePanel', 'materials');
+      await page.getByTestId('material-row').first().click();
+      await page.getByRole('switch', { name: /Car paint/ }).click();
+      await hook(page, 'exitMaximized');
+      await hook(page, 'applyPreset', 'modelling');
+
+      // Paints: a three-paint scheme, then the studio.
+      await page.getByTestId('toggle-paints').click();
+      await page.getByTestId('paints-panel').waitFor();
+      await page.getByTestId('paint-scheme').filter({ hasText: 'Rave' }).click();
+      await page.getByRole('switch', { name: 'Paint on the car' }).click();
+      await page.getByLabel('Material to paint').click();
+      await page.getByRole('option').first().click();
+
+      // Camo on the paint-slot mask, over the whole material: recolourable in game.
+      await page.getByTestId('paint-tool-pattern').click();
+      await page.getByTestId('pattern-preset').filter({ hasText: 'Woodland camo' }).click();
+      await page.getByTestId('pattern-apply-all').click();
+      await page.waitForTimeout(1500);
+      await shot(page, 'paint-camo-mask');
+
+      // Livery: a mirrored brush stroke across the car, a stamped number, then the eyedropper.
+      await page.getByRole('radio', { name: 'Livery (any colours)' }).click();
+      await page.getByTestId('paint-tool-brush').click();
+      await page.getByRole('switch', { name: 'Mirror both sides' }).click();
+      const vp = await page.locator('[data-panel=viewport] canvas').first().boundingBox();
+      const cx = vp.x + vp.width / 2;
+      const cy = vp.y + vp.height / 2;
+      await page.mouse.move(cx - 60, cy);
+      await page.mouse.down();
+      for (let k = 0; k <= 12; k++) await page.mouse.move(cx - 60 + k * 10, cy + Math.sin(k / 2) * 20);
+      await page.mouse.up();
+      await page.getByTestId('paint-tool-stamp').click();
+      await page.getByRole('textbox', { name: 'Stamp text' }).fill('77');
+      await page.mouse.click(cx, cy - 30);
+      await page.waitForTimeout(800);
+      await page.getByTestId('paint-tool-picker').click();
+      await page.mouse.click(cx - 60, cy);
+      await page.waitForTimeout(300);
+      assert((await hook(page, 'painterState')).tool === 'brush', 'the eyedropper hands back to the brush');
+      await shot(page, 'paint-livery');
+
+      // Both pictures are saved, and the material uses them.
+      const painted = join(userData, 'painted-textures');
+      let files = [];
+      for (let i = 0; i < 50; i++) {
+        files = existsSync(painted) ? readdirSync(painted) : [];
+        if (files.some((f) => f.endsWith('_paintmask.png')) && files.some((f) => f.endsWith('_livery.png'))) break;
+        await page.waitForTimeout(100);
+      }
+      assert(files.some((f) => f.endsWith('_paintmask.png')) && files.some((f) => f.endsWith('_livery.png')), `mask and livery saved (${files.join(', ')})`);
+      const mask = files.find((f) => f.endsWith('_paintmask.png'));
+      assert(statSync(join(painted, mask)).size > 20_000, `the camo mask has detail (${statSync(join(painted, mask)).size} bytes)`);
+      await page.getByRole('switch', { name: 'Paint on the car' }).click();
+      await page.getByTestId('toggle-paints').click();
+
+      // Export: the painted textures go into the mod with the material pointing at them.
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 100 && !((await hook(page, 'structureState'))?.nodes > 0); i++) await page.waitForTimeout(100);
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-dialog').waitFor();
+      await page.getByTestId('export-install').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 30_000 });
+      const vdir = join(fakeUserDir, 'mods', 'unpacked', 'paint_test', 'vehicles', 'paint_test');
+      const out = readdirSync(vdir);
+      const mats = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
+      const paint = Object.values(mats).find((m) => typeof m.Stages?.[0]?.colorPaletteMap === 'string');
+      assert(paint, `a material with a paint mask (${JSON.stringify(mats).slice(0, 400)})`);
+      const maskFile = paint.Stages[0].colorPaletteMap.split('/').pop();
+      const liveryStage = paint.Stages.find((st) => typeof st.baseColorMap === 'string' && st.baseColorMap.includes('livery'));
+      assert(out.includes(maskFile), `mask texture exported (${maskFile} in ${out.join(', ')})`);
+      assert(liveryStage && out.includes(liveryStage.baseColorMap.split('/').pop()), `livery layer exported (${JSON.stringify(paint.Stages)})`);
+      const info = JSON.parse(readFileSync(join(vdir, 'info.json'), 'utf8'));
+      assert(info.defaultPaintName2 === 'Hot Pink', `scheme paints in info.json (${info.defaultPaintName1}, ${info.defaultPaintName2})`);
+      await page.getByRole('button', { name: 'Done' }).click();
       await hook(page, 'runCommand', 'close');
       await page.getByTestId('unsaved-discard').click();
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');

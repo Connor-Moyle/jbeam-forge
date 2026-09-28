@@ -197,6 +197,8 @@ export interface InvokeContract {
   'kn5:saveBaked': { req: { kn5Path: string; name: string; bytes: Uint8Array }; res: string };
   /** Save a texture painted or generated in the app (paint masks, liveries) as a PNG; returns its path. */
   'materials:saveTexture': { req: { name: string; bytes: Uint8Array }; res: string };
+  /** Save a painted image (livery, paint-slot mask, UV template) where the user picks; returns the path, or null if cancelled. */
+  'paint:saveImage': { req: { suggestedName: string; bytes: Uint8Array }; res: string | null };
   /** Pick an image for a material slot; its folder becomes readable. */
   'materials:pickTexture': { req: undefined; res: string | null };
   'materials:library': { req: undefined; res: LibraryItem[] };
@@ -283,6 +285,7 @@ export const INVOKE_CHANNELS = [
   'library:rescan',
   'kn5:saveBaked',
   'materials:saveTexture',
+  'paint:saveImage',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

@@ -132,6 +132,8 @@ export interface BrushHit {
   meshKey: string;
   face: number;
   uv: [number, number] | null;
+  /** Mirror painting: the matching point on the other side of the car (null: none there). */
+  mirror?: BrushHit | null;
 }
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
@@ -206,6 +208,8 @@ export class ViewportRuntime {
   private tool: ToolState | null = null;
   /** Paint brush on: left-drag paints instead of orbiting. */
   private brush = false;
+  /** Paint brush mirrored across the car's centre line. */
+  private brushMirror = false;
   private toolOverlay: Mesh | null = null;
   private toolOverlayFor: { geometry: BufferGeometry; selected: readonly number[] } | null = null;
   private readonly toolMaterial: MeshBasicMaterial;
@@ -463,10 +467,14 @@ export class ViewportRuntime {
 
     // Paint brush: left-drag paints on the surface under the pointer.
     let brushing = false;
-    const brushAt = (e: PointerEvent): BrushHit | null => {
-      const hit = this.hitAt(e.clientX, e.clientY);
+    const toBrushHit = (hit: Intersection | undefined): BrushHit | null => {
       if (!hit || hit.faceIndex == null) return null;
       return { meshKey: hit.object.userData.meshKey as string, face: hit.faceIndex, uv: hit.uv ? [hit.uv.x, hit.uv.y] : null };
+    };
+    const brushAt = (e: PointerEvent): BrushHit | null => {
+      const hit = toBrushHit(this.hitAt(e.clientX, e.clientY));
+      if (hit && this.brushMirror) hit.mirror = toBrushHit(this.mirroredHitAt(e.clientX, e.clientY));
+      return hit;
     };
     this.listen(canvas, 'pointerdown', (e) => {
       if (!this.brush || e.button !== 0 || this.tool || this.edit) return;
@@ -562,6 +570,30 @@ export class ViewportRuntime {
     if (rect.width === 0 || rect.height === 0) return undefined;
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
+    return this.castRay();
+  }
+
+  /**
+   * The same as hitAt, seen in a mirror down the car's centre line (BeamNG
+   * X = 0): the ray is reflected, so it lands on the matching point of the other side.
+   */
+  private mirroredHitAt(clientX: number, clientY: number): Intersection | undefined {
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return undefined;
+    this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.modelRoot.updateMatrixWorld();
+    const toModel = this.modelRoot.matrixWorld.clone().invert();
+    const origin = this.raycaster.ray.origin.clone().applyMatrix4(toModel);
+    const dir = this.raycaster.ray.direction.clone().transformDirection(toModel);
+    origin.x = -origin.x;
+    dir.x = -dir.x;
+    this.raycaster.ray.set(origin.applyMatrix4(this.modelRoot.matrixWorld), dir.transformDirection(this.modelRoot.matrixWorld));
+    return this.castRay();
+  }
+
+  /** The nearest visible mesh along the raycaster's current ray (in-focus meshes first). */
+  private castRay(): Intersection | undefined {
     const candidates: Mesh[] = [];
     for (const mesh of this.meshObjects.values()) {
       if (!mesh.visible) continue;
@@ -577,6 +609,11 @@ export class ViewportRuntime {
     const focus = this.focusSet;
     const inFocus = focus ? candidates.filter((m) => focus.has(m.userData.meshKey as string)) : candidates;
     return this.raycaster.intersectObjects(inFocus, false)[0] ?? (focus ? this.raycaster.intersectObjects(candidates, false)[0] : undefined);
+  }
+
+  /** Paint on both sides at once (mirrored down the centre line). */
+  setBrushMirror(on: boolean): void {
+    this.brushMirror = on;
   }
 
   /** Paint brush on or off. */
