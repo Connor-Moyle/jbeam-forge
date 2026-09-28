@@ -12,6 +12,7 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
 import { addAxle, axleKind, fitSuspension, removeAxle, removeSuspension, setSuspensionChoices, setTuning, setUpAxles, updateAxle, showGameMeshes, showOwnMeshes, useSuspensionCatalogue, useSuspensionUi } from './commands';
+import { DrivelineView } from './DrivelineView';
 import styles from '@renderer/workshop/Workshop.module.css';
 
 /** Suspension workshop: the car's axles, and a complete suspension from the game on each. */
@@ -21,6 +22,7 @@ export function SuspensionPanel() {
   const load = useSuspensionCatalogue((s) => s.load);
   const picking = useSuspensionUi((s) => s.axleId);
   const tuning = useSuspensionUi((s) => s.tuneId);
+  const driving = useSuspensionUi((s) => s.driveId);
   useEffect(() => {
     void load();
     const off = window.forge.on('library:changed', () => void load(true));
@@ -47,6 +49,8 @@ export function SuspensionPanel() {
       />
     );
   }
+  const driven = axles.find((a) => a.id === driving);
+  if (driven?.fitted) return <DrivelineView axle={{ ...driven, fitted: driven.fitted }} />;
   const tuned = axles.find((a) => a.id === tuning);
   if (tuned?.fitted) {
     return <TuningView title={`${tuned.name} · ${tuned.fitted.vehicle} ${tuned.fitted.name}`} setId={tuned.fitted.setId} tuning={tuned.tuning} onChange={(name, v) => setTuning(tuned.id, name, v)} onBack={() => useSuspensionUi.getState().tune(null)} choices={tuned.fitted.choices} onChoices={(c) => setSuspensionChoices(tuned.id, c)} />;
@@ -100,6 +104,9 @@ function AxleCard({ axle }: { axle: Axle }) {
             <div className={styles.row}>
               <Button size="sm" variant="primary" onClick={() => useSuspensionUi.getState().tune(axle.id)} data-testid="axle-tune">
                 Tune
+              </Button>
+              <Button size="sm" onClick={() => useSuspensionUi.getState().drive(axle.id)} data-testid="axle-driveline">
+                Differential
               </Button>
               <Button size="sm" onClick={() => useSuspensionUi.getState().pick(axle.id)}>
                 Change

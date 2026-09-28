@@ -245,6 +245,24 @@ export const MeshCopySchema = z.object({
  * An axle (v11, Phase 10): where it is, how wide, whether it steers, and the
  * suspension fitted to it (a complete set from the game, as its own model).
  */
+/**
+ * Edits to a fitted engine or gearbox's jbeam (v16), applied on export after
+ * the transplant. `fields` keys are "<part>/<section>/<key>" in the game's
+ * names, e.g. "etk_engine_i6_3.0/mainEngine/maxRPM"; only numbers the game
+ * already has are offered, so nothing unknown to it is written.
+ */
+export const PowertrainEditsSchema = z.object({
+  fields: z.record(z.string(), z.number()),
+  /** The engine's torque curve, [rpm, Nm] rising in rpm; null keeps the game's. */
+  torque: z.array(z.tuple([z.number().min(0), z.number()])).nullable(),
+  /** Gear ratios as the jbeam has them (reverse, neutral 0, forward…); null keeps the game's. */
+  gearRatios: z.array(z.number()).nullable(),
+  /** Word settings (fork), e.g. a differential's type: same keys as `fields`. */
+  texts: z.record(z.string(), z.string()).optional(),
+});
+
+export const emptyEdits = (): z.infer<typeof PowertrainEditsSchema> => ({ fields: {}, torque: null, gearRatios: null });
+
 /** Per slot of a fitted set: the default part and the game's other parts offered in the parts menu. */
 export const SetChoicesSchema = z.record(z.string(), z.object({ default: z.string(), offer: z.array(z.string()) }));
 
@@ -260,6 +278,8 @@ export const AxleSchema = z.object({
   tuning: z.record(z.string(), z.number()),
   /** The user's own meshes shown for this suspension instead of the game's (the game's jbeam still does the physics). */
   ownMeshes: z.array(z.string()),
+  /** The driveline builder's changes to the set's differentials (fork): same form as the engine's edits. */
+  edits: PowertrainEditsSchema.optional(),
   fitted: z
     .object({
       /** Catalogue id (vehicle/part). */
@@ -274,21 +294,6 @@ export const AxleSchema = z.object({
     .nullable(),
 });
 
-/**
- * Edits to a fitted engine or gearbox's jbeam (v16), applied on export after
- * the transplant. `fields` keys are "<part>/<section>/<key>" in the game's
- * names, e.g. "etk_engine_i6_3.0/mainEngine/maxRPM"; only numbers the game
- * already has are offered, so nothing unknown to it is written.
- */
-export const PowertrainEditsSchema = z.object({
-  fields: z.record(z.string(), z.number()),
-  /** The engine's torque curve, [rpm, Nm] rising in rpm; null keeps the game's. */
-  torque: z.array(z.tuple([z.number().min(0), z.number()])).nullable(),
-  /** Gear ratios as the jbeam has them (reverse, neutral 0, forward…); null keeps the game's. */
-  gearRatios: z.array(z.number()).nullable(),
-});
-
-export const emptyEdits = (): z.infer<typeof PowertrainEditsSchema> => ({ fields: {}, torque: null, gearRatios: null });
 
 /** An engine or gearbox fitted from the game (v12, Phase 11): its own model, its jbeam brought over on export. */
 export const FittedSetSchema = z.object({

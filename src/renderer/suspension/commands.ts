@@ -1,4 +1,5 @@
 import type { SetChoices } from '@shared/suspension/options';
+import { emptyEdits } from '@shared/project/schema';
 import { Box3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
@@ -50,11 +51,13 @@ export async function loadFittedSets(): Promise<void> {
 }
 
 /** Which axle the picker is choosing for. */
-export const useSuspensionUi = create<{ axleId: string | null; tuneId: string | null; pick: (id: string | null) => void; tune: (id: string | null) => void }>()((set) => ({
+export const useSuspensionUi = create<{ axleId: string | null; tuneId: string | null; driveId: string | null; pick: (id: string | null) => void; tune: (id: string | null) => void; drive: (id: string | null) => void }>()((set) => ({
   axleId: null,
   tuneId: null,
-  pick: (axleId) => set({ axleId, tuneId: null }),
-  tune: (tuneId) => set({ tuneId, axleId: null }),
+  driveId: null,
+  pick: (axleId) => set({ axleId, tuneId: null, driveId: null }),
+  tune: (tuneId) => set({ tuneId, axleId: null, driveId: null }),
+  drive: (driveId) => set({ driveId, axleId: null, tuneId: null }),
 }));
 
 /** Which sets suit an axle: front sets for the first, rear for the others; "any" fits both. */
@@ -199,6 +202,34 @@ export function setTuning(axleId: string, name: string, value: number | null): v
       if (!a) return;
       if (value === null) delete a.tuning[name];
       else a.tuning[name] = value;
+    },
+  });
+}
+
+/** A differential setting on an axle (driveline builder); null goes back to the game's. */
+export function setDrivelineValue(axleId: string, key: string, value: number | string | null): void {
+  projectStore.getState().execute({
+    label: 'Change differential',
+    coalesce: `drive:${axleId}:${key}`,
+    apply: (d) => {
+      const a = d.axles.find((x) => x.id === axleId);
+      if (!a) return;
+      const e = (a.edits ??= emptyEdits());
+      const texts = (e.texts ??= {});
+      delete e.fields[key];
+      delete texts[key];
+      if (typeof value === 'number') e.fields[key] = value;
+      else if (typeof value === 'string') texts[key] = value;
+    },
+  });
+}
+
+export function resetDriveline(axleId: string): void {
+  projectStore.getState().execute({
+    label: 'Reset differentials',
+    apply: (d) => {
+      const a = d.axles.find((x) => x.id === axleId);
+      if (a) delete a.edits;
     },
   });
 }

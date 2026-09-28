@@ -11,6 +11,7 @@ import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
+import { applyDrivelineEdits } from '../powertrain/driveline';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
@@ -286,12 +287,13 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
   const extraSlots: WritableValue[] = [];
   const data = (setId: string) => opts.suspensions?.[setId];
-  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>, edits?: PowertrainEdits, choices?: SetChoices) => {
+  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>, edits?: PowertrainEdits, choices?: SetChoices, driveline?: PowertrainEdits) => {
     const found = opts.suspensions?.[setId];
     if (!found) return null;
     // The game's other parts the user chose, then the engine and gearbox builders' changes, onto the game's parts before they're renamed.
     const chosen = applyChoices(found, found.options, choices);
-    const data = edits ? { ...chosen, parts: applyPowertrainEdits(chosen.parts, chosen.root, edits) } : chosen;
+    const edited = edits ? { ...chosen, parts: applyPowertrainEdits(chosen.parts, chosen.root, edits) } : chosen;
+    const data = driveline ? { ...edited, parts: applyDrivelineEdits(edited.parts, driveline) } : edited;
     const meshNames: Record<string, string> = {};
     for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
     const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
@@ -301,7 +303,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   };
   (fullDoc.axles ?? []).forEach((axle, i) => {
     if (!axle.fitted) return;
-    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), bodyNodes, axle.tuning, undefined, undefined, axle.fitted.choices);
+    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), bodyNodes, axle.tuning, undefined, undefined, axle.fitted.choices, axle.edits);
     if (!t) return;
     extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
     // The user's own meshes ride on the set's nodes (every node group the set's meshes used).
