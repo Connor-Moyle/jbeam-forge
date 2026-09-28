@@ -17,9 +17,9 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | in progress (9a model/export, 9b Inspector section in 0.8.5) |
 | 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | in progress (10a/b in 0.9.0: workshop, sets, transplant, tuning) |
 | 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | in progress (11a in 0.10.0: engine/gearbox workshop, dyno chart, transplant, tuning) |
-| 12 | Capability layer — tuning vars, lights/electrics/plate, glass, aero, skins, hitch, nitrous, global controls | — | in progress (0.11.0: tuning vars, lights/electrics, glass; plate, aero, skins, hitch, nitrous to come) |
+| 12 | Capability layer — tuning vars, lights/electrics/plate, glass, aero, skins, hitch, nitrous, global controls | — | done (0.11.0: tuning vars, lights/electrics, glass; then plates, aero, paint designs, hitch, nitrous, global slots) |
 | 13 | Config Manager v2 + previews | — | done (0.11.0) |
-| 14 | Publish helper + `npm run dist` installer + full regression script | — | publish helper + installer done (0.11.0); regression script to come |
+| 14 | Publish helper + `npm run dist` installer + full regression script | — | done (`npm run regress`) |
 
 ## Roadmap from your feedback (2026-09-27)
 
@@ -61,6 +61,57 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | 0.7.0 | Phase 7: editing, focus mode, palette, jbeam preview, balance, undo across saves, automatic prices, better FBX/Blender import |
 
 ## Phase log
+
+### Fork: engine and gearbox builders, multicolour paints, painting on the car (branch `claude/fork-paint-powertrain`)
+
+Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12), so the original line stays as it was.
+
+**Code check first**
+- Typecheck, lint and all tests passed except two install-detection tests. BeamNG writes the ini's `installPath` with a trailing backslash, and only Windows' `resolve()` dropped it. The trailing separator is now stripped on every platform.
+- The unreleased plates/hitch/nitrous/skins and aero/axle commits were read through; no bugs found.
+
+**Engine builder** (Engine & gearbox → Build)
+- Power, torque, rev limit and weight, with the change against the game's figures.
+- An editable dyno. Drag points to change torque; add, remove or type points; scale the curve by ±5–25 %; stretch the rev range (the limits move with it). The game's curve stays drawn for reference.
+- An engine weight scale over every node of the engine and its parts.
+- Every number the engine's jbeam has, grouped by part and section, with a filter and the game's value beside each change. That covers mainEngine (idle, limiter, inertia, friction, engine braking, damage thresholds, backfire, starter…), turbocharger/supercharger (wastegate, boost rate, blow-off and whine volumes…), sound configs (volumes, EQ, muffling) and the fuel tank.
+- Only numbers the game already has are offered, so nothing unknown to it is written.
+
+**Gearbox builder** (Engine & gearbox → Build on the gearbox)
+- Edit every ratio, add a gear, remove the top gear, or spread first-to-top evenly.
+- Road speed per gear at the engine's rev limit, for a final drive and tyre you enter.
+- Every number of the gearbox and shifting sections (vehicleController, clutch, torque converter…).
+- Edits apply to the game's parts before the transplant renames them (`src/shared/powertrain/edits.ts`).
+
+**Paints** (the paint-roller panel; a tab beside Materials)
+- Factory paints: 30 presets (solid, metallic, pearl, matte and satin, candy and chrome, loud) and blank ones. Each has colour, metallic, roughness, clear coat and clear coat roughness.
+- The car's three paint slots, and six one-click three-paint schemes.
+- Written to `info.json` (`paints`, `defaultPaintName1–3`) and to every `.pc` (`paints`). Each configuration can pick its own three.
+- The viewport draws paint materials the way the game does: the three slots mixed through the colour palette mask, each with its own metallic, roughness and clear coat. Checked compiling and colouring correctly on WebGL.
+
+**Painting on the car**
+- The brush paints either the paint-slot mask (where paint 1/2/3 go: two-tone roofs, stripes, three colours at once) or a livery in any colours (rainbow brush too).
+- The livery goes on a layer of its own over the paint, transparent where unpainted.
+- Tools: brush, fill a whole mesh, erase; size (`[` `]`), hardness, strength; undo stroke; start again.
+- Textures are PNGs under `userData/painted-textures` (new IPC `materials:saveTexture`) and are exported with the mod.
+- Meshes need UVs and a paint material; the brush says so when they're missing. A whole paint material can also be put on one slot from the Materials editor.
+
+**Two-sided materials** (Materials → Rendering → Sides)
+- Choices: front only, both sides the same, or a different inside (another material on the back faces).
+- The back faces are exported as the triangles again, turned round with reversed normals, and previewed in the viewport.
+
+**Project format v16:** powertrain `edits`, factory `paints`, per-configuration `paints`. `backMaterialId` on materials is optional, so older projects and `.jbmat` files still load.
+
+**Verification**
+- `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 637/637 ✔.
+- `npm run run-desktop` 16/16 ✔ (with `JBFORGE_SWIFTSHADER=1` for software WebGL). The generate scenario now adds a paint scheme, uses the brush and gives a material a different inside.
+- `lint-mod` on the exported mod: no errors.
+- Harness saves are now awaited until the renderer records them, which fixed an occasional "Save changes?" prompt after a save.
+
+**Needs your in-game check**
+- An edited engine (torque curve, limiter) and gearbox (added gear).
+- A paint scheme, a configuration with its own paints, and a painted mask and livery.
+- A material with a different inside.
 
 ### Between phases: objects library and Assetto Corsa import (0.8.2–0.8.3)
 
