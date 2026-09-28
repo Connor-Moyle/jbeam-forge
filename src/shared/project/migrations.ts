@@ -149,6 +149,13 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'material painting',
     migrate: (doc) => ({ ...doc, formatVersion: 18, faceMaterials: {} }),
   },
+  {
+    from: 18,
+    // Animated parts, interior cameras, more engines, driveline edits, part choices and projected UVs are
+    // all optional, so older projects need nothing; the bump keeps older apps from dropping them unread.
+    describe: 'animated parts, cameras, engine options, driveline, part choices, UV projection',
+    migrate: (doc) => ({ ...doc, formatVersion: 19 }),
+  },
 ];
 
 export class MigrationError extends Error {

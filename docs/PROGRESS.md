@@ -13,10 +13,10 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | done (0.7.0) |
-| 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | done (0.8.0); UV/AO in 0.8.x |
-| 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | in progress (9a model/export, 9b Inspector section in 0.8.5) |
-| 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | in progress (10a/b in 0.9.0: workshop, sets, transplant, tuning) |
-| 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | in progress (11a in 0.10.0: engine/gearbox workshop, dyno chart, transplant, tuning) |
+| 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | done (0.8.0; UV tools, AO baking, channel views and the game-materials list in 0.12.0) |
+| 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | done (9a/9b in 0.8.5; hinge-all wizard, swing and wrench-off scenarios in 0.12.0) |
+| 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | awaiting in-game gate (10a/b in 0.9.0; the game's part options, driveline builder and suspension drop in 0.12.0) |
+| 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | awaiting in-game gate (11a in 0.10.0; builders, engine options, sound, props and cameras in 0.12.0) |
 | 12 | Capability layer — tuning vars, lights/electrics/plate, glass, aero, skins, hitch, nitrous, global controls | — | done (0.11.0: tuning vars, lights/electrics, glass; then plates, aero, paint designs, hitch, nitrous, global slots) |
 | 13 | Config Manager v2 + previews | — | done (0.11.0) |
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | done (`npm run regress`) |
@@ -48,6 +48,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
+| 0.12.0 | Fork: engine and gearbox builders, driveline builder, more engines, engine sound with rev preview; paints, painting studio, vinyl editor, material brush, two-sided materials; UV tools, AO baking, channel views; hinge wizard and hinge/suspension sandbox tests; the game's part options; animated parts; interior cameras (format v19) |
 | 0.11.0 | Hinge preview; in-game tuning variables (format v13); lights glow via electrics; glass shatters; configurations panel with .pc export (format v14); repository package |
 | 0.10.0 | G/R/S gizmo; engine & gearbox workshop (Phase 11a, format v12) with jbeam transplant; own meshes on fitted suspensions; textures on game parts; Test Mode car mesh + isolate |
 | 0.9.0 | Suspension workshop (Phase 10a/b): axles (format v11), Type → Brand → Car picker over 145 sets cut from the install, fit complete sets, jbeam transplant on export, tuning page |
@@ -147,6 +148,43 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 **Two-sided materials** (Materials → Rendering → Sides)
 - Choices: front only, both sides the same, or a different inside (another material on the back faces).
 - The back faces are exported as the triangles again, turned round with reversed normals, and previewed in the viewport.
+
+**Round 5: everything left in the plan** (0.12.0; project format v19)
+- **Toolbar:** the leftover "X-ray, coming in phase 7" placeholder is gone (X-ray has worked since 0.7).
+- **Channel views** (toolbar menu, and "View: …" in the command palette): base colour, roughness, metallic and ambient occlusion as greys (map channel × factor), surface normals, and a numbered UV checker.
+- **UV tools** (Inspector → Texture mapping):
+  - a UV layout preview of the mesh with the 0–1 sheet marked;
+  - fresh texture coordinates projected from the shape: box (each triangle flat along the side it faces) or along one axis, one repeat per so many centimetres. Triangle order is kept, so material groups and painted faces stay put.
+- **Ambient occlusion baking** (Materials → Textures → Bake ambient occlusion): rays over each texel's hemisphere against every visible mesh (BVH), with reach, strength and size (256–2048). Dilated past island edges, saved as a PNG, and set as the material's AO map, so the game shows it too.
+- **The game's materials** for "Use a BeamNG material instead": every name in the install's `*.materials.json` (common ones first) as suggestions, and a hint saying whether it's shared, from another car, or a paint material.
+- **Hinges:**
+  - "Hinge all opening parts" (and a palette command) hinges every door, hood, trunk, tailgate and fuel door that can have one, in one undo step, and says why any can't yet.
+  - Sandbox **Swing** pushes the part open against its stop and shut again, and reports the angle reached and held, closing, and anything broken. **Wrench off** pulls it outward to four times the hinge strength: it should tear at the hinges before its own skin.
+  - The sandbox now simulates BOUNDED and SUPPORT beams as exported (it treated them as plain beams).
+  - **Fixed:** the swing test found that the opening limiter was anchored at the body node nearest the hinge line, so it hardly changed length and doors swung straight past their stop (in game too). It now anchors where the far edge pulls steadily away as the part opens.
+- **Suspension drop** (sandbox, with axles): the car dropped 30 cm onto a spring, damper and bump stop per wheel, sized from its weight (~1.5 Hz ride, 30 % damping) or from its tuning values when set. It reports bottoming out, compression per axle, sag, pitch and settle time. It's a stand-in for the fitted suspension, and says so.
+- **The game's part options** (Suspension or Engine → Tune → Parts): cutting sets from the install now records, for every slot the set declares, the game's other parts that fit it (`options.json`). You pick which is fitted, and tick others to ship as choices in the game's parts menu. On export the chosen parts join the set and slot defaults switch before the transplant. Sets cut before 0.12 need a library rescan to show options.
+- **Driveline builder** (Suspension → Differential): each differential the fitted axle brings, with its type (open, LSD, viscous, locked), final drive, friction, LSD preload and locking, viscous coupling and torque split. It reads and edits settings in the device's section or its powertrain row. Values tied to a tuning variable stay on the tuning page.
+- **More engines** (Engine & gearbox → More engines): extra engines are fitted where the default sits (hidden), exported into the default engine's slot, and chosen per configuration. Only the chosen engine's model shows in that configuration's preview. "Make default" swaps one in to build or tune it.
+- **Engine sound** (Engine builder → Sound):
+  - pick any of the game's sound blends for intake and exhaust;
+  - a **rev preview**: Play, a revs and throttle slider, and "Rev it". It plays the install's own recorded samples (the two nearest the rpm, crossfaded and pitched, on and off load mixed by throttle). Without them it synthesizes from the firing frequency and says so.
+- **Animated parts** (Inspector → Animation): steering wheel, rev counter, speedometer, fuel and temperature needles, throttle, brake and clutch pedals, handbrake, or any electrics value.
+  - Pivot and axis are guessed from the mesh's shape and can be set exactly; "Try it" turns the see-through copy in the viewport.
+  - Exported as the part's `props` table, with rotation in the reference nodes' frame. The mesh is written with its origin at the pivot and left out of the flexbodies.
+- **Interior cameras** (Extras → Interior cameras): driver (left- or right-hand drive), passenger and hood, with eye position and field of view, "Look through it" in the viewport, and "At selected node". Exported as `camerasInternal`, each hung from six body nodes around it.
+- **Dense meshes:** the 131 s case no longer reproduces (see Known issues); `npm run gen-bench` keeps it measurable.
+- **Project format v19:** props, cameras, engine options, driveline edits, part choices and UV projection. All are optional, so the migration adds nothing; the bump stops older apps from dropping them.
+- **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 709/709 ✔ · `npm run run-desktop` 17/17 ✔. The paint scenario also covers the UV layout and box projection, AO baking (and that it's exported), animating a mesh as a steering wheel, and a driver camera (looked through, and exported). The generate scenario covers the channel views.
+- **Needs your in-game check:**
+  - a door swinging to its stop;
+  - an alternative brake or turbo chosen and offered;
+  - an LSD set in the driveline builder;
+  - a second engine picked by a configuration;
+  - a changed engine sound;
+  - the steering wheel and needles moving;
+  - the driver camera;
+  - a baked AO map.
 
 **Project format v16:** powertrain `edits`, factory `paints`, per-configuration `paints`. `backMaterialId` on materials is optional, so older projects and `.jbmat` files still load.
 

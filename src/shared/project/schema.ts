@@ -16,7 +16,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 18;
+export const CURRENT_PROJECT_VERSION = 19;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -463,7 +463,7 @@ export const FeaturesSchema = z.object({
 
 export const ProjectV18Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(18),
+  formatVersion: z.literal(19),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),

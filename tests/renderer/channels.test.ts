@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DataTexture, MeshNormalMaterial, MeshPhysicalMaterial, ShaderMaterial } from 'three';
+import { DataTexture, MeshNormalMaterial, MeshPhysicalMaterial, type ShaderMaterial } from 'three';
 import { channelMaterial, channelMaterials } from '../../src/renderer/panels/viewport/channels';
 
 describe('viewport channel views', () => {
