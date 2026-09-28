@@ -114,7 +114,8 @@ export async function readBeamngIni(roots: LocateRoots): Promise<BeamngIni | nul
 export async function detectInstallDirs(roots: LocateRoots): Promise<string[]> {
   const found: string[] = [];
   const add = (p: string | null | undefined) => {
-    if (p && !found.some((f) => samePath(f, p))) found.push(resolve(p));
+    // The game writes installPath with a trailing backslash, which only Windows' resolve() drops.
+    if (p && !found.some((f) => samePath(f, p))) found.push(resolve(p.replace(/(?<=[^\\/:])[\\/]+$/, '')));
   };
 
   add((await readBeamngIni(roots))?.installPath);
