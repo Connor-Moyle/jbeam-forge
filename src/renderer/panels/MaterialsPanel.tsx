@@ -7,6 +7,7 @@ import { EMPTY_ARR } from '@shared/empty';
 import { BLEND_OPS, TEXTURE_SLOTS, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
 import { fuzzyScore } from '@shared/fuzzy';
 import { useProjectStore } from '@renderer/app/stores/project';
+import { call } from '@renderer/diagnostics/ipc';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { slotsOf } from '@renderer/materials/seed';
 import * as mc from '@renderer/materials/commands';
@@ -176,9 +177,7 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
             </div>
           </Field>
         )}
-        <Field label="Use a BeamNG material instead" hint="Type the name of one of the game's own materials (e.g. vehicle_glass); nothing is exported for this one.">
-          <Input value={def.gameMaterial ?? ''} onChange={(e) => setDef({ gameMaterial: e.target.value.trim() || null })} placeholder="(this project's material)" mono />
-        </Field>
+        <GameMaterialField def={def} onChange={(gameMaterial) => setDef({ gameMaterial })} />
       </FieldGroup>
 
       <div className={styles.layers}>
@@ -287,6 +286,47 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
       </CollapsibleSection>
       <p className={styles.hint}>{others.length} materials in this project. The viewport preview is close to, but not the same as, BeamNG&rsquo;s renderer.</p>
     </div>
+  );
+}
+
+let gameMaterials: Promise<{ name: string; vehicle: string; paint: boolean }[]> | null = null;
+
+/** Use one of the game's own materials by name, picked from every material in the install's vehicle zips. */
+function GameMaterialField({ def, onChange }: { def: MaterialDef; onChange: (name: string | null) => void }) {
+  const [list, setList] = useState<{ name: string; vehicle: string; paint: boolean }[] | null>(null);
+  const load = () => {
+    gameMaterials ??= call('beamng:gameMaterials').catch(() => []);
+    void gameMaterials.then(setList);
+  };
+  const known = list?.find((m) => m.name === def.gameMaterial);
+  const hint = !list
+    ? 'The name of one of the game’s own materials (e.g. vehicle_glass); nothing is exported for this one.'
+    : !list.length
+      ? 'Set the BeamNG.drive folder in Settings to list the game’s materials.'
+      : def.gameMaterial && !known
+        ? `Not one of the ${list.length} materials in your game; it will show as missing unless another mod adds it.`
+        : known
+          ? `From ${known.vehicle === 'common' ? 'the common set: works on any car' : `the ${known.vehicle}: only loaded when that car’s files are`}${known.paint ? '; takes the car’s paint colours' : ''}.`
+          : `${list.length} game materials: common ones work on any car.`;
+  return (
+    <Field label="Use a BeamNG material instead" hint={hint}>
+      <Input
+        value={def.gameMaterial ?? ''}
+        onFocus={load}
+        onChange={(e) => onChange(e.target.value.trim() || null)}
+        placeholder="(this project's material)"
+        list="game-materials"
+        aria-label="BeamNG material name"
+        mono
+      />
+      <datalist id="game-materials">
+        {list?.map((m) => (
+          <option key={m.name} value={m.name}>
+            {m.vehicle}
+          </option>
+        ))}
+      </datalist>
+    </Field>
   );
 }
 

@@ -235,6 +235,8 @@ export interface InvokeContract {
   'export:reveal': { req: undefined; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
+  /** Material names in the game's vehicle zips (fork), for using a stock material by name. */
+  'beamng:gameMaterials': { req: undefined; res: { name: string; vehicle: string; paint: boolean }[] };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
 }
 
@@ -276,6 +278,7 @@ export const INVOKE_CHANNELS = [
   'harness:queueDialog',
   'beamng:detect',
   'beamng:validate',
+  'beamng:gameMaterials',
   'dialog:pickDirectory',
   'import:pickSource',
   'import:readFile',

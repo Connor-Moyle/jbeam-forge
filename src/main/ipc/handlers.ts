@@ -13,6 +13,7 @@ import type { LayoutService } from '../services/layout';
 import type { RecentService } from '../services/recent';
 import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
 import type { BeamngService } from '../beamng/service';
+import { scanGameMaterials } from '../beamng/gameMaterials';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
 import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
 import { getLogFolder, scoped } from '../log';
@@ -235,6 +236,10 @@ export function registerIpcHandlers(services: HandlerServices): void {
 
   registerInvoke('beamng:detect', () => beamng.detect());
   registerInvoke('beamng:validate', ({ dir }) => beamng.validate(dir), z.object({ dir: z.string().min(1).max(1024) }));
+  registerInvoke('beamng:gameMaterials', async () => {
+    const dir = settings.get().beamngInstallDir;
+    return dir ? scanGameMaterials(dir) : [];
+  });
 
   registerInvoke(
     'dialog:pickDirectory',
