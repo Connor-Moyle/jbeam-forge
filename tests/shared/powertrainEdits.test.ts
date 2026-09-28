@@ -106,3 +106,47 @@ describe('builder edits on export', () => {
     expect(files.some((f) => f.part === 'test_E_v6_intake_turbo')).toBe(true);
   });
 });
+
+describe('more than one engine', () => {
+  beforeAll(async () => {
+    await meshoptReady;
+  });
+
+  const I4: Record<string, JbeamObject> = {
+    i4_engine: { information: { name: '2.0L I4' }, slotType: 'other_engine', mainEngine: { torque: [['rpm', 'torque'], [0, 0], [6000, 200]], idleRPM: 800 } },
+  };
+
+  function twoEngines() {
+    const doc = createEmptyProject({ name: 'Test Car', slug: 'test' }, '0.1.0', new Date('2026-01-01T00:00:00Z'));
+    createPart(doc, tax, { taxonomyId: 'body', id: 'p_body' });
+    assignMeshes(doc, ['eng:block'], createPart(doc, tax, { taxonomyId: 'engine_set', id: 'p_v6' }).id);
+    assignMeshes(doc, ['eng2:block'], createPart(doc, tax, { taxonomyId: 'engine_set', id: 'p_i4' }).id);
+    for (const id of ['eng', 'eng2']) doc.sources.push({ id, placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 } } as never);
+    doc.powertrain.engine = { setId: 'car/v6', name: 'V6', vehicle: 'Car', type: 'V6', sourceId: 'eng', tuning: {}, edits: emptyEdits() };
+    doc.powertrain.alternates = [{ setId: 'other/i4', name: 'I4', vehicle: 'Other', type: 'I4', sourceId: 'eng2', tuning: {}, edits: emptyEdits() }];
+    const sets = { 'car/v6': { parts: ENGINE, root: 'v6_engine', anchors: {} }, 'other/i4': { parts: I4, root: 'i4_engine', anchors: {} } };
+    return { doc, sets };
+  }
+
+  it('ships every engine in the default engine’s slot', () => {
+    const { doc, sets } = twoEngines();
+    const files = buildJbeamFiles(doc, tax, { meshNames: new Map(), author: 'x', suspensions: sets });
+    const alt = parseJbeam(files.find((f) => f.part === 'test_E2_i4_engine')!.text).value as JbeamObject;
+    expect((alt.test_E2_i4_engine as JbeamObject).slotType).toBe('test_E_car_engine');
+    expect(files.some((f) => f.part === 'test_E_v6_engine')).toBe(true);
+  });
+
+  it('lets each configuration pick its engine, with only that engine on the car', async () => {
+    const { resolveConfig, includedParts, slotChoices } = await import('../../src/shared/export/configs');
+    const { doc, sets } = twoEngines();
+    const slot = slotChoices(doc, tax, sets).find((s) => s.label === 'Engine')!;
+    expect(slot.options.map((o) => o.name)).toEqual(['test_E_v6_engine', 'test_E2_i4_engine']);
+    const cfg = { id: 'c', name: 'Economy', description: '', type: 'Factory', parts: { [slot.slotType]: 'test_E2_i4_engine' }, vars: {}, paints: [null, null, null] as [null, null, null] };
+    const pc = resolveConfig(doc, tax, cfg, sets);
+    expect(pc.parts[slot.slotType]).toBe('test_E2_i4_engine');
+    const on = includedParts(doc, tax, pc, sets);
+    expect(on.has('p_i4')).toBe(true);
+    expect(on.has('p_v6')).toBe(false);
+    expect(includedParts(doc, tax, resolveConfig(doc, tax, null, sets), sets).has('p_v6')).toBe(true);
+  });
+});

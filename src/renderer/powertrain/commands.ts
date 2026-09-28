@@ -13,6 +13,7 @@ import { setPlacement } from '@renderer/import/PlacementDialog';
 import { defaultSettings, stageImport } from '@renderer/import/pipeline';
 import { cornerTargets } from '@renderer/objects/placeObject';
 import { assignToNewPart } from '@renderer/parts/commands';
+import { useSetData } from '@renderer/suspension/commands';
 
 /**
  * Engine and gearbox workshop (Phase 11): a complete engine or gearbox from
@@ -30,7 +31,7 @@ export const usePowertrainCatalogue = create<{ sets: SuspensionSet[] | null; loa
 }));
 
 /** What the panel shows: the two cards, a picker, or a tuning page. */
-export type PowertrainPage = 'pick' | 'tune' | 'build';
+export type PowertrainPage = 'pick' | 'tune' | 'build' | 'option';
 
 export const usePowertrainUi = create<{ view: { kind: PowertrainKind; page: PowertrainPage } | null; show: (view: { kind: PowertrainKind; page: PowertrainPage } | null) => void }>()((set) => ({
   view: null,
@@ -99,11 +100,78 @@ export async function fitPowertrain(kind: PowertrainKind, set: SuspensionSet): P
   projectStore.getState().execute({
     label: `Fit ${set.vehicleName} ${set.name}`,
     apply: (d) => {
+      const alternates = d.powertrain.alternates;
       if (old) removeSourceFromDoc(d, old);
+      // Replacing the default engine keeps the other engines as they were.
+      if (alternates) d.powertrain.alternates = alternates;
       d.powertrain[kind] = { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId, tuning: {}, edits: emptyEdits() };
     },
   });
   useUiStore.getState().pushStatus(`Fitted the ${set.vehicleName} ${set.name}. Fine-tune where it sits with the gizmo (G / R / S).`, 'success', 8000);
+}
+
+/**
+ * Another engine for the car (fork): fitted where the default engine sits,
+ * hidden in the viewport, and offered in the same slot so each configuration
+ * (and the player, in the parts menu) picks one.
+ */
+export async function addEngineOption(set: SuspensionSet): Promise<void> {
+  const doc = projectStore.getState().doc;
+  const main = doc?.powertrain.engine;
+  if (!doc || !main) return;
+  const staged = await stageImport(set.mesh, 'dae');
+  const sourceId = await confirmImport(staged, defaultSettings('dae'), { gameMaterials: true, classify: false });
+  if (!sourceId) return;
+  const box = boxOf(sourceId);
+  const at = boxOf(main.sourceId);
+  const src = projectStore.getState().doc?.sources.find((s) => s.id === sourceId);
+  if (src && !box.isEmpty() && !at.isEmpty()) {
+    const c = box.getCenter(box.min.clone());
+    const t = at.getCenter(at.min.clone());
+    const p = src.placement;
+    setPlacement(sourceId, { ...p, position: [p.position[0] + t.x - c.x, p.position[1] + t.y - c.y, p.position[2] + t.z - c.z] });
+  }
+  const keys = (useSceneStore.getState().sources[sourceId]?.meshes ?? []).map((m) => m.key);
+  assignToNewPart(keys, { taxonomyId: 'engine_set' });
+  projectStore.getState().execute({
+    label: `Add engine option ${set.vehicleName} ${set.name}`,
+    apply: (d) => {
+      d.powertrain.alternates = [...(d.powertrain.alternates ?? []), { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId, tuning: {}, edits: emptyEdits() }];
+    },
+  });
+  // Both engines sit in the same place: show the default one.
+  useSceneStore.getState().setHidden(keys, true);
+  await useSetData.getState().ensure([set.id]);
+  useUiStore.getState().pushStatus(`Added the ${set.vehicleName} ${set.name} as another engine. Each configuration picks its engine; it's hidden here while the default one shows.`, 'success', 9000);
+}
+
+/** Make another engine the default one (the old default becomes an option). */
+export function makeDefaultEngine(sourceId: string): void {
+  const pt = projectStore.getState().doc?.powertrain;
+  const alt = pt?.alternates?.find((a) => a.sourceId === sourceId);
+  if (!pt?.engine || !alt) return;
+  const oldKeys = (useSceneStore.getState().sources[pt.engine.sourceId]?.meshes ?? []).map((m) => m.key);
+  projectStore.getState().execute({
+    label: `Make ${alt.vehicle} ${alt.name} the default engine`,
+    apply: (d) => {
+      const p = d.powertrain;
+      if (!p.engine || !p.alternates) return;
+      const i = p.alternates.findIndex((a) => a.sourceId === sourceId);
+      if (i < 0) return;
+      const next = p.alternates[i]!;
+      p.alternates[i] = p.engine;
+      p.engine = next;
+    },
+  });
+  useSceneStore.getState().setHidden(oldKeys, true);
+  useSceneStore.getState().setHidden((useSceneStore.getState().sources[sourceId]?.meshes ?? []).map((m) => m.key), false);
+}
+
+export function removeEngineOption(sourceId: string): void {
+  projectStore.getState().execute({
+    label: 'Remove engine option',
+    apply: (d) => removeSourceFromDoc(d, sourceId),
+  });
 }
 
 export function removePowertrain(kind: PowertrainKind): void {
@@ -114,6 +182,9 @@ export function removePowertrain(kind: PowertrainKind): void {
       if (f) removeSourceFromDoc(d, f.sourceId);
     },
   });
+  // The next engine took its place: show it.
+  const next = projectStore.getState().doc?.powertrain.engine;
+  if (kind === 'engine' && next) useSceneStore.getState().setHidden((useSceneStore.getState().sources[next.sourceId]?.meshes ?? []).map((m) => m.key), false);
 }
 
 export function setPowertrainTuning(kind: PowertrainKind, name: string, value: number | null): void {

@@ -46,7 +46,7 @@ export const useSetData = create<{ data: Record<string, SuspensionSetData>; ensu
 export async function loadFittedSets(): Promise<void> {
   const doc = projectStore.getState().doc;
   const pt = doc?.powertrain;
-  const ids = [...(doc?.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.setId] : [])), ...(pt?.engine ? [pt.engine.setId] : []), ...(pt?.gearbox ? [pt.gearbox.setId] : [])];
+  const ids = [...(doc?.axles ?? []).flatMap((a) => (a.fitted ? [a.fitted.setId] : [])), ...(pt?.engine ? [pt.engine.setId] : []), ...(pt?.alternates ?? []).map((a) => a.setId), ...(pt?.gearbox ? [pt.gearbox.setId] : [])];
   if (ids.length) await useSetData.getState().ensure(ids);
 }
 

@@ -1,7 +1,7 @@
 import type { Part, Project, VehicleConfig } from '../project/schema';
 import { partPrice } from '../parts/materials';
 import { pcPaints, type GamePaint } from '../paints/paints';
-import { axleTag, bodyPart, SET_KINDS, slotTypeOf, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
+import { axleTag, bodyPart, engineTag, SET_KINDS, slotTypeOf, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
 
 /**
  * Vehicle configurations (Phase 13): the slots a player can fill, what a
@@ -9,7 +9,7 @@ import { axleTag, bodyPart, SET_KINDS, slotTypeOf, type SuspensionSetData, type 
  * parts end up on the car. Written out as the game's .pc files.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'variables'> & Partial<Pick<Project, 'axles' | 'assignments' | 'paints'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'variables'> & Partial<Pick<Project, 'axles' | 'assignments' | 'paints' | 'powertrain'>>;
 /** Fitted suspensions' jbeam by set id: each fitted axle becomes a slot a configuration can leave empty. */
 type Sets = Readonly<Record<string, Pick<SuspensionSetData, 'parts' | 'root'>>>;
 
@@ -27,10 +27,12 @@ export interface SlotChoice {
   core: boolean;
   /** A fitted axle's slot: the project parts standing in for its suspension. */
   setPartIds?: string[];
+  /** A slot of fitted sets (the engines): each option's project parts, only on the car when it's chosen. */
+  optionPartIds?: Record<string, string[]>;
 }
 
 /** Every slot, in menu order (parents before their children). */
-export function slotChoices(doc: Pick<Project, 'parts'> & Partial<Pick<Project, 'meta' | 'axles' | 'assignments'>>, tax: TaxonomyLookup, sets?: Sets): SlotChoice[] {
+export function slotChoices(doc: Pick<Project, 'parts'> & Partial<Pick<Project, 'meta' | 'axles' | 'assignments' | 'powertrain'>>, tax: TaxonomyLookup, sets?: Sets): SlotChoice[] {
   const parts = doc.parts.filter((p) => tax.entry(p.taxonomyId) && !SET_KINDS.has(p.taxonomyId));
   const bases = parts.filter((p) => !p.variantOf);
   const byId = new Map(parts.map((p) => [p.id, p]));
@@ -55,6 +57,27 @@ export function slotChoices(doc: Pick<Project, 'parts'> & Partial<Pick<Project, 
     const setPartIds = [...new Set(Object.entries(doc.assignments ?? {}).flatMap(([k, id]) => (k.startsWith(source) ? [id] : [])))];
     axles.push({ slotType: `${prefix}${rootSlot}`, label: `${axle.name} suspension`, parent: body ? slotTypeOf(parts, body) : null, depth: 1, options: [{ name: `${prefix}${data.root}`, label: `${axle.fitted.vehicle} ${axle.fitted.name}` }], defaultPart: `${prefix}${data.root}`, core: false, setPartIds });
   });
+  // More than one engine: a slot choosing between them.
+  const pt = doc.powertrain;
+  const engineData = pt?.engine && sets?.[pt.engine.setId];
+  if (pt?.engine && engineData && pt.alternates?.length && doc.meta) {
+    const rootSlot = typeof engineData.parts[engineData.root]?.slotType === 'string' ? (engineData.parts[engineData.root]!.slotType as string) : engineData.root;
+    const partsOf = (sourceId: string) => [...new Set(Object.entries(doc.assignments ?? {}).flatMap(([k, id]) => (k.startsWith(`${sourceId}:`) ? [id] : [])))];
+    const engines = [pt.engine, ...pt.alternates].flatMap((e, n) => {
+      const data = sets[e.setId];
+      return data ? [{ name: `${doc.meta!.slug}_${engineTag(n)}_${data.root}`, label: `${e.vehicle} ${e.name}`, ids: partsOf(e.sourceId) }] : [];
+    });
+    axles.push({
+      slotType: `${doc.meta.slug}_E_${rootSlot}`,
+      label: 'Engine',
+      parent: body ? slotTypeOf(parts, body) : null,
+      depth: 1,
+      options: engines.map((e) => ({ name: e.name, label: e.label })),
+      defaultPart: engines[0]!.name,
+      core: false,
+      optionPartIds: Object.fromEntries(engines.map((e) => [e.name, e.ids])),
+    });
+  }
   const at = body ? out.findIndex((s) => s.core) + 1 : out.length;
   out.splice(at, 0, ...axles);
   return out;
@@ -78,7 +101,7 @@ export function resolveConfig(doc: Doc, tax: TaxonomyLookup, config: VehicleConf
 }
 
 /** The parts a configuration puts on the car (a part counts only when every slot above it is filled). */
-export function includedParts(doc: Pick<Project, 'parts'> & Partial<Pick<Project, 'meta' | 'axles' | 'assignments'>>, tax: TaxonomyLookup, pc: PcFile, sets?: Sets): Set<string> {
+export function includedParts(doc: Pick<Project, 'parts'> & Partial<Pick<Project, 'meta' | 'axles' | 'assignments' | 'powertrain'>>, tax: TaxonomyLookup, pc: PcFile, sets?: Sets): Set<string> {
   const parts = doc.parts.filter((p) => tax.entry(p.taxonomyId) && !SET_KINDS.has(p.taxonomyId));
   const byId = new Map(parts.map((p) => [p.id, p]));
   const chosen = (p: Part) => pc.parts[slotTypeOf(parts, p)] === p.name;
@@ -95,7 +118,12 @@ export function includedParts(doc: Pick<Project, 'parts'> & Partial<Pick<Project
     if (ok) out.add(p.id);
   }
   // Fitted sets are on the car unless the configuration leaves their axle empty.
-  const offAxles = new Set(slotChoices(doc, tax, sets).flatMap((s) => (s.setPartIds && !pc.parts[s.slotType] ? s.setPartIds : [])));
+  const slots = slotChoices(doc, tax, sets);
+  const offAxles = new Set([
+    ...slots.flatMap((s) => (s.setPartIds && !pc.parts[s.slotType] ? s.setPartIds : [])),
+    // Engines not chosen in this configuration.
+    ...slots.flatMap((s) => Object.entries(s.optionPartIds ?? {}).flatMap(([name, ids]) => (pc.parts[s.slotType] === name ? [] : ids))),
+  ]);
   for (const p of doc.parts) if (SET_KINDS.has(p.taxonomyId) && !offAxles.has(p.id)) out.add(p.id);
   return out;
 }

@@ -33,6 +33,10 @@ export function removeSourceFromDoc(d: Project, sourceId: string): void {
     if (a.fitted?.sourceId === sourceId) a.fitted = null;
     a.ownMeshes = a.ownMeshes.filter((k) => !drop(k));
   }
-  if (d.powertrain.engine?.sourceId === sourceId) d.powertrain.engine = null;
+  if (d.powertrain.alternates) d.powertrain.alternates = d.powertrain.alternates.filter((a) => a.sourceId !== sourceId);
+  if (d.powertrain.engine?.sourceId === sourceId) {
+    // The next engine becomes the default one.
+    d.powertrain.engine = d.powertrain.alternates?.shift() ?? null;
+  }
   if (d.powertrain.gearbox?.sourceId === sourceId) d.powertrain.gearbox = null;
 }

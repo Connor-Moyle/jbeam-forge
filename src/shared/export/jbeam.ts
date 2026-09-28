@@ -72,6 +72,9 @@ function slotDefaultsOf(part: JbeamObject): { type: string; def: string }[] {
 export const SET_KINDS: ReadonlySet<string> = new Set(['suspension_set', 'engine_set', 'gearbox_set']);
 
 /** Axle tags for part and node names: F, R, R2, R3… */
+/** Tag of the n-th engine (0 = the default one): E, E2, E3… (part and node prefixes). */
+export const engineTag = (n: number) => (n ? `E${n + 1}` : 'E');
+
 export function axleTag(i: number): string {
   return i === 0 ? 'F' : i === 1 ? 'R' : `R${i}`;
 }
@@ -324,15 +327,28 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   // The gearbox plugs into the engine's transmission slot (renamed ahead so the engine can point at it).
   const box = pt?.gearbox ? opts.suspensions?.[pt.gearbox.setId] : undefined;
   const boxSlot = box ? (typeof box.parts[box.root]?.slotType === 'string' ? (box.parts[box.root]!.slotType as string) : box.root) : null;
-  const engineData = pt?.engine ? opts.suspensions?.[pt.engine.setId] : undefined;
-  const engineTransmissionSlots = engineData && boxSlot ? Object.values(engineData.parts).flatMap((p) => slotDefaultsOf(p).filter((r) => /transmission|transaxle|gearbox/i.test(r.type)).map((r) => r.type)) : [];
-  const rewrites = Object.fromEntries(engineTransmissionSlots.map((st) => [st, { slotType: `${slug}_G_${boxSlot}`, part: `${slug}_G_${box!.root}` }]));
+  // Each engine's transmission slot is pointed at our gearbox.
+  const rewritesFor = (setId: string) => {
+    const engineData = opts.suspensions?.[setId];
+    const slots = engineData && boxSlot ? Object.values(engineData.parts).flatMap((p) => slotDefaultsOf(p).filter((r) => /transmission|transaxle|gearbox/i.test(r.type)).map((r) => r.type)) : [];
+    return { slots, rewrites: Object.fromEntries(slots.map((st) => [st, { slotType: `${slug}_G_${boxSlot}`, part: `${slug}_G_${box!.root}` }])) };
+  };
+  const engineTransmissionSlots = pt?.engine ? rewritesFor(pt.engine.setId).slots : [];
   let engineNodes: { id: string; pos: [number, number, number] }[] = [];
   if (pt?.engine) {
-    const t = bring(pt.engine.setId, pt.engine.sourceId, 'E', bodyNodes, pt.engine.tuning, rewrites, pt.engine.edits, pt.engine.choices);
+    const t = bring(pt.engine.setId, pt.engine.sourceId, 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices);
     if (t) {
       extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Engine']);
       engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
+      // The other engines fill the same slot: the player (or a configuration) picks one.
+      (pt.alternates ?? []).forEach((alt, i) => {
+        const a = bring(alt.setId, alt.sourceId, engineTag(i + 1), bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices);
+        const root = a?.parts[a.rootPart];
+        if (!a || !root) return;
+        root.slotType = t.rootSlotType;
+        const file = files.find((f) => f.part === a.rootPart);
+        if (file) file.text = serializeJbeam({ [a.rootPart]: root });
+      });
     }
   }
   if (pt?.gearbox) {

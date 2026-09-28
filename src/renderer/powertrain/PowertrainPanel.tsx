@@ -7,7 +7,7 @@ import { useProjectStore } from '@renderer/app/stores/project';
 import { Button } from '@renderer/ui/components/Button';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
-import { fitPowertrain, removePowertrain, setPowertrainChoices, setPowertrainTuning, usePowertrainCatalogue, usePowertrainUi, type PowertrainKind } from './commands';
+import { addEngineOption, fitPowertrain, makeDefaultEngine, removeEngineOption, removePowertrain, setPowertrainChoices, setPowertrainTuning, usePowertrainCatalogue, usePowertrainUi, type PowertrainKind } from './commands';
 import styles from '@renderer/workshop/Workshop.module.css';
 import { EngineBuilder, GearboxBuilder } from './Builder';
 
@@ -25,6 +25,21 @@ export function PowertrainPanel() {
     return off;
   }, [load]);
 
+  if (view && sets && view.page === 'option') {
+    return (
+      <SetPicker
+        title="Another engine"
+        sets={sets.filter((s) => s.kind === 'engine')}
+        testId="engine-option-picker"
+        onBack={() => usePowertrainUi.getState().show(null)}
+        details={(s) => <EngineLine set={s} />}
+        onFit={async (s) => {
+          await addEngineOption(s);
+          usePowertrainUi.getState().show(null);
+        }}
+      />
+    );
+  }
   if (view && sets && view.page === 'pick') {
     return (
       <SetPicker
@@ -49,6 +64,7 @@ export function PowertrainPanel() {
     <div className={styles.panel} data-testid="powertrain-panel">
       <ScrollArea className={styles.scroll}>
         <Card kind="engine" fitted={powertrain?.engine ?? null} />
+        {powertrain?.engine && <EngineOptions alternates={powertrain.alternates ?? []} />}
         <Card kind="gearbox" fitted={powertrain?.gearbox ?? null} />
         {sets && sets.length === 0 && <p className={styles.note}>No engines or gearboxes yet: they come from your BeamNG.drive install. Set its folder in Settings.</p>}
         <p className={styles.note}>The gearbox bolts to the engine&rsquo;s transmission slot, so pick one that suits the engine&rsquo;s drive layout. Drivetrain (driveshafts, differentials) comes with the suspension on each axle.</p>
@@ -97,6 +113,37 @@ function Card({ kind, fitted }: { kind: PowertrainKind; fitted: FittedSet | null
           Choose {kind}
         </Button>
       )}
+    </section>
+  );
+}
+
+/** The car's other engines: each configuration (and the player) picks one; the card above is the default. */
+function EngineOptions({ alternates }: { alternates: readonly FittedSet[] }) {
+  return (
+    <section className={styles.card} data-testid="engine-options">
+      <strong className={styles.cardTitle}>More engines</strong>
+      <p className={styles.note}>Ship several engines: they share the engine slot, so the game&rsquo;s parts menu offers them and each configuration picks one (Configurations panel). The one above is the default.</p>
+      {alternates.map((a) => (
+        <div key={a.sourceId} className={styles.fitted}>
+          <div>
+            <div className={styles.cardTitle}>{a.vehicle}</div>
+            <div className={styles.note}>
+              {a.name} · {a.type}
+            </div>
+          </div>
+          <div className={styles.row}>
+            <Button size="sm" onClick={() => makeDefaultEngine(a.sourceId)} title="Swap it with the default engine (to build or tune it)">
+              Make default
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => removeEngineOption(a.sourceId)}>
+              Remove
+            </Button>
+          </div>
+        </div>
+      ))}
+      <Button size="sm" onClick={() => usePowertrainUi.getState().show({ kind: 'engine', page: 'option' })} data-testid="engine-add-option">
+        Add another engine
+      </Button>
     </section>
   );
 }

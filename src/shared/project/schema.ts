@@ -313,6 +313,8 @@ export const FittedSetSchema = z.object({
 export const PowertrainSchema = z.object({
   engine: FittedSetSchema.nullable(),
   gearbox: FittedSetSchema.nullable(),
+  /** More engines (fork): offered in the engine's slot, one chosen per configuration; `engine` is the default. */
+  alternates: z.array(FittedSetSchema).optional(),
 });
 
 /**
