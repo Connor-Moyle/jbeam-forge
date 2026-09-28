@@ -6,6 +6,9 @@ import { call } from '@renderer/diagnostics/ipc';
 import { objectThumbnail } from '@renderer/materials/preview';
 import { useSetData } from '@renderer/suspension/commands';
 import { Button } from '@renderer/ui/components/Button';
+import { Checkbox } from '@renderer/ui/components/Checkbox';
+import { Select } from '@renderer/ui/components/Select';
+import type { SetChoices, SlotOption } from '@shared/suspension/options';
 import { Field } from '@renderer/ui/components/Field';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Slider } from '@renderer/ui/components/Slider';
@@ -149,7 +152,23 @@ export function SetPicker({ title, sets, onBack, onFit, details, testId }: { tit
 }
 
 /** A fitted set's tuning variables as sliders; values become the jbeam defaults on export. */
-export function TuningView({ title, setId, tuning, onChange, onBack }: { title: string; setId: string; tuning: Readonly<Record<string, number>>; onChange: (name: string, value: number | null) => void; onBack: () => void }) {
+export function TuningView({
+  title,
+  setId,
+  tuning,
+  onChange,
+  onBack,
+  choices,
+  onChoices,
+}: {
+  title: string;
+  setId: string;
+  tuning: Readonly<Record<string, number>>;
+  onChange: (name: string, value: number | null) => void;
+  onBack: () => void;
+  choices?: SetChoices;
+  onChoices?: (choices: SetChoices) => void;
+}) {
   const data = useSetData((s) => s.data[setId]);
   useEffect(() => void useSetData.getState().ensure([setId]), [setId]);
   const vars = useMemo(() => (data ? tuningVariables(data.parts) : []), [data]);
@@ -165,6 +184,7 @@ export function TuningView({ title, setId, tuning, onChange, onBack }: { title: 
       <p className={styles.note}>These become the defaults in your mod, and stay adjustable in the game&rsquo;s tuning menu.</p>
       <ScrollArea className={styles.scroll}>
         {!data && <p className={styles.note}>Reading its jbeam…</p>}
+        {data && onChoices && <PartChoices slots={data.options?.slots} choices={choices ?? {}} onChoices={onChoices} />}
         {data && !vars.length && <p className={styles.note}>This one has no tuning settings of its own.</p>}
         {groups.map((g) => (
           <section key={g} className={styles.card}>
@@ -192,5 +212,45 @@ export function TuningView({ title, setId, tuning, onChange, onBack }: { title: 
         ))}
       </ScrollArea>
     </div>
+  );
+}
+
+/**
+ * The game's other parts for a fitted set's slots (brakes, steering rack,
+ * subframe, turbo, ECU…): which one is fitted, and which others the player
+ * can pick in the game's parts menu.
+ */
+function PartChoices({ slots, choices, onChoices }: { slots: SlotOption[] | undefined; choices: SetChoices; onChoices: (choices: SetChoices) => void }) {
+  if (!slots) return <p className={styles.note}>Rescan the game (Settings → Library) to see the other parts it has for this one.</p>;
+  if (!slots.length) return null;
+  const set = (slot: SlotOption, patch: Partial<SetChoices[string]>) => {
+    const cur = choices[slot.slotType] ?? { default: slot.default, offer: [] };
+    const next = { ...cur, ...patch };
+    const out = { ...choices };
+    if (next.default === slot.default && !next.offer.length) delete out[slot.slotType];
+    else out[slot.slotType] = next;
+    onChoices(out);
+  };
+  return (
+    <section className={styles.card} data-testid="set-part-choices">
+      <strong className={styles.cardTitle}>Parts</strong>
+      <p className={styles.note}>The game&rsquo;s other parts for these slots. Pick what&rsquo;s fitted; ticked ones are offered in the game&rsquo;s parts menu too. Their physics and settings come over in full; their meshes only where they&rsquo;re part of this set.</p>
+      {slots.map((slot) => {
+        const c = choices[slot.slotType] ?? { default: slot.default, offer: [] };
+        const options = [...(slot.default ? [{ value: slot.default, label: `${slot.default} (stock)` }] : []), ...slot.alternatives.map((a) => ({ value: a.part, label: a.title === a.part ? a.part : `${a.title} · ${a.part}` }))];
+        return (
+          <Field key={slot.slotType} label={slot.title}>
+            <Select value={c.default} onChange={(d) => set(slot, { default: d, offer: c.offer.filter((p) => p !== d) })} options={options} aria-label={`${slot.title}: fitted part`} />
+            <div className={styles.choiceList}>
+              {slot.alternatives
+                .filter((a) => a.part !== c.default)
+                .map((a) => (
+                  <Checkbox key={a.part} checked={c.offer.includes(a.part)} onChange={(on) => set(slot, { offer: on ? [...c.offer, a.part] : c.offer.filter((p) => p !== a.part) })} label={a.title} />
+                ))}
+            </div>
+          </Field>
+        );
+      })}
+    </section>
   );
 }

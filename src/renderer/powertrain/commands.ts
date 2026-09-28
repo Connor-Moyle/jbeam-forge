@@ -1,3 +1,4 @@
+import type { SetChoices } from '@shared/suspension/options';
 import { Box3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
@@ -124,6 +125,17 @@ export function setPowertrainTuning(kind: PowertrainKind, name: string, value: n
       if (!f) return;
       if (value === null) delete f.tuning[name];
       else f.tuning[name] = value;
+    },
+  });
+}
+
+/** The game's other parts for the engine's or gearbox's slots (turbo, ECU, exhaust…): fitted defaults and in-game choices. */
+export function setPowertrainChoices(kind: PowertrainKind, choices: SetChoices): void {
+  projectStore.getState().execute({
+    label: kind === 'engine' ? 'Choose engine parts' : 'Choose gearbox parts',
+    apply: (d) => {
+      const f = d.powertrain[kind];
+      if (f) f.choices = choices;
     },
   });
 }

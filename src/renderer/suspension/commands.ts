@@ -1,3 +1,4 @@
+import type { SetChoices } from '@shared/suspension/options';
 import { Box3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
@@ -198,6 +199,17 @@ export function setTuning(axleId: string, name: string, value: number | null): v
       if (!a) return;
       if (value === null) delete a.tuning[name];
       else a.tuning[name] = value;
+    },
+  });
+}
+
+/** The game's other parts for an axle's suspension: fitted defaults and in-game choices. */
+export function setSuspensionChoices(axleId: string, choices: SetChoices): void {
+  projectStore.getState().execute({
+    label: 'Choose suspension parts',
+    apply: (d) => {
+      const a = d.axles.find((x) => x.id === axleId);
+      if (a?.fitted) a.fitted.choices = choices;
     },
   });
 }

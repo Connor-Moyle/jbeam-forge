@@ -14,6 +14,7 @@ import type { RecentService } from '../services/recent';
 import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
 import type { BeamngService } from '../beamng/service';
 import { scanGameMaterials } from '../beamng/gameMaterials';
+import type { SetOptions } from '@shared/suspension/options';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
 import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
 import { getLogFolder, scoped } from '../log';
@@ -436,7 +437,13 @@ export function registerIpcHandlers(services: HandlerServices): void {
       } catch {
         // cut before anchors were recorded: attachments stay on the suspension
       }
-      return { parts, anchors, root: set.part };
+      let options: SetOptions | undefined;
+      try {
+        options = JSON.parse(await readFile(join(dirname(set.jbeam), 'options.json'), 'utf8')) as SetOptions;
+      } catch {
+        // cut before options were recorded, or none: rescan the game to offer its other parts
+      }
+      return { parts, anchors, root: set.part, ...(options ? { options } : {}) };
     },
     z.object({ id: z.string().min(1).max(300) }),
   );

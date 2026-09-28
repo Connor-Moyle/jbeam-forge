@@ -245,6 +245,9 @@ export const MeshCopySchema = z.object({
  * An axle (v11, Phase 10): where it is, how wide, whether it steers, and the
  * suspension fitted to it (a complete set from the game, as its own model).
  */
+/** Per slot of a fitted set: the default part and the game's other parts offered in the parts menu. */
+export const SetChoicesSchema = z.record(z.string(), z.object({ default: z.string(), offer: z.array(z.string()) }));
+
 export const AxleSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -265,6 +268,8 @@ export const AxleSchema = z.object({
       vehicle: z.string(),
       type: z.string(),
       sourceId: z.string(),
+      /** The game's other parts for its slots (fork): default per slot and which ship as choices. */
+      choices: SetChoicesSchema.optional(),
     })
     .nullable(),
 });
@@ -296,6 +301,8 @@ export const FittedSetSchema = z.object({
   tuning: z.record(z.string(), z.number()),
   /** Changes to the game's own numbers (v16): the engine builder and gearbox builder. */
   edits: PowertrainEditsSchema,
+  /** The game's other parts for its slots (fork): default per slot and which ship as choices. */
+  choices: SetChoicesSchema.optional(),
 });
 
 export const PowertrainSchema = z.object({

@@ -11,7 +11,7 @@ import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
-import { addAxle, axleKind, fitSuspension, removeAxle, removeSuspension, setTuning, setUpAxles, updateAxle, showGameMeshes, showOwnMeshes, useSuspensionCatalogue, useSuspensionUi } from './commands';
+import { addAxle, axleKind, fitSuspension, removeAxle, removeSuspension, setSuspensionChoices, setTuning, setUpAxles, updateAxle, showGameMeshes, showOwnMeshes, useSuspensionCatalogue, useSuspensionUi } from './commands';
 import styles from '@renderer/workshop/Workshop.module.css';
 
 /** Suspension workshop: the car's axles, and a complete suspension from the game on each. */
@@ -49,7 +49,7 @@ export function SuspensionPanel() {
   }
   const tuned = axles.find((a) => a.id === tuning);
   if (tuned?.fitted) {
-    return <TuningView title={`${tuned.name} · ${tuned.fitted.vehicle} ${tuned.fitted.name}`} setId={tuned.fitted.setId} tuning={tuned.tuning} onChange={(name, v) => setTuning(tuned.id, name, v)} onBack={() => useSuspensionUi.getState().tune(null)} />;
+    return <TuningView title={`${tuned.name} · ${tuned.fitted.vehicle} ${tuned.fitted.name}`} setId={tuned.fitted.setId} tuning={tuned.tuning} onChange={(name, v) => setTuning(tuned.id, name, v)} onBack={() => useSuspensionUi.getState().tune(null)} choices={tuned.fitted.choices} onChoices={(c) => setSuspensionChoices(tuned.id, c)} />;
   }
   if (!axles.length) {
     return <EmptyState icon={Wrench} message="Suspension works axle by axle. Set up the car's axles first: front and rear go where its wheels are, and you can add more." action={{ label: 'Set up axles', icon: Plus, onClick: setUpAxles }} />;

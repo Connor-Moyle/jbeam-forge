@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '@shared/jbeam/parse';
 import { withZip, ZipReader } from './zip';
 import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
+import { findOptions } from '@shared/suspension/options';
 import { engineSpecs, gearboxSpecs, isEnginePart, isGearboxPart, partTitle } from '@shared/powertrain/specs';
 
 /**
@@ -510,6 +511,9 @@ async function writeSets(
     writeFileSync(join(dir, meshFile), dae);
     writeFileSync(join(dir, 'jbeam.json'), JSON.stringify(closure, null, 1));
     writeFileSync(join(dir, 'anchors.json'), JSON.stringify(externalNodeRefs(closure, vehicleNodes)));
+    // The game's other parts for the set's slots (brakes, racks, turbos…), offered as choices.
+    const options = findOptions(parts, find, pool);
+    if (options.slots.length) writeFileSync(join(dir, 'options.json'), JSON.stringify({ ...options, anchors: externalNodeRefs(options.parts, vehicleNodes) }));
     const setJson = {
       version: 1,
       kind,

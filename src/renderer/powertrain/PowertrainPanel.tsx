@@ -7,7 +7,7 @@ import { useProjectStore } from '@renderer/app/stores/project';
 import { Button } from '@renderer/ui/components/Button';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
-import { fitPowertrain, removePowertrain, setPowertrainTuning, usePowertrainCatalogue, usePowertrainUi, type PowertrainKind } from './commands';
+import { fitPowertrain, removePowertrain, setPowertrainChoices, setPowertrainTuning, usePowertrainCatalogue, usePowertrainUi, type PowertrainKind } from './commands';
 import styles from '@renderer/workshop/Workshop.module.css';
 import { EngineBuilder, GearboxBuilder } from './Builder';
 
@@ -43,7 +43,7 @@ export function PowertrainPanel() {
   if (view?.page === 'build' && powertrain?.[view.kind]) return view.kind === 'engine' ? <EngineBuilder /> : <GearboxBuilder />;
   const tuned = view?.page === 'tune' ? powertrain?.[view.kind] : null;
   if (view && tuned) {
-    return <TuningView title={`${LABEL[view.kind]} · ${tuned.vehicle} ${tuned.name}`} setId={tuned.setId} tuning={tuned.tuning} onChange={(name, v) => setPowertrainTuning(view.kind, name, v)} onBack={() => usePowertrainUi.getState().show(null)} />;
+    return <TuningView title={`${LABEL[view.kind]} · ${tuned.vehicle} ${tuned.name}`} setId={tuned.setId} tuning={tuned.tuning} onChange={(name, v) => setPowertrainTuning(view.kind, name, v)} onBack={() => usePowertrainUi.getState().show(null)} choices={tuned.choices} onChoices={(c) => setPowertrainChoices(view.kind, c)} />;
   }
   return (
     <div className={styles.panel} data-testid="powertrain-panel">

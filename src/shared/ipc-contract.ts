@@ -8,6 +8,8 @@ export interface LibraryStatus {
 }
 
 /** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
+import type { SetOptions } from './suspension/options';
+
 export interface SuspensionSet {
   /** "<vehicle>/<part>" */
   id: string;
@@ -188,7 +190,7 @@ export interface InvokeContract {
   /** Complete suspensions from the BeamNG install (empty until the install is set and read). */
   'suspension:catalogue': { req: undefined; res: SuspensionSet[] };
   /** A set's jbeam part definitions and the body nodes it attaches to (original positions). */
-  'suspension:set': { req: { id: string }; res: { parts: Record<string, JbeamObject>; anchors: Record<string, [number, number, number]>; root: string } | null };
+  'suspension:set': { req: { id: string }; res: { parts: Record<string, JbeamObject>; anchors: Record<string, [number, number, number]>; root: string; options?: SetOptions } | null };
   /** Your library folders: what each one gave, and whether a scan is running. */
   'library:status': { req: undefined; res: LibraryStatus };
   /** Scan your library folders again now. */
