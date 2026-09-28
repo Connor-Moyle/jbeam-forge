@@ -6,7 +6,16 @@ import { Solver, type Obstacle, type SimModel } from './solver';
  * sag, what breaks and where — not BeamNG's exact behaviour.
  */
 
-export type ScenarioId = 'settle' | 'drop' | 'corner-drop' | 'yank' | 'crash-pole' | 'crash-wall' | 'crash-offset';
+export type ScenarioId = 'settle' | 'drop' | 'corner-drop' | 'yank' | 'crash-pole' | 'crash-wall' | 'crash-offset' | 'hinge-swing' | 'hinge-yank' | 'suspension-drop';
+
+/** What a hinge scenario needs to know about the hinge (a subset of the project's Hinge). */
+export interface HingeSpec {
+  partId: string;
+  axis: [[number, number, number], [number, number, number]];
+  openAngle: number;
+  direction: 1 | -1;
+  strength: number;
+}
 
 export interface ScenarioResult {
   scenario: ScenarioId;
@@ -239,4 +248,159 @@ export function crash(model: SimModel, kind: 'pole' | 'wall' | 'offset', kmh = 5
   const labels = { pole: 'pole', wall: 'full-width wall', offset: '40 % offset barrier' } as const;
   const crushText = crush > 0.005 ? `front crushed ${(crush * 1000).toFixed(0)} mm` : 'no lasting crush (it sprang back)';
   return finish(s, `crash-${kind}` as ScenarioId, seconds, start, [`${kmh} km/h into a ${labels[kind]}: ${crushText}, ${s.breakLog.length} beam(s) broke.`]);
+}
+
+type V = [number, number, number];
+
+/** The hinged part's own nodes (not the body nodes its hinge beams reach). */
+function ownNodes(model: SimModel, partId: string): number[] {
+  if (model.nodePart) {
+    const mine = (i: number) => model.nodePart![i] === partId;
+    // Nodes of the part that are bolted rigidly to the body (the latch's body half) stay with the body.
+    const bodyLinks = new Uint16Array(model.mass.length);
+    for (let b = 0; b < model.beamA.length; b++) {
+      if (model.beamType[b] !== 0 || model.breakGroup[b]! >= 0) continue;
+      const a = model.beamA[b]!;
+      const c = model.beamB[b]!;
+      if (mine(a) && !mine(c)) bodyLinks[a]!++;
+      if (mine(c) && !mine(a)) bodyLinks[c]!++;
+    }
+    return model.nodePart.flatMap((p, i) => (p === partId && bodyLinks[i]! < 2 ? [i] : []));
+  }
+  const out = new Set<number>();
+  for (let b = 0; b < model.beamA.length; b++) if (model.beamPart[b] === partId && model.breakGroup[b]! < 0) {
+    out.add(model.beamA[b]!);
+    out.add(model.beamB[b]!);
+  }
+  return [...out];
+}
+
+/** Axis unit vector, and for a point: its offset from the axis (perpendicular) and the opening direction there. */
+function swingFrame(h: HingeSpec) {
+  const [a, b] = h.axis;
+  const ax = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const len = Math.hypot(ax[0]!, ax[1]!, ax[2]!) || 1;
+  const k: V = [ax[0]! / len, ax[1]! / len, ax[2]! / len];
+  const radial = (p: V): V => {
+    const v: V = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+    const d = v[0] * k[0] + v[1] * k[1] + v[2] * k[2];
+    return [v[0] - d * k[0], v[1] - d * k[1], v[2] - d * k[2]];
+  };
+  // Opening = right-hand rotation about a→b times the direction: tangent = k × r.
+  const tangent = (r: V): V => [(k[1] * r[2] - k[2] * r[1]) * h.direction, (k[2] * r[0] - k[0] * r[2]) * h.direction, (k[0] * r[1] - k[1] * r[0]) * h.direction];
+  /** Signed swing (degrees, + = opening) from r0 to r. */
+  const angle = (r0: V, r: V): number => {
+    const c: V = [r0[1] * r[2] - r0[2] * r[1], r0[2] * r[0] - r0[0] * r[2], r0[0] * r[1] - r0[1] * r[0]];
+    const sin = (c[0] * k[0] + c[1] * k[1] + c[2] * k[2]) * h.direction;
+    const cos = r0[0] * r[0] + r0[1] * r[1] + r0[2] * r[2];
+    return (Math.atan2(sin, cos) * 180) / Math.PI;
+  };
+  return { radial, tangent, angle };
+}
+
+const at = (s: Solver, i: number): V => [s.x[i * 3]!, s.x[i * 3 + 1]!, s.x[i * 3 + 2]!];
+
+/** Hold everything but the hinged part where it is (a test rig), with no ground in the way. */
+function rig(model: SimModel, own: ReadonlySet<number>): Solver {
+  const s = new Solver(model, { groundZ: -1e6 });
+  for (let i = 0; i < s.n; i++) if (!own.has(i) && model.mass[i]! > 0) s.anchors.push({ node: i, point: at(s, i), stiffness: Math.min(5e6, 2e6 * Math.max(0.5, model.mass[i]!)), damping: 4000 });
+  return s;
+}
+
+/**
+ * Hinge swing: the body held in a rig, the part pushed open by a hand at its
+ * far edge, held against its stop, then pushed shut. Good behaviour: it swings
+ * freely, the limiter stops it near its opening angle, it closes back onto its
+ * seals, and nothing breaks.
+ */
+export function hingeSwing(model: SimModel, h: HingeSpec, seconds = 3): ScenarioResult {
+  const ownList = ownNodes(model, h.partId);
+  const own = new Set(ownList);
+  const s = rig(model, own);
+  const start = Float64Array.from(s.x);
+  const f = swingFrame(h);
+  const partMass = ownList.reduce((m, i) => m + model.mass[i]!, 0);
+  const r0 = ownList.map((i) => f.radial(at(s, i)));
+  const reach = ownList.map((_, j) => Math.hypot(...r0[j]!));
+  const far = reach.reduce((best, d, j) => (d > reach[best]! ? j : best), 0);
+  if (!ownList.length || reach[far]! < 0.05) return finish(s, 'hinge-swing', 0, start, ['This part has no nodes away from its hinge line to swing.']);
+  // Push: an angular acceleration of ~6 rad/s² (a firm hand), as per-node tangential forces.
+  const push = (sign: number) => {
+    s.extForce.fill(0);
+    ownList.forEach((i) => {
+      const r = f.radial(at(s, i));
+      const t = f.tangent(r);
+      const g = model.mass[i]! * 6 * sign;
+      for (let q = 0; q < 3; q++) s.extForce[i * 3 + q] = t[q]! * g;
+    });
+  };
+  const angleNow = () => f.angle(r0[far]!, f.radial(at(s, ownList[far]!)));
+  const openSteps = Math.round((seconds * 0.55) / s.dt);
+  const closeSteps = Math.round((seconds * 0.45) / s.dt);
+  let maxAngle = 0;
+  for (let t = 0; t < openSteps; t += 20) {
+    push(1);
+    if (!s.step(20)) break;
+    maxAngle = Math.max(maxAngle, angleNow());
+  }
+  const heldAt = angleNow();
+  for (let t = 0; t < closeSteps && !s.divergence; t += 20) {
+    push(-1);
+    if (!s.step(20)) break;
+  }
+  s.extForce.fill(0);
+  const closedAt = angleNow();
+  const hingeBroken = s.breakLog.filter((b) => model.beamPart[b] === h.partId && model.breakGroup[b]! >= 0).length;
+  const skinBroken = s.breakLog.filter((b) => model.beamPart[b] === h.partId && model.breakGroup[b]! < 0).length;
+  const summary: string[] = [];
+  if (maxAngle < h.openAngle * 0.5) summary.push(`Only opened to ${maxAngle.toFixed(0)}° of ${h.openAngle}°: something still holds it (bolts, or beams to the body besides the hinge). Check its attachment.`);
+  else if (maxAngle > h.openAngle + 20) summary.push(`Swung past its stop to ${maxAngle.toFixed(0)}° (set ${h.openAngle}°): the limiter didn't hold. Guess the hinge again or check the limiter beam.`);
+  else summary.push(`Opened to ${maxAngle.toFixed(0)}° (set ${h.openAngle}°) and held at ${heldAt.toFixed(0)}° against its stop.`);
+  summary.push(Math.abs(closedAt) < 8 ? `Closed back to ${closedAt.toFixed(0)}° onto its seals.` : `Pushed shut it only got back to ${closedAt.toFixed(0)}°: it binds or sags on the hinge.`);
+  summary.push(hingeBroken || skinBroken ? `${hingeBroken} hinge beam(s) and ${skinBroken} of its own beams broke just from opening: it's too weak.` : `Nothing broke (part ${partMass.toFixed(1)} kg).`);
+  return finish(s, 'hinge-swing', seconds, start, summary);
+}
+
+/**
+ * Hinge yank: the part wrenched outward (its opening direction) with a force
+ * rising to four times the hinge strength. Good behaviour: it tears off at the
+ * hinges, near the set strength, before its own skin rips.
+ */
+export function hingeYank(model: SimModel, h: HingeSpec, seconds = 1.5): ScenarioResult {
+  const ownList = ownNodes(model, h.partId);
+  const own = new Set(ownList);
+  const s = rig(model, own);
+  const start = Float64Array.from(s.x);
+  const f = swingFrame(h);
+  const maxForce = h.strength * 4;
+  const steps = Math.round(seconds / s.dt);
+  let tornAt: number | null = null;
+  let after = 0;
+  for (let t = 0; t < steps; t += 20) {
+    const F = (maxForce * t) / steps / Math.max(1, ownList.length);
+    s.extForce.fill(0);
+    // Once it's off, let go (a free part pulled on would just fly away), and watch it a moment longer.
+    if (tornAt !== null) {
+      if ((after += 20) * s.dt > 0.1) break;
+      if (!s.step(20)) break;
+      continue;
+    }
+    for (const i of ownList) {
+      const r = f.radial(at(s, i));
+      const tan = f.tangent(r);
+      const tl = Math.hypot(...tan) || 1;
+      // Mostly outward (the opening direction), a little away from the hinge line: a wrench, not a swing.
+      const rl = Math.hypot(...r) || 1;
+      for (let q = 0; q < 3; q++) s.extForce[i * 3 + q] = F * (0.8 * (tan[q]! / tl) + 0.6 * (r[q]! / rl));
+    }
+    if (!s.step(20)) break;
+    if (tornAt === null && s.breakLog.some((b) => model.beamPart[b] === h.partId && model.breakGroup[b]! >= 0)) tornAt = F * ownList.length;
+  }
+  const hingeBroken = s.breakLog.filter((b) => model.beamPart[b] === h.partId && model.breakGroup[b]! >= 0).length;
+  const skinBroken = s.breakLog.filter((b) => model.beamPart[b] === h.partId && model.breakGroup[b]! < 0).length;
+  const summary = [
+    tornAt !== null ? `Tore off at the hinges at about ${(tornAt / 1000).toFixed(1)} kN (hinge strength ${(h.strength / 1000).toFixed(0)} kN).` : `The hinges held ${(maxForce / 1000).toFixed(0)} kN: they're stronger than set, or the pull spread over too many beams.`,
+    skinBroken > hingeBroken ? `Warning: ${skinBroken} of its own beams tore first: it rips apart before the hinges give. Strengthen it or weaken the hinge.` : `Clean: ${hingeBroken} hinge beam(s) broke, ${skinBroken} of its own.`,
+  ];
+  return finish(s, 'hinge-yank', seconds, start, summary);
 }

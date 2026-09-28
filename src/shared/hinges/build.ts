@@ -1,5 +1,5 @@
 import type { Project, StructBeam, StructNode } from '../project/schema';
-import { dist, distToLine } from './geometry';
+import { dist, distToLine, rotateAbout } from './geometry';
 import type { Hinge, Vec3 } from './schema';
 
 /**
@@ -29,6 +29,33 @@ function freeId(taken: Set<string>, base: string): string {
   for (let i = 2; taken.has(id); i++) id = `${base}${i}`;
   taken.add(id);
   return id;
+}
+
+const LIMITER_REACH = 0.8; // m from the hinge's middle a limiter's body end may be
+
+/**
+ * The body node for the opening limiter: one the far edge moves steadily away
+ * from all the way to the opening angle (so the bounded beam goes taut there
+ * and nowhere before), picking the one whose length changes most. A node on
+ * or near the hinge line is useless: the far edge stays the same distance
+ * from it however far it swings.
+ */
+function limiterAnchor(farPos: Vec3, bodyNodes: readonly StructNode[], hinge: Hinge, axisMid: Vec3): StructNode | null {
+  const angle = hinge.openAngle * hinge.direction;
+  const steps = 8;
+  let best: StructNode | null = null;
+  let bestGain = 0.05; // at least 5 % longer when fully open
+  for (const b of bodyNodes) {
+    if (dist(b.pos, axisMid) > LIMITER_REACH) continue;
+    const lengths = Array.from({ length: steps + 1 }, (_, i) => dist(rotateAbout(farPos, hinge.axis[0], hinge.axis[1], (angle * i) / steps), b.pos));
+    if (lengths.some((l, i) => i > 0 && l <= lengths[i - 1]!)) continue;
+    const gain = lengths[steps]! / lengths[0]! - 1;
+    if (gain > bestGain) {
+      bestGain = gain;
+      best = b;
+    }
+  }
+  return best;
 }
 
 export interface HingeStructure {
@@ -61,11 +88,11 @@ export function buildHinge(doc: Doc, hinge: Hinge, partNodes: readonly StructNod
   }
   beams.push(beam(hingeNodes[0]!.id, hingeNodes[1]!.id, 'mount'));
 
-  // Limiter: from the part node farthest from the axis to the body node nearest the axis' middle.
+  // Limiter: from the part node farthest from the axis to a body node it pulls away from as it opens.
   let limiter: [string, string] | null = null;
   const far = [...partNodes].sort((a, b) => distToLine(b.pos, hinge.axis[0], hinge.axis[1]) - distToLine(a.pos, hinge.axis[0], hinge.axis[1]))[0];
   const axisMid: Vec3 = [(hinge.axis[0][0] + hinge.axis[1][0]) / 2, (hinge.axis[0][1] + hinge.axis[1][1]) / 2, (hinge.axis[0][2] + hinge.axis[1][2]) / 2];
-  const anchor = nearest(bodyNodes, axisMid, 1)[0];
+  const anchor = (far && limiterAnchor(far.pos, bodyNodes, hinge, axisMid)) ?? nearest(bodyNodes, axisMid, 1)[0];
   if (far && anchor) {
     beams.push(beam(far.id, anchor.id, 'limit'));
     limiter = [far.id, anchor.id];

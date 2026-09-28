@@ -12,7 +12,7 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { HINGE_DEFAULTS } from '@shared/hinges/schema';
 import type { Part } from '@shared/project/schema';
-import { addHinge, hingeFromSelection, hingeProblem, removeHinge, reguessHinge, updateHinge, useHingeUi } from './commands';
+import { addHinge, hingeAll, hingeFromSelection, hingeProblem, removeHinge, reguessHinge, unhingedParts, updateHinge, useHingeUi } from './commands';
 import styles from './HingeSection.module.css';
 
 /** The game's input actions that open things (what the player presses, and what handles trigger). */
@@ -26,6 +26,7 @@ export function HingeSection({ part }: { part: Part }) {
   const problem = useProjectStore((s) => (s.doc ? hingeProblem(s.doc, part.id) : null));
   const selected = useEditStore((s) => s.nodes);
   const swing = useHingeUi((s) => s.swing);
+  const others = useProjectStore((s) => (s.doc ? unhingedParts(s.doc).ready.filter((id) => id !== part.id).length : 0));
   const pushStatus = useUiStore((s) => s.pushStatus);
 
   // Show this part's hinge in the viewport while its section is open.
@@ -40,9 +41,16 @@ export function HingeSection({ part }: { part: Part }) {
     return (
       <FieldGroup title="Hinge">
         <p className={styles.note}>{problem ?? 'Opens on a hinge with a latch, like the stock cars: it swings to a stop, latches shut, and handles or a key open it.'}</p>
-        <Button icon={DoorOpen} variant="primary" onClick={() => addHinge(part.id)} disabled={!!problem} data-testid="hinge-add">
-          Add hinge
-        </Button>
+        <div className={styles.actions}>
+          <Button icon={DoorOpen} variant="primary" onClick={() => addHinge(part.id)} disabled={!!problem} data-testid="hinge-add">
+            Add hinge
+          </Button>
+          {others > 0 && (
+            <Button icon={WandSparkles} onClick={() => hingeAll()} data-testid="hinge-all">
+              Hinge all {others + (problem ? 0 : 1)} opening parts
+            </Button>
+          )}
+        </div>
       </FieldGroup>
     );
   }

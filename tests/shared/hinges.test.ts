@@ -11,6 +11,8 @@ import { buildJbeamFiles } from '../../src/shared/export/jbeam';
 import { parseJbeam } from '../../src/shared/jbeam/parse';
 import { guessHinge, limiterBound, rotateAbout } from '../../src/shared/hinges/geometry';
 import { HINGE_DEFAULTS, hingeAction, HingeSchema, type Hinge } from '../../src/shared/hinges/schema';
+import { buildSimModel } from '../../src/shared/sim/model';
+import { hingeSwing, hingeYank } from '../../src/shared/sim/scenarios';
 
 const tax = new Classifier(TaxonomyFileSchema.parse(shipped).entries);
 
@@ -140,5 +142,23 @@ describe('hinged parts in generation and export', () => {
     expect(doc.beams.some((b) => b.partId === door.id && b.kind === 'attach')).toBe(true);
     const file = buildJbeamFiles(doc, tax, { meshNames: new Map(), author: 'me' }).find((f) => f.part === door.name)!;
     expect(file.text).not.toContain('advancedCouplerControl');
+  });
+
+  it('swings open to its stop and closes again in the sandbox, and tears off at the hinges when wrenched', () => {
+    const { doc, door } = carWithDoor(true);
+    const model = buildSimModel(doc, tax);
+    // The limiter is a bounded beam and the seals push only, as exported.
+    const own = doc.beams.map((b, i) => [b, i] as const).filter(([b]) => b.partId === door.id);
+    const limit = own.find(([b]) => b.kind === 'limit')!;
+    expect(model.beamType[doc.beams.filter((b) => model.nodeIds.includes(b.id1) && model.nodeIds.includes(b.id2)).indexOf(limit[0])]).toBe(2);
+    const hinge = doc.hinges[0]!;
+    const swing = hingeSwing(model, hinge);
+    expect(swing.diverged).toBeNull();
+    const opened = Number(/Opened to (\d+)°/.exec(swing.summary[0]!)?.[1]);
+    expect(swing.summary[0]).toMatch(/Opened to/);
+    expect(opened).toBeGreaterThan(hinge.openAngle * 0.5);
+    expect(opened).toBeLessThan(hinge.openAngle + 20);
+    const yanked = hingeYank(model, hinge);
+    expect(yanked.summary[0]).toMatch(/Tore off at the hinges/);
   });
 });

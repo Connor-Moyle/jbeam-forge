@@ -5,7 +5,7 @@ import { rlog } from '@renderer/diagnostics/logger';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { buildSimModel, precheck, type PrecheckIssue } from '@shared/sim/model';
 import type { Obstacle, SimModel } from '@shared/sim/solver';
-import type { ScenarioId, ScenarioResult } from '@shared/sim/scenarios';
+import type { HingeSpec, ScenarioId, ScenarioResult } from '@shared/sim/scenarios';
 import type { SimFrame, SimRequest } from '@shared/sim/protocol';
 
 const logger = rlog('sim');
@@ -167,7 +167,7 @@ export function dragNode(node: number | null, target: [number, number, number] =
   send({ type: 'drag', node, target });
 }
 
-export function runScenario(id: ScenarioId, params: { kmh?: number; partId?: string } = {}): void {
+export function runScenario(id: ScenarioId, params: { kmh?: number; partId?: string; hinge?: HingeSpec } = {}): void {
   if (!worker) return;
   useSim.getState().set({ busy: id, running: false });
   send({ type: 'scenario', id, ...params });

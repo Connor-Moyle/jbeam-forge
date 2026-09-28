@@ -37,13 +37,21 @@ export interface SimModel {
   expansionLimit: Float64Array;
   /** Min compression as ratio of original length (e.g. 0.5 = may shrink to half). */
   compressionLimit: Float64Array;
-  /** 0 normal, 1 support (compression only). */
+  /** 0 normal, 1 support (compression only), 2 bounded (free between its bounds, then limitSpring). */
   beamType: Uint8Array;
+  /** Bounded beams: how much longer/shorter than rest they move freely, as ratios of rest length. */
+  longBound?: Float64Array;
+  shortBound?: Float64Array;
+  /** Bounded beams: spring (N/m) and damping once past a bound. */
+  limitSpring?: Float64Array;
+  limitDamp?: Float64Array;
   /** Index into breakGroups, −1 = none. */
   breakGroup: Int32Array;
   breakGroups: string[];
   /** Beam owner (part id) — for results and heatmaps. */
   beamPart: string[];
+  /** Node owner (part id), when known. */
+  nodePart?: string[];
 }
 
 export interface Obstacle {
@@ -233,6 +241,13 @@ export class Solver {
         }
         let F = springF + model.damp[b]! * vrel;
         if (model.beamType[b] === 1 && F > 0) F = 0; // support: push only
+        else if (model.beamType[b] === 2) {
+          // Bounded: free between the bounds, a limit spring beyond them (hinge stops, suspension bump stops).
+          const hi = rest0[b]! * (1 + (model.longBound?.[b] ?? 0));
+          const lo = rest0[b]! * (1 - (model.shortBound?.[b] ?? 0));
+          const over = L > hi ? L - hi : L < lo ? L - lo : 0;
+          if (over !== 0) F += (model.limitSpring?.[b] ?? 0) * over + (model.limitDamp?.[b] ?? 0) * vrel;
+        }
         const absF = Math.abs(F);
         this.beamForce[b] = absF;
         if (absF > this.beamForceMax[b]!) this.beamForceMax[b] = absF;

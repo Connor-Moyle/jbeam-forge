@@ -14,7 +14,7 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { useLiveView } from '@renderer/sim/liveMeshes';
-import type { ScenarioId } from '@shared/sim/scenarios';
+import type { HingeSpec, ScenarioId } from '@shared/sim/scenarios';
 import styles from './TestResultsPanel.module.css';
 
 const SPEEDS = [
@@ -82,7 +82,8 @@ function ActiveTest() {
   const activePart = useSceneStore((s) => s.activePart);
   const partName = useProjectStore((s) => s.doc?.parts.find((p) => p.id === activePart)?.displayName);
   const [kmh, setKmh] = useState(50);
-  const scenario = (id: ScenarioId, params: { kmh?: number; partId?: string } = {}) => {
+  const hinge = useProjectStore((s) => s.doc?.hinges.find((h) => h.partId === activePart));
+  const scenario = (id: ScenarioId, params: { kmh?: number; partId?: string; hinge?: HingeSpec } = {}) => {
     dragNode(null);
     runScenario(id, params);
   };
@@ -132,6 +133,16 @@ function ActiveTest() {
             <Button size="sm" onClick={() => activePart && scenario('yank', { partId: activePart })} disabled={!!busy || !activePart} title={activePart ? undefined : 'Select a part in the Scene tree first'}>
               Yank {partName ?? 'selected part'}
             </Button>
+            {hinge && (
+              <>
+                <Button size="sm" onClick={() => scenario('hinge-swing', { hinge })} disabled={!!busy} title="Push it open to its stop, then shut: checks the swing, the limiter and the seals" data-testid="scenario-hinge-swing">
+                  Swing {partName}
+                </Button>
+                <Button size="sm" onClick={() => scenario('hinge-yank', { hinge })} disabled={!!busy} title="Wrench it outward until the hinges tear: it should come off at the hinges, not rip apart" data-testid="scenario-hinge-yank">
+                  Wrench off {partName}
+                </Button>
+              </>
+            )}
           </div>
           <Field label="Crash speed">
             <NumberInput value={kmh} onChange={setKmh} min={5} max={200} step={5} precision={0} unit="km/h" />

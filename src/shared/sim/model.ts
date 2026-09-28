@@ -3,6 +3,7 @@ import type { TaxonomyEntry } from '../taxonomy/schema';
 import { materialDefaults } from '../parts/materials';
 import { partSettings } from '../proxy/generate';
 import { beamPhysics } from '../proxy/beamValues';
+import { limiterBound } from '../hinges/geometry';
 import { STABILITY_DT, STABILITY_OK, STABILITY_UNSTABLE } from '../proxy/derive';
 import type { SimModel } from './solver';
 
@@ -12,7 +13,7 @@ import type { SimModel } from './solver';
  * the exporter writes (see proxy/beamValues.ts).
  */
 
-type Doc = Pick<Project, 'parts' | 'nodes' | 'beams' | 'proxy'>;
+type Doc = Pick<Project, 'parts' | 'nodes' | 'beams' | 'proxy'> & Partial<Pick<Project, 'hinges'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -56,9 +57,14 @@ export function buildSimModel(doc: Doc, tax: TaxonomyLookup, parts: readonly Par
     expansionLimit: new Float64Array(m),
     compressionLimit: new Float64Array(m),
     beamType: new Uint8Array(m),
+    longBound: new Float64Array(m),
+    shortBound: new Float64Array(m),
+    limitSpring: new Float64Array(m),
+    limitDamp: new Float64Array(m),
     breakGroup: new Int32Array(m).fill(-1),
     breakGroups: [],
     beamPart: [],
+    nodePart: nodes.map((x) => x.partId),
   };
   const groupIndex = new Map<string, number>();
   beams.forEach((b, k) => {
@@ -66,7 +72,10 @@ export function buildSimModel(doc: Doc, tax: TaxonomyLookup, parts: readonly Par
     const entry = tax.entry(part.taxonomyId);
     const preset = entry ? materialDefaults(entry, part.constructionMaterial).beamPreset : 'panel_metal';
     const attachment = entry ? partSettings(doc, part, entry).attachment : 'bolted';
-    const v = beamPhysics(b.kind, preset, attachment, part.name);
+    // Hinged parts: their own hinge settings, and the limiter's bound from the opening angle (as exported).
+    const hinge = doc.hinges?.find((h) => h.partId === b.partId);
+    const bound = b.kind === 'limit' && hinge ? limiterBound(nodes[index.get(b.id1)!]!.pos, nodes[index.get(b.id2)!]!.pos, hinge.axis, hinge.openAngle * hinge.direction) : 1;
+    const v = beamPhysics(b.kind, preset, attachment, part.name, hinge, bound);
     model.beamA[k] = index.get(b.id1)!;
     model.beamB[k] = index.get(b.id2)!;
     model.spring[k] = v.beamSpring;
@@ -75,6 +84,14 @@ export function buildSimModel(doc: Doc, tax: TaxonomyLookup, parts: readonly Par
     model.strength[k] = v.beamStrength ?? Infinity;
     model.expansionLimit[k] = v.deformLimitExpansion;
     model.compressionLimit[k] = 0.5; // a beam may crush to half its length
+    if (v.beamType === 'SUPPORT') model.beamType[k] = 1;
+    else if (v.beamType === 'BOUNDED') {
+      model.beamType[k] = 2;
+      model.longBound![k] = v.longBound ?? 1;
+      model.shortBound![k] = v.shortBound ?? 1;
+      model.limitSpring![k] = v.limitSpring ?? 0;
+      model.limitDamp![k] = v.limitDamp ?? 0;
+    }
     model.beamPart.push(b.partId);
     if (v.breakGroup) {
       let g = groupIndex.get(v.breakGroup);

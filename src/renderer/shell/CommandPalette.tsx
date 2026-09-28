@@ -1,3 +1,4 @@
+import { hingeAll } from '@renderer/hinges/commands';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { fuzzyScore } from '@shared/fuzzy';
 import { PRESET_IDS } from '@shared/layout-schema';
@@ -58,6 +59,7 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'import', label: 'Import model…', group: 'Action', hint: 'Ctrl+I', run: () => void startImport() },
       { id: 'import-ac', label: 'Import Assetto Corsa car…', group: 'Action', run: () => void startAcImport() },
       hasParts && { id: 'generate', label: 'Generate structure for all parts', group: 'Action', run: () => void generateAll() },
+      hasParts && { id: 'hinge-all', label: 'Hinge every door, hood, trunk and tailgate', group: 'Action', run: () => void hingeAll() },
       hasStructure && { id: 'edit', label: edit.active ? 'Stop editing nodes & beams' : 'Edit nodes & beams', group: 'Action', hint: 'Tab', run: () => edit.setActive(!edit.active) },
       hasStructure && {
         id: 'test',
