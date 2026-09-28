@@ -274,3 +274,35 @@ export function resetPowertrainEdits(kind: PowertrainKind): void {
     },
   });
 }
+
+let optionSyncStarted = false;
+
+/**
+ * The other engines sit where the default one does: hide each one's meshes
+ * when they first load (hiding lives in the scene, not the project, so a
+ * reopened project would otherwise show every engine on top of each other).
+ * Shown again by "Make default".
+ */
+export function startEngineOptionSync(): void {
+  if (optionSyncStarted) return;
+  optionSyncStarted = true;
+  const done = new Set<string>();
+  const sync = () => {
+    const alts = projectStore.getState().doc?.powertrain.alternates ?? [];
+    const sources = useSceneStore.getState().sources;
+    for (const a of alts) {
+      if (done.has(a.sourceId)) continue;
+      const meshes = sources[a.sourceId]?.meshes;
+      if (!meshes?.length) continue;
+      done.add(a.sourceId);
+      useSceneStore.getState().setHidden(meshes.map((m) => m.key), true);
+    }
+    // A source that became the default again is shown by makeDefaultEngine; forget it so a later swap back hides it.
+    for (const id of [...done]) if (!alts.some((a) => a.sourceId === id)) done.delete(id);
+  };
+  useSceneStore.subscribe((s, prev) => {
+    if (s.sources !== prev.sources) sync();
+  });
+  projectStore.subscribe(sync);
+  sync();
+}

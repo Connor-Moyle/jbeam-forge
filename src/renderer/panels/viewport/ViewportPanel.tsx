@@ -13,6 +13,7 @@ import type { MaterialDef } from '@shared/materials/schema';
 import type { Material } from 'three';
 import { backMaterialFor, materialFor, useTextureVersion } from '@renderer/materials/runtime';
 import { startPaintSync } from '@renderer/paint/sync';
+import { startEngineOptionSync } from '@renderer/powertrain/commands';
 import { onBrush, usePainter } from '@renderer/paint/painter';
 import { SIDE_FRAMES, startVinylSync, useVinylUi, vinylKey, vinylPointer } from '@renderer/paint/vinyls';
 import { facePointer, startFacePaintSync, useFaceOverlays } from '@renderer/paint/facePaint';
@@ -181,6 +182,7 @@ export function ViewportPanel() {
       }
     };
     startPaintSync();
+    startEngineOptionSync();
     startVinylSync();
     startFacePaintSync();
     rt.setFaceOverlays(useFaceOverlays.getState().map);

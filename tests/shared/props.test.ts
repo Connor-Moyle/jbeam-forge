@@ -69,3 +69,21 @@ describe('props on export', () => {
     expect(flex).not.toContain('t_wheel');
   });
 });
+
+describe('props that can’t be hung', () => {
+  beforeAll(async () => {
+    await meshoptReady;
+  });
+
+  it('stay ordinary flexbodies when there are no nodes to hang them from', () => {
+    const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
+    const body = createPart(doc, tax, { taxonomyId: 'body', id: 'p_body' });
+    assignMeshes(doc, ['s:wheel'], body.id);
+    // Two nodes: a structure, but too few to hang a prop from.
+    doc.nodes.push({ id: 'b1', partId: body.id, pos: [0, -0.5, 0.8], weight: 1 }, { id: 'b2', partId: body.id, pos: [0.6, -0.5, 0.8], weight: 1 });
+    doc.props = [{ id: 'p1', meshKey: 's:wheel', func: 'steering', pivot: [0, 0, 1], axis: [0, 1, 0], slide: [0, 0, 0], min: -900, max: 900, offset: 0, multiplier: 1 }];
+    const file = buildJbeamFiles(doc, tax, { meshNames: new Map([['s:wheel', 't_wheel']]), author: 'x' }).find((f) => f.part === body.name)!;
+    expect(file.text).not.toContain('"props"');
+    expect(file.text).toContain('t_wheel');
+  });
+});

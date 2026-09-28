@@ -134,3 +134,29 @@ export const PROPS_HEADER = ['func', 'mesh', 'idRef:', 'idX:', 'idY:', 'baseRota
 export function propAmount(p: Pick<Prop, 'min' | 'max' | 'offset' | 'multiplier'>, value: number): number {
   return Math.min(p.max, Math.max(p.min, value * p.multiplier + p.offset));
 }
+
+type PropDoc = { parts: readonly { id: string; parentPartId: string | null }[]; nodes: readonly { id: string; partId: string; pos: readonly number[] }[]; assignments: Readonly<Record<string, string>>; ignoredMeshes: readonly string[]; props?: readonly Prop[] };
+
+/**
+ * The props that can be exported, with their reference nodes: the nodes of
+ * the mesh's part, else of the nearest part above it with nodes, else the
+ * body's. A prop without three usable nodes isn't exported as a prop; its
+ * mesh stays an ordinary flexbody (so it never vanishes in game).
+ */
+export function exportableProps(doc: PropDoc, bodyId?: string): Map<string, { prop: Prop; refs: [string, string, string] }> {
+  const out = new Map<string, { prop: Prop; refs: [string, string, string] }>();
+  const byId = new Map(doc.parts.map((p) => [p.id, p]));
+  for (const prop of doc.props ?? []) {
+    const partId = doc.assignments[prop.meshKey];
+    if (!partId || doc.ignoredMeshes.includes(prop.meshKey)) continue;
+    let frame: PropDoc['nodes'] = [];
+    for (let cur = byId.get(partId), guard = 0; cur && !frame.length && guard < 32; guard++) {
+      frame = doc.nodes.filter((n) => n.partId === cur!.id);
+      cur = cur.parentPartId ? byId.get(cur.parentPartId) : undefined;
+    }
+    if (!frame.length && bodyId) frame = doc.nodes.filter((n) => n.partId === bodyId);
+    const refs = referenceNodes(frame, prop.pivot);
+    if (refs) out.set(prop.meshKey, { prop, refs });
+  }
+  return out;
+}
