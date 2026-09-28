@@ -21,6 +21,7 @@ import { cx } from '@renderer/ui/cx';
 import { PANELS, type PanelId } from './panelRegistry';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS } from './presets';
+import { CHANNELS } from '@renderer/panels/viewport/channels';
 import styles from './CommandPalette.module.css';
 
 interface Item {
@@ -73,6 +74,7 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'mesh', label: view.mesh ? 'Hide mesh' : 'Show mesh', group: 'Action', run: () => useUiStore.getState().toggleView('mesh') },
       { id: 'structure', label: view.structure ? 'Hide nodes & beams' : 'Show nodes & beams', group: 'Action', run: () => useUiStore.getState().toggleView('structure') },
       { id: 'xray', label: view.xray ? 'X-ray off' : 'X-ray on', group: 'Action', run: () => useUiStore.getState().toggleView('xray') },
+      ...CHANNELS.map((c) => ({ id: `channel:${c.value}`, label: `View: ${c.label}`, group: 'Action' as const, run: () => useUiStore.getState().setChannel(c.value) })),
       !!useSceneStore.getState().focus && { id: 'unfocus', label: 'Leave focus mode', group: 'Action', hint: 'Esc', run: () => void exitFocus() },
       hasParts && { id: 'rename-meshes', label: 'Rename meshes from their parts', group: 'Action', run: renameFromParts },
       { id: 'undo', label: 'Undo', group: 'Action', hint: 'Ctrl+Z', run: undo },

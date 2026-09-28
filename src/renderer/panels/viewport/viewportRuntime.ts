@@ -40,6 +40,7 @@ import { onTestSignal } from '@renderer/app/testBus';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import type { GpuTextureCaps } from '@renderer/import/textures';
 import { subsetGeometry } from '@renderer/import/applySplits';
+import { channelMaterials, type Channel } from './channels';
 import { disposeSharingGeometry } from '@renderer/import/dispose';
 import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
@@ -741,7 +742,7 @@ export class ViewportRuntime {
     const xray = this.viewToggles.xray;
     for (const [key, obj] of this.meshObjects) {
       const ghost = xray || (!!focus && !focus.has(key));
-      obj.material = ghost ? this.ghostMaterial : (obj.userData.material as Mesh['material']);
+      obj.material = ghost ? this.ghostMaterial : channelMaterials(obj.userData.material as Material | Material[], this.channel);
       obj.renderOrder = ghost ? 2 : 0; // ghosts draw after the solid part so it shows through
     }
   }
@@ -825,6 +826,15 @@ export class ViewportRuntime {
       beamColors: new Float32Array((bp.length / 3) * 3).fill(0.85),
     };
     this.reference.set(data, 0.012);
+  }
+
+  private channel: Channel = 'shaded';
+
+  /** Show one channel of every material (roughness, normals, UV checker…), or the shaded look. */
+  setChannel(channel: Channel): void {
+    if (channel === this.channel) return;
+    this.channel = channel;
+    this.applyFocus();
   }
 
   setView(view: { mesh: boolean; structure: boolean; xray: boolean }): void {

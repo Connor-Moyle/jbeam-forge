@@ -15,11 +15,14 @@ import { IconButton } from '@renderer/ui/components/IconButton';
 import { Select } from '@renderer/ui/components/Select';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS } from './presets';
+import { CHANNELS, type Channel } from '@renderer/panels/viewport/channels';
 import styles from './Toolbar.module.css';
 
 const PRESET_OPTIONS = PRESET_IDS.map((id) => ({ value: id, label: PRESET_LABELS[id] }));
 
 export function Toolbar() {
+  const channel = useUiStore((s) => s.channel);
+  const setChannel = useUiStore((s) => s.setChannel);
   const { preset, applyPreset, togglePanel, showPanel, devMode } = useShell();
   const testing = useSim((s) => s.active);
   const hasStructure = useProjectStore((s) => (s.doc?.nodes.length ?? 0) > 0);
@@ -59,6 +62,7 @@ export function Toolbar() {
         <IconButton icon={Eye} label={view.mesh ? 'Hide mesh' : 'Show mesh'} active={view.mesh} onClick={() => toggleView('mesh')} data-testid="toolbar-view-mesh" />
         <IconButton icon={Box} label={view.structure ? 'Hide nodes & beams' : 'Show nodes & beams'} active={view.structure} onClick={() => toggleView('structure')} data-testid="toolbar-view-structure" />
         <IconButton icon={ScanLine} label={view.xray ? 'X-ray off' : 'X-ray: see through the mesh'} active={view.xray} onClick={() => toggleView('xray')} data-testid="toolbar-view-xray" />
+        <Select<Channel> aria-label="Material channel view" value={channel} onChange={setChannel} options={CHANNELS} className={styles.channel} data-testid="toolbar-channel" />
         <IconButton icon={MousePointer2} label={editing ? 'Stop editing nodes & beams' : hasStructure ? 'Edit nodes & beams' : 'Edit nodes & beams (generate the structure first)'} shortcut="Tab" active={editing} disabled={!hasStructure && !editing} onClick={() => setEditing(!editing)} data-testid="toolbar-edit" />
       </div>
       <div className={styles.group} role="group" aria-label="Test">

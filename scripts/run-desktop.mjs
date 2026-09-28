@@ -790,6 +790,14 @@ const scenarios = [
       assert(Object.values(mm).filter((names) => names.includes('chrome')).length >= 2, `dropped material applied to the engine too (${JSON.stringify(mm)} ${engineKeys})`);
       await hook(page, 'applyPreset', 'modelling');
 
+      // Channel views: every material seen as base colour, roughness, metallic, AO, normals and a UV checker (shader errors fail the run).
+      for (const label of ['Base colour', 'Roughness', 'Metallic', 'Ambient occlusion', 'Normals', 'UV checker', 'Shaded']) {
+        await page.getByLabel('Material channel view').click();
+        await page.getByRole('option', { name: label }).click();
+        await page.waitForTimeout(250);
+        if (label === 'Roughness' || label === 'Normals' || label === 'UV checker') await shot(page, `channel-${label.toLowerCase().replace(/ /g, '-')}`);
+      }
+
       // Configurations: a second version of the car with the front bumper left off.
       await page.getByTestId('toggle-configs').click();
       await page.getByTestId('configs-panel').waitFor();

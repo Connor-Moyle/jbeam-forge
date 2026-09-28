@@ -37,3 +37,7 @@
 .preset {
   width: var(--size-preset-select);
 }
+
+.channel {
+  width: var(--size-preset-select);
+}

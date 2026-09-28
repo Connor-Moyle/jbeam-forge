@@ -187,6 +187,7 @@ export function ViewportPanel() {
     });
     pushStructure();
     rt.setView(useUiStore.getState().view);
+    rt.setChannel(useUiStore.getState().channel);
     const unsubscribeStructure = projectStore.subscribe(() => {
       refreshFocus();
       pushStructure();
@@ -196,7 +197,10 @@ export function ViewportPanel() {
     const ghost = () => rt.setGhostOpacity(useSettingsStore.getState().settings?.focusGhostOpacity ?? DEFAULT_SETTINGS.focusGhostOpacity);
     ghost();
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
-    const unsubscribeView = useUiStore.subscribe((s) => rt.setView(s.view));
+    const unsubscribeView = useUiStore.subscribe((s) => {
+      rt.setView(s.view);
+      rt.setChannel(s.channel);
+    });
     const unsubscribeEdit = useEditStore.subscribe(pushStructure);
     // Move gizmo on the selected meshes (Modelling), re-parked whenever they change.
     const pushMeshGizmo = () => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import type { Channel } from '@renderer/panels/viewport/channels';
 
 /**
  * UI-only state. See docs/zustand-rules.md: selectors must return stable
@@ -28,6 +29,9 @@ interface UiState {
   /** Remembered open/closed state of CollapsibleSections, by section id. */
   collapsed: Record<string, boolean>;
   view: ViewToggles;
+  /** Material channel the viewport shows (roughness, normals, UV checker…). */
+  channel: Channel;
+  setChannel: (channel: Channel) => void;
   toggleView: (key: keyof ViewToggles) => void;
   status: StatusMessage | null;
   setCollapsed: (id: string, collapsed: boolean) => void;
@@ -44,6 +48,8 @@ export const useUiStore = create<UiState>()(
     (set, get) => ({
       collapsed: {},
       view: { mesh: true, structure: true, xray: false },
+      channel: 'shaded',
+      setChannel: (channel) => set({ channel }),
       toggleView: (key) => set((s) => ({ view: { ...s.view, [key]: !s.view[key] } })),
       status: null,
       setCollapsed: (id, collapsed) => {
