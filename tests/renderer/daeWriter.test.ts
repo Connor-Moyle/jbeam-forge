@@ -79,3 +79,13 @@ describe('DAE writer', () => {
     for (let i = 1; i < a.length; i += 2) expect(b[i]).toBeCloseTo(1 - a[i]!, 6);
   });
 });
+
+describe('DAE writer: animated parts', () => {
+  it('writes a prop mesh relative to its pivot, with the node moved there', () => {
+    const g = new BoxGeometry(0.2, 0.2, 0.2).translate(1, 2, 3);
+    const text = writeDae([{ name: 'wheel', geometry: g, materials: ['m'], flipV: false, origin: [1, 2, 3] }], [{ name: 'm', color: [1, 1, 1, 1] }]);
+    expect(text).toContain('<matrix sid="transform">1 0 0 1 0 1 0 2 0 0 1 3 0 0 0 1</matrix>');
+    const pos = /<float_array id="[^"]*-positions-array"[^>]*>([^<]*)</.exec(text)![1]!.trim().split(/\s+/).map(Number);
+    expect(Math.max(...pos.map(Math.abs))).toBeCloseTo(0.1, 6);
+  });
+});

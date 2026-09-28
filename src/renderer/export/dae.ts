@@ -26,6 +26,11 @@ export interface DaeMesh {
    * (null: none). Those triangles are written again, turned round, with it.
    */
   backMaterials?: readonly (string | null)[];
+  /**
+   * The node's origin (BeamNG space): vertices are written relative to it and
+   * the node moved there. Animated parts (props) turn about their origin.
+   */
+  origin?: readonly [number, number, number];
 }
 
 export interface DaeMaterial {
@@ -129,6 +134,8 @@ export function writeDae(meshes: readonly DaeMesh[], materials: readonly DaeMate
   const nodes: string[] = [];
   for (const m of meshes) {
     const c = compactGeometry(m.geometry, m.flipV);
+    const o = m.origin && (m.origin[0] || m.origin[1] || m.origin[2]) ? m.origin : null;
+    if (o) for (let i = 0; i < c.positions.length; i += 3) for (let k = 0; k < 3; k++) c.positions[i + k]! -= o[k]!;
     if (!c.groups.length) continue;
     // Back-face groups get negative material numbers: -1 is backNames[0], and so on.
     const backNames: string[] = [];
@@ -148,7 +155,7 @@ export function writeDae(meshes: readonly DaeMesh[], materials: readonly DaeMate
     const used = [...new Set(c.groups.map((gr) => nameOf(gr.material)))].filter(Boolean);
     const bind = used.map((mat) => `<instance_material symbol="${esc(mat)}" target="#${esc(mat)}"><bind_vertex_input semantic="UVMap" input_semantic="TEXCOORD" input_set="0"/></instance_material>`).join('');
     nodes.push(
-      `<node id="${esc(m.name)}" name="${esc(m.name)}" type="NODE"><matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix><instance_geometry url="#${id}" name="${esc(m.name)}"><bind_material><technique_common>${bind}</technique_common></bind_material></instance_geometry></node>`,
+      `<node id="${esc(m.name)}" name="${esc(m.name)}" type="NODE"><matrix sid="transform">${o ? `1 0 0 ${f(o[0])} 0 1 0 ${f(o[1])} 0 0 1 ${f(o[2])} 0 0 0 1` : '1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1'}</matrix><instance_geometry url="#${id}" name="${esc(m.name)}"><bind_material><technique_common>${bind}</technique_common></bind_material></instance_geometry></node>`,
     );
   }
   return `<?xml version="1.0" encoding="utf-8"?>

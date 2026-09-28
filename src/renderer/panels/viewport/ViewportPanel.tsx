@@ -30,6 +30,8 @@ import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simSession';
 import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
 import { useHingeUi } from '@renderer/hinges/commands';
+import { usePropUi } from '@renderer/props/commands';
+import { propAmount } from '@shared/props/props';
 import { useFeatureUi } from '@renderer/features/commands';
 import { PLATE_SIZE } from '@shared/export/features';
 import { useSettingsStore } from '@renderer/app/stores/settings';
@@ -248,6 +250,13 @@ export function ViewportPanel() {
     const pushHinge = () => {
       const { partId, swing } = useHingeUi.getState();
       const doc = projectStore.getState().doc;
+      // An animated part being tried in the Inspector: the same ghost, turned about its pivot.
+      const pu = usePropUi.getState();
+      const prop = pu.propId ? doc?.props?.find((p) => p.id === pu.propId) : undefined;
+      if (prop && Math.hypot(...prop.axis) > 1e-9) {
+        const end: [number, number, number] = [prop.pivot[0] + prop.axis[0], prop.pivot[1] + prop.axis[1], prop.pivot[2] + prop.axis[2]];
+        return rt.setHingePreview({ axis: [prop.pivot, end], latch: null, handles: [], meshKeys: [prop.meshKey], angle: propAmount(prop, pu.value) });
+      }
       const h = partId ? doc?.hinges.find((x) => x.partId === partId) : undefined;
       if (!doc || !h) return rt.setHingePreview(null);
       const meshKeys = Object.keys(doc.assignments).filter((k) => doc.assignments[k] === partId);
@@ -255,6 +264,7 @@ export function ViewportPanel() {
     };
     pushHinge();
     const unsubscribeHinge = useHingeUi.subscribe(pushHinge);
+    const unsubscribeProp = usePropUi.subscribe(pushHinge);
     // Extras preview: plates, tow ball and nitrous bottle where they'll go.
     const pushFeatures = () => {
       const f = projectStore.getState().doc?.features;
@@ -370,6 +380,7 @@ export function ViewportPanel() {
       unsubscribeSim();
       unsubscribeLiveView();
       unsubscribeHinge();
+      unsubscribeProp();
       unsubscribeHingeDoc();
       unsubscribeFeatures();
       unsubscribeFeaturesDoc();

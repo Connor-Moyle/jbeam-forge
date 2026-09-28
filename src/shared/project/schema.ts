@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { PropSchema } from '../props/props';
 import { MaterialDefSchema } from '../materials/schema';
 import { HingeSchema } from '../hinges/schema';
 
@@ -494,6 +495,8 @@ export const ProjectV18Schema = z.object({
   axles: z.array(AxleSchema),
   suspension: placeholderMap, // Phase 10
   /** Engine and gearbox (v12, Phase 11). */
+  /** Animated parts (fork): meshes the game turns or slides by an electrics value (steering wheel, needles, pedals). */
+  props: z.array(PropSchema).optional(),
   powertrain: PowertrainSchema,
   /** Vehicle configurations beyond the default (v14, Phase 13). */
   configs: z.array(VehicleConfigSchema),

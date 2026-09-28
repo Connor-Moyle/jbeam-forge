@@ -1102,6 +1102,20 @@ const scenarios = [
       await hook(page, 'runCommand', 'undo');
       await page.waitForTimeout(200);
 
+      // Animated part: the same mesh as a steering wheel, tried at half a turn in the viewport (undone after).
+      const animSection = page.getByRole('button', { name: 'Animation' });
+      if ((await animSection.getAttribute('aria-expanded')) !== 'true') await animSection.click();
+      await page.getByRole('combobox', { name: 'Animate as' }).click();
+      await page.getByRole('option', { name: 'Steering wheel' }).click();
+      await page.waitForTimeout(200);
+      assert((await hook(page, 'projectState')).undoLabels.at(-1) === 'Animate as steering wheel', 'animating a mesh is an undoable step');
+      await page.getByRole('slider', { name: 'Test value' }).focus();
+      for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
+      await page.waitForTimeout(200);
+      await shot(page, 'prop-steering-preview');
+      await hook(page, 'runCommand', 'undo');
+      await page.waitForTimeout(200);
+
       // Paints: a three-paint scheme, then the studio.
       await page.getByTestId('toggle-paints').click();
       await page.getByTestId('paints-panel').waitFor();

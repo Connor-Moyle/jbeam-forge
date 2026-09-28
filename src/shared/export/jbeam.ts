@@ -12,6 +12,7 @@ import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
 import { applyDrivelineEdits } from '../powertrain/driveline';
+import { propRow, PROPS_HEADER, referenceNodes } from '../props/props';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
@@ -28,7 +29,7 @@ import { applyPowertrainEdits } from '../powertrain/edits';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features' | 'props'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -399,9 +400,11 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   };
   files.push({ file: `${slug}.jbeam`, part: slug, text: serializeJbeam(main) });
 
+  // Animated meshes move as props, not flexbodies.
+  const propKeys = new Set((fullDoc.props ?? []).map((p) => p.meshKey));
   const meshesOf = (partId: string) =>
     Object.keys(doc.assignments)
-      .filter((k) => doc.assignments[k] === partId && !doc.ignoredMeshes.includes(k) && opts.meshNames.has(k) && !fromFitted(k))
+      .filter((k) => doc.assignments[k] === partId && !doc.ignoredMeshes.includes(k) && opts.meshNames.has(k) && !fromFitted(k) && !propKeys.has(k))
       .map((k) => opts.meshNames.get(k)!)
       .sort();
 
@@ -444,6 +447,22 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       }
       if (glass && rows.length > meshes.length + 1) rows.push({ deformGroup: '' });
       content.flexbodies = rows;
+    }
+    const props = (fullDoc.props ?? []).filter((p) => doc.assignments[p.meshKey] === part.id && opts.meshNames.has(p.meshKey) && !doc.ignoredMeshes.includes(p.meshKey));
+    if (props.length) {
+      // Reference nodes: the part's own, else the nearest part above it with nodes, else the body's.
+      let frameNodes = nodes;
+      for (let cur: Part | undefined = part, guard = 0; !frameNodes.length && cur && guard < 32; guard++) {
+        cur = cur.parentPartId ? byId.get(cur.parentPartId) : undefined;
+        if (cur) frameNodes = doc.nodes.filter((n) => n.partId === cur.id);
+      }
+      if (!frameNodes.length && body) frameNodes = doc.nodes.filter((n) => n.partId === body.id);
+      const posOf = (id: string) => doc.nodes.find((n) => n.id === id)!.pos;
+      const rows = props.flatMap((p) => {
+        const refs = referenceNodes(frameNodes, p.pivot);
+        return refs ? [propRow(p, opts.meshNames.get(p.meshKey)!, refs, posOf)] : [];
+      });
+      if (rows.length) content.props = [PROPS_HEADER, ...rows];
     }
     const tuningVars = (fullDoc.variables ?? []).filter((v) => v.partId === part.id);
     const partVars: PartVars = Object.fromEntries(tuningVars.map((v) => [v.setting, variableName(part, v.setting)]));

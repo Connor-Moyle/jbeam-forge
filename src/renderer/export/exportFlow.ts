@@ -100,6 +100,7 @@ export function prepareExport(): PreparedExport | null {
     namer,
     takenNames,
   );
+  const propPivot = new Map((doc.props ?? []).map((p) => [p.meshKey, p.pivot] as const));
   const daeMeshes: DaeMesh[] = exported.map((m) => {
     const imported = Array.isArray(m.material) ? m.material : [m.material];
     const ids = slotsOf(doc, m.key);
@@ -117,6 +118,8 @@ export function prepareExport(): PreparedExport | null {
       materials: painted.materials,
       ...(painted.backMaterials ? { backMaterials: painted.backMaterials } : {}),
       flipV: formatOf.get(m.sourceId) === 'gltf' || formatOf.get(m.sourceId) === 'glb',
+      // Animated parts turn about their pivot, which the game takes from the mesh's origin.
+      ...(propPivot.has(m.key) ? { origin: propPivot.get(m.key)! } : {}),
     };
   });
   const dae = writeDae(daeMeshes, [...project.colors, ...mats.materials.map((m) => ({ name: m.name, color: m.baseColor }))]);

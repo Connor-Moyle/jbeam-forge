@@ -13,6 +13,7 @@ import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MeshEdit } from '@shared/project/schema';
 import { deleteCopies, duplicateMeshes, mirrorCopy, resetMeshEdit, setMeshEdit } from './meshCommands';
 import { UvLayout } from './UvLayout';
+import { PropSection } from '@renderer/props/PropSection';
 import styles from './MeshSection.module.css';
 
 const AXES = ['X', 'Y', 'Z'] as const;
@@ -124,6 +125,8 @@ export function MeshSection({ keys }: { keys: readonly string[] }) {
           <Slider value={edit.uv.rotation} onChange={(rotation) => uv({ rotation }, 'Turn texture')} min={-180} max={180} step={1} format={(v) => `${v}°`} aria-label="Texture rotation" />
         </Field>
       </CollapsibleSection>
+
+      {keys.length === 1 && <PropSection meshKey={last} />}
 
       {material && layer && (
         <CollapsibleSection id="mesh-material" title={`Material: ${material.name}`} defaultOpen>
