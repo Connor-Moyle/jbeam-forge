@@ -1204,6 +1204,26 @@ const scenarios = [
       await page.getByRole('switch', { name: 'Paint on the car' }).click();
       await page.getByTestId('toggle-paints').click();
 
+      // Ambient occlusion baked from the car's shape into the body material's AO map.
+      await hook(page, 'applyPreset', 'materials');
+      await hook(page, 'maximizePanel', 'materials');
+      await page.getByTestId('material-row').filter({ hasText: 'paint' }).click();
+      await page.getByRole('button', { name: 'Bake ambient occlusion' }).click();
+      await page.getByLabel('Occlusion texture size').click();
+      await page.getByRole('option', { name: '256 px' }).click();
+      await page.getByTestId('material-bake-ao').click();
+      let aoFile;
+      for (let i = 0; i < 600 && !aoFile; i++) {
+        aoFile = (existsSync(painted) ? readdirSync(painted) : []).find((f) => f.endsWith('_ao.png'));
+        if (!aoFile) await page.waitForTimeout(100);
+      }
+      assert(aoFile, 'ambient occlusion baked and saved');
+      await page.getByTestId('material-bake-ao').and(page.locator(':not([disabled])')).waitFor();
+      assert((await hook(page, 'projectState')).undoLabels.at(-1) === 'Set ambientOcclusionMap', 'the AO map is set on the material');
+      await shot(page, 'material-ao-baked');
+      await hook(page, 'exitMaximized');
+      await hook(page, 'applyPreset', 'modelling');
+
       // Export: the painted textures go into the mod with the material pointing at them.
       await page.getByTestId('toolbar-generate').click();
       for (let i = 0; i < 100 && !((await hook(page, 'structureState'))?.nodes > 0); i++) await page.waitForTimeout(100);
@@ -1216,6 +1236,7 @@ const scenarios = [
       const mats = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       const paint = Object.values(mats).find((m) => typeof m.Stages?.[0]?.colorPaletteMap === 'string');
       assert(paint, `a material with a paint mask (${JSON.stringify(mats).slice(0, 400)})`);
+      assert(typeof paint.Stages[0].ambientOcclusionMap === 'string' && out.includes(paint.Stages[0].ambientOcclusionMap.split('/').pop()), `baked AO exported (${paint.Stages[0].ambientOcclusionMap})`);
       const maskFile = paint.Stages[0].colorPaletteMap.split('/').pop();
       const liveryStage = paint.Stages.find((st) => typeof st.baseColorMap === 'string' && st.baseColorMap.includes('livery'));
       assert(out.includes(maskFile), `mask texture exported (${maskFile} in ${out.join(', ')})`);

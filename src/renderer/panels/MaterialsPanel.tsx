@@ -27,6 +27,7 @@ import { cx } from '@renderer/ui/cx';
 import { setMaterialSlot } from '@renderer/paint/commands';
 import { Swatch } from '@renderer/paint/PaintsPanel';
 import { usePainter } from '@renderer/paint/painter';
+import { bakeAmbientOcclusion, DEFAULT_AO, useAoBake } from '@renderer/paint/aoBake';
 import { useOptionalShell } from '@renderer/shell/ShellContext';
 import styles from './MaterialsPanel.module.css';
 
@@ -235,6 +236,7 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
             </Field>
           </div>
         )}
+        {!def.gameMaterial && <AoBakeField def={def} used={used} />}
       </FieldGroup>
 
       <FieldGroup title="Transparency">
@@ -285,6 +287,40 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
       </CollapsibleSection>
       <p className={styles.hint}>{others.length} materials in this project. The viewport preview is close to, but not the same as, BeamNG&rsquo;s renderer.</p>
     </div>
+  );
+}
+
+/** Bake ambient occlusion from the car's own shape into this material's AO map. */
+function AoBakeField({ def, used }: { def: MaterialDef; used: number }) {
+  const busy = useAoBake((s) => s.busy);
+  const progress = useAoBake((s) => s.progress);
+  const [distance, setDistance] = useState(DEFAULT_AO.distance * 100);
+  const [strength, setStrength] = useState(DEFAULT_AO.strength);
+  const [size, setSize] = useState(String(DEFAULT_AO.size));
+  const mine = busy === def.id;
+  return (
+    <CollapsibleSection id="material-ao-bake" title="Bake ambient occlusion" defaultOpen={false}>
+      <p className={styles.hint}>Darkens creases, gaps and tucked-in areas from the car&rsquo;s own shape, as a real texture the game shows. Uses the meshes&rsquo; texture coordinates, so they shouldn&rsquo;t overlap.</p>
+      <div className={styles.row3}>
+        <Field label="Reach">
+          <NumberInput value={distance} onChange={setDistance} min={1} max={500} step={5} precision={0} unit="cm" aria-label="Occlusion reach" />
+        </Field>
+        <Field label="Strength">
+          <NumberInput value={strength} onChange={setStrength} min={0.1} max={2} step={0.1} precision={1} aria-label="Occlusion strength" />
+        </Field>
+        <Field label="Size">
+          <Select value={size} onChange={setSize} options={['256', '512', '1024', '2048'].map((v) => ({ value: v, label: `${v} px` }))} aria-label="Occlusion texture size" />
+        </Field>
+      </div>
+      <Button
+        size="sm"
+        disabled={!!busy || !used}
+        onClick={() => void bakeAmbientOcclusion(def.id, { ...DEFAULT_AO, distance: distance / 100, strength, size: Number(size) })}
+        data-testid="material-bake-ao"
+      >
+        {mine ? `Baking… ${Math.round(progress * 100)}%` : used ? 'Bake' : 'Bake (not on any mesh yet)'}
+      </Button>
+    </CollapsibleSection>
   );
 }
 
