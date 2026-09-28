@@ -1,4 +1,4 @@
-import { BadgePlus, Box, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanEye, ScanLine, Settings, Square, type LucideIcon, Undo2, Wand2, Wrench } from 'lucide-react';
+import { BadgePlus, Box, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wand2, Wrench } from 'lucide-react';
 import { PRESET_IDS, type PresetId } from '@shared/layout-schema';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -17,23 +17,7 @@ import { useShell } from './ShellContext';
 import { PRESET_LABELS } from './presets';
 import styles from './Toolbar.module.css';
 
-interface PendingAction {
-  icon: LucideIcon;
-  label: string;
-  phase: number;
-  shortcut?: string;
-}
-
-/** Toolbar actions owned by later phases: visible so the chrome is final, inert until built. */
-const GROUPS: { id: string; label: string; actions: PendingAction[] }[] = [
-  { id: 'view-later', label: 'View', actions: [{ icon: ScanEye, label: 'X-ray', phase: 7 }] },
-];
-
 const PRESET_OPTIONS = PRESET_IDS.map((id) => ({ value: id, label: PRESET_LABELS[id] }));
-
-function pendingLabel(a: PendingAction): string {
-  return `${a.label} — coming in phase ${a.phase}`;
-}
 
 export function Toolbar() {
   const { preset, applyPreset, togglePanel, showPanel, devMode } = useShell();
@@ -91,14 +75,6 @@ export function Toolbar() {
           data-testid="toolbar-test"
         />
       </div>
-      {GROUPS.map((g) => (
-        <div key={g.id} className={styles.group} role="group" aria-label={g.label}>
-          <span className={styles.divider} aria-hidden />
-          {g.actions.map((a) => (
-            <IconButton key={a.label} icon={a.icon} label={pendingLabel(a)} shortcut={a.shortcut} aria-disabled="true" />
-          ))}
-        </div>
-      ))}
 
       <div className={styles.spacer} />
 
