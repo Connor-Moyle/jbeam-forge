@@ -265,6 +265,13 @@ export function applyPowertrainEdits(parts: Readonly<Record<string, JbeamObject>
     if (typeof parts[part]?.[section] !== 'object' || typeof (parts[part][section] as JbeamObject)[name] !== 'number') continue;
     touch(part, section)![name] = value;
   }
+  // Words the game already has as words (an engine's sound sampleName…).
+  for (const [key, value] of Object.entries(edits.texts ?? {})) {
+    const [part, section, name] = key.split('/');
+    if (!part || !section || !name) continue;
+    if (typeof parts[part]?.[section] !== 'object' || typeof (parts[part][section] as JbeamObject)[name] !== 'string') continue;
+    touch(part, section)![name] = value;
+  }
   if (edits.torque && edits.torque.length > 1) {
     const p = torquePart(parts, root);
     const sec = p ? touch(p, 'mainEngine') : null;
@@ -320,4 +327,34 @@ export function spacedRatios(reverse: number, first: number, top: number, gears:
 export function speedAt(rpm: number, gear: number, finalDrive: number, tyreRadiusM: number): number {
   if (!gear || !finalDrive) return 0;
   return ((rpm / (Math.abs(gear) * finalDrive)) * 2 * Math.PI * tyreRadiusM * 60) / 1000;
+}
+
+/** An engine's sound configs (intake, exhaust…): the sections that name a sound blend. */
+export interface SoundConfig {
+  part: string;
+  section: string;
+  /** Edit key of its sampleName. */
+  key: string;
+  /** The game's blend. */
+  sampleName: string;
+}
+
+export function soundConfigs(parts: Readonly<Record<string, JbeamObject>>): SoundConfig[] {
+  const out: SoundConfig[] = [];
+  for (const [part, body] of Object.entries(parts)) {
+    for (const [section, value] of Object.entries(body)) {
+      if (!isJbeamObject(value) || typeof value.sampleName !== 'string') continue;
+      out.push({ part, section, key: fieldKey(part, section, 'sampleName'), sampleName: value.sampleName });
+    }
+  }
+  return out;
+}
+
+/** Cylinders from an engine's name ("3.5L V6", "I4", "Flat 6"…), for the synthesized preview; null when unknown. */
+export function cylindersOf(text: string): number | null {
+  const m = /\b(?:[VIWLH]|flat[- ]?|boxer[- ]?|inline[- ]?|straight[- ]?)(\d{1,2})\b/i.exec(text) ?? /\b(\d{1,2})[- ]?cyl/i.exec(text);
+  const n = m ? Number(m[1]) : NaN;
+  if (Number.isFinite(n) && n >= 1 && n <= 16) return n;
+  if (/rotary|wankel/i.test(text)) return 2;
+  return null;
 }

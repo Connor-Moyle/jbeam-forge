@@ -238,6 +238,12 @@ export interface InvokeContract {
   'beamng:detect': { req: undefined; res: BeamngDetection };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
   /** Material names in the game's vehicle zips (fork), for using a stock material by name. */
+  /** Engine sound blends in the install (fork): names an engine's soundConfig sampleName can take. */
+  'beamng:engineSounds': { req: undefined; res: { name: string }[] };
+  /** A sound blend's recorded samples by rpm and load, for the rev preview. */
+  'beamng:soundSamples': { req: { name: string }; res: { path: string; rpm: number; load: number }[] };
+  /** One sample file's bytes (null when the install doesn't have it). */
+  'beamng:soundFile': { req: { path: string }; res: Uint8Array | null };
   'beamng:gameMaterials': { req: undefined; res: { name: string; vehicle: string; paint: boolean }[] };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
 }
@@ -281,6 +287,9 @@ export const INVOKE_CHANNELS = [
   'beamng:detect',
   'beamng:validate',
   'beamng:gameMaterials',
+  'beamng:engineSounds',
+  'beamng:soundSamples',
+  'beamng:soundFile',
   'dialog:pickDirectory',
   'import:pickSource',
   'import:readFile',

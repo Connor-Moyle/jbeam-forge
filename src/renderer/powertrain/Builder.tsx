@@ -3,7 +3,7 @@ import { ChevronLeft, Minus, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { JbeamObject } from '@shared/jbeam/parse';
 import type { FittedSet } from '@shared/project/schema';
 import { tuningVariables } from '@shared/suspension/transplant';
-import { applyPowertrainEdits, curveOps, curvePeaks, editableFields, effectiveRatios, effectiveTorque, fieldKey, MASS_SCALE, SECTION_LABELS, setMass, spacedRatios, speedAt, torquePart, type EditableField } from '@shared/powertrain/edits';
+import { applyPowertrainEdits, cylindersOf, soundConfigs, curveOps, curvePeaks, editableFields, effectiveRatios, effectiveTorque, fieldKey, MASS_SCALE, SECTION_LABELS, setMass, spacedRatios, speedAt, torquePart, type EditableField } from '@shared/powertrain/edits';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSetData } from '@renderer/suspension/commands';
 import { Button } from '@renderer/ui/components/Button';
@@ -13,7 +13,9 @@ import { Input } from '@renderer/ui/components/Input';
 import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Slider } from '@renderer/ui/components/Slider';
-import { resetPowertrainEdits, setGearRatios, setPowertrainField, setTorqueCurve, usePowertrainUi, type PowertrainKind } from './commands';
+import { resetPowertrainEdits, setGearRatios, setPowertrainField, setPowertrainText, setTorqueCurve, usePowertrainUi, type PowertrainKind } from './commands';
+import { RevPreview } from './revPreview';
+import { call } from '@renderer/diagnostics/ipc';
 import styles from './Builder.module.css';
 
 /**
@@ -242,6 +244,7 @@ export function EngineBuilder() {
             <Slider value={massScale} min={0.3} max={2} step={0.01} format={(v) => `× ${v.toFixed(2)}`} onChange={(v) => setPowertrainField('engine', MASS_SCALE, Math.abs(v - 1) < 0.005 ? null : v)} aria-label="Engine weight" />
           </Field>
         </FieldGroup>
+        <EngineSound parts={parts} fitted={fitted} idle={valueOf(idleKey) ?? 800} limit={limit} />
         <FieldList kind="engine" fields={fields} edits={edits.fields} />
         <p className={styles.note}>Turbo and supercharger sections appear when the engine comes with one. In-game tuning sliders (boost, fuel, ignition…) are on the Tune page.</p>
       </ScrollArea>
@@ -368,5 +371,119 @@ function Spacer({ reverse, first, top, gears, onApply }: { reverse: number; firs
         Apply
       </Button>
     </div>
+  );
+}
+
+let gameSounds: Promise<{ name: string }[]> | null = null;
+
+/**
+ * The engine's voice: which of the game's sound blends its intake and
+ * exhaust use (any engine sound in the game works on any car), and a rev
+ * preview to hear it: the game's own samples when the install has them.
+ */
+function EngineSound({ parts, fitted, idle, limit }: { parts: Record<string, JbeamObject>; fitted: FittedSet; idle: number; limit: number }) {
+  const configs = useMemo(() => soundConfigs(parts), [parts]);
+  const [sounds, setSounds] = useState<{ name: string }[] | null>(null);
+  const [rpm, setRpm] = useState(idle);
+  const [load, setLoad] = useState(0.3);
+  const [playing, setPlaying] = useState<null | 'samples' | 'synth' | 'loading'>(null);
+  const [which, setWhich] = useState(0);
+  const preview = useRef<RevPreview | null>(null);
+  const sweep = useRef<number | null>(null);
+  useEffect(() => {
+    gameSounds ??= call('beamng:engineSounds').catch(() => []);
+    void gameSounds.then(setSounds);
+    return () => {
+      if (sweep.current !== null) cancelAnimationFrame(sweep.current);
+      preview.current?.stop();
+    };
+  }, []);
+  useEffect(() => preview.current?.set(rpm, load), [rpm, load]);
+  if (!configs.length) return null;
+  const blendOf = (i: number) => {
+    const c = configs[i];
+    return c ? (fitted.edits.texts?.[c.key] ?? c.sampleName) : null;
+  };
+  const cylinders = cylindersOf(`${fitted.name} ${fitted.type}`) ?? 6;
+  const play = async () => {
+    if (playing) {
+      preview.current?.stop();
+      setPlaying(null);
+      return;
+    }
+    setPlaying('loading');
+    preview.current ??= new RevPreview();
+    preview.current.set(rpm, load);
+    setPlaying(await preview.current.start(blendOf(which), cylinders));
+  };
+  /** A blip: up to the limit under throttle, then back down off it. */
+  const rev = () => {
+    const start = performance.now();
+    const up = 900;
+    const down = 1400;
+    if (sweep.current !== null) cancelAnimationFrame(sweep.current);
+    const step = () => {
+      const t = performance.now() - start;
+      if (t < up) {
+        setLoad(1);
+        setRpm(idle + (limit - idle) * (t / up) ** 0.8);
+      } else if (t < up + down) {
+        setLoad(0);
+        setRpm(limit - (limit - idle) * Math.sqrt((t - up) / down));
+      } else {
+        setRpm(idle);
+        setLoad(0.3);
+        sweep.current = null;
+        return;
+      }
+      sweep.current = requestAnimationFrame(step);
+    };
+    sweep.current = requestAnimationFrame(step);
+  };
+  return (
+    <FieldGroup title="Sound">
+      {configs.map((c) => {
+        const current = fitted.edits.texts?.[c.key];
+        return (
+          <Field key={c.key} label={c.section === 'soundConfigExhaust' ? 'Exhaust sound' : c.section === 'soundConfig' ? 'Engine (intake) sound' : c.section} hint={current ? `The game's: ${c.sampleName}` : 'Any of the game\u2019s engine sounds; type to search'}>
+            <div className={styles.row}>
+              <Input value={current ?? c.sampleName} onChange={(e) => setPowertrainText('engine', c.key, e.target.value.trim() && e.target.value.trim() !== c.sampleName ? e.target.value.trim() : null)} list="game-engine-sounds" mono aria-label={`${c.section} sample`} />
+              {current && (
+                <Button size="sm" variant="ghost" onClick={() => setPowertrainText('engine', c.key, null)}>
+                  Game&rsquo;s
+                </Button>
+              )}
+            </div>
+          </Field>
+        );
+      })}
+      <datalist id="game-engine-sounds">
+        {sounds?.map((s) => (
+          <option key={s.name} value={s.name} />
+        ))}
+      </datalist>
+      {sounds && !sounds.length && <p className={styles.note}>Set the BeamNG.drive folder in Settings to list the game&rsquo;s engine sounds.</p>}
+      <Field label="Preview" hint={playing === 'samples' ? 'The game\u2019s own recordings, pitched and blended to the rpm' : playing === 'synth' ? `Synthesized from ${cylinders} cylinders: the game plays its recordings, so it will sound more like the real thing` : undefined}>
+        <div className={styles.row}>
+          <Button size="sm" variant={playing ? 'ghost' : 'primary'} onClick={() => void play()} disabled={playing === 'loading'} data-testid="engine-sound-play">
+            {playing === 'loading' ? 'Loading…' : playing ? 'Stop' : 'Play'}
+          </Button>
+          {configs.length > 1 && (
+            <Button size="sm" onClick={() => setWhich((which + 1) % configs.length)} disabled={!!playing}>
+              {configs[which]?.section === 'soundConfigExhaust' ? 'Exhaust' : 'Intake'}
+            </Button>
+          )}
+          <Button size="sm" onClick={rev} disabled={!playing || playing === 'loading'}>
+            Rev it
+          </Button>
+        </div>
+      </Field>
+      <Field label="Revs">
+        <Slider value={rpm} onChange={setRpm} min={Math.max(100, idle * 0.8)} max={limit} step={10} format={(v) => `${Math.round(v)} rpm`} aria-label="Preview rpm" />
+      </Field>
+      <Field label="Throttle">
+        <Slider value={load} onChange={setLoad} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} aria-label="Preview throttle" />
+      </Field>
+    </FieldGroup>
   );
 }

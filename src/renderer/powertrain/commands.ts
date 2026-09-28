@@ -225,6 +225,21 @@ export function setPowertrainField(kind: PowertrainKind, key: string, value: num
   });
 }
 
+/** A word setting of the engine or gearbox (its sound blend…); null goes back to the game's. */
+export function setPowertrainText(kind: PowertrainKind, key: string, value: string | null): void {
+  projectStore.getState().execute({
+    label: kind === 'engine' ? 'Change engine sound' : 'Edit gearbox',
+    coalesce: `buildText:${kind}:${key}`,
+    apply: (d) => {
+      const f = d.powertrain[kind];
+      if (!f) return;
+      const texts = (f.edits.texts ??= {});
+      if (value === null) delete texts[key];
+      else texts[key] = value;
+    },
+  });
+}
+
 /** The engine's torque curve (null: the game's). `coalesce` groups a drag into one undo step. */
 export function setTorqueCurve(curve: [number, number][] | null, coalesce?: string): void {
   projectStore.getState().execute({

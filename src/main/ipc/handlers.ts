@@ -14,6 +14,7 @@ import type { RecentService } from '../services/recent';
 import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
 import type { BeamngService } from '../beamng/service';
 import { scanGameMaterials } from '../beamng/gameMaterials';
+import { engineSoundSamples, readSoundFile, scanEngineSounds } from '../beamng/engineSounds';
 import type { SetOptions } from '@shared/suspension/options';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
 import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
@@ -237,6 +238,27 @@ export function registerIpcHandlers(services: HandlerServices): void {
 
   registerInvoke('beamng:detect', () => beamng.detect());
   registerInvoke('beamng:validate', ({ dir }) => beamng.validate(dir), z.object({ dir: z.string().min(1).max(1024) }));
+  const installDir = () => settings.get().beamngInstallDir;
+  registerInvoke('beamng:engineSounds', async () => {
+    const dir = installDir();
+    return dir ? (await scanEngineSounds(dir)).map((s) => ({ name: s.name })) : [];
+  });
+  registerInvoke(
+    'beamng:soundSamples',
+    async ({ name }) => {
+      const dir = installDir();
+      return dir ? engineSoundSamples(dir, name) : [];
+    },
+    z.object({ name: z.string().min(1).max(200) }),
+  );
+  registerInvoke(
+    'beamng:soundFile',
+    async ({ path }) => {
+      const dir = installDir();
+      return dir ? readSoundFile(dir, path) : null;
+    },
+    z.object({ path: z.string().min(1).max(500) }),
+  );
   registerInvoke('beamng:gameMaterials', async () => {
     const dir = settings.get().beamngInstallDir;
     return dir ? scanGameMaterials(dir) : [];
