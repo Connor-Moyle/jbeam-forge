@@ -5,7 +5,7 @@ import { rlog } from '@renderer/diagnostics/logger';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { buildSimModel, precheck, type PrecheckIssue } from '@shared/sim/model';
 import type { Obstacle, SimModel } from '@shared/sim/solver';
-import type { HingeSpec, ScenarioId, ScenarioResult } from '@shared/sim/scenarios';
+import type { AxleSpec, HingeSpec, ScenarioId, ScenarioResult } from '@shared/sim/scenarios';
 import type { SimFrame, SimRequest } from '@shared/sim/protocol';
 
 const logger = rlog('sim');
@@ -167,7 +167,7 @@ export function dragNode(node: number | null, target: [number, number, number] =
   send({ type: 'drag', node, target });
 }
 
-export function runScenario(id: ScenarioId, params: { kmh?: number; partId?: string; hinge?: HingeSpec } = {}): void {
+export function runScenario(id: ScenarioId, params: { kmh?: number; partId?: string; hinge?: HingeSpec; axles?: AxleSpec[] } = {}): void {
   if (!worker) return;
   useSim.getState().set({ busy: id, running: false });
   send({ type: 'scenario', id, ...params });
@@ -187,4 +187,14 @@ export function brokenByPart(broken: readonly number[]): [string, number][] {
 /** Node index → id for the live model (for labels). */
 export function simNodeId(i: number): string | undefined {
   return model?.nodeIds[i];
+}
+
+/** The project's axles for the suspension drop: springs and dampers from their tuning when set (the game's N/m and N·s/m), else sized from the car. */
+export function axleSpecs(axles: readonly { name: string; y: number; track: number; tuning: Record<string, number> }[]): AxleSpec[] {
+  return axles.map((a) => {
+    const find = (re: RegExp, min: number) => Object.entries(a.tuning).find(([k, v]) => re.test(k) && v >= min)?.[1];
+    const spring = find(/spring(?!height)/i, 1000);
+    const damp = find(/damp.*bump|bump|damp/i, 100);
+    return { name: a.name, y: a.y, track: a.track, ...(spring ? { spring } : {}), ...(damp ? { damp } : {}) };
+  });
 }

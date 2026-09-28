@@ -1,8 +1,9 @@
+import { EMPTY_ARR } from '@shared/empty';
 import { useState } from 'react';
 import { FlaskConical, Pause, Play, RotateCcw, Square } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
-import { brokenByPart, dragNode, pause, reset, run, runScenario, setGravity, setSpeed, startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
+import { axleSpecs, brokenByPart, dragNode, pause, reset, run, runScenario, setGravity, setSpeed, startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
 import { Badge } from '@renderer/ui/components/Badge';
 import { Button } from '@renderer/ui/components/Button';
 import { Callout } from '@renderer/ui/components/Callout';
@@ -14,7 +15,7 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { useLiveView } from '@renderer/sim/liveMeshes';
-import type { HingeSpec, ScenarioId } from '@shared/sim/scenarios';
+import type { AxleSpec, HingeSpec, ScenarioId } from '@shared/sim/scenarios';
 import styles from './TestResultsPanel.module.css';
 
 const SPEEDS = [
@@ -83,7 +84,8 @@ function ActiveTest() {
   const partName = useProjectStore((s) => s.doc?.parts.find((p) => p.id === activePart)?.displayName);
   const [kmh, setKmh] = useState(50);
   const hinge = useProjectStore((s) => s.doc?.hinges.find((h) => h.partId === activePart));
-  const scenario = (id: ScenarioId, params: { kmh?: number; partId?: string; hinge?: HingeSpec } = {}) => {
+  const axles = useProjectStore((s) => s.doc?.axles ?? EMPTY_ARR);
+  const scenario = (id: ScenarioId, params: { kmh?: number; partId?: string; hinge?: HingeSpec; axles?: AxleSpec[] } = {}) => {
     dragNode(null);
     runScenario(id, params);
   };
@@ -129,6 +131,15 @@ function ActiveTest() {
             </Button>
             <Button size="sm" onClick={() => scenario('corner-drop')} disabled={!!busy}>
               20° corner drop
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => scenario('suspension-drop', { axles: axleSpecs(axles) })}
+              disabled={!!busy || !axles.length}
+              title={axles.length ? 'Drop it 30 cm onto its wheels: bottoming out, compression, ride height, bounce' : 'Add axles in the Suspension panel first'}
+              data-testid="scenario-suspension-drop"
+            >
+              Drop on its suspension
             </Button>
             <Button size="sm" onClick={() => activePart && scenario('yank', { partId: activePart })} disabled={!!busy || !activePart} title={activePart ? undefined : 'Select a part in the Scene tree first'}>
               Yank {partName ?? 'selected part'}

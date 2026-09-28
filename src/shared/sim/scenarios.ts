@@ -404,3 +404,118 @@ export function hingeYank(model: SimModel, h: HingeSpec, seconds = 1.5): Scenari
   ];
   return finish(s, 'hinge-yank', seconds, start, summary);
 }
+
+/** One axle for the suspension drop: where it is, and (when known) its spring and damper per wheel. */
+export interface AxleSpec {
+  name: string;
+  y: number;
+  track: number;
+  /** N/m per wheel; absent = sized from the car's weight for a ~1.5 Hz ride. */
+  spring?: number;
+  /** N·s/m per wheel; absent = ~30 % of critical. */
+  damp?: number;
+}
+
+/**
+ * Suspension drop: the car on a stand-in for its fitted suspension (a spring
+ * and damper per wheel between the ground and the body, sized from the car's
+ * weight or its tuning), dropped from `height`. It checks what the body does
+ * on its suspension: whether it bottoms out, how far each axle compresses,
+ * the ride height it settles at, pitch, how long it bounces, and what the
+ * mounts do. The game's own suspension jbeam isn't simulated here; this is a
+ * structure check, and the in-game test is the real one.
+ */
+export function suspensionDrop(model: SimModel, axles: readonly AxleSpec[], height = 0.3, seconds = 3): ScenarioResult {
+  const s = new Solver(model);
+  if (!axles.length) return finish(s, 'suspension-drop', 0, Float64Array.from(s.x), ['Add axles in the Suspension panel first: the drop puts the car on its wheels.']);
+  const n = s.n;
+  let lowZ = Infinity;
+  let highZ = -Infinity;
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    lowZ = Math.min(lowZ, s.x[i * 3 + 2]!);
+    highZ = Math.max(highZ, s.x[i * 3 + 2]!);
+    total += model.mass[i]!;
+  }
+  // The imported model's ground is z = 0 when its wheels touch it; else a hand below the lowest node.
+  const contactZ = Math.min(0, lowZ - 0.1);
+  const corners = axles.flatMap((a) => [1, -1].map((side) => ({ axle: a, x: (side * a.track) / 2, name: `${a.name} ${side > 0 ? 'left' : 'right'}` })));
+  const perCorner = total / corners.length;
+  // Mounts: body nodes at strut-tower height over each wheel, sharing its load.
+  const topZ = lowZ + 0.6 * (highZ - lowZ);
+  const used = new Set<number>();
+  const springs = corners.map((c) => {
+    const near: { i: number; d: number }[] = [];
+    for (let i = 0; i < n; i++) {
+      if (used.has(i) || model.mass[i] === 0) continue;
+      near.push({ i, d: Math.hypot(s.x[i * 3]! - c.x, s.x[i * 3 + 1]! - c.axle.y, (s.x[i * 3 + 2]! - topZ) * 0.5) });
+    }
+    near.sort((p, q) => p.d - q.d);
+    const mounts = near.slice(0, 4).map((r) => r.i);
+    for (const i of mounts) used.add(i);
+    const k = c.axle.spring ?? perCorner * (2 * Math.PI * 1.5) ** 2;
+    const damp = c.axle.damp ?? 2 * 0.3 * Math.sqrt(k * perCorner);
+    const z = () => mounts.reduce((t, i) => t + s.x[i * 3 + 2]!, 0) / mounts.length;
+    const vz = () => mounts.reduce((t, i) => t + s.v[i * 3 + 2]!, 0) / mounts.length;
+    // Free length: mount to the ground as modelled (wheels just touching, unloaded).
+    return { c, mounts, k, damp, z, vz, free: z() - contactZ };
+  });
+  s.transform(([x, y, zz]) => [x, y, zz + height - contactZ]);
+  const start = Float64Array.from(s.x);
+  const maxComp = corners.map(() => 0);
+  const hitBump = corners.map(() => false);
+  const bumpAt = 0.6 * (lowZ - contactZ);
+  const comp = springs.map((sp) => Math.max(0, sp.free - sp.z()));
+  let minBody = Infinity;
+  let settledAt: number | null = null;
+  let still = 0;
+  const steps = Math.round(seconds / s.dt);
+  const every = 4;
+  for (let t = 0; t < steps; t += every) {
+    s.extForce.fill(0);
+    springs.forEach((sp, k) => {
+      comp[k] = Math.max(0, sp.free - sp.z());
+      if (!comp[k]) return;
+      // Bump stop: much stiffer over the last 40 % of the travel to the floor, as real suspensions have.
+      const bump = Math.max(0, comp[k] - bumpAt);
+      if (bump > 0) hitBump[k] = true;
+      const F = Math.max(0, sp.k * comp[k] + sp.k * 12 * bump - sp.damp * sp.vz());
+      for (const i of sp.mounts) s.extForce[i * 3 + 2]! += F / sp.mounts.length;
+      maxComp[k] = Math.max(maxComp[k]!, comp[k]);
+    });
+    if (!s.step(every)) break;
+    let vz = 0;
+    for (let i = 0; i < n; i++) {
+      minBody = Math.min(minBody, s.x[i * 3 + 2]!);
+      vz += s.v[i * 3 + 2]! * model.mass[i]!;
+    }
+    // Settled: the body's vertical speed stays under 2 cm/s for 0.25 s, once the wheels are loaded.
+    if (comp.some((c) => c > 0) && Math.abs(vz / Math.max(1e-9, total)) < 0.02) {
+      still += every;
+      if (settledAt === null && still * s.dt > 0.25) settledAt = t * s.dt - 0.25;
+    } else {
+      still = 0;
+      settledAt = null;
+    }
+  }
+  s.extForce.fill(0);
+  const byAxle = axles.map((a) => {
+    const ks = corners.flatMap((c, k) => (c.axle === a ? [k] : []));
+    const avg = (v: number[]) => ks.reduce((t, k) => t + v[k]!, 0) / ks.length;
+    return { name: a.name, y: a.y, max: avg(maxComp), sag: avg(comp) };
+  });
+  const front = byAxle.reduce((p, q) => (q.y < p.y ? q : p));
+  const rear = byAxle.reduce((p, q) => (q.y > p.y ? q : p));
+  const pitch = front !== rear ? (Math.atan2(rear.sag - front.sag, rear.y - front.y) * 180) / Math.PI : 0;
+  const summary: string[] = [];
+  summary.push(`Dropped ${(height * 100).toFixed(0)} cm onto ${corners.length} wheels (${Math.round(total)} kg): ${minBody < 0.01 ? 'the body hit the ground: it bottoms out. Stiffer springs, or more ride height.' : `the lowest point of the body came within ${(minBody * 100).toFixed(0)} cm of the ground.`}`);
+  summary.push(byAxle.map((a) => `${a.name}: compressed up to ${(a.max * 100).toFixed(1)} cm, settles ${(a.sag * 100).toFixed(1)} cm down`).join('; ') + '.');
+  if (hitBump.some(Boolean)) summary.push(`Hit the bump stops on ${corners.filter((_, k) => hitBump[k]).map((c) => c.name).join(', ')}: fine on a hard landing, but if it happens at rest it needs stiffer springs.`);
+  if (front !== rear) summary.push(Math.abs(pitch) < 0.5 ? 'Sits level.' : `Sits ${pitch > 0 ? 'nose up' : 'nose down'} by ${Math.abs(pitch).toFixed(1)}°: ${pitch > 0 ? 'the front' : 'the rear'} carries more weight for its springs.`);
+  summary.push(settledAt !== null ? `Stopped bouncing after ${settledAt.toFixed(1)} s.` : `Still bouncing after ${seconds} s: more damping.`);
+  const mountSet = new Set(springs.flatMap((sp) => sp.mounts));
+  const mountBroken = s.breakLog.filter((b) => mountSet.has(model.beamA[b]!) || mountSet.has(model.beamB[b]!)).length;
+  if (s.breakLog.length) summary.push(`${s.breakLog.length} beam(s) broke${mountBroken ? `, ${mountBroken} at the suspension mounts: strengthen the body there` : ''}.`);
+  summary.push('The springs are a stand-in sized from the car (or its tuning); the fitted suspension itself is checked in game.');
+  return finish(s, 'suspension-drop', seconds, start, summary);
+}

@@ -6,7 +6,7 @@
  * viewport, and runs one-click scenarios on demand.
  */
 import { Solver, type SimModel } from '@shared/sim/solver';
-import { cornerDrop, crash, drop, hingeSwing, hingeYank, settle, yank, type ScenarioResult } from '@shared/sim/scenarios';
+import { cornerDrop, crash, drop, hingeSwing, hingeYank, settle, suspensionDrop, yank, type ScenarioResult } from '@shared/sim/scenarios';
 import type { SimRequest, SimFrame } from '@shared/sim/protocol';
 import { createWorkerLogger, installWorkerErrorHandlers } from './logBridge';
 
@@ -90,7 +90,7 @@ function runScenario(req: Extract<SimRequest, { type: 'scenario' }>): ScenarioRe
     case 'hinge-yank':
       return req.hinge ? hingeYank(model, req.hinge) : null;
     case 'suspension-drop':
-      return null;
+      return suspensionDrop(model, req.axles ?? [], req.height ?? 0.3);
   }
 }
 

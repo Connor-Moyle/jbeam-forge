@@ -1,5 +1,5 @@
 import type { SimModel } from './solver';
-import type { HingeSpec, ScenarioId, ScenarioResult } from './scenarios';
+import type { AxleSpec, HingeSpec, ScenarioId, ScenarioResult } from './scenarios';
 
 /** Messages between the renderer and the physics sandbox worker. */
 export type SimRequest =
@@ -9,7 +9,7 @@ export type SimRequest =
   | { type: 'reset' }
   | { type: 'gravity'; on: boolean }
   | { type: 'drag'; node: number | null; target: [number, number, number] }
-  | { type: 'scenario'; id: ScenarioId; height?: number; angleDeg?: number; kmh?: number; partId?: string; hinge?: HingeSpec }
+  | { type: 'scenario'; id: ScenarioId; height?: number; angleDeg?: number; kmh?: number; partId?: string; hinge?: HingeSpec; axles?: AxleSpec[] }
   | { type: 'dispose' };
 
 export type SimFrame =
