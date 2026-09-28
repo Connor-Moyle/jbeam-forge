@@ -68,6 +68,12 @@ export const MaterialDefSchema = z.object({
   /** 0–255 cut-off for alpha test. */
   alphaRef: z.number().int().min(0).max(255),
   doubleSided: z.boolean(),
+  /**
+   * Two-sided with a different inside: the material shown on the back faces
+   * (exported as the triangles again, turned round). Optional so older
+   * projects and .jbmat files still load.
+   */
+  backMaterialId: z.string().min(1).nullable().optional(),
   castShadows: z.boolean(),
   dynamicCubemap: z.boolean(),
   /** Use one of BeamNG's own materials by name instead (nothing is exported for this one). */
@@ -124,4 +130,12 @@ export function defaultMaterial(id: string, name: string, over: Partial<Material
     extra: {},
     ...over,
   };
+}
+
+/** File-name ending of a livery painted in the app (it goes on a layer of its own, over the paint). */
+export const LIVERY_SUFFIX = '_livery.png';
+
+/** The layer carrying the painted livery, if any. */
+export function liveryLayerIndex(def: Pick<MaterialDef, 'layers'>): number {
+  return def.layers.findIndex((l) => l.maps.baseColorMap?.endsWith(LIVERY_SUFFIX));
 }

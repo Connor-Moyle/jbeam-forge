@@ -11,7 +11,9 @@ import { useEditStore } from '@renderer/structure/editStore';
 import { massBalance } from '@shared/structure/balance';
 import type { MaterialDef } from '@shared/materials/schema';
 import type { Material } from 'three';
-import { materialFor, useTextureVersion } from '@renderer/materials/runtime';
+import { backMaterialFor, materialFor, useTextureVersion } from '@renderer/materials/runtime';
+import { startPaintSync } from '@renderer/paint/sync';
+import { onBrush, usePainter } from '@renderer/paint/painter';
 import { assignMaterial, MIME_MATERIAL } from '@renderer/materials/commands';
 import { slotsOf } from '@renderer/materials/seed';
 import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
@@ -66,6 +68,7 @@ export function ViewportPanel() {
         onDoublePick: (key) => focusMesh(key),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
+        onBrush,
         onSimDrag: (node, target) => dragNode(node, target),
         onEditPick: (node, beam, op) => {
           const edit = useEditStore.getState();
@@ -114,6 +117,7 @@ export function ViewportPanel() {
     let meshes: ImportedMesh[] = [];
     let materialInputs: unknown[] = [];
     let materials: ReadonlyMap<string, Material | Material[]> | undefined;
+    let backMaterials: ReadonlyMap<string, Material> | undefined;
     const push = () => {
       const s = scene.getState();
       if (s.sources !== meshesSource) {
@@ -125,8 +129,9 @@ export function ViewportPanel() {
       if (inputs.some((x, i) => x !== materialInputs[i])) {
         materialInputs = inputs;
         materials = doc ? projectMaterials(doc, meshes) : undefined;
+        backMaterials = doc ? projectBackMaterials(doc, meshes) : undefined;
       }
-      const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover, focus: s.focus?.meshKeys ?? null, materials };
+      const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover, focus: s.focus?.meshKeys ?? null, materials, backMaterials };
       rt.sync(view);
     };
     push();
@@ -139,6 +144,8 @@ export function ViewportPanel() {
     };
     pushTool();
     const unsubscribeTool = useSplitTool.subscribe(pushTool);
+    rt.setBrush(usePainter.getState().on);
+    const unsubscribeBrush = usePainter.subscribe((p) => rt.setBrush(p.on));
 
     // Generated structure + view toggles → runtime (rebuilt only when the structure changes).
     let lastStructure: unknown = null;
@@ -158,6 +165,7 @@ export function ViewportPanel() {
         rt.setEdit(doc && edit.active ? editView(doc, only, edit) : null);
       }
     };
+    startPaintSync();
     pushStructure();
     rt.setView(useUiStore.getState().view);
     const unsubscribeStructure = projectStore.subscribe(() => {
@@ -250,6 +258,14 @@ export function ViewportPanel() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const splitting = useSplitTool.getState().meshKey !== null;
       const edit = useEditStore.getState();
+      // Painting: [ and ] size the brush, Esc puts it away.
+      const painter = usePainter.getState();
+      if (painter.on && (e.key === '[' || e.key === ']' || e.key === 'Escape')) {
+        if (e.key === 'Escape') painter.set({ on: false });
+        else painter.set({ size: Math.max(1, Math.min(400, Math.round(painter.size * (e.key === ']' ? 1.25 : 0.8)))) });
+        e.preventDefault();
+        return;
+      }
       // Blender-style: G move, R rotate, S scale (M too, for move); Esc puts the gizmo away.
       const gizmoKey = { g: 'translate', m: 'translate', r: 'rotate', s: 'scale' }[e.key.toLowerCase()] as GizmoMode | undefined;
       if (!splitting && !edit.active && gizmoKey && !e.ctrlKey && !e.altKey && !e.metaKey && scene.getState().selection.length) {
@@ -305,6 +321,7 @@ export function ViewportPanel() {
     return () => {
       unsubscribe();
       unsubscribeTool();
+      unsubscribeBrush();
       unsubscribeStructure();
       unsubscribeSettings();
       unsubscribeView();
@@ -455,6 +472,18 @@ function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
     moveSelection([dir[0]! * step, dir[1]! * step, dir[2]! * step], 'Nudge nodes');
   } else return false;
   return true;
+}
+
+/** Two-sided materials: the back material of each mesh whose (first) material has one. */
+function projectBackMaterials(doc: { materials: readonly MaterialDef[]; materialSlots: Readonly<Record<string, readonly string[]>> }, meshes: readonly ImportedMesh[]): Map<string, Material> {
+  const defs = new Map(doc.materials.map((d) => [d.id, d]));
+  const out = new Map<string, Material>();
+  for (const m of meshes) {
+    const front = slotsOf(doc, m.key)?.map((id) => defs.get(id)).find((d) => d?.backMaterialId);
+    const back = front?.backMaterialId ? defs.get(front.backMaterialId) : undefined;
+    if (back) out.set(m.key, backMaterialFor(back));
+  }
+  return out;
 }
 
 /** Each mesh's project materials (split pieces use their base mesh's). */

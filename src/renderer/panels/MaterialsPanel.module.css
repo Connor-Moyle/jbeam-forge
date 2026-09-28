@@ -201,3 +201,9 @@
   padding: var(--space-2) var(--space-3) 0;
   border-bottom: var(--border-width) solid var(--border-0);
 }
+
+.slotRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}

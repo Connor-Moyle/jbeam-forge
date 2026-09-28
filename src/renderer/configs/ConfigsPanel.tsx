@@ -6,6 +6,7 @@ import { EMPTY_ARR } from '@shared/empty';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useTaxonomy } from '@renderer/parts/taxonomy';
 import { useSetData } from '@renderer/suspension/commands';
+import { Swatch } from '@renderer/paint/PaintsPanel';
 import { Button } from '@renderer/ui/components/Button';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
 import { Field, FieldGroup } from '@renderer/ui/components/Field';
@@ -14,11 +15,12 @@ import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import { Slider } from '@renderer/ui/components/Slider';
 import { Textarea } from '@renderer/ui/components/Textarea';
-import { addConfig, applyConfigPreview, deleteConfig, setConfigPart, setConfigVar, updateConfig, useConfigUi } from './commands';
+import { addConfig, applyConfigPreview, deleteConfig, setConfigPaint, setConfigPart, setConfigVar, updateConfig, useConfigUi } from './commands';
 import styles from './ConfigsPanel.module.css';
 
 const DEFAULT = '__default__';
 const EMPTY = '__empty__';
+const FACTORY = '__factory__';
 const TYPES = ['Factory', 'Custom', 'Race', 'Police', 'Service', 'Prototype'];
 
 /**
@@ -80,6 +82,28 @@ export function ConfigsPanel() {
           </FieldGroup>
         ) : (
           <p className={styles.note}>The default: every slot takes its base part. Make a New configuration to change parts for a Sport or Race version.</p>
+        )}
+
+        {config && doc.paints.list.length > 0 && (
+          <FieldGroup title="Paint">
+            {config.paints.map((id, i) => {
+              const fallback = doc.paints.list.find((p) => p.id === doc.paints.defaults[i]);
+              return (
+                <Field key={i} label={`Paint ${i + 1}`}>
+                  <div className={styles.paintRow}>
+                    <Swatch paint={doc.paints.list.find((p) => p.id === id) ?? fallback} />
+                    <Select
+                      value={id ?? FACTORY}
+                      onChange={(v) => setConfigPaint(config.id, i as 0 | 1 | 2, v === FACTORY ? null : v)}
+                      options={[{ value: FACTORY, label: `Factory default${fallback ? ` (${fallback.name})` : ''}` }, ...doc.paints.list.map((p) => ({ value: p.id, label: p.name }))]}
+                      aria-label={`Paint ${i + 1}`}
+                      className={styles.slotSelect}
+                    />
+                  </div>
+                </Field>
+              );
+            })}
+          </FieldGroup>
         )}
 
         <FieldGroup title="Parts">

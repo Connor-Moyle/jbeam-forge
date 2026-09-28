@@ -1,4 +1,4 @@
-import { BadgePlus, Box, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanEye, ScanLine, Settings, Square, type LucideIcon, Undo2, Wand2, Wrench } from 'lucide-react';
+import { BadgePlus, Box, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanEye, ScanLine, Settings, Square, type LucideIcon, Undo2, Wand2, Wrench } from 'lucide-react';
 import { PRESET_IDS, type PresetId } from '@shared/layout-schema';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -109,6 +109,7 @@ export function Toolbar() {
         <IconButton icon={FlaskConical} label="Test results panel" onClick={() => togglePanel('test-results')} />
         <IconButton icon={FileCode} label="jbeam preview panel" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
         <IconButton icon={Package} label="Objects library: calipers, discs, gauges…" onClick={() => togglePanel('objects')} data-testid="toggle-objects" />
+        <IconButton icon={PaintRoller} label="Paints: factory paints, paint slots, and painting on the car" onClick={() => togglePanel('paints')} data-testid="toggle-paints" />
         <IconButton icon={BadgePlus} label="Extras: licence plates, tow hitch, nitrous, paint designs" onClick={() => togglePanel('features')} data-testid="toggle-features" />
         <IconButton icon={ListTree} label="Configurations: versions of the car and their parts (.pc)" onClick={() => togglePanel('configs')} data-testid="toggle-configs" />
         <IconButton icon={Gauge} label="Engine and gearbox from the game's cars" onClick={() => togglePanel('powertrain')} data-testid="toggle-powertrain" />

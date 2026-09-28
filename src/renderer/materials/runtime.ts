@@ -1,10 +1,11 @@
-import { Color, DoubleSide, FrontSide, MeshPhysicalMaterial, SRGBColorSpace, Texture, type Material } from 'three';
+import { BackSide, Color, DoubleSide, FrontSide, MeshPhysicalMaterial, SRGBColorSpace, Texture, type Material } from 'three';
 import { create } from 'zustand';
-import type { MaterialDef, MaterialLayer, TextureSlot } from '@shared/materials/schema';
+import { liveryLayerIndex, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
 import { call } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import { loadTextureFile } from '@renderer/import/textures';
+import { applyPaintShader, paintPreviewActive } from '@renderer/paint/preview';
 
 /**
  * Turns project materials into what the viewport draws. Textures are cached
@@ -76,9 +77,10 @@ export async function texturesReady(def: MaterialDef): Promise<void> {
   await Promise.all(jobs);
 }
 
-/** The layer the viewport shows: the one carrying the base colour texture, else the first. */
+/** The layer the viewport shows: the one carrying the base colour texture (not a painted livery), else the first. */
 export function previewLayer(def: MaterialDef): MaterialLayer {
-  return def.layers.find((l) => l.maps.baseColorMap) ?? def.layers[0]!;
+  const livery = liveryLayerIndex(def);
+  return def.layers.find((l, i) => l.maps.baseColorMap && i !== livery) ?? def.layers[0]!;
 }
 
 function srgb(r: number, g: number, b: number): Color {
@@ -107,7 +109,7 @@ export function buildMaterial(def: MaterialDef): Material {
     opacity: layer.opacity * a,
     transparent: def.translucent || layer.opacity * a < 1,
     alphaTest: def.alphaTest ? def.alphaRef / 255 : 0,
-    side: def.doubleSided ? DoubleSide : FrontSide,
+    side: def.doubleSided && !def.backMaterialId ? DoubleSide : FrontSide,
     depthWrite: !def.translucent || def.translucentZWrite,
   });
   // Paint shows the paint colour over the base texture's shading.
@@ -119,19 +121,56 @@ export function buildMaterial(def: MaterialDef): Material {
   m.aoMap = map('ambientOcclusionMap');
   m.emissiveMap = map('emissiveMap');
   m.alphaMap = map('opacityMap');
+  // With factory paints set up, paint shows the paint slots through its mask, and the livery on top.
+  if (def.paint && paintPreviewActive()) {
+    const mask = top.maps.colorPaletteMap;
+    const livery = def.layers[liveryLayerIndex(def)]?.maps.baseColorMap;
+    applyPaintShader(m, mask && !mask.startsWith('/vehicles/') ? texture(mask, 'colorPaletteMap') : null, livery && !livery.startsWith('/vehicles/') ? texture(livery, 'baseColorMap') : null);
+  }
   m.userData.materialId = def.id;
   return m;
 }
 
 /** Built materials, rebuilt only when their definition (or a texture) changes. */
-const built = new Map<string, { def: MaterialDef; version: number; material: Material }>();
+const built = new Map<string, { def: MaterialDef; version: number; paint: boolean; material: Material }>();
 
 export function materialFor(def: MaterialDef): Material {
   const version = useTextureVersion.getState().version;
+  const paint = paintPreviewActive();
   const hit = built.get(def.id);
-  if (hit && hit.def === def && hit.version === version) return hit.material;
+  if (hit && hit.def === def && hit.version === version && hit.paint === paint) return hit.material;
   hit?.material.dispose();
   const material = buildMaterial(def);
-  built.set(def.id, { def, version, material });
+  built.set(def.id, { def, version, paint, material });
   return material;
+}
+
+/** The same look on back faces only, for a two-sided material's inside. */
+const builtBack = new Map<string, { def: MaterialDef; version: number; paint: boolean; material: Material }>();
+
+export function backMaterialFor(def: MaterialDef): Material {
+  const version = useTextureVersion.getState().version;
+  const paint = paintPreviewActive();
+  const hit = builtBack.get(def.id);
+  if (hit && hit.def === def && hit.version === version && hit.paint === paint) return hit.material;
+  hit?.material.dispose();
+  const material = buildMaterial(def);
+  material.side = BackSide;
+  builtBack.set(def.id, { def, version, paint, material });
+  return material;
+}
+
+/**
+ * Use a texture the app is drawing (the paint brush's canvas) for a file, so
+ * every material using that file shows the strokes as they're made.
+ */
+export function provideTexture(path: string, tex: Texture): void {
+  if (textures.get(path) === tex) return;
+  textures.set(path, tex);
+  useTextureVersion.getState().bump();
+}
+
+/** The texture already loaded for a file, if any (null while loading or failed). */
+export function loadedTexture(path: string): Texture | null {
+  return textures.get(path) ?? null;
 }

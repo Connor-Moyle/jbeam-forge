@@ -21,6 +21,11 @@ export interface DaeMesh {
   materials: readonly string[];
   /** glTF UVs have a top-left origin: flip V for COLLADA's bottom-left. */
   flipV: boolean;
+  /**
+   * Two-sided materials: per material index, the material for the back faces
+   * (null: none). Those triangles are written again, turned round, with it.
+   */
+  backMaterials?: readonly (string | null)[];
 }
 
 export interface DaeMaterial {
@@ -87,6 +92,32 @@ function source(id: string, data: number[], stride: number, params: string[]): s
   return `<source id="${id}"><float_array id="${id}-array" count="${data.length}">${data.map(f).join(' ')}</float_array><technique_common><accessor source="#${id}-array" count="${data.length / stride}" stride="${stride}">${acc}</accessor></technique_common></source>`;
 }
 
+/** Back faces: each group with a back material again, wound the other way, on its own vertices with the normals reversed. */
+function addBackFaces(c: Compacted, back: readonly (string | null)[], names: string[]): void {
+  const dup = new Map<number, number>();
+  const copy = (v: number) => {
+    let d = dup.get(v);
+    if (d !== undefined) return d;
+    d = c.positions.length / 3;
+    dup.set(v, d);
+    c.positions.push(c.positions[v * 3]!, c.positions[v * 3 + 1]!, c.positions[v * 3 + 2]!);
+    c.normals.push(-c.normals[v * 3]!, -c.normals[v * 3 + 1]!, -c.normals[v * 3 + 2]!);
+    if (c.uv0) c.uv0.push(c.uv0[v * 2]!, c.uv0[v * 2 + 1]!);
+    if (c.uv1) c.uv1.push(c.uv1[v * 2]!, c.uv1[v * 2 + 1]!);
+    return d;
+  };
+  const front = c.groups.length;
+  for (let g = 0; g < front; g++) {
+    const gr = c.groups[g]!;
+    const name = back[gr.material] ?? null;
+    if (!name) continue;
+    const indices: number[] = [];
+    for (let t = 0; t + 2 < gr.indices.length; t += 3) indices.push(copy(gr.indices[t]!), copy(gr.indices[t + 2]!), copy(gr.indices[t + 1]!));
+    names.push(name);
+    c.groups.push({ material: -names.length, indices });
+  }
+}
+
 /** Build the DAE text. Mesh names must already be unique and XML-safe (see exportMeshNames). */
 export function writeDae(meshes: readonly DaeMesh[], materials: readonly DaeMaterial[], now = new Date()): string {
   const stamp = now.toISOString().replace(/\.\d+Z$/, 'Z');
@@ -99,18 +130,22 @@ export function writeDae(meshes: readonly DaeMesh[], materials: readonly DaeMate
   for (const m of meshes) {
     const c = compactGeometry(m.geometry, m.flipV);
     if (!c.groups.length) continue;
+    // Back-face groups get negative material numbers: -1 is backNames[0], and so on.
+    const backNames: string[] = [];
+    if (m.backMaterials?.some(Boolean)) addBackFaces(c, m.backMaterials, backNames);
+    const nameOf = (material: number) => (material < 0 ? backNames[-material - 1]! : (m.materials[material] ?? m.materials[0] ?? ''));
     const id = `${esc(m.name)}-mesh`;
     const inputs = [`<input semantic="VERTEX" source="#${id}-vertices" offset="0"/>`, `<input semantic="NORMAL" source="#${id}-normals" offset="0"/>`];
     if (c.uv0) inputs.push(`<input semantic="TEXCOORD" source="#${id}-map-0" offset="0" set="0"/>`);
     if (c.uv1) inputs.push(`<input semantic="TEXCOORD" source="#${id}-map-1" offset="0" set="1"/>`);
     const tris = c.groups.map((gr) => {
-      const mat = m.materials[gr.material] ?? m.materials[0] ?? '';
+      const mat = nameOf(gr.material);
       return `<triangles material="${esc(mat)}" count="${gr.indices.length / 3}">${inputs.join('')}<p>${gr.indices.join(' ')}</p></triangles>`;
     });
     geometries.push(
       `<geometry id="${id}" name="${esc(m.name)}"><mesh>${source(`${id}-positions`, c.positions, 3, ['X', 'Y', 'Z'])}${source(`${id}-normals`, c.normals, 3, ['X', 'Y', 'Z'])}${c.uv0 ? source(`${id}-map-0`, c.uv0, 2, ['S', 'T']) : ''}${c.uv1 ? source(`${id}-map-1`, c.uv1, 2, ['S', 'T']) : ''}<vertices id="${id}-vertices"><input semantic="POSITION" source="#${id}-positions"/></vertices>${tris.join('')}</mesh></geometry>`,
     );
-    const used = [...new Set(c.groups.map((gr) => m.materials[gr.material] ?? m.materials[0] ?? ''))].filter(Boolean);
+    const used = [...new Set(c.groups.map((gr) => nameOf(gr.material)))].filter(Boolean);
     const bind = used.map((mat) => `<instance_material symbol="${esc(mat)}" target="#${esc(mat)}"><bind_vertex_input semantic="UVMap" input_semantic="TEXCOORD" input_set="0"/></instance_material>`).join('');
     nodes.push(
       `<node id="${esc(m.name)}" name="${esc(m.name)}" type="NODE"><matrix sid="transform">1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1</matrix><instance_geometry url="#${id}" name="${esc(m.name)}"><bind_material><technique_common>${bind}</technique_common></bind_material></instance_geometry></node>`,

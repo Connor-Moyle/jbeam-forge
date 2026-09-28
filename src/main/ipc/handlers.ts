@@ -55,6 +55,8 @@ export interface HandlerServices {
   userLibrary: UserLibrary;
   /** Where textures embedded in kn5 files are extracted. */
   kn5Cache: string;
+  /** Where textures painted in the app are saved. */
+  paintedTextures: string;
   harness: boolean;
 }
 
@@ -461,6 +463,19 @@ export function registerIpcHandlers(services: HandlerServices): void {
     });
     return path ? materialLibrary.importFile(path) : null;
   });
+
+  // Painted in the app: saved under userData and readable like any other texture.
+  projects.grantRoot(services.paintedTextures);
+  registerInvoke(
+    'materials:saveTexture',
+    async ({ name, bytes }) => {
+      await mkdir(services.paintedTextures, { recursive: true });
+      const path = join(services.paintedTextures, name);
+      await writeFile(path, bytes);
+      return path;
+    },
+    z.object({ name: z.string().regex(/^[\w.-]{1,200}\.png$/), bytes: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 128 * 1024 * 1024) }),
+  );
 
   registerInvoke('materials:pickTexture', async (_req, event) => {
     const path = await pickOpenFile(event.sender, {

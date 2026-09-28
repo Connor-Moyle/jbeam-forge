@@ -72,7 +72,8 @@ export function materialJson(def: MaterialDef, exportName: string, fileFor: (pat
   }
   if (def.alphaTest) out.alphaTest = true;
   if (def.alphaTest || def.translucent) out.alphaRef = def.alphaRef;
-  if (def.doubleSided) out.doubleSided = true;
+  // A separate back material draws the back faces itself; doubleSided would show this one there too.
+  if (def.doubleSided && !def.backMaterialId) out.doubleSided = true;
   if (!def.castShadows) out.castShadows = false;
   if (def.dynamicCubemap) out.dynamicCubemap = true;
   out.materialTag0 = 'beamng';

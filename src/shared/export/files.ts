@@ -2,6 +2,7 @@ import type { Part, Project } from '../project/schema';
 import { commonPrefix } from '../taxonomy/tokenize';
 import { slotTypeOf, type TaxonomyLookup } from './jbeam';
 import { partPrice } from '../parts/materials';
+import { infoPaints } from '../paints/paints';
 
 /**
  * Names and the small JSON files of an exported vehicle (SPEC §4.15):
@@ -55,7 +56,7 @@ export function exportMaterialName(slug: string, name: string, taken: Set<string
 
 export const DEFAULT_CONFIG = 'default';
 
-export function infoJson(doc: Pick<Project, 'meta'>, author: string): Record<string, string> {
+export function infoJson(doc: Pick<Project, 'meta'> & Partial<Pick<Project, 'paints'>>, author: string): Record<string, unknown> {
   const m = doc.meta;
   return {
     Name: m.name,
@@ -64,6 +65,7 @@ export function infoJson(doc: Pick<Project, 'meta'>, author: string): Record<str
     Type: m.type || 'Car',
     Description: m.description || `${m.name}, built with JBeam Forge.`,
     default_pc: DEFAULT_CONFIG,
+    ...(doc.paints ? infoPaints({ paints: doc.paints }) : {}),
   };
 }
 

@@ -1,5 +1,6 @@
 import type { Part, Project, VehicleConfig } from '../project/schema';
 import { partPrice } from '../parts/materials';
+import { pcPaints, type GamePaint } from '../paints/paints';
 import { axleTag, bodyPart, SET_KINDS, slotTypeOf, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
 
 /**
@@ -8,7 +9,7 @@ import { axleTag, bodyPart, SET_KINDS, slotTypeOf, type SuspensionSetData, type 
  * parts end up on the car. Written out as the game's .pc files.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'variables'> & Partial<Pick<Project, 'axles' | 'assignments'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'variables'> & Partial<Pick<Project, 'axles' | 'assignments' | 'paints'>>;
 /** Fitted suspensions' jbeam by set id: each fitted axle becomes a slot a configuration can leave empty. */
 type Sets = Readonly<Record<string, Pick<SuspensionSetData, 'parts' | 'root'>>>;
 
@@ -64,6 +65,8 @@ export interface PcFile {
   model: string;
   parts: Record<string, string>;
   vars: Record<string, number>;
+  /** The three paint slots (only when the project has paints). */
+  paints?: GamePaint[];
 }
 
 /** A configuration as a .pc: every slot's part (defaults where the config says nothing), and its values. */
@@ -71,7 +74,7 @@ export function resolveConfig(doc: Doc, tax: TaxonomyLookup, config: VehicleConf
   const parts: Record<string, string> = {};
   for (const slot of slotChoices(doc, tax, sets)) parts[slot.slotType] = slot.defaultPart;
   if (config) for (const [slot, name] of Object.entries(config.parts)) if (slot in parts) parts[slot] = name;
-  return { format: 2, model: doc.meta.slug, parts, vars: { ...(config?.vars ?? {}) } };
+  return { format: 2, model: doc.meta.slug, parts, vars: { ...(config?.vars ?? {}) }, ...(doc.paints ? pcPaints({ paints: doc.paints }, config) : {}) };
 }
 
 /** The parts a configuration puts on the car (a part counts only when every slot above it is filled). */

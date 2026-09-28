@@ -24,6 +24,10 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { Textarea } from '@renderer/ui/components/Textarea';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { cx } from '@renderer/ui/cx';
+import { setMaterialSlot } from '@renderer/paint/commands';
+import { Swatch } from '@renderer/paint/PaintsPanel';
+import { usePainter } from '@renderer/paint/painter';
+import { useOptionalShell } from '@renderer/shell/ShellContext';
 import styles from './MaterialsPanel.module.css';
 
 const SLOT_LABELS: Record<TextureSlot, string> = {
@@ -132,6 +136,13 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
   const selection = useSceneStore((s) => s.selection);
   const others = useProjectStore((s) => s.doc?.materials ?? EMPTY_ARR);
   const layer = def.layers[layerIndex]!;
+  const paints = useProjectStore((s) => s.doc?.paints);
+  const shell = useOptionalShell();
+  const showPaints = () => {
+    shell?.showPanel('paints');
+    usePainter.getState().set({ materialId: def.id });
+  };
+  const paintFor = (i: number) => paints?.list.find((p) => p.id === paints.defaults[i]);
   const set = (patch: Partial<MaterialLayer>) => mc.updateLayer(def.id, layerIndex, patch);
   const setDef = (patch: Partial<MaterialDef>) => mc.updateMaterial(def.id, patch);
 
@@ -150,6 +161,20 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
 
       <FieldGroup title="Kind">
         <Toggle checked={def.paint} onChange={(paint) => setDef({ paint })} label="Car paint (uses the player's paint colours)" />
+        {def.paint && (
+          <Field label="Paint slot" hint="Put all of it on one of the car's three paints, or paint which goes where in the Paints panel.">
+            <div className={styles.slotRow}>
+              {[0, 1, 2].map((i) => (
+                <Button key={i} size="sm" onClick={() => void setMaterialSlot(def.id, i as 0 | 1 | 2)} data-testid={`material-slot-${i + 1}`}>
+                  <Swatch paint={paintFor(i)} /> Paint {i + 1}
+                </Button>
+              ))}
+              <Button size="sm" variant="ghost" onClick={() => showPaints()}>
+                Paint on the car…
+              </Button>
+            </div>
+          </Field>
+        )}
         <Field label="Use a BeamNG material instead" hint="Type the name of one of the game's own materials (e.g. vehicle_glass); nothing is exported for this one.">
           <Input value={def.gameMaterial ?? ''} onChange={(e) => setDef({ gameMaterial: e.target.value.trim() || null })} placeholder="(this project's material)" mono />
         </Field>
@@ -232,7 +257,19 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
       </FieldGroup>
 
       <FieldGroup title="Rendering">
-        <Toggle checked={def.doubleSided} onChange={(doubleSided) => setDef({ doubleSided })} label="Double-sided" />
+        <Field label="Sides" hint={def.backMaterialId ? 'The back faces are exported again, turned round, with the inside material: e.g. body colour outside, bare metal or carpet inside.' : undefined}>
+          <Select
+            value={def.backMaterialId ? `back:${def.backMaterialId}` : def.doubleSided ? 'both' : 'front'}
+            onChange={(v) => setDef(v === 'front' ? { doubleSided: false, backMaterialId: null } : v === 'both' ? { doubleSided: true, backMaterialId: null } : { doubleSided: false, backMaterialId: v.slice(5) })}
+            options={[
+              { value: 'front', label: 'Front only' },
+              { value: 'both', label: 'Both sides, same material' },
+              ...others.filter((m) => m.id !== def.id).map((m) => ({ value: `back:${m.id}`, label: `Different inside: ${m.name}` })),
+            ]}
+            aria-label="Sides"
+            data-testid="material-sides"
+          />
+        </Field>
         <Toggle checked={def.castShadows} onChange={(castShadows) => setDef({ castShadows })} label="Cast shadows" />
         <Toggle checked={def.dynamicCubemap} onChange={(dynamicCubemap) => setDef({ dynamicCubemap })} label="Reflect the surroundings" />
         <Toggle checked={layer.vertColor} onChange={(vertColor) => set({ vertColor })} label="Use vertex colours" />

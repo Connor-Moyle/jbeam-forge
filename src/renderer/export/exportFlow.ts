@@ -80,6 +80,15 @@ export function prepareExport(): PreparedExport | null {
   const namer = createTextureNamer(slug);
   const takenNames = new Set<string>();
   const usedIds = new Set(exported.flatMap((m) => slotsOf(doc, m.key) ?? []));
+  // Two-sided materials bring their back material along.
+  const backOf = (id: string) => {
+    const back = doc.materials.find((d) => d.id === id)?.backMaterialId;
+    return back && back !== id && doc.materials.some((d) => d.id === back) ? back : null;
+  };
+  for (const id of [...usedIds]) {
+    const back = backOf(id);
+    if (back) usedIds.add(back);
+  }
   const project = projectMaterialExport(slug, doc.materials.filter((d) => usedIds.has(d.id)), namer, takenNames);
   const unslotted = exported.filter((m) => !slotsOf(doc, m.key)?.length);
   const mats = collectMaterials(
@@ -95,6 +104,7 @@ export function prepareExport(): PreparedExport | null {
       name: meshNames.get(m.key)!,
       geometry: m.geometry,
       materials: ids?.length ? ids.map((id) => project.names.get(id) ?? `${slug}_missing`) : imported.map((mat) => mats.names.get(mat)!),
+      ...(ids?.some((id) => backOf(id)) ? { backMaterials: ids.map((id) => (backOf(id) ? (project.names.get(backOf(id)!) ?? null) : null)) } : {}),
       flipV: formatOf.get(m.sourceId) === 'gltf' || formatOf.get(m.sourceId) === 'glb',
     };
   });

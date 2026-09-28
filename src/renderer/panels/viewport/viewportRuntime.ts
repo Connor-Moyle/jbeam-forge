@@ -1,4 +1,5 @@
 import {
+  type Intersection,
   Box3,
   BufferGeometry,
   Color,
@@ -71,6 +72,8 @@ export interface ViewState {
   focus: readonly string[] | null;
   /** Project materials per mesh (meshes without one keep their imported material). */
   materials?: ReadonlyMap<string, Material | Material[]>;
+  /** Two-sided materials: what the back faces show, per mesh. */
+  backMaterials?: ReadonlyMap<string, Material>;
 }
 
 /** Face-selection split tool, as the viewport needs it (see src/renderer/split/splitTool.ts). */
@@ -120,6 +123,15 @@ export interface ViewportCallbacks {
   onGizmoMove?: (delta: Vec3, done: boolean) => void;
   /** Modelling: the gizmo on the selected meshes moved, turned or resized them about `pivot` (BeamNG space). */
   onMeshTransform?: (t: MeshGizmoTransform, done: boolean) => void;
+  /** Paint brush: the surface under the pointer while painting (null: off the car). */
+  onBrush?: (hit: BrushHit | null, phase: 'start' | 'move' | 'end') => void;
+}
+
+/** Where the paint brush touches a mesh: its key, the triangle, and the texture coordinate there. */
+export interface BrushHit {
+  meshKey: string;
+  face: number;
+  uv: [number, number] | null;
 }
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
@@ -192,6 +204,8 @@ export class ViewportRuntime {
   private view: ViewState = { meshes: [], hidden: {}, selection: [], hover: null, focus: null };
   private pendingHover: { x: number; y: number } | null = null;
   private tool: ToolState | null = null;
+  /** Paint brush on: left-drag paints instead of orbiting. */
+  private brush = false;
   private toolOverlay: Mesh | null = null;
   private toolOverlayFor: { geometry: BufferGeometry; selected: readonly number[] } | null = null;
   private readonly toolMaterial: MeshBasicMaterial;
@@ -447,6 +461,28 @@ export class ViewportRuntime {
       this.callbacks.onEditPick?.(hit.node, hit.beam, d.op);
     });
 
+    // Paint brush: left-drag paints on the surface under the pointer.
+    let brushing = false;
+    const brushAt = (e: PointerEvent): BrushHit | null => {
+      const hit = this.hitAt(e.clientX, e.clientY);
+      if (!hit || hit.faceIndex == null) return null;
+      return { meshKey: hit.object.userData.meshKey as string, face: hit.faceIndex, uv: hit.uv ? [hit.uv.x, hit.uv.y] : null };
+    };
+    this.listen(canvas, 'pointerdown', (e) => {
+      if (!this.brush || e.button !== 0 || this.tool || this.edit) return;
+      brushing = true;
+      canvas.setPointerCapture?.(e.pointerId);
+      this.callbacks.onBrush?.(brushAt(e), 'start');
+    });
+    this.listen(canvas, 'pointermove', (e) => {
+      if (brushing) this.callbacks.onBrush?.(brushAt(e), 'move');
+    });
+    this.listen(canvas, 'pointerup', (e) => {
+      if (!brushing || e.button !== 0) return;
+      brushing = false;
+      this.callbacks.onBrush?.(null, 'end');
+    });
+
     // Split tool gestures take the left button (orbit moves to the right button meanwhile).
     this.listen(canvas, 'pointerdown', (e) => {
       const t = this.tool;
@@ -469,7 +505,7 @@ export class ViewportRuntime {
         } else this.pendingPaint = { x: e.clientX, y: e.clientY, op: drag.op };
         return;
       }
-      if (!this.tool && !this.edit) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
+      if (!this.tool && !this.edit && !this.brush) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
     });
     this.listen(canvas, 'pointerup', (e) => {
       if (!drag || e.button !== 0) return;
@@ -492,6 +528,7 @@ export class ViewportRuntime {
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       down = null;
       if (moved > CLICK_MAX_DRAG_PX) return; // an orbit drag, not a click
+      if (this.brush) return; // painting never changes the selection
       if (this.tool) {
         if (this.tool.mode === 'fill') {
           const face = this.pickToolFace(e.clientX, e.clientY);
@@ -504,7 +541,7 @@ export class ViewportRuntime {
       this.callbacks.onPick(this.pick(e.clientX, e.clientY), { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
     });
     this.listen(canvas, 'dblclick', (e) => {
-      if (this.tool) return;
+      if (this.tool || this.brush) return;
       if (this.edit) {
         const r = canvas.getBoundingClientRect();
         this.callbacks.onEditDouble?.(this.pickEdit(e.clientX - r.left, e.clientY - r.top).node);
@@ -516,8 +553,13 @@ export class ViewportRuntime {
 
   /** Mesh key under the given client point, or null. */
   pick(clientX: number, clientY: number): string | null {
+    return (this.hitAt(clientX, clientY)?.object.userData.meshKey as string | undefined) ?? null;
+  }
+
+  /** The nearest visible mesh surface under a client point (in-focus meshes first). */
+  private hitAt(clientX: number, clientY: number): Intersection | undefined {
     const rect = this.canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return null;
+    if (rect.width === 0 || rect.height === 0) return undefined;
     this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(this.pointer, this.camera);
     const candidates: Mesh[] = [];
@@ -534,8 +576,15 @@ export class ViewportRuntime {
     }
     const focus = this.focusSet;
     const inFocus = focus ? candidates.filter((m) => focus.has(m.userData.meshKey as string)) : candidates;
-    const hit = this.raycaster.intersectObjects(inFocus, false)[0] ?? (focus ? this.raycaster.intersectObjects(candidates, false)[0] : undefined);
-    return (hit?.object.userData.meshKey as string | undefined) ?? null;
+    return this.raycaster.intersectObjects(inFocus, false)[0] ?? (focus ? this.raycaster.intersectObjects(candidates, false)[0] : undefined);
+  }
+
+  /** Paint brush on or off. */
+  setBrush(on: boolean): void {
+    if (this.brush === on) return;
+    this.brush = on;
+    this.updateMouseButtons();
+    if (on) this.callbacks.onHover(null);
   }
 
   /** Apply the scene store's state (diffed; geometry is shared, not copied). */
@@ -565,11 +614,33 @@ export class ViewportRuntime {
     if (next.materials !== prev.materials || next.meshes !== prev.meshes) {
       for (const [key, obj] of this.meshObjects) obj.userData.material = next.materials?.get(key) ?? (obj.userData.imported as Material | Material[]);
     }
+    if (next.backMaterials !== prev.backMaterials || next.meshes !== prev.meshes) this.syncBackFaces();
     if (next.focus !== prev.focus || next.meshes !== prev.meshes || next.materials !== prev.materials) this.applyFocus();
     this.syncOverlays();
     if (this.tool) {
       this.syncToolOverlay();
       this.syncPlane();
+    }
+  }
+
+  /** Two-sided materials: a back-faces-only copy of the mesh, riding along with it and never picked. */
+  private syncBackFaces(): void {
+    for (const [key, obj] of this.meshObjects) {
+      const want = this.view.backMaterials?.get(key);
+      let back = obj.userData.back as Mesh | undefined;
+      if (!want) {
+        if (back) obj.remove(back);
+        obj.userData.back = undefined;
+        continue;
+      }
+      if (!back || back.geometry !== obj.geometry) {
+        if (back) obj.remove(back);
+        back = new Mesh(obj.geometry, want);
+        back.raycast = () => undefined;
+        obj.add(back);
+        obj.userData.back = back;
+      }
+      back.material = want;
     }
   }
 
@@ -979,7 +1050,7 @@ export class ViewportRuntime {
 
   private updateMouseButtons(): void {
     const t = this.tool;
-    const gesture = !!this.edit || (!!t && (t.mode === 'box' || t.mode === 'lasso' || t.mode === 'paint'));
+    const gesture = this.brush || !!this.edit || (!!t && (t.mode === 'box' || t.mode === 'lasso' || t.mode === 'paint'));
     this.controls.mouseButtons = gesture ? { LEFT: -1 as MOUSE, MIDDLE: MOUSE.PAN, RIGHT: MOUSE.ROTATE } : { LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
   }
 

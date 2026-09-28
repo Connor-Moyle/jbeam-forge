@@ -59,7 +59,7 @@ async function start(): Promise<void> {
   const objectPack = loadBundledObjects(objectsDir, scoped('objects'));
   // Your own library folders: scanned in the background once the window is up (see below).
   const userLibrary = new UserLibrary(join(userData, 'library-scan'), scoped('library'), (dir) => projects.grantRoot(dir));
-  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, userLibrary, kn5Cache: join(userData, 'kn5-textures'), harness });
+  registerIpcHandlers({ settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack, userLibrary, kn5Cache: join(userData, 'kn5-textures'), paintedTextures: join(userData, 'painted-textures'), harness });
   const scanLibrary = () => {
     const s = settings.get();
     if (!s.materialFolders.length && !s.objectFolders.length && !s.beamngInstallDir && !userLibrary.items.folders.length) return;
