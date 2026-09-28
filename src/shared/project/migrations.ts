@@ -139,6 +139,11 @@ export const MIGRATIONS: readonly Migration[] = [
       };
     },
   },
+  {
+    from: 16,
+    describe: 'vinyl layers',
+    migrate: (doc) => ({ ...doc, formatVersion: 17, vinyls: [] }),
+  },
 ];
 
 export class MigrationError extends Error {

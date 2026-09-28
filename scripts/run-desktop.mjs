@@ -333,7 +333,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 16 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 17 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await waitSaved(page);
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -392,7 +392,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       await waitSaved(page);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 16 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 17 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -1115,6 +1115,45 @@ const scenarios = [
       assert((await hook(page, 'painterState')).tool === 'brush', 'the eyedropper hands back to the brush');
       await shot(page, 'paint-livery');
 
+      // Vinyl layers, the livery-editor way: a shape, text and a ready-made group from the left, moved on the car, mirrored, grouped, undone.
+      await page.getByTestId('vinyl-edit').click();
+      await page.getByTestId('vinyl-view-left').click();
+      await page.getByTestId('vinyl-add-shape').click();
+      await page.getByTestId('vinyl-shape-star').click();
+      await page.getByTestId('vinyl-add-text').click();
+      await page.getByLabel('Add a ready-made vinyl group').click();
+      await page.getByRole('option', { name: 'Race number roundel' }).click();
+      let vs = await hook(page, 'vinylState');
+      assert(vs.layers.length === 5 && vs.groups.length === 1 && vs.selected.length === 3, `star, text and a 3-layer group added (${JSON.stringify(vs)})`);
+      await page.waitForTimeout(1500);
+      await shot(page, 'vinyl-added');
+      // Drag the group (on top, in the middle of the side) forward along the car.
+      const vp2 = await page.locator('[data-panel=viewport] canvas').first().boundingBox();
+      const [mx, my] = [vp2.x + vp2.width / 2, vp2.y + vp2.height / 2];
+      const before = vs.layers.find((l) => l.name === 'Roundel');
+      await page.mouse.move(mx, my);
+      await page.mouse.down();
+      for (let k = 1; k <= 10; k++) await page.mouse.move(mx - k * 12, my - k * 4);
+      await page.mouse.up();
+      await page.waitForTimeout(800);
+      vs = await hook(page, 'vinylState');
+      const after = vs.layers.find((l) => l.name === 'Roundel');
+      assert(Math.abs(after.x - before.x) > 0.05, `dragging moved the group along the car (${before.x} → ${after.x})`);
+      // Mirror the selection onto the right side, turn it with the keyboard, then undo the turn.
+      await page.getByRole('switch', { name: 'Mirror on the other side' }).click();
+      await page.getByTestId('viewport').focus();
+      await page.keyboard.press('q');
+      vs = await hook(page, 'vinylState');
+      assert(vs.layers.filter((l) => l.groupId).every((l) => l.mirror && l.rotation > 0), `group mirrored and turned (${JSON.stringify(vs.layers)})`);
+      await hook(page, 'runCommand', 'undo');
+      vs = await hook(page, 'vinylState');
+      assert(vs.layers.filter((l) => l.groupId).every((l) => l.rotation === 0), 'undo takes the turn back');
+      await page.waitForTimeout(1500);
+      await shot(page, 'vinyl-moved');
+      await page.getByTestId('vinyl-view-right').click();
+      await page.waitForTimeout(800);
+      await shot(page, 'vinyl-mirrored-right');
+
       // Both pictures are saved, and the material uses them.
       const painted = join(userData, 'painted-textures');
       let files = [];
@@ -1145,6 +1184,7 @@ const scenarios = [
       const liveryStage = paint.Stages.find((st) => typeof st.baseColorMap === 'string' && st.baseColorMap.includes('livery'));
       assert(out.includes(maskFile), `mask texture exported (${maskFile} in ${out.join(', ')})`);
       assert(liveryStage && out.includes(liveryStage.baseColorMap.split('/').pop()), `livery layer exported (${JSON.stringify(paint.Stages)})`);
+      assert(readdirSync(painted).some((f) => f.endsWith('_livery_base.png')), 'the freehand painting is kept apart from the vinyls');
       const info = JSON.parse(readFileSync(join(vdir, 'info.json'), 'utf8'));
       assert(info.defaultPaintName2 === 'Hot Pink', `scheme paints in info.json (${info.defaultPaintName1}, ${info.defaultPaintName2})`);
       await page.getByRole('button', { name: 'Done' }).click();

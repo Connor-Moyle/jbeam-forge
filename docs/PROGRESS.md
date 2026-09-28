@@ -113,6 +113,23 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - **Harness:** a new `paint` scenario on a UV-mapped box (`tests/fixtures/models/uv_box.obj`) covers paint material, camo over the material, mirrored brush, stamp, eyedropper and export, checking that the mask and livery PNGs are saved and exported.
 - **Verification:** `npm test` 648/648 ✔ · `npm run run-desktop` 17/17 ✔.
 
+**Vinyl editor, livery-editor style** (Paints panel → Vinyl layers; project format v17)
+- **Non-destructive layers stored in the project**, so every change is undoable and a layer can be moved or recoloured any time later. Each layer is a shape, text or image with:
+  - side (left, right, top, front or back), position and size in metres, rotation, slant, flips;
+  - solid, linear-gradient or radial-gradient fill;
+  - opacity, and a mode: normal, cut out (erase below) or clip to the layer below;
+  - "mirror on the other side" (text stays readable), plus show/hide, lock and group.
+- **Projection:** each layer is projected onto the car from its side and composited into the material's texels from the car's own 3D surface (`src/shared/paints/vinyl.ts`). Layers wrap across panels and fade where the surface turns away.
+- **On the paint slots,** layer colours are the car's three paints, so players recolour the whole design in game.
+- **The freehand painting stays underneath,** saved separately (`<name>_base.png`); the game gets the two combined.
+- **Shapes:** 43 in the library (basics, stripes and bars, graphics: stars, flames, tribal, claws, splats, chevrons, checks, shields, wings…).
+- **Adding:** text in 10 fonts, images, 10 ready-made designs (roundels, number boards, sponsor blocks, hot-rod flames, stripes, chevrons…), and saving/opening vinyl groups as `.jbvinyl` files to reuse on other cars.
+- **On the car** (vinyl tool, V): click a layer to pick it (its whole group); drag to move it along the car, Shift-drag to resize, Alt-drag to turn, Ctrl-click to put it there. Left/Right/Top/Front/Back camera snaps.
+- **Keys:** arrows move (Shift ×10, Alt fine), Q/E turn, +/− resize, H hide, Del, Ctrl+D duplicate, Ctrl+G group. Ctrl+Z undoes vinyl edits.
+- **Layer list:** top first, groups, drag to reorder, multi-select (Ctrl/Shift). Actions: up, down, top, bottom, duplicate, mirrored copy, group, ungroup, save group, delete. Multi-selection adds align and set-for-all.
+- **Rendering:** drags render at preview quality and settle to full resolution, then save. The selected layers' outline shows on the car but is never saved.
+- **Verification:** `npm test` 662/662 ✔ · `npm run run-desktop` 17/17 ✔. The paint scenario now adds a shape, text and a ready-made group from the left, drags the group along the car, mirrors it, turns it by keyboard, undoes, and views the right side. A Y-up version of `uv_box.obj` puts the box the right way up.
+
 **Two-sided materials** (Materials → Rendering → Sides)
 - Choices: front only, both sides the same, or a different inside (another material on the back faces).
 - The back faces are exported as the triangles again, turned round with reversed normals, and previewed in the viewport.

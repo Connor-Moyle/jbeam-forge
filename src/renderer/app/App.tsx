@@ -34,6 +34,7 @@ import type { MeshGizmoTransform } from '@renderer/panels/viewport/viewportRunti
 import { useLibrary } from '@renderer/materials/LibraryDialog';
 import type { AppCommand } from '@shared/ipc-contract';
 import { usePainter } from '@renderer/paint/painter';
+import { currentSet, useVinylUi } from '@renderer/paint/vinyls';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -172,6 +173,10 @@ function AppEffects() {
         offerAutoClassify: () => {
           const meshes = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes);
           offerAutoClassify('harness', meshes);
+        },
+        vinylState: () => {
+          const set = currentSet();
+          return { layers: (set?.layers ?? []).map((l) => ({ id: l.id, name: l.name, side: l.side, x: l.x, y: l.y, w: l.w, h: l.h, rotation: l.rotation, mirror: l.mirror, groupId: l.groupId })), groups: set?.groups ?? [], selected: useVinylUi.getState().selected };
         },
         painterState: () => {
           const p = usePainter.getState();

@@ -490,6 +490,26 @@ export function registerIpcHandlers(services: HandlerServices): void {
     z.object({ suggestedName: z.string().regex(/^[^\\/:*?"<>|]{1,200}$/), bytes: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 256 * 1024 * 1024) }),
   );
 
+  const VINYL_FILTERS = [{ name: 'JBeam Forge vinyl group (.jbvinyl)', extensions: ['jbvinyl'] }];
+  registerInvoke(
+    'vinyl:save',
+    async ({ suggestedName, text }, event) => {
+      const picked = await pickSaveFile(event.sender, { title: 'Save vinyl group', defaultPath: suggestedName, filters: VINYL_FILTERS });
+      if (!picked) return null;
+      const path = picked.toLowerCase().endsWith('.jbvinyl') ? picked : `${picked}.jbvinyl`;
+      await writeFile(path, text, 'utf8');
+      return path;
+    },
+    z.object({ suggestedName: z.string().regex(/^[^\\/:*?"<>|]{1,200}$/), text: z.string().max(20_000_000) }),
+  );
+  registerInvoke('vinyl:open', async (_req, event) => {
+    const path = await pickOpenFile(event.sender, { title: 'Open vinyl group', filters: VINYL_FILTERS, properties: ['openFile'] });
+    if (!path) return null;
+    const size = (await stat(path)).size;
+    if (size > 20_000_000) throw new Error('That file is too big to be a vinyl group.');
+    return { path, text: await readFile(path, 'utf8') };
+  });
+
   registerInvoke('materials:pickTexture', async (_req, event) => {
     const path = await pickOpenFile(event.sender, {
       title: 'Choose a texture',

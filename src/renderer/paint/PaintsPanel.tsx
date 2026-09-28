@@ -14,6 +14,7 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { cx } from '@renderer/ui/cx';
 import { addPaint, applyScheme, deletePaint, setDefaultPaint, updatePaint } from './commands';
 import { PaintStudio } from './PaintStudio';
+import { VinylEditor } from './VinylEditor';
 import styles from './PaintsPanel.module.css';
 
 /**
@@ -72,6 +73,8 @@ export function PaintsPanel() {
         </FieldGroup>
 
         <PaintStudio />
+
+        <VinylEditor />
 
         <FieldGroup title={`Factory paints (${paints.length})`}>
           <div className={styles.list} role="listbox" aria-label="Paints">

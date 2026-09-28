@@ -3,7 +3,7 @@
 exports[`.jbforge io > serializes an empty project deterministically (snapshot) 1`] = `
 "{
   "format": "jbforge",
-  "formatVersion": 16,
+  "formatVersion": 17,
   "appVersion": "0.1.0",
   "meta": {
     "name": "Test Car",
@@ -59,7 +59,8 @@ exports[`.jbforge io > serializes an empty project deterministically (snapshot) 
       null,
       null
     ]
-  }
+  },
+  "vinyls": []
 }
 "
 `;

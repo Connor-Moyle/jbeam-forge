@@ -44,12 +44,12 @@ export function runAppCommand(command: AppCommand): void {
       // Text fields keep their own undo; everything else undoes document edits.
       if (isEditableTarget(document.activeElement)) document.execCommand('undo');
       // While painting on the car, undo takes back strokes (they aren't document edits).
-      else if (usePainter.getState().on) undoStroke();
+      else if (usePainter.getState().on && usePainter.getState().tool !== 'vinyl') undoStroke();
       else undo();
       break;
     case 'redo':
       if (isEditableTarget(document.activeElement)) document.execCommand('redo');
-      else if (usePainter.getState().on) redoStroke();
+      else if (usePainter.getState().on && usePainter.getState().tool !== 'vinyl') redoStroke();
       else redo();
       break;
     case 'selectAll':

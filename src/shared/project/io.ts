@@ -148,5 +148,6 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     variables: [],
     features: { plates: { front: null, rear: null }, hitch: null, nitrous: null, skins: [] },
     paints: { list: [], defaults: [null, null, null] },
+    vinyls: [],
   });
 }

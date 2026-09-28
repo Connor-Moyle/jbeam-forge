@@ -35,7 +35,7 @@ import { addPaint, canvasPng, MASK_COLORS } from './commands';
 const logger = rlog('paint');
 
 export type PaintTarget = 'mask' | 'livery';
-export type BrushTool = 'brush' | 'erase' | 'fill' | 'pattern' | 'stamp' | 'picker';
+export type BrushTool = 'brush' | 'erase' | 'fill' | 'pattern' | 'stamp' | 'picker' | 'vinyl';
 export type Rgb = [number, number, number];
 export type Slot = 0 | 1 | 2;
 
@@ -120,11 +120,24 @@ export const usePainter = create<PainterState>()((set) => ({
   set: (patch) => set(patch),
 }));
 
-interface Surface {
+/**
+ * A material's mask or livery being painted. `canvas` is the freehand
+ * painting (brush, fills, patterns, stamps: saved as <name>_base.png); the
+ * vinyl layers are rendered into `vinyl`; `out` is the two together, which
+ * is what the car shows and what the game gets (saved as <name>.png).
+ */
+export interface Surface {
   canvas: HTMLCanvasElement;
   g: CanvasRenderingContext2D;
+  out: HTMLCanvasElement;
+  outG: CanvasRenderingContext2D;
+  /** Vinyl layers (maybe a smaller preview while a layer is being dragged). */
+  vinyl: HTMLCanvasElement | null;
+  /** The selected layer's outline, shown on the car but never saved. */
+  overlay: HTMLCanvasElement | null;
   tex: CanvasTexture;
   path: string;
+  basePath: string;
   /** Texture rows run bottom-up (DAE/FBX/OBJ UVs) or top-down (glTF). */
   flipY: boolean;
   undo: ImageData[];
@@ -139,13 +152,15 @@ const MAX_UNDO = 12;
 
 const surfaceKey = (materialId: string, target: PaintTarget) => `${materialId}:${target}`;
 const fileFor = (slug: string, materialId: string, target: PaintTarget) => `${slug}_${materialId.replace(/[^\w.-]+/g, '_')}_${target === 'livery' ? LIVERY_SUFFIX.slice(1) : 'paintmask.png'}`;
+const baseFileOf = (path: string) => path.replace(/\.png$/i, '_base.png');
+const nameOf = (path: string) => path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
 const status = (text: string, tone: 'info' | 'success' | 'warning' | 'danger' = 'info', ms?: number) => useUiStore.getState().pushStatus(text, tone, ms);
 
 function doc() {
   return projectStore.getState().doc;
 }
 
-interface MeshInfo {
+export interface MeshInfo {
   key: string;
   geometry: BufferGeometry;
   flipY: boolean;
@@ -175,7 +190,7 @@ export function meshesOfMaterial(materialId: string): MeshInfo[] {
 }
 
 /** The whole car's extent (BeamNG space), for patterns laid out along it. */
-function carBounds(): Bounds {
+export function carBounds(): Bounds {
   const min: [number, number, number] = [Infinity, Infinity, Infinity];
   const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
   const hidden = useSceneStore.getState().hidden;
@@ -204,7 +219,7 @@ export function paintMaterialOf(meshKey: string): MaterialDef | null {
   return mats.find((m) => m.id === chosen) ?? mats[0] ?? null;
 }
 
-async function loadImage(path: string): Promise<ImageBitmap | null> {
+export async function loadImage(path: string): Promise<ImageBitmap | null> {
   try {
     const bytes = await call('import:readFile', { path });
     return await createImageBitmap(new Blob([bytes.slice()]));
@@ -225,7 +240,8 @@ async function surfaceFor(def: MaterialDef, target: PaintTarget, flipY: boolean)
     const d = doc();
     if (!d) return null;
     const existing = target === 'mask' ? def.layers[0]?.maps.colorPaletteMap : def.layers[liveryLayerIndex(def)]?.maps.baseColorMap;
-    const image = existing && !existing.startsWith('/vehicles/') ? await loadImage(existing) : null;
+    // The freehand painting under the vinyls, if it was kept; else the picture as it is.
+    const image = existing && !existing.startsWith('/vehicles/') ? ((await loadImage(baseFileOf(existing))) ?? (await loadImage(existing))) : null;
     const size = image ? Math.max(image.width, image.height) : usePainter.getState().resolution;
     const canvas = document.createElement('canvas');
     canvas.width = image?.width ?? size;
@@ -237,11 +253,17 @@ async function surfaceFor(def: MaterialDef, target: PaintTarget, flipY: boolean)
       g.fillStyle = MASK_COLORS[0]; // everything paint slot 1 to start with
       g.fillRect(0, 0, canvas.width, canvas.height);
     }
-    const tex = new CanvasTexture(canvas);
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const outG = out.getContext('2d', { willReadFrequently: true });
+    if (!outG) return null;
+    outG.drawImage(canvas, 0, 0);
+    const tex = new CanvasTexture(out);
     tex.flipY = flipY;
     tex.colorSpace = target === 'livery' ? SRGBColorSpace : NoColorSpace;
-    const path = await call('materials:saveTexture', { name: fileFor(d.meta.slug, def.id, target), bytes: await canvasPng(canvas) });
-    const surface: Surface = { canvas, g, tex, path, flipY, undo: [], redo: [], saving: null, dirty: false };
+    const path = await call('materials:saveTexture', { name: fileFor(d.meta.slug, def.id, target), bytes: await canvasPng(out) });
+    const surface: Surface = { canvas, g, out, outG, vinyl: null, overlay: null, tex, path, basePath: baseFileOf(path), flipY, undo: [], redo: [], saving: null, dirty: false };
     surfaces.set(key, surface);
     provideTexture(path, tex);
     // Point the material at the painted file (once; later strokes just rewrite it).
@@ -267,6 +289,16 @@ async function surfaceFor(def: MaterialDef, target: PaintTarget, flipY: boolean)
   return job;
 }
 
+/** A material's surface, made if need be (for the vinyl layers). */
+export async function ensureSurface(materialId: string, target: PaintTarget): Promise<Surface | null> {
+  const def = doc()?.materials.find((m) => m.id === materialId);
+  if (!def) return null;
+  return surfaceFor(def, target, meshesOfMaterial(def.id)[0]?.flipY ?? true);
+}
+
+/** A surface already made, if any. */
+export const surfaceOf = (materialId: string, target: PaintTarget): Surface | undefined => surfaces.get(surfaceKey(materialId, target));
+
 /** The surface of the chosen material and target, made if need be. */
 async function currentSurface(): Promise<{ surface: Surface; def: MaterialDef } | null> {
   const p = usePainter.getState();
@@ -280,15 +312,36 @@ async function currentSurface(): Promise<{ surface: Surface; def: MaterialDef } 
   return surface ? { surface, def } : null;
 }
 
-async function save(s: Surface): Promise<void> {
+/** The freehand painting with the vinyls over it (no selection outline): what the game gets. */
+export function composite(s: Surface): HTMLCanvasElement {
+  if (!s.vinyl) return s.canvas;
+  const c = document.createElement('canvas');
+  c.width = s.canvas.width;
+  c.height = s.canvas.height;
+  const g = c.getContext('2d')!;
+  g.drawImage(s.canvas, 0, 0);
+  g.drawImage(s.vinyl, 0, 0, c.width, c.height);
+  return c;
+}
+
+/** Show the latest on the car: the painting, the vinyls and the selection outline. */
+export function present(s: Surface): void {
+  const { out, outG } = s;
+  outG.clearRect(0, 0, out.width, out.height);
+  outG.drawImage(s.canvas, 0, 0);
+  if (s.vinyl) outG.drawImage(s.vinyl, 0, 0, out.width, out.height);
+  if (s.overlay) outG.drawImage(s.overlay, 0, 0, out.width, out.height);
+  s.tex.needsUpdate = true;
+}
+
+export async function save(s: Surface): Promise<void> {
   if (s.saving) {
     s.dirty = true;
     return;
   }
   s.dirty = false;
-  const name = s.path.slice(Math.max(s.path.lastIndexOf('/'), s.path.lastIndexOf('\\')) + 1);
-  s.saving = canvasPng(s.canvas)
-    .then((bytes) => call('materials:saveTexture', { name, bytes }))
+  s.saving = Promise.all([canvasPng(composite(s)), canvasPng(s.canvas)])
+    .then(([final, base]) => Promise.all([call('materials:saveTexture', { name: nameOf(s.path), bytes: final }), call('materials:saveTexture', { name: nameOf(s.basePath), bytes: base })]))
     .then(() => undefined)
     .catch((err: unknown) => {
       logger.error('saving a painted texture failed:', err instanceof Error ? err.message : String(err));
@@ -309,7 +362,7 @@ function snapshot(s: Surface): void {
 }
 
 function changed(s: Surface): void {
-  s.tex.needsUpdate = true;
+  present(s);
   usePainter.setState((st) => ({ rev: st.rev + 1 }));
   void save(s);
 }
@@ -375,7 +428,7 @@ function dab(s: Surface, x: number, y: number, hue: number, ppm: number): void {
 }
 
 /** A geometry attribute as a flat array (interleaved ones copied out). */
-function flat(attr: BufferAttribute | InterleavedBufferAttribute, size: number): ArrayLike<number> {
+export function flat(attr: BufferAttribute | InterleavedBufferAttribute, size: number): ArrayLike<number> {
   if (!('isInterleavedBufferAttribute' in attr) && attr.itemSize === size) return attr.array;
   const out = new Float32Array(attr.count * size);
   for (let i = 0; i < attr.count; i++) for (let k = 0; k < size; k++) out[i * size + k] = attr.getComponent(i, k);
@@ -520,7 +573,7 @@ async function stampAt(s: Surface, x: number, y: number, frame: SurfaceFrame | n
 /** Eyedropper: the colour (or paint slot) under the brush. */
 function pickAt(s: Surface, uv: [number, number]): void {
   const [x, y] = toPixel(s, uv);
-  const px = s.g.getImageData(Math.min(s.canvas.width - 1, Math.floor(x)), Math.min(s.canvas.height - 1, Math.floor(y)), 1, 1).data;
+  const px = composite(s).getContext('2d')!.getImageData(Math.min(s.canvas.width - 1, Math.floor(x)), Math.min(s.canvas.height - 1, Math.floor(y)), 1, 1).data;
   const p = usePainter.getState();
   if (p.target === 'mask') {
     const ch = [px[0]!, px[1]!, px[2]!];
@@ -553,7 +606,7 @@ export function onBrush(hit: BrushHit | null, phase: 'start' | 'move' | 'end'): 
   }
   if (phase === 'start') {
     pressed = true;
-    if (!hit) return;
+    if (!hit?.meshKey) return;
     const def = paintMaterialOf(hit.meshKey);
     if (!def) {
       status('That mesh has no paint material. Tick "Car paint" on its material in the Materials panel first.', 'warning', 6000);
@@ -636,7 +689,7 @@ function paintTrack(track: Track | undefined, hit: BrushHit | null): void {
     }
   } else dab(s, x, y, stroke.hue, ppm);
   track.last = [x, y];
-  s.tex.needsUpdate = true;
+  present(s);
 }
 
 function chosenSurface(): Surface | undefined {
@@ -709,7 +762,7 @@ export async function exportImage(): Promise<void> {
   const cur = await currentSurface();
   if (!cur) return;
   const p = usePainter.getState();
-  const path = await call('paint:saveImage', { suggestedName: `${cur.def.name}_${p.target === 'mask' ? 'paint_slots' : 'livery'}.png`, bytes: await canvasPng(cur.surface.canvas) });
+  const path = await call('paint:saveImage', { suggestedName: `${cur.def.name}_${p.target === 'mask' ? 'paint_slots' : 'livery'}.png`, bytes: await canvasPng(composite(cur.surface)) });
   if (path) status(`Saved ${path}`, 'success');
 }
 
@@ -726,7 +779,7 @@ export async function exportUvTemplate(): Promise<void> {
   c.height = s.canvas.height;
   const g = c.getContext('2d')!;
   g.globalAlpha = 0.35;
-  g.drawImage(s.canvas, 0, 0);
+  g.drawImage(composite(s), 0, 0);
   g.globalAlpha = 1;
   g.strokeStyle = css([0, 0, 0], 0.85);
   g.lineWidth = Math.max(1, c.width / 2048);
@@ -764,7 +817,7 @@ export function surfacePreview(materialId: string, target: PaintTarget, size = 1
   if (!s) return null;
   const c = document.createElement('canvas');
   c.width = c.height = size;
-  c.getContext('2d')?.drawImage(s.canvas, 0, 0, size, size);
+  c.getContext('2d')?.drawImage(composite(s), 0, 0, size, size);
   return c.toDataURL('image/png');
 }
 

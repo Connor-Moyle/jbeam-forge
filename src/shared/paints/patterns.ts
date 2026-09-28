@@ -153,11 +153,12 @@ export function patternAt(spec: PatternSpec, p: Vec3, bounds: Bounds): PatternSa
  * so there are no hairline gaps along its edges.
  */
 export function rasterizeMesh(
-  mesh: { positions: ArrayLike<number>; uvs: ArrayLike<number>; index: ArrayLike<number> | null },
+  mesh: { positions: ArrayLike<number>; uvs: ArrayLike<number>; index: ArrayLike<number> | null; normals?: ArrayLike<number> | null },
   size: { width: number; height: number; flipY: boolean },
-  write: (x: number, y: number, pos: Vec3) => void,
+  write: (x: number, y: number, pos: Vec3, nrm: Vec3 | null) => void,
 ): number {
   const { positions: P, uvs: U, index } = mesh;
+  const Nn = mesh.normals ?? null;
   const count = index ? index.length : P.length / 3;
   const { width: W, height: H } = size;
   let pixels = 0;
@@ -177,6 +178,7 @@ export function rasterizeMesh(
     const y0 = Math.max(0, Math.floor(Math.min(a[1], b[1], c[1]) - 1));
     const y1 = Math.min(H - 1, Math.ceil(Math.max(a[1], b[1], c[1]) + 1));
     const pos = (k: number, i: number) => P[v[k]! * 3 + i]!;
+    const nrm = (k: number, i: number) => Nn![v[k]! * 3 + i]!;
     for (let y = y0; y <= y1; y++) {
       for (let x = x0; x <= x1; x++) {
         const sx = x + 0.5;
@@ -185,7 +187,7 @@ export function rasterizeMesh(
         const w1 = ((c[0] - sx) * (a[1] - sy) - (a[0] - sx) * (c[1] - sy)) / area;
         const w2 = 1 - w0 - w1;
         if (w0 < -eps || w1 < -eps || w2 < -eps) continue;
-        write(x, y, [0, 1, 2].map((i) => w0 * pos(0, i) + w1 * pos(1, i) + w2 * pos(2, i)) as Vec3);
+        write(x, y, [0, 1, 2].map((i) => w0 * pos(0, i) + w1 * pos(1, i) + w2 * pos(2, i)) as Vec3, Nn ? ([0, 1, 2].map((i) => w0 * nrm(0, i) + w1 * nrm(1, i) + w2 * nrm(2, i)) as Vec3) : null);
         pixels++;
       }
     }

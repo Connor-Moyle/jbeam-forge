@@ -14,7 +14,7 @@ import { HingeSchema } from '../hinges/schema';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 16;
+export const CURRENT_PROJECT_VERSION = 17;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -348,6 +348,67 @@ export const PaintsSchema = z.object({
   defaults: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]),
 });
 
+const Rgb01 = z.tuple([z.number().min(0).max(1), z.number().min(0).max(1), z.number().min(0).max(1)]);
+const SlotIndex = z.number().int().min(0).max(2);
+
+/**
+ * A vinyl layer (v17): a shape, text or image placed on the car, the way a
+ * livery editor's layers are. It's projected onto the car from one side, at
+ * (x, y) in that side's view (metres from the middle of the car, x to the
+ * viewer's right, y up), w × h metres, turned and skewed. On a livery it has
+ * colours; on the paint-slot mask, paint slots.
+ */
+export const VinylLayerSchema = z.object({
+  id: z.string().min(1),
+  name: z.string(),
+  kind: z.enum(['shape', 'text', 'image']),
+  /** Shape library id (src/shared/paints/shapes.ts). */
+  shape: z.string(),
+  text: z.string(),
+  font: z.string(),
+  bold: z.boolean(),
+  italic: z.boolean(),
+  /** Image file, for image layers. */
+  image: z.string().nullable(),
+  side: z.enum(['left', 'right', 'top', 'front', 'back']),
+  x: z.number(),
+  y: z.number(),
+  w: z.number().positive(),
+  h: z.number().positive(),
+  /** Degrees, anticlockwise as seen. */
+  rotation: z.number(),
+  /** Degrees of horizontal slant. */
+  skew: z.number(),
+  flipX: z.boolean(),
+  flipY: z.boolean(),
+  fill: z.enum(['solid', 'linear', 'radial']),
+  color: Rgb01,
+  color2: Rgb01,
+  /** Paint slots on the mask. */
+  slot: SlotIndex,
+  slot2: SlotIndex,
+  /** Linear fills: degrees; 0 runs left to right. */
+  gradientAngle: z.number(),
+  opacity: z.number().min(0).max(1),
+  /** normal; erase: cuts through the layers below; clip: shows only where the layer below is. */
+  mode: z.enum(['normal', 'erase', 'clip']),
+  /** Also on the other side of the car, mirrored across its centre line. */
+  mirror: z.boolean(),
+  /** The mirrored copy of text and images isn't reversed. */
+  readable: z.boolean(),
+  visible: z.boolean(),
+  locked: z.boolean(),
+  groupId: z.string().nullable(),
+});
+
+/** One material's vinyls, on its livery or its paint-slot mask (bottom layer first). */
+export const VinylSetSchema = z.object({
+  materialId: z.string().min(1),
+  target: z.enum(['livery', 'mask']),
+  layers: z.array(VinylLayerSchema),
+  groups: z.array(z.object({ id: z.string().min(1), name: z.string() })),
+});
+
 const Mount = z.object({ partId: z.string().min(1), pos: Vec3 });
 const unit = z.number().min(0).max(1);
 
@@ -374,9 +435,9 @@ export const FeaturesSchema = z.object({
   skins: z.array(SkinSchema),
 });
 
-export const ProjectV16Schema = z.object({
+export const ProjectV17Schema = z.object({
   format: z.literal(PROJECT_FORMAT),
-  formatVersion: z.literal(16),
+  formatVersion: z.literal(17),
   appVersion: z.string(),
   meta: ProjectMetaSchema,
   sources: z.array(SourceSchema),
@@ -418,9 +479,11 @@ export const ProjectV16Schema = z.object({
   features: FeaturesSchema,
   /** Factory paints and the default car's paint slots (v16). */
   paints: PaintsSchema,
+  /** Vinyl layers per material (v17). */
+  vinyls: z.array(VinylSetSchema),
 });
 
-export const ProjectSchema = ProjectV16Schema;
+export const ProjectSchema = ProjectV17Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
@@ -436,6 +499,8 @@ export type VehicleConfig = z.infer<typeof VehicleConfigSchema>;
 export type Features = z.infer<typeof FeaturesSchema>;
 export type Skin = z.infer<typeof SkinSchema>;
 export type Paint = z.infer<typeof PaintSchema>;
+export type VinylLayer = z.infer<typeof VinylLayerSchema>;
+export type VinylSet = z.infer<typeof VinylSetSchema>;
 export type PowertrainEdits = z.infer<typeof PowertrainEditsSchema>;
 export type SourceFormat = (typeof SOURCE_FORMATS)[number];
 export type Axis = (typeof AXES)[number];

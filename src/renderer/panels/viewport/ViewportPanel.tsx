@@ -14,6 +14,7 @@ import type { Material } from 'three';
 import { backMaterialFor, materialFor, useTextureVersion } from '@renderer/materials/runtime';
 import { startPaintSync } from '@renderer/paint/sync';
 import { onBrush, usePainter } from '@renderer/paint/painter';
+import { SIDE_FRAMES, startVinylSync, useVinylUi, vinylKey, vinylPointer } from '@renderer/paint/vinyls';
 import { assignMaterial, MIME_MATERIAL } from '@renderer/materials/commands';
 import { slotsOf } from '@renderer/materials/seed';
 import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
@@ -68,7 +69,7 @@ export function ViewportPanel() {
         onDoublePick: (key) => focusMesh(key),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
-        onBrush,
+        onBrush: (hit, phase) => (usePainter.getState().tool === 'vinyl' ? vinylPointer(hit, phase) : onBrush(hit, phase)),
         onSimDrag: (node, target) => dragNode(node, target),
         onEditPick: (node, beam, op) => {
           const edit = useEditStore.getState();
@@ -171,6 +172,10 @@ export function ViewportPanel() {
       }
     };
     startPaintSync();
+    startVinylSync();
+    const unsubscribeVinylView = useVinylUi.subscribe((ui, prev) => {
+      if (ui.view && ui.view !== prev.view) rt.viewFrom(SIDE_FRAMES[ui.view.side].n);
+    });
     pushStructure();
     rt.setView(useUiStore.getState().view);
     const unsubscribeStructure = projectStore.subscribe(() => {
@@ -263,6 +268,11 @@ export function ViewportPanel() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const splitting = useSplitTool.getState().meshKey !== null;
       const edit = useEditStore.getState();
+      // Vinyl layers: move, turn, resize, delete, duplicate and group the selection from the keyboard.
+      if (vinylKey(e)) {
+        e.preventDefault();
+        return;
+      }
       // Painting: [ and ] size the brush, Esc puts it away.
       const painter = usePainter.getState();
       if (painter.on && (e.key === '[' || e.key === ']' || e.key === 'Escape')) {
@@ -272,7 +282,7 @@ export function ViewportPanel() {
         return;
       }
       // Painting: tool keys (B brush, E erase, F fill, P pattern, T stamp, I eyedropper; M mirror).
-      const paintTool = ({ b: 'brush', e: 'erase', f: 'fill', p: 'pattern', t: 'stamp', i: 'picker' } as const)[e.key.toLowerCase() as 'b'];
+      const paintTool = ({ b: 'brush', e: 'erase', f: 'fill', p: 'pattern', t: 'stamp', i: 'picker', v: 'vinyl' } as const)[e.key.toLowerCase() as 'b'];
       if (painter.on && !e.ctrlKey && !e.altKey && !e.metaKey && (paintTool || e.key.toLowerCase() === 'm')) {
         painter.set(paintTool ? { tool: paintTool } : { mirror: !painter.mirror });
         e.preventDefault();
@@ -334,6 +344,7 @@ export function ViewportPanel() {
       unsubscribe();
       unsubscribeTool();
       unsubscribeBrush();
+      unsubscribeVinylView();
       unsubscribeStructure();
       unsubscribeSettings();
       unsubscribeView();

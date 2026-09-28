@@ -199,6 +199,10 @@ export interface InvokeContract {
   'materials:saveTexture': { req: { name: string; bytes: Uint8Array }; res: string };
   /** Save a painted image (livery, paint-slot mask, UV template) where the user picks; returns the path, or null if cancelled. */
   'paint:saveImage': { req: { suggestedName: string; bytes: Uint8Array }; res: string | null };
+  /** Save a vinyl group (.jbvinyl) where the user picks; returns the path, or null if cancelled. */
+  'vinyl:save': { req: { suggestedName: string; text: string }; res: string | null };
+  /** Open a vinyl group file the user picks. */
+  'vinyl:open': { req: undefined; res: { path: string; text: string } | null };
   /** Pick an image for a material slot; its folder becomes readable. */
   'materials:pickTexture': { req: undefined; res: string | null };
   'materials:library': { req: undefined; res: LibraryItem[] };
@@ -286,6 +290,8 @@ export const INVOKE_CHANNELS = [
   'kn5:saveBaked',
   'materials:saveTexture',
   'paint:saveImage',
+  'vinyl:save',
+  'vinyl:open',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

@@ -134,6 +134,12 @@ export interface BrushHit {
   uv: [number, number] | null;
   /** Mirror painting: the matching point on the other side of the car (null: none there). */
   mirror?: BrushHit | null;
+  /** The point and the surface's outward normal, BeamNG space (for the vinyl editor). */
+  point?: [number, number, number];
+  normal?: [number, number, number];
+  /** Pointer position on screen, and the modifier keys held. */
+  screen?: [number, number];
+  mods?: { shift: boolean; alt: boolean; ctrl: boolean };
 }
 
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
@@ -469,12 +475,17 @@ export class ViewportRuntime {
     let brushing = false;
     const toBrushHit = (hit: Intersection | undefined): BrushHit | null => {
       if (!hit || hit.faceIndex == null) return null;
-      return { meshKey: hit.object.userData.meshKey as string, face: hit.faceIndex, uv: hit.uv ? [hit.uv.x, hit.uv.y] : null };
+      // Meshes sit straight under the model root, so its frame is BeamNG space.
+      const p = this.modelRoot.worldToLocal(hit.point.clone());
+      const n = hit.face?.normal;
+      return { meshKey: hit.object.userData.meshKey as string, face: hit.faceIndex, uv: hit.uv ? [hit.uv.x, hit.uv.y] : null, point: [p.x, p.y, p.z], ...(n ? { normal: [n.x, n.y, n.z] as [number, number, number] } : {}) };
     };
     const brushAt = (e: PointerEvent): BrushHit | null => {
       const hit = toBrushHit(this.hitAt(e.clientX, e.clientY));
       if (hit && this.brushMirror) hit.mirror = toBrushHit(this.mirroredHitAt(e.clientX, e.clientY));
-      return hit;
+      const extra = { screen: [e.clientX, e.clientY] as [number, number], mods: { shift: e.shiftKey, alt: e.altKey, ctrl: e.ctrlKey || e.metaKey } };
+      // Off the car, the pointer still counts for gestures that go by screen movement (scale, turn).
+      return hit ? Object.assign(hit, extra) : ({ meshKey: '', face: -1, uv: null, ...extra });
     };
     this.listen(canvas, 'pointerdown', (e) => {
       if (!this.brush || e.button !== 0 || this.tool || this.edit) return;
@@ -609,6 +620,19 @@ export class ViewportRuntime {
     const focus = this.focusSet;
     const inFocus = focus ? candidates.filter((m) => focus.has(m.userData.meshKey as string)) : candidates;
     return this.raycaster.intersectObjects(inFocus, false)[0] ?? (focus ? this.raycaster.intersectObjects(candidates, false)[0] : undefined);
+  }
+
+  /** Look at the car square-on from one side (BeamNG direction `dir` from the car towards the camera). */
+  viewFrom(dir: [number, number, number]): void {
+    this.modelRoot.updateMatrixWorld();
+    const d = new Vector3(...dir).transformDirection(this.modelRoot.matrixWorld);
+    const dist = this.camera.position.distanceTo(this.controls.target) || 8;
+    this.camera.position.copy(this.controls.target).addScaledVector(d, dist);
+    this.camera.up.set(0, 1, 0);
+    // Straight down onto the roof, with the front of the car at the top of the screen.
+    if (Math.abs(d.y) > 0.99) this.camera.position.x += 1e-3;
+    this.controls.update();
+    this.frame();
   }
 
   /** Paint on both sides at once (mirrored down the centre line). */
