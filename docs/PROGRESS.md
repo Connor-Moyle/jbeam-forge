@@ -654,7 +654,7 @@ Decisions recorded with you:
 
 ## Known issues
 
-- Structure generation is very slow on small, dense meshes: the 130k-triangle uC-10 dash took 131 s and made no beams. Imports aren't affected. To look at alongside proxy tuning.
+- ~~Structure generation is very slow on small, dense meshes: the 130k-triangle uC-10 dash took 131 s and made no beams.~~ No longer reproduces (fork): `npm run gen-bench` generates a 144k-triangle dash of 2,000 separate pieces (triangle soup, as imports deliver it) with a body in 1.9 s, and a 130k-triangle slab in 1.5 s. In the app, the same model imports and generates in 2.5 s wall time. Generation now runs on a plain working copy instead of immer drafts. The bench stays, to catch a regression.
 
 - **Repo file layout (needs the user):** root `SPEC.md` and `docs/SPEC.md` both contain the Claude Code project instructions, which belong in `CLAUDE.md`. The full rebuild spec is at `%USERPROFILE%\Downloads\SPEC.md` and needs copying to `docs/SPEC.md`. Both files were left out of the Phase 1 commit until this is fixed.
 - **npm 11 allow-scripts:** `package.json` → `allowScripts` approves Electron and esbuild. A `postinstall` (`install-electron`) fetches the Electron binary on a fresh clone.

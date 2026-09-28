@@ -32,6 +32,7 @@
     "regress": "node scripts/regress.mjs",
     "study-prices": "tsx --tsconfig tsconfig.node.json scripts/study-prices.ts",
     "project-bench": "tsx --tsconfig tsconfig.node.json scripts/project-bench.ts",
+    "gen-bench": "tsx --tsconfig tsconfig.node.json scripts/gen-bench.ts",
     "build-material-pack": "tsx --tsconfig tsconfig.node.json scripts/build-material-pack.ts",
     "build-object-pack": "tsx --tsconfig tsconfig.node.json scripts/build-object-pack.ts"
   },
