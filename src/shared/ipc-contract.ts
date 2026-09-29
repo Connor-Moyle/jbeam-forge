@@ -9,6 +9,7 @@ export interface LibraryStatus {
 
 import type { SetOptions } from './suspension/options';
 import type { LibraryScript } from './lua/types';
+import type { ExtensionInfo } from './extensions/api';
 import type { ContentKind, ContentManifest } from './content/manifest';
 import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, UpdatesInfo } from './content/types';
 
@@ -224,6 +225,13 @@ export interface InvokeContract {
   'scripts:save': { req: { entry: LibraryScript }; res: string };
   /** Delete a script from the user's library. */
   'scripts:delete': { req: { path: string }; res: undefined };
+  /** Extensions (fork): what's in the extensions folder, with each one's code. */
+  'extensions:list': { req: undefined; res: ExtensionInfo[] };
+  /** Make a new extension from the sample; returns its folder. */
+  'extensions:create': { req: undefined; res: string };
+  /** Copy in an extension folder the user picks; its new folder, or null if cancelled. */
+  'extensions:install': { req: undefined; res: string | null };
+  'extensions:reveal': { req: undefined; res: undefined };
   /** Show the user's script library folder. */
   'scripts:reveal': { req: undefined; res: undefined };
   /** Open text files of one kind the user picks (several when `multiple`). */
@@ -361,6 +369,10 @@ export const INVOKE_CHANNELS = [
   'scripts:save',
   'scripts:delete',
   'scripts:reveal',
+  'extensions:list',
+  'extensions:create',
+  'extensions:install',
+  'extensions:reveal',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

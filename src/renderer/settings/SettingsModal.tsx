@@ -19,6 +19,7 @@ import { Toggle } from '@renderer/ui/components/Toggle';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { BeamngParts, LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
+import { ExtensionList } from './ExtensionList';
 import styles from './SettingsModal.module.css';
 
 const VALIDATE_DEBOUNCE_MS = 250;
@@ -38,6 +39,7 @@ const SECTIONS = [
   { id: 'units', label: 'Units' },
   { id: 'export', label: 'Export' },
   { id: 'downloads', label: 'Downloads' },
+  { id: 'extensions', label: 'Extensions' },
   { id: 'library', label: 'Library folders' },
   { id: 'naming', label: 'Naming' },
   { id: 'diagnostics', label: 'Diagnostics' },
@@ -399,6 +401,16 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                   </Callout>
                 )}
               </CollapsibleSection>
+            </FieldGroup>
+          </section>
+
+          <section data-section="extensions">
+            <FieldGroup title="Extensions">
+              <Toggle checked={d.extensionsEnabled} onChange={(extensionsEnabled) => set({ extensionsEnabled })} label="Run extensions" />
+              <p className={styles.help}>
+                Extensions add commands (Command Palette, Ctrl+K) and vehicle script templates, and can edit the project with checked, undoable steps. Each runs on its own, with no access to your files or the internet. Changes take effect when you save.
+              </p>
+              <ExtensionList disabled={d.disabledExtensions} onDisabled={(disabledExtensions) => set({ disabledExtensions })} />
             </FieldGroup>
           </section>
 

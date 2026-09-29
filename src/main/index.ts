@@ -13,6 +13,8 @@ import { UpdateService } from './content/updates';
 import { checkOnStartup, contentHooks, registerContentHandlers, type ContentContext } from './content/ipc';
 import { ScriptLibrary } from './scripts/library';
 import { registerScriptHandlers } from './scripts/ipc';
+import { ExtensionService } from './extensions/service';
+import { registerExtensionHandlers } from './extensions/ipc';
 import type { FetchFn } from './content/github';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
@@ -80,6 +82,7 @@ async function start(): Promise<void> {
   const updates = new UpdateService(join(userData, 'updates'), fetchFn, scoped('updates'));
   const contentCtx: ContentContext = { settings, updates, packs, logger: scoped('content'), getWindow: () => mainWindow, content: () => content!, where: () => where, portableDir };
   registerContentHandlers(contentCtx);
+  registerExtensionHandlers(new ExtensionService(join(userData, 'extensions'), scoped('extensions')));
   registerScriptHandlers(new ScriptLibrary(join(userData, 'scripts'), () => join(where.root, 'scripts'), scoped('scripts')));
   let contentDir = loaded.contentDir;
   let lastSettings = settings.get();

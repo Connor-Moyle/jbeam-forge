@@ -1476,6 +1476,43 @@ const scenarios = [
     },
   },
   {
+    id: 'extensions',
+    name: 'extensions: new sample · command from the palette · its script template',
+    async run({ page }) {
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Extension Test');
+      await hook(page, 'queueDialog', [null]);
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByRole('button', { name: 'Extensions' }).first().click();
+      await page.getByTestId('extension-new').click();
+      await page.getByTestId('extension-list').getByText('Running: 2 commands, 1 script template').waitFor({ timeout: 15_000 });
+      await shot(page, 'extensions-settings');
+      await page.keyboard.press('Escape');
+      // Its command runs from the palette and reads the project.
+      await hook(page, 'runCommand', 'palette');
+      await page.getByTestId('palette-input').fill('Count parts');
+      await page.getByTestId('palette-input').press('Enter');
+      await page.getByTestId('status-bar').getByText(/Hello extension: \d+ parts/).waitFor({ timeout: 10_000 });
+      // Its edit is one undoable step, checked against the project format.
+      await hook(page, 'runCommand', 'palette');
+      await page.getByTestId('palette-input').fill('Capitalise part names');
+      await page.getByTestId('palette-input').press('Enter');
+      await page.waitForTimeout(800);
+      const st = await hook(page, 'projectState');
+      assert(!st.undoLabels.length || st.undoLabels.at(-1) === 'Hello extension: Capitalise part names' || (await page.getByTestId('status-bar').textContent()).includes('already capitalised'), `the extension's edit is undoable (${st.undoLabels.at(-1)})`);
+      // Its vehicle script template is in the gallery.
+      await hook(page, 'applyPreset', 'scripts');
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').getByText('Speed warning light').waitFor();
+      await shot(page, 'extensions-template');
+      await hook(page, 'applyPreset', 'modelling');
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,

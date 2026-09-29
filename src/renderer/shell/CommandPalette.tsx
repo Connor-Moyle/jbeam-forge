@@ -1,3 +1,4 @@
+import { runExtensionCommand, useExtensions } from '@renderer/extensions/host';
 import { hingeAll } from '@renderer/hinges/commands';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { fuzzyScore } from '@shared/fuzzy';
@@ -28,7 +29,7 @@ import styles from './CommandPalette.module.css';
 interface Item {
   id: string;
   label: string;
-  group: 'Part' | 'Action' | 'Panel' | 'Layout';
+  group: 'Part' | 'Action' | 'Panel' | 'Layout' | 'Extension';
   hint?: string;
   run: () => void;
 }
@@ -93,7 +94,8 @@ function PaletteBody({ close }: { close: () => void }) {
       .map((id) => ({ id: `panel:${id}`, label: `Show ${PANELS[id].title} panel`, group: 'Panel', run: () => shell.showPanel(id) }));
     const layouts: Item[] = PRESET_IDS.map((p) => ({ id: `layout:${p}`, label: `${PRESET_LABELS[p]} layout`, group: 'Layout', run: () => shell.applyPreset(p) }));
     const parts: Item[] = (doc?.parts ?? []).map((p) => ({ id: `part:${p.id}`, label: p.displayName, group: 'Part', hint: 'focus', run: () => focusPart(p.id) }));
-    return [...actions.filter((a): a is Item => !!a), ...parts, ...panels, ...layouts];
+    const extensions: Item[] = useExtensions.getState().list.flatMap((e) => (e.running ? e.commands.map((c) => ({ id: `ext:${e.id}:${c.id}`, label: c.label, group: 'Extension' as const, hint: e.name, run: () => runExtensionCommand(e.id, c.id) })) : []));
+    return [...actions.filter((a): a is Item => !!a), ...extensions, ...parts, ...panels, ...layouts];
   }, [shell]);
 
   const results = useMemo(() => {

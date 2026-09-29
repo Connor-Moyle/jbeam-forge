@@ -98,6 +98,12 @@ export const SettingsSchema = z.object({
   meshesRepo: z.string().regex(REPO_PATTERN),
   /** Vehicle scripts (Lua templates and functions) to download. */
   scriptsRepo: z.string().regex(REPO_PATTERN),
+
+  // Extensions
+  /** Run extensions from the extensions folder. */
+  extensionsEnabled: z.boolean(),
+  /** Extensions (by id) switched off. */
+  disabledExtensions: z.array(z.string().max(40)).max(200),
   /** Branch the content repositories' latest version lives on. */
   contentBranch: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/),
 });
@@ -151,6 +157,8 @@ export const DEFAULT_SETTINGS: Settings = {
   texturesRepo: 'Connor-Moyle/jbeam-forge-textures',
   meshesRepo: 'Connor-Moyle/jbeam-forge-meshes',
   scriptsRepo: 'Connor-Moyle/jbeam-forge-scripts',
+  extensionsEnabled: true,
+  disabledExtensions: [],
   contentBranch: 'main',
 };
 

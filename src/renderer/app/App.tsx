@@ -12,7 +12,8 @@ import { ImportHost } from '@renderer/import/ImportHost';
 import { useSourceSync } from '@renderer/import/importFlow';
 import { runAppCommand } from '@renderer/project/appCommands';
 import { call } from '@renderer/diagnostics/ipc';
-import { useSettingsSync } from './stores/settings';
+import { useSettingsStore, useSettingsSync } from './stores/settings';
+import { startExtensions, stopExtensions } from '@renderer/extensions/host';
 import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
@@ -70,6 +71,24 @@ function AppEffects() {
     [],
   );
   useEffect(() => startAutosave(), []);
+  // Extensions: started once settings are in, restarted when they're switched on or off.
+  useEffect(() => {
+    let last: string | null = null;
+    const sync = () => {
+      const s = useSettingsStore.getState().settings;
+      if (!s) return;
+      const key = `${s.extensionsEnabled}|${s.disabledExtensions.join(',')}`;
+      if (key === last) return;
+      last = key;
+      void startExtensions();
+    };
+    sync();
+    const off = useSettingsStore.subscribe(sync);
+    return () => {
+      off();
+      stopExtensions();
+    };
+  }, []);
   useEffect(() => void loadUserTaxonomy(), []);
   useEffect(() => installNamingRules(), []);
 
