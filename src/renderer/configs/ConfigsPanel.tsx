@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
-import { Copy, Eye, EyeOff, Plus, Trash2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, LayoutGrid, Plus, Trash2 } from 'lucide-react';
+import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { configFileName, includedParts, resolveConfig, slotChoices } from '@shared/export/configs';
 import { variableName } from '@shared/export/jbeam';
 import { EMPTY_ARR } from '@shared/empty';
@@ -65,6 +66,9 @@ export function ConfigsPanel() {
         {config && <Button icon={Trash2} size="sm" variant="ghost" onClick={() => deleteConfig(config.id)} aria-label="Delete configuration" />}
         <Button icon={preview ? EyeOff : Eye} size="sm" variant={preview ? 'primary' : 'ghost'} onClick={() => useConfigUi.getState().setPreview(!preview)} data-testid="config-preview">
           {preview ? 'Previewing' : 'Preview'}
+        </Button>
+        <Button icon={LayoutGrid} size="sm" variant="ghost" onClick={() => useDialogStore.getState().setConfigsOpen(true)} data-testid="open-configs-manager">
+          Manage…
         </Button>
       </div>
       <ScrollArea className={styles.scroll}>

@@ -12,6 +12,14 @@ import type { ContentKind, ContentManifest } from './content/manifest';
 import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, UpdatesInfo } from './content/types';
 
 /** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
+/** Text files the app saves and opens where the user picks. */
+export const TEXT_FILE_KINDS = {
+  pc: { label: 'BeamNG configuration (.pc)', ext: 'pc' },
+  lua: { label: 'Lua script (.lua)', ext: 'lua' },
+  jbscript: { label: 'JBeam Forge script (.jbscript)', ext: 'jbscript' },
+} as const;
+export type TextFileKind = keyof typeof TEXT_FILE_KINDS;
+
 export interface SuspensionSet {
   /** "<vehicle>/<part>" */
   id: string;
@@ -207,6 +215,10 @@ export interface InvokeContract {
   'vinyl:save': { req: { suggestedName: string; text: string }; res: string | null };
   /** Open a vinyl group file the user picks. */
   'vinyl:open': { req: undefined; res: { path: string; text: string } | null };
+  /** Save a text file of one of the app's kinds (.pc configuration, .lua script…) where the user picks; the path, or null if cancelled. */
+  'file:saveText': { req: { kind: TextFileKind; suggestedName: string; text: string }; res: string | null };
+  /** Open text files of one kind the user picks (several when `multiple`). */
+  'file:openText': { req: { kind: TextFileKind; multiple?: boolean }; res: { path: string; name: string; text: string }[] };
   /** Pick an image for a material slot; its folder becomes readable. */
   'materials:pickTexture': { req: undefined; res: string | null };
   'materials:library': { req: undefined; res: LibraryItem[] };
@@ -334,6 +346,8 @@ export const INVOKE_CHANNELS = [
   'paint:saveImage',
   'vinyl:save',
   'vinyl:open',
+  'file:saveText',
+  'file:openText',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

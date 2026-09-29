@@ -24,6 +24,14 @@ export async function pickOpenFile(sender: WebContents, options: OpenDialogOptio
   return res.canceled ? null : (res.filePaths[0] ?? null);
 }
 
+/** Several files (harness: one queued path per call). */
+export async function pickOpenFiles(sender: WebContents, options: OpenDialogOptions): Promise<string[]> {
+  if (harnessQueue.length) return [harnessQueue.shift()!].filter(Boolean);
+  const win = owner(sender);
+  const res = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+  return res.canceled ? [] : res.filePaths;
+}
+
 export async function pickSaveFile(sender: WebContents, options: SaveDialogOptions): Promise<string | null> {
   if (harnessQueue.length) return harnessQueue.shift() ?? null;
   const win = owner(sender);

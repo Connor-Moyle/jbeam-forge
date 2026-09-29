@@ -4,7 +4,9 @@ import { Modal } from '@renderer/ui/components/Modal';
 import { NewModWizard } from '@renderer/home/NewModWizard';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
 import { DownloadsWindow } from '@renderer/downloads/DownloadsWindow';
+import { ConfigsManager } from '@renderer/configs/ConfigsManager';
 import { useSettingsStore } from '@renderer/app/stores/settings';
+import { useProjectStore } from '@renderer/app/stores/project';
 import styles from './DialogHost.module.css';
 
 /** Renders the app-level blocking dialogs requested through useDialogStore. */
@@ -22,11 +24,14 @@ export function DialogHost() {
   const settings = useSettingsStore((s) => s.settings);
   const downloads = useDialogStore((s) => s.downloads);
   const setDownloads = useDialogStore((s) => s.setDownloads);
+  const configsOpen = useDialogStore((s) => s.configsOpen);
+  const hasDoc = useProjectStore((s) => !!s.doc);
 
   return (
     <>
       {settingsOpen && settings && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
       {downloads && <DownloadsWindow tab={downloads} onTab={setDownloads} onClose={() => setDownloads(null)} />}
+      {configsOpen && hasDoc && <ConfigsManager onClose={() => useDialogStore.getState().setConfigsOpen(false)} />}
       {unsaved && (
         <Modal
           open

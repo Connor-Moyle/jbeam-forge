@@ -985,6 +985,32 @@ const scenarios = [
 
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();
+      // Studio pictures at the chosen size (1280×720 by default), kept with the screenshots.
+      const jpg = readFileSync(join(vdir, 'default.jpg'));
+      const sof = jpg.indexOf(Buffer.from([0xff, 0xc0])) >= 0 ? jpg.indexOf(Buffer.from([0xff, 0xc0])) : jpg.indexOf(Buffer.from([0xff, 0xc2]));
+      assert(sof > 0 && jpg.readUInt16BE(sof + 7) === 1280 && jpg.readUInt16BE(sof + 5) === 720, 'default.jpg is 1280×720');
+      cpSync(join(vdir, 'default.jpg'), join(outDir, 'studio-default.jpg'));
+      cpSync(join(vdir, 'stripped.jpg'), join(outDir, 'studio-stripped.jpg'));
+      assert(JSON.parse(readFileSync(join(vdir, 'info_stripped.json'), 'utf8')).Configuration === 'Stripped', 'config info written');
+
+      // Configurations manager: pictures, figures, default, compare.
+      await page.getByTestId('open-configs').click();
+      await page.getByTestId('configs-manager').waitFor();
+      await page.getByTestId('cm-pictures').click();
+      await page.getByTestId('cm-card').first().locator('img').waitFor({ timeout: 20_000 });
+      await page.getByTestId('cm-card').nth(1).locator('img').waitFor({ timeout: 20_000 });
+      assert((await page.getByTestId('cm-card').count()) === 2, 'base and stripped cards');
+      await page.getByTestId('cm-card').nth(1).getByRole('button', { name: /^Select / }).click();
+      await page.getByTestId('cm-details').waitFor();
+      assert((await page.getByTestId('cm-figures').textContent()).includes('Weight'), 'figures show the weight');
+      await page.getByTestId('cm-card').nth(1).getByRole('button', { name: 'Make the game spawn this one' }).click();
+      await shot(page, 'configs-manager');
+      await page.getByRole('tab', { name: 'Compare' }).click();
+      await page.getByTestId('cm-compare').waitFor();
+      assert((await page.getByTestId('cm-compare').textContent()).includes('(empty)'), 'compare lists the emptied slot');
+      await shot(page, 'configs-compare');
+      await page.keyboard.press('Escape');
+      assert((await hook(page, 'projectDoc')).defaultConfigId, 'default configuration set');
 
       // Repository package: listing + checklist, then a folder with the zip, pictures and listing text.
       await page.getByTestId('toolbar-export').click();

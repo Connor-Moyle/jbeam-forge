@@ -17,18 +17,19 @@ import { scanGameMaterials } from '../beamng/gameMaterials';
 import { engineSoundSamples, readSoundFile, scanEngineSounds } from '../beamng/engineSounds';
 import type { SetOptions } from '@shared/suspension/options';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
-import { pickDirectory, pickOpenFile, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
+import { pickDirectory, pickOpenFile, pickOpenFiles, pickSaveFile, queueHarnessDialogAnswers } from '../dialogs';
 import { getLogFolder, scoped } from '../log';
 import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
 import { resolveTextureRefs } from '../import/textures';
 import { readFile, stat, writeFile, mkdir } from 'node:fs/promises';
-import { dirname, extname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
 import { kn5TextureDir } from '../import/kn5Textures';
 import { readAcCar } from '../import/acCar';
 import type { JbeamObject } from '@shared/jbeam/parse';
 import type { UserLibrary } from '../library/userLibrary';
 import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
+import { TEXT_FILE_KINDS, type TextFileKind } from '@shared/ipc-contract';
 
 const logger = scoped('ipc');
 import { registerInvoke } from './register';
@@ -520,6 +521,34 @@ export function registerIpcHandlers(services: HandlerServices): void {
       return path;
     },
     z.object({ suggestedName: z.string().regex(/^[^\\/:*?"<>|]{1,200}$/), bytes: z.instanceof(Uint8Array).refine((b) => b.byteLength <= 256 * 1024 * 1024) }),
+  );
+
+  const kindSchema = z.enum(Object.keys(TEXT_FILE_KINDS) as [TextFileKind, ...TextFileKind[]]);
+  registerInvoke(
+    'file:saveText',
+    async ({ kind, suggestedName, text }, event) => {
+      const k = TEXT_FILE_KINDS[kind];
+      const picked = await pickSaveFile(event.sender, { title: `Save ${k.label}`, defaultPath: suggestedName, filters: [{ name: k.label, extensions: [k.ext] }] });
+      if (!picked) return null;
+      const path = picked.toLowerCase().endsWith(`.${k.ext}`) ? picked : `${picked}.${k.ext}`;
+      await writeFile(path, text, 'utf8');
+      return path;
+    },
+    z.object({ kind: kindSchema, suggestedName: z.string().regex(/^[^\\/:*?"<>|]{1,200}$/), text: z.string().max(20_000_000) }),
+  );
+  registerInvoke(
+    'file:openText',
+    async ({ kind, multiple }, event) => {
+      const k = TEXT_FILE_KINDS[kind];
+      const paths = await pickOpenFiles(event.sender, { title: `Open ${k.label}`, filters: [{ name: k.label, extensions: [k.ext] }], properties: multiple ? ['openFile', 'multiSelections'] : ['openFile'] });
+      const out: { path: string; name: string; text: string }[] = [];
+      for (const path of paths.slice(0, 200)) {
+        if ((await stat(path)).size > 5_000_000) throw new Error(`${basename(path)} is too big.`);
+        out.push({ path, name: basename(path), text: await readFile(path, 'utf8') });
+      }
+      return out;
+    },
+    z.object({ kind: kindSchema, multiple: z.boolean().optional() }),
   );
 
   const VINYL_FILTERS = [{ name: 'JBeam Forge vinyl group (.jbvinyl)', extensions: ['jbvinyl'] }];

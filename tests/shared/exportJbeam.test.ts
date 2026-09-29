@@ -314,3 +314,52 @@ describe('validateExport', () => {
     expect(codes).toContain('refnodes-missing');
   });
 });
+
+describe('configurations manager', () => {
+  it('brings in a .pc: slots this car has, skipping the rest', async () => {
+    const { configFromPc, configDiff } = await import('../../src/shared/export/configs');
+    const { doc } = carProject();
+    const text = JSON.stringify({ format: 2, model: 'other', parts: { test_bumper_F: 'test_bumper_F_race', test_badge_R: '', test_body: 'test_body', other_slot: 'other_part', test_hood: 'no_such_hood' }, vars: { $test_body_mass: 0.9, $unknown: 3 } });
+    const { config, skipped } = configFromPc(doc, tax, text, 'street_racer.pc');
+    expect(config.name).toBe('Street racer');
+    expect(config.parts).toEqual({ test_bumper_F: 'test_bumper_F_race', test_badge_R: '' });
+    expect(skipped.sort()).toEqual(['other_slot → other_part', 'test_hood → no_such_hood']);
+    expect(Object.keys(config.vars)).not.toContain('$unknown');
+    expect(() => configFromPc(doc, tax, 'nope', 'x.pc')).toThrow(/isn't a .pc file/);
+    expect(() => configFromPc(doc, tax, '{"model":"x"}', 'x.pc')).toThrow(/no parts list/);
+
+    const slots = slotChoices(doc, tax);
+    const base = resolveConfig(doc, tax, null);
+    const race = resolveConfig(doc, tax, { id: 'r', ...config });
+    expect(configDiff(base, race, slots).map((d) => [d.slot.slotType, d.b])).toEqual([
+      ['test_bumper_F', 'Front bumper (Race)'],
+      ['test_badge_R', '(empty)'],
+    ]);
+    expect(configDiff(base, base, slots)).toEqual([]);
+  });
+
+  it('adds up weight and value, and writes the selector labels', async () => {
+    const { configStats, configLabels } = await import('../../src/shared/export/configStats');
+    const { doc } = carProject();
+    const weightOf = (ids: Set<string>) => Math.round(doc.nodes.filter((n) => ids.has(n.partId)).reduce((s, n) => s + n.weight, 0));
+    const basePc = resolveConfig(doc, tax, null);
+    const base = configStats(doc, tax, basePc);
+    expect(base.weightKg).toBe(weightOf(includedParts(doc, tax, basePc)));
+    expect(base.weightKg).toBeGreaterThan(0);
+    expect(base.powerKw).toBeNull();
+    const racePc = resolveConfig(doc, tax, { id: 'r', name: 'Race', description: '', type: 'Race', parts: { test_bumper_F: 'test_bumper_F_race' }, vars: {}, paints: [null, null, null] });
+    const race = configStats(doc, tax, racePc);
+    expect(race.weightKg).toBe(weightOf(includedParts(doc, tax, racePc)));
+    expect(configLabels(race, { drivetrain: 'AWD', years: { min: 1998, max: 2004 }, population: 500 })).toEqual({ Drivetrain: 'AWD', Years: { min: 1998, max: 2004 }, Population: 500 });
+    const cfg = { id: 'r', name: 'Race', description: '', type: 'Race', parts: {}, vars: {}, paints: [null, null, null] as [null, null, null], info: { value: 42000 } };
+    expect(configInfoJson(doc, tax, resolveConfig(doc, tax, cfg), cfg, { Drivetrain: 'RWD' })).toMatchObject({ Value: 42000, Drivetrain: 'RWD' });
+  });
+
+  it('writes the default configuration and vehicle details to info.json', () => {
+    const { doc } = carProject();
+    doc.meta.bodyStyle = 'Coupe';
+    doc.meta.years = { min: 1990, max: 1995 };
+    expect(infoJson(doc, 'me', 'race')).toMatchObject({ default_pc: 'race', 'Body Style': 'Coupe', Years: { min: 1990, max: 1995 } });
+    expect(infoJson(doc, 'me')).toMatchObject({ default_pc: 'default' });
+  });
+});

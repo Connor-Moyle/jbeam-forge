@@ -56,7 +56,7 @@ export function exportMaterialName(slug: string, name: string, taken: Set<string
 
 export const DEFAULT_CONFIG = 'default';
 
-export function infoJson(doc: Pick<Project, 'meta'> & Partial<Pick<Project, 'paints'>>, author: string): Record<string, unknown> {
+export function infoJson(doc: Pick<Project, 'meta'> & Partial<Pick<Project, 'paints'>>, author: string, defaultPc: string = DEFAULT_CONFIG): Record<string, unknown> {
   const m = doc.meta;
   return {
     Name: m.name,
@@ -64,7 +64,10 @@ export function infoJson(doc: Pick<Project, 'meta'> & Partial<Pick<Project, 'pai
     Author: author || m.author || 'JBeam Forge',
     Type: m.type || 'Car',
     Description: m.description || `${m.name}, built with JBeam Forge.`,
-    default_pc: DEFAULT_CONFIG,
+    ...(m.bodyStyle ? { 'Body Style': m.bodyStyle } : {}),
+    ...(m.country ? { Country: m.country } : {}),
+    ...(m.years ? { Years: m.years } : {}),
+    default_pc: defaultPc,
     ...(doc.paints ? infoPaints({ paints: doc.paints }) : {}),
   };
 }

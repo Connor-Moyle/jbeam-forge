@@ -18,6 +18,7 @@ import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/ligh
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
 import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
+import { configLabels, configStats } from '@shared/export/configStats';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
 import { exportableProps } from '@shared/props/props';
@@ -180,12 +181,15 @@ export function prepareExport(): PreparedExport | null {
   const configs = [null, ...doc.configs];
   const taken = new Set<string>();
   const configFiles: ExportBundle['files'] = [];
+  let defaultPc = 'default';
   for (const config of configs) {
     let file = configFileName(config);
     for (let i = 2; taken.has(file); i++) file = `${configFileName(config)}_${i}`;
     taken.add(file);
     const pc = resolveConfig(doc, tax, config, useSetData.getState().data);
-    configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config), null, 2)}\n` });
+    if (config && config.id === doc.defaultConfigId) defaultPc = file;
+    const labels = configLabels(configStats(doc, tax, pc, useSetData.getState().data), config?.info);
+    configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config, labels), null, 2)}\n` });
     const preview = capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data), config?.id ?? null);
     if (preview) configFiles.push({ path: `${root}/${file}.jpg`, base64: base64FromDataUrl(preview) });
   }
@@ -193,7 +197,7 @@ export function prepareExport(): PreparedExport | null {
     { path: `${root}/${slug}.dae`, text: dae },
     ...jbeams.map((j) => ({ path: `${root}/${j.file}`, text: j.text })),
     { path: `${root}/main.materials.json`, text: `${JSON.stringify(materialJsonAll, null, 2)}\n` },
-    { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author), null, 2)}\n` },
+    { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author, defaultPc), null, 2)}\n` },
     ...configFiles,
   ];
 

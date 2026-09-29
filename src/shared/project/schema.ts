@@ -29,6 +29,10 @@ export const ProjectMetaSchema = z.object({
   type: z.string(),
   createdAt: z.iso.datetime(),
   modifiedAt: z.iso.datetime(),
+  /** Vehicle selector details (fork): Sedan, Coupe…; country of origin; model years. */
+  bodyStyle: z.string().optional(),
+  country: z.string().optional(),
+  years: z.object({ min: z.number().int(), max: z.number().int() }).optional(),
 });
 
 const placeholderList = z.array(z.unknown());
@@ -360,6 +364,22 @@ export const VehicleConfigSchema = z.object({
   vars: z.record(z.string(), z.number()),
   /** Paint id for each of the game's three paint slots (v16); null = the factory default. */
   paints: z.tuple([z.string().nullable(), z.string().nullable(), z.string().nullable()]),
+  /**
+   * Vehicle selector details (fork), written to its info_<config>.json: years
+   * sold, drivetrain/transmission/fuel/induction labels (worked out from the
+   * parts when unset), how common it is, and its value when not the parts' sum.
+   */
+  info: z
+    .object({
+      years: z.object({ min: z.number().int(), max: z.number().int() }).optional(),
+      drivetrain: z.string().optional(),
+      transmission: z.string().optional(),
+      fuelType: z.string().optional(),
+      induction: z.string().optional(),
+      population: z.number().int().min(0).optional(),
+      value: z.number().min(0).optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -513,6 +533,8 @@ export const ProjectV18Schema = z.object({
   powertrain: PowertrainSchema,
   /** Vehicle configurations beyond the default (v14, Phase 13). */
   configs: z.array(VehicleConfigSchema),
+  /** The configuration the game spawns by default (fork); absent or null = the base one. */
+  defaultConfigId: z.string().nullable().optional(),
   /** Settings adjustable in the game's tuning menu (v13, Phase 12). */
   variables: z.array(TuningVarSchema),
   /** Plates, tow hitch, nitrous, paint designs (v15). */

@@ -106,6 +106,7 @@ export function Toolbar() {
         <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!hasParts} data-testid="toolbar-export">
           Export
         </Button>
+        <IconButton icon={CarFront} label="Configurations manager" onClick={() => useDialogStore.getState().setConfigsOpen(true)} disabled={!hasParts} data-testid="open-configs" />
         <IconButton icon={CloudDownload} label="Downloads: updates, textures and meshes" shortcut="Ctrl+Shift+D" onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="open-downloads" />
         <IconButton icon={Settings} label="Settings" shortcut="Ctrl+," onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
       </div>

@@ -1,7 +1,7 @@
 import type { Part, Project, VehicleConfig } from '../project/schema';
 import { partPrice } from '../parts/materials';
 import { pcPaints, type GamePaint } from '../paints/paints';
-import { axleTag, bodyPart, engineSlotType, engineTags, SET_KINDS, slotTypeOf, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
+import { axleTag, bodyPart, engineSlotType, engineTags, SET_KINDS, slotTypeOf, variableName, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
 
 /**
  * Vehicle configurations (Phase 13): the slots a player can fill, what a
@@ -134,7 +134,7 @@ export function configFileName(config: Pick<VehicleConfig, 'name'> | null): stri
   return config.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'config';
 }
 
-export function configInfoJson(doc: Doc, tax: TaxonomyLookup, pc: PcFile, config: VehicleConfig | null): Record<string, string | number> {
+export function configInfoJson(doc: Doc, tax: TaxonomyLookup, pc: PcFile, config: VehicleConfig | null, labels: Record<string, string | number | { min: number; max: number }> = {}): Record<string, string | number | { min: number; max: number }> {
   const byName = new Map(doc.parts.map((p) => [p.name, p]));
   const value = Object.values(pc.parts).reduce((sum, name) => {
     const part = byName.get(name);
@@ -144,6 +144,55 @@ export function configInfoJson(doc: Doc, tax: TaxonomyLookup, pc: PcFile, config
     Configuration: config?.name ?? 'Default',
     'Config Type': config?.type || 'Factory',
     Description: config?.description || `${config?.name ?? 'Default'} ${doc.meta.name} configuration.`,
-    Value: value,
+    Value: config?.info?.value ?? value,
+    ...labels,
   };
+}
+
+/**
+ * A .pc file as a configuration of this car (fork): the slot choices that
+ * exist here (other cars' slots and parts are skipped and listed), and the
+ * values of settings this car has. Paints in a .pc are colours, not this
+ * project's paints, so they aren't brought over.
+ */
+export function configFromPc(doc: Doc, tax: TaxonomyLookup, text: string, name: string, sets?: Sets): { config: Omit<VehicleConfig, 'id'>; skipped: string[] } {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error(`${name} isn't a .pc file (it isn't JSON).`);
+  }
+  const pc = raw as { parts?: unknown; vars?: unknown; model?: unknown };
+  if (!pc || typeof pc !== 'object' || !pc.parts || typeof pc.parts !== 'object') throw new Error(`${name} has no parts list: it isn't a .pc file.`);
+  const slots = new Map(slotChoices(doc, tax, sets).map((s) => [s.slotType, s]));
+  const known = new Set(doc.variables.flatMap((v) => {
+    const part = doc.parts.find((p) => p.id === v.partId);
+    return part ? [variableName(part, v.setting)] : [];
+  }));
+  const parts: Record<string, string> = {};
+  const skipped: string[] = [];
+  for (const [slot, part] of Object.entries(pc.parts as Record<string, unknown>)) {
+    if (typeof part !== 'string') continue;
+    const s = slots.get(slot);
+    if (!s) {
+      if (part) skipped.push(`${slot} → ${part}`);
+      continue;
+    }
+    if (part === s.defaultPart) continue;
+    if (part === '' ? s.core : !s.options.some((o) => o.name === part)) {
+      skipped.push(`${slot} → ${part || '(empty)'}`);
+      continue;
+    }
+    parts[slot] = part;
+  }
+  const vars: Record<string, number> = {};
+  if (pc.vars && typeof pc.vars === 'object') for (const [k, v] of Object.entries(pc.vars as Record<string, unknown>)) if (typeof v === 'number' && known.has(k)) vars[k] = v;
+  const title = name.replace(/\.pc$/i, '').replace(/[_-]+/g, ' ').trim() || 'Imported';
+  return { config: { name: title.charAt(0).toUpperCase() + title.slice(1), description: '', type: 'Custom', parts, vars, paints: [null, null, null] }, skipped };
+}
+
+/** Where two configurations differ, slot by slot (the parts each puts in). */
+export function configDiff(a: PcFile, b: PcFile, slots: readonly SlotChoice[]): { slot: SlotChoice; a: string; b: string }[] {
+  const label = (s: SlotChoice, name: string | undefined) => (name === undefined ? s.options.find((o) => o.name === s.defaultPart)?.label ?? s.defaultPart : name === '' ? '(empty)' : (s.options.find((o) => o.name === name)?.label ?? name));
+  return slots.flatMap((s) => (a.parts[s.slotType] === b.parts[s.slotType] ? [] : [{ slot: s, a: label(s, a.parts[s.slotType]), b: label(s, b.parts[s.slotType]) }]));
 }

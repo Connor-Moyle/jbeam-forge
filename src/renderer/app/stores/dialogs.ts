@@ -44,6 +44,9 @@ interface DialogState {
   /** Downloads window (null = closed), open on a tab. */
   downloads: 'app' | 'textures' | 'meshes' | null;
   setDownloads: (tab: 'app' | 'textures' | 'meshes' | null) => void;
+  /** Configurations manager window. */
+  configsOpen: boolean;
+  setConfigsOpen: (open: boolean) => void;
 }
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
@@ -90,4 +93,6 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   downloads: null,
   setDownloads: (downloads) => set({ downloads }),
+  configsOpen: false,
+  setConfigsOpen: (configsOpen) => set({ configsOpen }),
 }));

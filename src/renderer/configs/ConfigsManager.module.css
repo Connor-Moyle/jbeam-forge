@@ -1,0 +1,207 @@
+.window {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.tabs[hidden] {
+  display: none;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+}
+
+.split {
+  display: flex;
+  flex: 1;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.cards {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.details {
+  width: var(--size-side-panel-wide);
+  flex-shrink: 0;
+  min-height: 0;
+  border-left: var(--border-width) solid var(--border-0);
+}
+
+.detailsBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--size-object-card), 1fr));
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card,
+.cardOn {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--border-width) solid var(--border-0);
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+}
+
+.cardOn {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 var(--border-width) var(--accent);
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pic,
+.picEmpty {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  background: var(--bg-1);
+}
+
+.picEmpty {
+  display: grid;
+  place-items: center;
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.cardTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+}
+
+.name {
+  overflow: hidden;
+  flex: 1;
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pick > .note {
+  padding: 0 var(--space-2);
+}
+
+.cardActions {
+  display: flex;
+  gap: var(--space-half);
+  padding: var(--space-1);
+  border-top: var(--border-width) solid var(--border-0);
+}
+
+.note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.figures {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-1);
+  margin: 0;
+}
+
+.figure {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-control);
+}
+
+.figure dt {
+  color: var(--text-1);
+}
+
+.figure dd {
+  margin: 0;
+  color: var(--text-0);
+  font-weight: var(--weight-medium);
+}
+
+.compare {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+  padding-top: var(--space-3);
+}
+
+.compareHead {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.compareSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-control);
+}
+
+.table th,
+.table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border-0);
+  text-align: left;
+}
+
+.table th {
+  width: 30%;
+  color: var(--text-1);
+  font-weight: var(--weight-regular);
+}

@@ -1,5 +1,9 @@
 import { create } from 'zustand';
-import type { VehicleConfig } from '@shared/project/schema';
+import type { Project, VehicleConfig } from '@shared/project/schema';
+import { configFileName, configFromPc, resolveConfig } from '@shared/export/configs';
+import { call } from '@renderer/diagnostics/ipc';
+import { currentTaxonomy } from '@renderer/parts/taxonomy';
+import { useSetData } from '@renderer/suspension/commands';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 
@@ -40,7 +44,13 @@ export function updateConfig(id: string, patch: Partial<Pick<VehicleConfig, 'nam
 }
 
 export function deleteConfig(id: string): void {
-  projectStore.getState().execute({ label: 'Delete configuration', apply: (d) => void (d.configs = d.configs.filter((c) => c.id !== id)) });
+  projectStore.getState().execute({
+    label: 'Delete configuration',
+    apply: (d) => {
+      d.configs = d.configs.filter((c) => c.id !== id);
+      if (d.defaultConfigId === id) d.defaultConfigId = null;
+    },
+  });
   if (useConfigUi.getState().selected === id) useConfigUi.getState().select(null);
 }
 
@@ -93,4 +103,83 @@ export function applyConfigPreview(included: ReadonlySet<string> | null): void {
   if (!included || !doc) return;
   previewHidden = Object.keys(doc.assignments).filter((k) => !included.has(doc.assignments[k]!) && !scene.hidden[k]);
   if (previewHidden.length) scene.setHidden(previewHidden, true);
+}
+
+/** Move a configuration up or down the list (the order the game lists them in is by name, but ours is the user's). */
+export function moveConfig(id: string, by: -1 | 1): void {
+  projectStore.getState().execute({
+    label: 'Reorder configurations',
+    apply: (d) => {
+      const i = d.configs.findIndex((c) => c.id === id);
+      const j = i + by;
+      if (i < 0 || j < 0 || j >= d.configs.length) return;
+      const [c] = d.configs.splice(i, 1);
+      d.configs.splice(j, 0, c!);
+    },
+  });
+}
+
+/** The configuration the game spawns by default (null: the base one). */
+export function setDefaultConfig(id: string | null): void {
+  projectStore.getState().execute({ label: 'Set default configuration', apply: (d) => void (d.defaultConfigId = id) });
+}
+
+/** A configuration's vehicle-selector details (undefined clears one). */
+export function updateConfigInfo(id: string, patch: Partial<NonNullable<VehicleConfig['info']>>): void {
+  projectStore.getState().execute({
+    label: 'Edit configuration details',
+    coalesce: `cfginfo:${id}:${Object.keys(patch).join(',')}`,
+    apply: (d) => {
+      const c = d.configs.find((x) => x.id === id);
+      if (!c) return;
+      const info = { ...(c.info ?? {}), ...patch };
+      for (const k of Object.keys(info) as (keyof typeof info)[]) if (info[k] === undefined) delete info[k];
+      c.info = Object.keys(info).length ? info : undefined;
+      if (!c.info) delete c.info;
+    },
+  });
+}
+
+/** The model's vehicle-selector details: body style, country, years. */
+export function updateModelInfo(patch: Partial<Pick<Project['meta'], 'bodyStyle' | 'country' | 'years'>>): void {
+  projectStore.getState().execute({
+    label: 'Edit vehicle details',
+    coalesce: `modelinfo:${Object.keys(patch).join(',')}`,
+    apply: (d) => {
+      for (const [k, v] of Object.entries(patch) as [keyof typeof patch, unknown][]) {
+        if (v === undefined || v === '') delete d.meta[k];
+        else (d.meta as Record<string, unknown>)[k] = v;
+      }
+    },
+  });
+}
+
+/** Bring in .pc files as configurations; returns how many came in and what was skipped. */
+export async function importPcFiles(): Promise<{ added: number; skipped: string[] } | null> {
+  const files = await call('file:openText', { kind: 'pc', multiple: true });
+  const doc = projectStore.getState().doc;
+  if (!files.length || !doc) return null;
+  const tax = currentTaxonomy();
+  const sets = useSetData.getState().data;
+  const made: VehicleConfig[] = [];
+  const skipped: string[] = [];
+  for (const f of files) {
+    const { config, skipped: s } = configFromPc(doc, tax, f.text, f.name, sets);
+    const taken = new Set([...doc.configs, ...made].map((c) => c.name.toLowerCase()));
+    let name = config.name;
+    for (let i = 2; taken.has(name.toLowerCase()); i++) name = `${config.name} ${i}`;
+    made.push({ ...config, name, id: `cfg_${crypto.randomUUID().slice(0, 8)}` });
+    skipped.push(...s.map((x) => `${f.name}: ${x}`));
+  }
+  projectStore.getState().execute({ label: made.length > 1 ? `Import ${made.length} configurations` : 'Import configuration', apply: (d) => void d.configs.push(...made) });
+  useConfigUi.getState().select(made[made.length - 1]!.id);
+  return { added: made.length, skipped };
+}
+
+/** Save one configuration as a .pc where the user picks. */
+export async function exportPcFile(config: VehicleConfig | null): Promise<string | null> {
+  const doc = projectStore.getState().doc;
+  if (!doc) return null;
+  const pc = resolveConfig(doc, currentTaxonomy(), config, useSetData.getState().data);
+  return call('file:saveText', { kind: 'pc', suggestedName: `${configFileName(config)}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` });
 }

@@ -125,11 +125,11 @@ export function renderStudio(renderer: WebGLRenderer, model: Object3D, environme
   const bg = gradient(back.top, back.bottom);
   scene.background = bg;
   scene.environment = environment;
-  scene.environmentIntensity = 1;
-  const hemi = new HemisphereLight(new Color('#ffffff'), new Color(back.bottom), 1.4); // token-lint-ignore: studio light
-  const key = new DirectionalLight(new Color('#ffffff'), 2.6); // token-lint-ignore: studio light
+  scene.environmentIntensity = 0.85;
+  const hemi = new HemisphereLight(new Color('#ffffff'), new Color(back.bottom), 0.7); // token-lint-ignore: studio light
+  const key = new DirectionalLight(new Color('#ffffff'), 1.5); // token-lint-ignore: studio light
   key.position.set(3, 8, 6);
-  const fill = new DirectionalLight(new Color('#dfe6ff'), 0.9); // token-lint-ignore: studio light
+  const fill = new DirectionalLight(new Color('#dfe6ff'), 0.45); // token-lint-ignore: studio light
   fill.position.set(-6, 3, -2);
   const size = box.getSize(new Vector3());
   const shadowTex = shadowTexture(size.x / Math.max(size.z, 1e-3));
