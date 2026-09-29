@@ -6,7 +6,10 @@ import { rlog } from '@renderer/diagnostics/logger';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useSettingsStore } from '@renderer/app/stores/settings';
-import { capturePreview } from '@renderer/panels/viewport/registry';
+import { capturePreview, captureStudio } from '@renderer/panels/viewport/registry';
+import { syncPreviewPaints } from '@renderer/paint/preview';
+import { useConfigUi } from '@renderer/configs/commands';
+import { DEFAULT_SETTINGS, type Settings } from '@shared/settings-schema';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle, PublishListing } from '@shared/ipc-contract';
 import { bodyPart, buildJbeamFiles, damagedMaterialName, nodesExported } from '@shared/export/jbeam';
@@ -183,7 +186,7 @@ export function prepareExport(): PreparedExport | null {
     taken.add(file);
     const pc = resolveConfig(doc, tax, config, useSetData.getState().data);
     configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config), null, 2)}\n` });
-    const preview = capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data));
+    const preview = capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data), config?.id ?? null);
     if (preview) configFiles.push({ path: `${root}/${file}.jpg`, base64: base64FromDataUrl(preview) });
   }
   const files: ExportBundle['files'] = [
@@ -210,16 +213,24 @@ export function prepareExport(): PreparedExport | null {
   };
 }
 
-/** A preview picture with only these parts' meshes showing (the rest hidden for the capture, then put back). */
-function capturePreviewOf(doc: Pick<Project, 'assignments'>, parts: ReadonlySet<string>): string | null {
+/**
+ * A studio picture of one configuration for the vehicle selector: only its
+ * parts showing and its paints on (both put back afterwards).
+ */
+export function capturePreviewOf(doc: Pick<Project, 'assignments' | 'paints' | 'configs'>, parts: ReadonlySet<string>, configId: string | null, over?: Partial<Pick<Settings, 'previewSize' | 'previewAngle' | 'previewBackdrop'>>): string | null {
   const scene = useSceneStore.getState();
   const before = scene.hidden;
   const hide = Object.keys(doc.assignments).filter((k) => !parts.has(doc.assignments[k]!) && !before[k]);
+  const s = { ...DEFAULT_SETTINGS, ...useSettingsStore.getState().settings, ...over };
+  const [width, height] = s.previewSize.split('x').map(Number) as [number, number];
   if (hide.length) scene.setHidden(hide, true);
+  syncPreviewPaints(doc, configId);
   try {
-    return capturePreview();
+    return captureStudio({ width, height, angle: s.previewAngle, backdrop: s.previewBackdrop }) ?? capturePreview();
   } finally {
     if (hide.length) scene.setHidden(hide, false);
+    const ui = useConfigUi.getState();
+    syncPreviewPaints(projectStore.getState().doc, ui.preview ? ui.selected : null);
   }
 }
 

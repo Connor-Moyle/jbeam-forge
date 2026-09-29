@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { FileText, FolderOpen, RotateCcw, ScanSearch } from 'lucide-react';
 import { REPO_PATTERN } from '@shared/content/manifest';
-import { DEFAULT_SETTINGS, WINDOW_SIZES, type WindowSize } from '@shared/settings-schema';
+import { DEFAULT_SETTINGS, PREVIEW_SIZES, WINDOW_SIZES, type WindowSize } from '@shared/settings-schema';
+import { PREVIEW_ANGLES, PREVIEW_BACKDROPS } from '@renderer/panels/viewport/studio';
 import type { InstallValidation } from '@shared/beamng';
 import { describeInstallValidation } from '@shared/beamng';
 import type { Settings, SettingsPatch } from '@shared/settings-schema';
@@ -345,6 +346,18 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Toggle checked={d.openFolderAfterExport} onChange={(openFolderAfterExport) => set({ openFolderAfterExport })} label="Open the folder after exporting" />
               <Toggle checked={d.compressZip} onChange={(compressZip) => set({ compressZip })} label="Compress exported zips" />
               <p className={styles.help}>Compressed zips are smaller to share; uncompressed ones are written faster.</p>
+            </FieldGroup>
+            <FieldGroup title="Vehicle selector pictures">
+              <Field label="Size">
+                <Select value={d.previewSize} onChange={(previewSize) => set({ previewSize })} options={PREVIEW_SIZES.map((v) => ({ value: v, label: `${v.replace('x', ' × ')}${v === '500x281' ? ' (small)' : v === '1280x720' ? ' (HD)' : v === '1920x1080' ? ' (full HD)' : ' (QHD)'}` }))} aria-label="Picture size" data-testid="preview-size" />
+              </Field>
+              <Field label="Angle">
+                <Select value={d.previewAngle} onChange={(previewAngle) => set({ previewAngle })} options={PREVIEW_ANGLES.map((a) => ({ value: a.value, label: a.label }))} aria-label="Picture angle" />
+              </Field>
+              <Field label="Backdrop">
+                <Select value={d.previewBackdrop} onChange={(previewBackdrop) => set({ previewBackdrop })} options={Object.entries(PREVIEW_BACKDROPS).map(([value, b]) => ({ value: value as Settings['previewBackdrop'], label: b.label }))} aria-label="Picture backdrop" />
+              </Field>
+              <p className={styles.help}>Every export draws the car in a studio, like the game&rsquo;s own vehicle pictures: default.jpg for the model, and one per configuration with its parts and paint.</p>
             </FieldGroup>
           </section>
 

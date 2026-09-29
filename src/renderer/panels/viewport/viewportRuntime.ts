@@ -42,6 +42,7 @@ import type { ImportedMesh } from '@renderer/import/normalize';
 import type { GpuTextureCaps } from '@renderer/import/textures';
 import { subsetGeometry } from '@renderer/import/applySplits';
 import { channelMaterials, type Channel } from './channels';
+import { renderStudio, type StudioOptions } from './studio';
 import { disposeSharingGeometry } from '@renderer/import/dispose';
 import { floodFill, rectPolygon, triangleAdjacency, triangleCentroids, trianglesInPolygon, weldMap } from '@shared/mesh/split';
 import { GuardedLoop } from './guardedLoop';
@@ -400,7 +401,7 @@ export class ViewportRuntime {
         }
       }),
     );
-    this.disposers.push(registerViewport({ capture: (w, h) => this.capture(w, h), textureCaps: () => this.textureCaps() }));
+    this.disposers.push(registerViewport({ capture: (w, h) => this.capture(w, h), captureStudio: (o) => this.captureStudio(o), textureCaps: () => this.textureCaps() }));
 
     this.loop.start();
     callbacks.onState('running');
@@ -1467,6 +1468,22 @@ export class ViewportRuntime {
   }
 
   /** Render a frame now and copy it, cover-cropped, into a w×h JPEG. */
+  /** A studio picture of the car (vehicle-selector style), with the shaded look whatever the viewport shows. */
+  captureStudio(opts: StudioOptions): string | null {
+    const saved = new Map<Mesh, Material | Material[]>();
+    for (const obj of this.meshObjects.values()) {
+      saved.set(obj, obj.material);
+      obj.material = obj.userData.material as Material | Material[];
+      for (const extra of [obj.userData.faceOverlay, obj.userData.back] as (Mesh | undefined)[]) if (extra) extra.visible = true;
+    }
+    try {
+      return renderStudio(this.renderer, this.modelRoot, this.environment, opts);
+    } finally {
+      for (const [obj, mat] of saved) obj.material = mat;
+      this.applyFocus();
+    }
+  }
+
   capture(width: number, height: number): string | null {
     const src = this.renderer.domElement;
     if (src.width === 0 || src.height === 0) return null;

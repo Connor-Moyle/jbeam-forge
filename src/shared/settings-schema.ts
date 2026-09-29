@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { REPO_PATTERN } from './content/manifest';
 
 /** Window sizes offered in Settings ("remember" = the size it had when last closed). */
+/** Picture sizes for the vehicle selector (16:9). */
+export const PREVIEW_SIZES = ['500x281', '1280x720', '1920x1080', '2560x1440'] as const;
+
 export const WINDOW_SIZES = ['remember', '1280x720', '1366x768', '1600x900', '1920x1080', '2560x1440', '3840x2160', 'custom'] as const;
 export type WindowSize = (typeof WINDOW_SIZES)[number];
 
@@ -77,6 +80,10 @@ export const SettingsSchema = z.object({
   openFolderAfterExport: z.boolean(),
   /** Compress exported zips (smaller; storing is faster). */
   compressZip: z.boolean(),
+  /** Vehicle-selector pictures (default.jpg and one per configuration): size, angle and backdrop. */
+  previewSize: z.enum(PREVIEW_SIZES),
+  previewAngle: z.enum(['front-left', 'front-right', 'front', 'side', 'rear-left']),
+  previewBackdrop: z.enum(['studio', 'light', 'dark', 'sunset']),
 
   // Downloads
   /** Where downloaded textures and meshes go (null = beside the program). */
@@ -131,6 +138,9 @@ export const DEFAULT_SETTINGS: Settings = {
   torqueUnit: 'nm',
   openFolderAfterExport: false,
   compressZip: true,
+  previewSize: '1280x720',
+  previewAngle: 'front-left',
+  previewBackdrop: 'studio',
   contentDir: null,
   checkUpdatesOnStartup: true,
   includePrereleases: false,
