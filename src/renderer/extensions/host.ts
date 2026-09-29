@@ -34,6 +34,8 @@ export interface RunningExtension {
 export const useExtensions = create<{ list: RunningExtension[]; loading: boolean }>()(() => ({ list: [], loading: false }));
 
 const workers = new Map<string, { worker: Worker; url: string }>();
+/** Bumped by every stop: a start whose list arrives after a newer stop or start gives up. */
+let generation = 0;
 let docTimer: ReturnType<typeof setTimeout> | null = null;
 let unsubscribeDoc: (() => void) | null = null;
 
@@ -120,6 +122,7 @@ function start(info: ExtensionInfo, enabled: boolean): RunningExtension {
 }
 
 export function stopExtensions(): void {
+  generation++;
   for (const [id, w] of workers) {
     w.worker.terminate();
     URL.revokeObjectURL(w.url);
@@ -134,7 +137,7 @@ export function stopExtensions(): void {
 /** (Re)start every enabled extension. */
 export async function startExtensions(): Promise<void> {
   stopExtensions();
-  const settings = useSettingsStore.getState().settings;
+  const token = generation;
   useExtensions.setState({ loading: true });
   let infos: ExtensionInfo[] = [];
   try {
@@ -142,6 +145,8 @@ export async function startExtensions(): Promise<void> {
   } catch (err) {
     logger.warn('extensions not listed:', err);
   }
+  if (token !== generation) return; // stopped or restarted meanwhile
+  const settings = useSettingsStore.getState().settings;
   const on = settings?.extensionsEnabled ?? true;
   const off = new Set(settings?.disabledExtensions ?? []);
   const list = infos.map((i) => start(i, on && !off.has(i.manifest?.id ?? '')));

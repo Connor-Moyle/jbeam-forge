@@ -61,17 +61,18 @@ function vdataOf(): { nodes: { cid: number; pos: [number, number, number] }[]; b
 function Strip({ name, values, times, t, tone }: { name: string; values: number[]; times: number[]; t: number | null; tone: 'out' | 'in' }) {
   const w = 600;
   const h = 36;
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const nums = values.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : 0));
+  const min = Math.min(...nums);
+  const max = Math.max(...nums);
   const span = max - min || 1;
   const end = times[times.length - 1] || 1;
-  const d = values.map((v, i) => `${i ? 'L' : 'M'}${((times[i]! / end) * w).toFixed(1)},${(h - 3 - ((v - min) / span) * (h - 6)).toFixed(1)}`).join('');
+  const d = nums.map((v, i) => `${i ? 'L' : 'M'}${((times[i]! / end) * w).toFixed(1)},${(h - 3 - ((v - min) / span) * (h - 6)).toFixed(1)}`).join('');
   const now = t !== null ? valueAt({ times, series: { [name]: values }, inputs: {} }, name, t) : values[values.length - 1];
   return (
     <div className={styles.strip}>
       <div className={styles.stripHead}>
         <code className={tone === 'out' ? styles.stripName : styles.stripInput}>{name}</code>
-        <span className={styles.mono}>{now === undefined ? '' : +now.toFixed(3)}</span>
+        <span className={styles.mono}>{typeof now === 'number' ? +now.toFixed(3) : ''}</span>
       </div>
       <svg className={styles.stripSvg} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden>
         <path d={d} className={tone === 'out' ? styles.lineOut : styles.lineIn} />

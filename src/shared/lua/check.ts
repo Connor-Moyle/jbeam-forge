@@ -195,6 +195,8 @@ export function checkLua(code: string, opts: CheckOptions = {}): CheckResult {
           }
         }
         push();
+        // function M:name() has an implicit self.
+        if (node.identifier?.type === 'MemberExpression' && node.identifier.indexer === ':') declare({ name: 'self', ...(node.identifier as Loc) }, true);
         for (const p of node.parameters) if (p.type === 'Identifier') declare(p, true);
         node.body.forEach(visit);
         pop();

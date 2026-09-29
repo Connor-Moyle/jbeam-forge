@@ -33,6 +33,33 @@ const DRIVETRAINS = ['RWD', 'FWD', 'AWD', '4WD'];
 const FUELS = ['Gasoline', 'Diesel', 'Electric', 'Hybrid'];
 const INDUCTION = ['Naturally aspirated', 'Turbocharged', 'Supercharged', 'Twin-turbocharged'];
 
+type StatsBase = Parameters<typeof configStats>[0];
+
+/** The parts of the project the figures depend on (kept while they don't change). */
+const baseCache = new WeakMap<object, StatsBase>();
+function baseOf(doc: Project): StatsBase {
+  const key = doc.parts;
+  const hit = baseCache.get(key);
+  if (hit && hit.meta === doc.meta && hit.nodes === doc.nodes && hit.axles === doc.axles && hit.assignments === doc.assignments && hit.powertrain === doc.powertrain && hit.variables === doc.variables && hit.paints === doc.paints) return hit;
+  const base: StatsBase = { meta: doc.meta, parts: doc.parts, variables: doc.variables, nodes: doc.nodes, axles: doc.axles, assignments: doc.assignments, paints: doc.paints, powertrain: doc.powertrain };
+  baseCache.set(key, base);
+  return base;
+}
+
+/**
+ * Figures per configuration, worked out again only when the car or that
+ * configuration's parts or values change (not on each key typed in a name).
+ */
+const statsCache = new WeakMap<object, { base: StatsBase; tax: unknown; sets: unknown; vars: unknown; stats: ConfigStats }>();
+function cachedStats(base: StatsBase, tax: ReturnType<typeof useTaxonomy>, sets: ReturnType<typeof useSetData.getState>['data'], c: VehicleConfig | null): ConfigStats {
+  const key = c?.parts ?? base;
+  const hit = statsCache.get(key);
+  if (hit && hit.base === base && hit.tax === tax && hit.sets === sets && hit.vars === c?.vars) return hit.stats;
+  const stats = configStats(base, tax, resolveConfig(base, tax, c, sets), sets);
+  statsCache.set(key, { base, tax, sets, vars: c?.vars, stats });
+  return stats;
+}
+
 /** Pictures of each configuration, captured in the studio (kept while the window is open). */
 function usePictures(doc: Project | null, list: readonly (VehicleConfig | null)[]) {
   const tax = useTaxonomy();
@@ -85,7 +112,8 @@ export function ConfigsManager({ onClose }: { onClose: () => void }) {
   const stats = useMemo(() => {
     const out = new Map<string, ConfigStats>();
     if (!doc) return out;
-    for (const c of list) out.set(c?.id ?? BASE, configStats(doc, tax, resolveConfig(doc, tax, c, sets), sets));
+    const base = baseOf(doc);
+    for (const c of list) out.set(c?.id ?? BASE, cachedStats(base, tax, sets, c));
     return out;
   }, [doc, list, tax, sets]);
   if (!doc) return null;

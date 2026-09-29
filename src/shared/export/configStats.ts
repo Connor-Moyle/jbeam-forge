@@ -1,9 +1,8 @@
 import type { Project, VehicleConfig } from '../project/schema';
-import { partPrice } from '../parts/materials';
 import { curvePeaks, effectiveRatios, effectiveTorque, setMass } from '../powertrain/edits';
 import { engineSpecs, gearboxSpecs } from '../powertrain/specs';
 import { DEFAULT_DRIVETRAIN, planDrivetrain } from '../powertrain/drivetrain';
-import { includedParts, slotChoices, type PcFile } from './configs';
+import { includedParts, partsValue, slotChoices, type PcFile } from './configs';
 import { engineSlotType, engineTags, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
 
 /**
@@ -35,11 +34,7 @@ const FUEL: Record<string, string> = { petrol: 'Gasoline', diesel: 'Diesel', ele
 export function configStats(doc: Doc, tax: TaxonomyLookup, pc: PcFile, sets: Sets = {}): ConfigStats {
   const on = includedParts(doc, tax, pc, sets);
   let weight = doc.nodes.filter((n) => on.has(n.partId)).reduce((s, n) => s + n.weight, 0);
-  const byName = new Map(doc.parts.map((p) => [p.name, p]));
-  const value = Object.values(pc.parts).reduce((sum, name) => {
-    const part = byName.get(name);
-    return sum + (part ? partPrice(part, tax.entry(part.taxonomyId)) : 0);
-  }, 0);
+  const value = partsValue(doc, tax, pc);
 
   // The engine this configuration picks (the default one unless its slot says otherwise).
   const pt = doc.powertrain;

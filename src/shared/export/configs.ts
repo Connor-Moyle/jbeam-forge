@@ -134,12 +134,17 @@ export function configFileName(config: Pick<VehicleConfig, 'name'> | null): stri
   return config.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'config';
 }
 
-export function configInfoJson(doc: Doc, tax: TaxonomyLookup, pc: PcFile, config: VehicleConfig | null, labels: Record<string, string | number | { min: number; max: number }> = {}): Record<string, string | number | { min: number; max: number }> {
+/** What a configuration's parts cost, added up (the selector's value unless one is set). */
+export function partsValue(doc: Pick<Project, 'parts'>, tax: TaxonomyLookup, pc: Pick<PcFile, 'parts'>): number {
   const byName = new Map(doc.parts.map((p) => [p.name, p]));
-  const value = Object.values(pc.parts).reduce((sum, name) => {
+  return Object.values(pc.parts).reduce((sum, name) => {
     const part = byName.get(name);
     return sum + (part ? partPrice(part, tax.entry(part.taxonomyId)) : 0);
   }, 0);
+}
+
+export function configInfoJson(doc: Doc, tax: TaxonomyLookup, pc: PcFile, config: VehicleConfig | null, labels: Record<string, string | number | { min: number; max: number }> = {}): Record<string, string | number | { min: number; max: number }> {
+  const value = partsValue(doc, tax, pc);
   return {
     Configuration: config?.name ?? 'Default',
     'Config Type': config?.type || 'Factory',

@@ -5,6 +5,7 @@ import { checkLua } from '@shared/lua/check';
 import { outputName, scriptActions, type ParamDef, type ScriptTemplate } from '@shared/lua/templates';
 import type { ScriptAction, ScriptParamValue, VehicleScript } from '@shared/lua/types';
 import { EMPTY_ARR } from '@shared/empty';
+import { SET_KINDS } from '@shared/export/jbeam';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { Button } from '@renderer/ui/components/Button';
@@ -77,7 +78,7 @@ function Header({ script }: { script: VehicleScript }) {
         <Select
           value={script.partId ?? BODY}
           onChange={(v) => updateScript(script.id, { partId: v === BODY ? null : v }, 'Move script to another part')}
-          options={[{ value: BODY, label: 'On the body' }, ...parts.filter((p) => !p.variantOf).map((p) => ({ value: p.id, label: `With ${p.displayName}` }))]}
+          options={[{ value: BODY, label: 'On the body' }, ...parts.filter((p) => !p.variantOf && !SET_KINDS.has(p.taxonomyId)).map((p) => ({ value: p.id, label: `With ${p.displayName}` }))]}
           aria-label="Part it comes with"
           className={styles.grow}
         />

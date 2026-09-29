@@ -71,4 +71,8 @@ M.init = function(jbeamData) f(1) end
 return M`;
     expect(codes(src)).toEqual(['warning:undefined@6']);
   });
+
+  it('knows self in functions declared with a colon', () => {
+    expect(codes('local M = {}\nfunction M:updateGFX(dt) self.x = dt end\nreturn M')).toEqual([]);
+  });
 });

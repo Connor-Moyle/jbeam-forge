@@ -12,7 +12,7 @@ import { useConfigUi } from '@renderer/configs/commands';
 import { DEFAULT_SETTINGS, type Settings } from '@shared/settings-schema';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle, PublishListing } from '@shared/ipc-contract';
-import { bodyPart, buildJbeamFiles, damagedMaterialName, nodesExported } from '@shared/export/jbeam';
+import { bodyPart, buildJbeamFiles, damagedMaterialName, nodesExported, SET_KINDS } from '@shared/export/jbeam';
 import type { Project } from '@shared/project/schema';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
@@ -112,7 +112,7 @@ export function prepareExport(): PreparedExport | null {
   const propPivot = new Map([...exportableProps(doc, bodyPart(doc, tax)?.id, nodesExported(doc, tax))].map(([k, x]) => [k, x.prop.pivot] as const));
   // Vehicle scripts: controllers, keys, their files, and meshes that become live screens.
   const body = bodyPart(doc, tax);
-  const scripts = exportScripts(doc.scripts ?? [], { slug, bodyPartId: body?.id ?? null, partIds: new Set(doc.parts.map((p) => p.id)), template: templateById });
+  const scripts = exportScripts(doc.scripts ?? [], { slug, bodyPartId: body?.id ?? null, partIds: new Set(doc.parts.filter((p) => !SET_KINDS.has(p.taxonomyId)).map((p) => p.id)), template: templateById });
   const screens = new Map(scripts.screens.map((sc) => [sc.meshKey, sc]));
   const daeMeshes: DaeMesh[] = exported.map((m) => {
     const imported = Array.isArray(m.material) ? m.material : [m.material];

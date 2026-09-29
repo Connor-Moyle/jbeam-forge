@@ -29,7 +29,7 @@ export interface SandboxInput {
   scenario: SandboxScenario;
   /** Frames per second of updateGFX (60 in game). */
   fps?: number;
-  /** Instruction budget before it's stopped as an endless loop. */
+  /** Instructions one call into the script may take before it's stopped as an endless loop. */
   budget?: number;
 }
 
@@ -57,7 +57,8 @@ export function luaLiteral(v: unknown, depth = 0): string {
   if (Array.isArray(v)) return `{${v.map((x) => luaLiteral(x, depth + 1)).join(',')}}`;
   if (typeof v === 'object') {
     return `{${Object.entries(v as Record<string, unknown>)
-      .map(([k, x]) => `[${luaLiteral(k)}]=${luaLiteral(x, depth + 1)}`)
+      // Whole-number keys stay numbers (v.data.nodes[cid]).
+      .map(([k, x]) => `[${/^-?\d{1,15}$/.test(k) ? k : luaLiteral(k)}]=${luaLiteral(x, depth + 1)}`)
       .join(',')}}`;
   }
   return 'nil';
@@ -275,13 +276,21 @@ local function applyTracks(t)
   if __ev.rpmTacho == nil and __ev.rpm then __ev.rpmTacho = __ev.rpm end
 end
 
+-- The step budget is per call into the script, so a long test of a busy script is fine.
+local function abort() error("stopped after too many steps: an endless loop?", 2) end
+local function guarded(fn, ...)
+  debug.sethook(abort, "", __BUDGET)
+  local r = table.pack(pcall(fn, ...))
+  debug.sethook()
+  return table.unpack(r, 1, r.n)
+end
+
 local chunk, err = load(__CODE, "=script")
 local M = nil
 if not chunk then
   fail(err, 0)
 else
-  debug.sethook(function() error("stopped after too many steps: an endless loop?", 2) end, "", __BUDGET)
-  local ok, mod = pcall(chunk)
+  local ok, mod = guarded(chunk)
   if not ok then fail(mod, 0)
   elseif type(mod) ~= "table" then fail("the script must return its module table (return M)", 0)
   else M = mod end
@@ -296,7 +305,7 @@ if M then
   applyTracks(0)
   for _, name in ipairs({ "init", "initSecondStage", "initSounds" }) do
     if result.ok and type(M[name]) == "function" then
-      local ok, e = pcall(M[name], __JBEAM)
+      local ok, e = guarded(M[name], __JBEAM)
       if not ok then fail(e, 0) end
     end
   end
@@ -324,8 +333,13 @@ local function sample(t)
     s[n] = rawget(__ev, track.name) or 0
   end
   for _, id in ipairs(__soundOrder) do
-    local s = snd[id] or { file = __sounds[id].file, volume = {}, pitch = {}, playing = {} }
-    snd[id] = s
+    local s = snd[id]
+    if not s then
+      -- Made after the start: silent until then, like the series.
+      s = { file = __sounds[id].file, volume = {}, pitch = {}, playing = {} }
+      for i = 1, n - 1 do s.volume[i], s.pitch[i], s.playing[i] = 0, 1, 0 end
+      snd[id] = s
+    end
     s.volume[n], s.pitch[n], s.playing[n] = __sounds[id].volume, __sounds[id].pitch, __sounds[id].playing
   end
 end
@@ -342,13 +356,13 @@ if M and result.ok then
       __push("press", p.label or p.call)
       local fn, e = load("local M = ... return M." .. p.call, "=press")
       if not fn then fail("key " .. p.call .. ": " .. tostring(e), __t) break end
-      local ok, e2 = pcall(fn, M)
+      local ok, e2 = guarded(fn, M)
       if not ok then fail(e2, __t) break end
     end
     if not result.ok then break end
     for _, name in ipairs({ "update", "updateGFX" }) do
       if type(M[name]) == "function" then
-        local ok, e = pcall(M[name], dt)
+        local ok, e = guarded(M[name], dt)
         if not ok then fail(e, __t) break end
       end
     end
@@ -356,7 +370,6 @@ if M and result.ok then
     if f % every == 0 then sample(__t) end
   end
 end
-debug.sethook()
 
 -- JSON out.
 local function enc(x)
@@ -394,7 +407,7 @@ export function runSandbox(input: SandboxInput): SandboxResult {
     `local __VDATA = ${luaLiteral({ nodes, beams })}`,
     `local __SCENARIO = ${luaLiteral({ ...input.scenario, seconds })}`,
     `local __FPS = ${fps}`,
-    `local __BUDGET = ${Math.max(100_000, Math.min(500_000_000, input.budget ?? 60_000_000))}`,
+    `local __BUDGET = ${Math.max(100_000, Math.min(500_000_000, input.budget ?? 20_000_000))}`,
     RUNNER,
   ].join('\n');
   const L = lauxlib.luaL_newstate();

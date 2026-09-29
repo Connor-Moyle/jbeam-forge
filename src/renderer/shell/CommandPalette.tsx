@@ -49,6 +49,7 @@ function PaletteBody({ close }: { close: () => void }) {
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
 
+  const extensionList = useExtensions((s) => s.list);
   const items = useMemo<Item[]>(() => {
     const doc = projectStore.getState().doc;
     const view = useUiStore.getState().view;
@@ -94,9 +95,9 @@ function PaletteBody({ close }: { close: () => void }) {
       .map((id) => ({ id: `panel:${id}`, label: `Show ${PANELS[id].title} panel`, group: 'Panel', run: () => shell.showPanel(id) }));
     const layouts: Item[] = PRESET_IDS.map((p) => ({ id: `layout:${p}`, label: `${PRESET_LABELS[p]} layout`, group: 'Layout', run: () => shell.applyPreset(p) }));
     const parts: Item[] = (doc?.parts ?? []).map((p) => ({ id: `part:${p.id}`, label: p.displayName, group: 'Part', hint: 'focus', run: () => focusPart(p.id) }));
-    const extensions: Item[] = useExtensions.getState().list.flatMap((e) => (e.running ? e.commands.map((c) => ({ id: `ext:${e.id}:${c.id}`, label: c.label, group: 'Extension' as const, hint: e.name, run: () => runExtensionCommand(e.id, c.id) })) : []));
+    const extensions: Item[] = extensionList.flatMap((e) => (e.running ? e.commands.map((c) => ({ id: `ext:${e.id}:${c.id}`, label: c.label, group: 'Extension' as const, hint: e.name, run: () => runExtensionCommand(e.id, c.id) })) : []));
     return [...actions.filter((a): a is Item => !!a), ...extensions, ...parts, ...panels, ...layouts];
-  }, [shell]);
+  }, [shell, extensionList]);
 
   const results = useMemo(() => {
     if (!query.trim()) return items.filter((i) => i.group !== 'Part').slice(0, MAX_RESULTS);

@@ -100,4 +100,29 @@ return M`,
     expect(r.series.u![1]).toBe(3);
     expect(r.series.smooth![r.times.length - 1]).toBeCloseTo(1, 1);
   });
+
+  it('keeps late sounds aligned, gives each call its own step budget, and numbers v.data by cid', () => {
+    const r = runSandbox({
+      code: `local M = {}
+local src = nil
+function M.updateGFX(dt)
+  if not src and (electrics.values.wheelspeed or 0) > 5 then src = obj:createSFXSource("x.wav", "AudioDefaultLoop3D", "x", 0) obj:playSFX(src) end
+  local n = 0
+  for i = 1, 3000 do n = n + i end
+  electrics.values.node = obj:getNodePosition(1).x
+end
+return M`,
+      jbeamData: {},
+      vdata: { nodes: [{ cid: 1, pos: [5, 6, 7] }] },
+      scenario: { seconds: 60, tracks: [{ name: 'wheelspeed', points: [[0, 0], [60, 20]] }], presses: [] },
+      fps: 120,
+      budget: 200_000,
+    });
+    expect(r.error).toBeNull();
+    const s = Object.values(r.sounds)[0]!;
+    expect(s.volume.length).toBe(r.times.length);
+    expect(s.volume.every((v) => typeof v === 'number')).toBe(true);
+    expect(s.playing[0]).toBe(0);
+    expect(r.series.node![5]).toBe(5);
+  }, 60_000);
 });

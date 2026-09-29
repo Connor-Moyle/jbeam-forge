@@ -204,7 +204,8 @@ export async function importScripts(kind: 'lua' | 'jbscript'): Promise<void> {
       if (kind === 'jbscript') addFromLibrary(parseLibraryScript(f.text, f.name));
       else {
         const base = f.name.replace(/\.lua$/i, '');
-        add({ id: newId('script'), name: uniqueScriptName(base, takenNames()), label: base.replace(/[_-]+/g, ' '), templateId: null, enabled: true, params: {}, code: f.text, partId: null, actions: [] }, `Import ${f.name}`);
+        const label = base.replace(/[_-]+/g, ' ').trim().slice(0, 80) || 'Imported script';
+        add({ id: newId('script'), name: uniqueScriptName(base, takenNames()), label, templateId: null, enabled: true, params: {}, code: f.text, partId: null, actions: [] }, `Import ${f.name}`);
       }
     } catch (err) {
       useUiStore.getState().pushStatus(err instanceof Error ? err.message : String(err), 'danger', 8000);
