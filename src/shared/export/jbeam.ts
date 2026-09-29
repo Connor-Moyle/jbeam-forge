@@ -13,6 +13,7 @@ import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
+import type { PartScripts } from '../lua/export';
 import { applyDrivetrainToAxle, DEFAULT_DRIVETRAIN, planDrivetrain } from '../powertrain/drivetrain';
 import { camerasInternalSection } from '../cameras/cameras';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
@@ -47,6 +48,8 @@ export interface JbeamExportOptions {
   glowMap?: Readonly<Record<string, { simpleFunction: JbeamValue; off: string; on: string }>>;
   /** Fitted suspensions' jbeam (by catalogue set id), brought over into the mod. */
   suspensions?: Readonly<Record<string, SuspensionSetData>>;
+  /** Vehicle scripts' controller rows and sections, by carrier part id. */
+  scripts?: ReadonlyMap<string, PartScripts>;
 }
 
 export interface SuspensionSetData {
@@ -532,6 +535,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const aero = AERO[part.taxonomyId];
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset, aero && { ...aero, pos: posOf, downforce: partVars.downforce });
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
+    const scripted = opts.scripts?.get(part.id);
+    if (scripted) {
+      const rows = Array.isArray(content.controller) ? (content.controller) : [['fileName']];
+      content.controller = [...rows, ...(scripted.rows as unknown as WritableValue[])];
+      for (const [k, v] of Object.entries(scripted.sections)) if (!(k in content)) content[k] = v as WritableValue;
+    }
     const doc1: WritableObject = { [part.name]: content };
     files.push({ file: `${part.name}.jbeam`, part: part.name, text: serializeJbeam(doc1) });
   }

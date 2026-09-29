@@ -50,9 +50,12 @@ export class ExportError extends Error {
 export function checkBundle(bundle: ModBundle, canReadSource: (path: string) => boolean): void {
   if (!SLUG_PATTERN.test(bundle.slug)) throw new ExportError(`Invalid mod name "${bundle.slug}"`);
   const root = `vehicles/${bundle.slug}/`;
+  // Vehicle scripts (controllers) live in the game's Lua folder, in a folder of this mod's own.
+  const luaRoot = `lua/vehicle/controller/jbf_${bundle.slug}/`;
   const check = (p: string) => {
     const norm = posix.normalize(p.replace(/\\/g, '/'));
-    if (norm !== p || !norm.startsWith(root) || norm.includes('..') || posix.isAbsolute(norm)) throw new ExportError(`Refusing to write outside ${root}: ${p}`);
+    const inLua = norm.startsWith(luaRoot) && norm.endsWith('.lua');
+    if (norm !== p || !(norm.startsWith(root) || inLua) || norm.includes('..') || posix.isAbsolute(norm)) throw new ExportError(`Refusing to write outside ${root}: ${p}`);
   };
   for (const f of bundle.files) check(f.path);
   for (const c of bundle.copies) {

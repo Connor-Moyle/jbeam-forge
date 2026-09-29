@@ -19,6 +19,8 @@ import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
 import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
 import { configLabels, configStats } from '@shared/export/configStats';
+import { exportScripts } from '@shared/lua/export';
+import { templateById } from '@renderer/scripts/registry';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
 import { exportableProps } from '@shared/props/props';
@@ -107,8 +109,18 @@ export function prepareExport(): PreparedExport | null {
   );
   // Only props the jbeam can hang get their origin at the pivot; the rest stay plain flexbodies.
   const propPivot = new Map([...exportableProps(doc, bodyPart(doc, tax)?.id, nodesExported(doc, tax))].map(([k, x]) => [k, x.prop.pivot] as const));
+  // Vehicle scripts: controllers, keys, their files, and meshes that become live screens.
+  const body = bodyPart(doc, tax);
+  const scripts = exportScripts(doc.scripts ?? [], { slug, bodyPartId: body?.id ?? null, partIds: new Set(doc.parts.map((p) => p.id)), template: templateById });
+  const screens = new Map(scripts.screens.map((sc) => [sc.meshKey, sc]));
   const daeMeshes: DaeMesh[] = exported.map((m) => {
     const imported = Array.isArray(m.material) ? m.material : [m.material];
+    const screen = screens.get(m.key);
+    if (screen) {
+      // The whole mesh shows the screen's page (one material for every group).
+      const groups = Math.max(1, m.geometry.groups.length);
+      return { name: meshNames.get(m.key)!, geometry: m.geometry, materials: Array.from({ length: groups }, () => screen.name), flipV: formatOf.get(m.sourceId) === 'gltf' || formatOf.get(m.sourceId) === 'glb' };
+    }
     const ids = slotsOf(doc, m.key);
     const materials = ids?.length ? ids.map((id) => project.names.get(id) ?? `${slug}_missing`) : imported.map((mat) => mats.names.get(mat)!);
     const back = ids?.some((id) => backOf(id)) ? ids.map((id) => (backOf(id) ? (project.names.get(backOf(id)!) ?? null) : null)) : undefined;
@@ -128,7 +140,7 @@ export function prepareExport(): PreparedExport | null {
       ...(propPivot.has(m.key) ? { origin: propPivot.get(m.key)! } : {}),
     };
   });
-  const dae = writeDae(daeMeshes, [...project.colors, ...mats.materials.map((m) => ({ name: m.name, color: m.baseColor }))]);
+  const dae = writeDae(daeMeshes, [...project.colors, ...mats.materials.map((m) => ({ name: m.name, color: m.baseColor })), ...scripts.screens.map((sc) => ({ name: sc.name, color: [0.02, 0.02, 0.02, 1] as [number, number, number, number] }))]);
   // Lights: materials used only by light parts glow with their signal (an "on" twin of each).
   const partOf = (key: string) => doc.parts.find((p) => p.id === doc.assignments[key]);
   const { glowMap, shared: sharedLights } = buildGlowMap(
@@ -139,6 +151,10 @@ export function prepareExport(): PreparedExport | null {
     }),
   );
   const materialJsonAll: Record<string, unknown> = { ...project.json, ...materialsJson(slug, mats.materials), ...skinMaterialsJson(slug, doc.materials, doc.features.skins, project.names, namer) };
+  // Live screens: the page the game draws (a dynamic texture), lit.
+  for (const sc of scripts.screens) {
+    materialJsonAll[sc.name] = { name: sc.name, mapTo: sc.name, class: 'Material', version: 1.5, Stages: [{ baseColorMap: sc.texture, emissiveMap: sc.texture, emissiveFactor: [1, 1, 1], roughnessFactor: 0.2, metallicFactor: 0 }, {}, {}, {}], translucent: false };
+  }
   for (const name of Object.keys(glowMap)) {
     const off = materialJsonAll[name] as { Stages?: Record<string, unknown>[] } | undefined;
     if (!off) {
@@ -175,7 +191,7 @@ export function prepareExport(): PreparedExport | null {
     materialJsonAll[damagedMaterialName(name)] = dmg;
   }
   const meshMaterials = new Map(daeMeshes.map((dm) => [dm.name, dm.materials]));
-  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data, glowMap, meshMaterials });
+  const jbeams = buildJbeamFiles(doc, tax, { meshNames, author, suspensions: useSetData.getState().data, glowMap, meshMaterials, scripts: scripts.parts });
   const root = `vehicles/${slug}`;
   // The default configuration, then every one made in the Configurations panel: a .pc, its info and a preview each.
   const configs = [null, ...doc.configs];
@@ -199,6 +215,7 @@ export function prepareExport(): PreparedExport | null {
     { path: `${root}/main.materials.json`, text: `${JSON.stringify(materialJsonAll, null, 2)}\n` },
     { path: `${root}/info.json`, text: `${JSON.stringify(infoJson(doc, author, defaultPc), null, 2)}\n` },
     ...configFiles,
+    ...scripts.files.map((f) => (f.base64 !== undefined ? { path: f.path, base64: f.base64 } : { path: f.path, text: f.text ?? '' })),
   ];
 
   const exportedSources = new Set(exported.map((m) => m.sourceId));
@@ -209,6 +226,8 @@ export function prepareExport(): PreparedExport | null {
     missingTextures,
     loadedMeshKeys: allMeshes.map((m) => m.key),
   });
+  for (const e of scripts.errors) report.errors.push({ code: 'SCRIPT', message: e });
+  for (const w of scripts.warnings) report.warnings.push({ code: 'SCRIPT', message: w });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {
     bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies },

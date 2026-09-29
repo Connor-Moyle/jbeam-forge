@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VehicleScriptSchema } from '../lua/types';
 import { PropSchema } from '../props/props';
 import { CameraSchema } from '../cameras/cameras';
 import { MaterialDefSchema } from '../materials/schema';
@@ -529,6 +530,8 @@ export const ProjectV18Schema = z.object({
   props: z.array(PropSchema).optional(),
   /** Interior cameras (fork): the driver's view and others, as camerasInternal. */
   cameras: z.array(CameraSchema).optional(),
+  /** Vehicle scripts (fork): Lua controllers that ship with the car. */
+  scripts: z.array(VehicleScriptSchema).optional(),
   /** Engine and gearbox (v12, Phase 11). */
   powertrain: PowertrainSchema,
   /** Vehicle configurations beyond the default (v14, Phase 13). */
