@@ -198,7 +198,7 @@ export const GUIDES: Guide[] = [
     summary: 'Hinges, latches and animated parts.',
     sections: [
       { text: 'Opening panels are parts joined to the body by a hinge axis (two nodes they share) and held shut by a latch. The Moving parts workspace sets them up with a wizard, and Test Mode swings them to check.' },
-      { steps: ['Pick the part, then Add hinge. Drag the two hinge points onto the hinge line.', 'Choose how far it opens and whether it latches.', 'Props (steering wheel, gauges, wipers) turn with the car’s values; set them up in the same workspace.'] },
+      { steps: ['Open the Moving parts workspace ({key:layout4}). Hinge all sets up every door, hood and trunk at once.', 'Pick one to change its hinge line, how far it opens, the latch and its handles; the swing preview shows it moving.', 'Animated parts: the steering wheel, needles and pedals are suggested by their names; one click makes them follow the game’s values.', 'Scripted movement adds wipers, windows, folding mirrors, moving seats and roofs from templates.'] },
     ],
   },
   {
@@ -208,7 +208,7 @@ export const GUIDES: Guide[] = [
     summary: 'Clickable spots on the car.',
     sections: [
       { text: 'Triggers are boxes on the car players can click in the game (a door handle, the hood release, a light switch). Each runs an action: toggle a door latch, the lights, or one of your scripts.' },
-      { steps: ['Open the Triggers workspace and click Add trigger.', 'Place and size the box on the car with the gizmo.', 'Pick what it does. The in-game hover text is its name.'] },
+      { steps: ['Open the Triggers workspace ({key:layout5}), pick a kind (door handle, button, switch…) and click Add.', 'Click on the car where it goes. Dropped on a door, hood or trunk, it opens it.', 'Pick what it does: lights, indicators, the horn, a door, or one of your scripts’ keys. Size and turn it to fit.', 'Copy to the other side makes the matching one, with left and right swapped.'] },
     ],
   },
   {

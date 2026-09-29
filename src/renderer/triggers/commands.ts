@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import { projectStore } from '@renderer/app/stores/project';
 import { useUiStore } from '@renderer/app/stores/ui';
-import { mirrorTrigger, TRIGGER_ID, TRIGGER_PRESETS, uniqueTriggerId, type Trigger } from '@shared/triggers/schema';
+import { GAME_ACTIONS, mirrorTrigger, TRIGGER_ID, TRIGGER_PRESETS, uniqueTriggerId, type Trigger } from '@shared/triggers/schema';
 import type { Project } from '@shared/project/schema';
 import { EMPTY_ARR } from '@shared/empty';
+import { scriptActions } from '@shared/lua/templates';
+import { templateById } from '@renderer/scripts/registry';
 
 /**
  * Triggers workspace (fork): add, place and wire clickable boxes. Every
@@ -13,14 +15,19 @@ import { EMPTY_ARR } from '@shared/empty';
 type Vec3 = [number, number, number];
 
 interface TriggerUi {
+  /** The triggers workspace is showing: the 3D view draws the boxes. */
+  visible: number;
   selected: string | null;
   /** Click on the car to put the selected trigger there. */
   placing: boolean;
   select: (id: string | null) => void;
   setPlacing: (on: boolean) => void;
+  show: (on: boolean) => void;
 }
 
 export const useTriggerUi = create<TriggerUi>()((set) => ({
+  visible: 0,
+  show: (on) => set((s) => ({ visible: Math.max(0, s.visible + (on ? 1 : -1)), ...(on ? {} : { placing: false }) })),
   selected: null,
   placing: false,
   select: (selected) => set({ selected, placing: false }),
@@ -48,7 +55,10 @@ function nearestPart(doc: Project, at: Vec3): string | null {
 }
 
 /** A new trigger of a kind (handle, button…), at `at` or on the body's side, selected and ready to place. */
-export function addTrigger(kind: string, at?: Vec3, action = 'horn'): string | null {
+/** What a new trigger does until it's changed (or dropped on something that opens). */
+export const DEFAULT_ACTION = 'horn';
+
+export function addTrigger(kind: string, at?: Vec3, action = DEFAULT_ACTION): string | null {
   const doc = projectStore.getState().doc;
   if (!doc) return null;
   if (!doc.nodes.length) {
@@ -92,9 +102,13 @@ export function placeTrigger(id: string, point: Vec3, normal: Vec3 | null): void
   const lift = normal ? Math.min(...t.size) / 2 : 0;
   const pos: Vec3 = normal ? [point[0] + normal[0] * lift, point[1] + normal[1] * lift, point[2] + normal[2] * lift] : point;
   const partId = nearestPart(doc, pos) ?? t.partId;
-  updateTrigger(id, { pos: pos.map((v) => Math.round(v * 1e4) / 1e4) as Vec3, partId }, `Place trigger ${id}`);
+  // A trigger still on its first action, dropped on a door, hood or trunk, opens it.
+  const hinge = doc.hinges.find((h) => h.partId === partId);
+  const opens = hinge && t.action === DEFAULT_ACTION ? hinge.action : null;
+  updateTrigger(id, { pos: pos.map((v) => Math.round(v * 1e4) / 1e4) as Vec3, partId, ...(opens ? { action: opens } : {}) }, `Place trigger ${id}`);
   useTriggerUi.getState().setPlacing(false);
-  status(`Placed ${id}`, 'success');
+  const part = doc.parts.find((p) => p.id === partId)?.displayName ?? '';
+  status(opens ? `Placed ${id} on ${part}: it opens it (${opens})` : `Placed ${id} on ${part}`, 'success');
 }
 
 export function removeTrigger(id: string): void {
@@ -129,4 +143,18 @@ export function handlesFromHinges(): number {
   if (add.length) projectStore.getState().execute({ label: `Add ${add.length} handle${add.length === 1 ? '' : 's'}`, apply: (d) => void (d.triggers = [...(d.triggers ?? []), ...add]) });
   status(add.length ? `Added ${add.length} handle${add.length === 1 ? '' : 's'}: move each onto its handle` : 'Every opening part already has a handle', add.length ? 'success' : 'info');
   return add.length;
+}
+
+/** Everything a trigger can run: the game's own actions, the car's doors and hood, and its scripts' keys. */
+export function triggerActions(doc: Project | null): { value: string; label: string; group: string }[] {
+  const out = GAME_ACTIONS.map((a) => ({ ...a }));
+  for (const h of doc?.hinges ?? []) {
+    if (out.some((a) => a.value === h.action)) continue;
+    const part = doc?.parts.find((p) => p.id === h.partId);
+    out.push({ value: h.action, label: part?.displayName ?? h.action, group: 'Opening' });
+  }
+  for (const script of doc?.scripts ?? []) {
+    for (const a of scriptActions(templateById(script.templateId ?? '') ?? null, script)) out.push({ value: `jbf_${doc!.meta.slug}_${script.name}_${a.id}`, label: `${script.label}: ${a.label}`, group: 'Scripts' });
+  }
+  return out;
 }

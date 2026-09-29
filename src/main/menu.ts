@@ -12,6 +12,8 @@ const logger = scoped('menu');
 const PRESET_LABELS: Record<(typeof PRESET_IDS)[number], string> = {
   modelling: 'Modelling',
   jbeam: 'JBeam',
+  moving: 'Moving Parts',
+  triggers: 'Triggers',
   materials: 'Materials',
   testing: 'Testing',
   scripts: 'Scripts',

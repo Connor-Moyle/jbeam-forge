@@ -9,6 +9,8 @@ export const PRESET_LABELS: Record<PresetId, string> = {
   modelling: 'Modelling',
   materials: 'Materials',
   jbeam: 'JBeam',
+  moving: 'Moving parts',
+  triggers: 'Triggers',
   testing: 'Testing',
   scripts: 'Scripts',
 };
@@ -43,6 +45,18 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'jbeam-tables', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel-wide' },
     { id: 'jbeam-props', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
     { id: 'jbeam-preview', relativeTo: 'viewport', direction: 'below' },
+  ],
+  // Doors, needles, wipers: what moves on the left, its settings on the right.
+  moving: [
+    { id: 'viewport' },
+    { id: 'moving-parts', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel-wide' },
+    { id: 'moving-part', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+  ],
+  // Clickable spots: the list on the left, the picked one's place and action on the right.
+  triggers: [
+    { id: 'viewport' },
+    { id: 'triggers', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+    { id: 'trigger', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
   ],
   testing: [
     { id: 'viewport' },

@@ -140,10 +140,28 @@ export function tourSteps(): TourStep[] {
       body: `Edit mode (${keyFor('editMode')}) lets you move, add, mirror, connect and delete nodes by hand. The JBeam workspace has precise tools for every node and beam value.`,
     },
     {
+      id: 'jbeam-tab',
+      title: 'The JBeam workspace',
+      target: '[data-testid="workspace-jbeam"]',
+      body: 'Every node, beam and triangle in tables with its exact values: rename nodes logically, set any jbeam property, add triangles, and let the checks find loose nodes and doubled beams.',
+    },
+    {
       id: 'test',
       title: 'Test it',
       target: '[data-testid="toolbar-test"]',
       body: 'Test Mode runs the physics right here: drop the car, swing the doors, and see whether it holds together before you open the game.',
+    },
+    {
+      id: 'moving-tab',
+      title: 'Moving parts',
+      target: '[data-testid="workspace-moving"]',
+      body: 'Everything that moves in one list: doors, hood and trunk on hinges, needles and pedals that follow the game, and wipers, windows or mirrors from templates.',
+    },
+    {
+      id: 'triggers-tab',
+      title: 'Triggers',
+      target: '[data-testid="workspace-triggers"]',
+      body: 'The spots players click in the game: door handles, a horn button, light switches. Add one, click on the car where it goes, and pick what it does.',
     },
     {
       id: 'panels',

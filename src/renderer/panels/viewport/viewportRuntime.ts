@@ -1303,15 +1303,14 @@ export class ViewportRuntime {
       const lines = new BufferGeometry();
       lines.setAttribute('position', new BufferAttribute(new Float32Array(EDGES.flatMap((i) => b.corners[i]!)), 3));
       const outline = new LineSegments(lines, new LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }));
-      outline.renderOrder = 9;
+      outline.renderOrder = 11;
       this.markerRoot.add(outline);
-      if (b.selected) {
-        const faces = new BufferGeometry();
-        faces.setAttribute('position', new BufferAttribute(new Float32Array(FACES.flatMap((i) => b.corners[i]!)), 3));
-        const fill = new Mesh(faces, new MeshBasicMaterial({ color, side: DoubleSide, transparent: true, opacity: 0.25, depthTest: false }));
-        fill.renderOrder = 8;
-        this.markerRoot.add(fill);
-      }
+      // Filled so they stand out from the beams; the picked one more strongly.
+      const faces = new BufferGeometry();
+      faces.setAttribute('position', new BufferAttribute(new Float32Array(FACES.flatMap((i) => b.corners[i]!)), 3));
+      const fill = new Mesh(faces, new MeshBasicMaterial({ color, side: DoubleSide, transparent: true, opacity: b.selected ? 0.55 : 0.3, depthTest: false }));
+      fill.renderOrder = 10;
+      this.markerRoot.add(fill);
     }
   }
 

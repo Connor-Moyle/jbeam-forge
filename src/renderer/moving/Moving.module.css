@@ -1,0 +1,94 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+.title {
+  color: var(--text-2);
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+}
+
+.list {
+  margin: 0 0 var(--space-1);
+  padding: 0;
+  list-style: none;
+}
+
+.row,
+.rowOn,
+.suggest {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover,
+.suggest:hover {
+  background: var(--bg-3);
+}
+
+.rowOn {
+  background: var(--accent-dim);
+  color: var(--text-0);
+}
+
+.suggest {
+  border: var(--border-width) dashed var(--border-1);
+  margin-bottom: var(--space-1);
+}
+
+.icon {
+  grid-row: span 2;
+  align-self: center;
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+  color: var(--accent);
+}
+
+.name {
+  overflow: hidden;
+  font-size: var(--text-control);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge {
+  grid-row: span 2;
+  align-self: center;
+}
+
+.meta {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: var(--text-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-label);
+}

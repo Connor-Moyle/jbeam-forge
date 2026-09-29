@@ -1655,6 +1655,59 @@ const scenarios = [
     },
   },
   {
+    id: 'moving-triggers',
+    name: 'Moving parts and Triggers: hinge all · animate · add, place and wire a trigger · export',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes < 30; i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !(await hook(page, 'projectDoc')).nodes.length; i++) await page.waitForTimeout(100);
+      // Moving parts: every door, the hood and the trunk on hinges in one click.
+      await page.getByTestId('workspace-moving').click();
+      await page.getByTestId('moving-parts').waitFor();
+      await page.getByTestId('moving-hinge-all').click();
+      let doc = await hook(page, 'projectDoc');
+      assert(doc.hinges.length >= 5, `opening parts hinged (${doc.hinges.length})`);
+      await page.getByTestId('moving-parts').getByText('Hood', { exact: true }).click();
+      await page.getByTestId('moving-part').waitFor();
+      await shot(page, 'moving-parts');
+      // The steering wheel is suggested for animation.
+      await page.getByTestId('moving-parts').getByText('Animate as steering wheel').click();
+      doc = await hook(page, 'projectDoc');
+      assert((doc.props ?? []).some((p) => p.func === 'steering'), 'steering wheel animated');
+      // Triggers: add a button, click on the car, make it the horn.
+      await page.getByTestId('workspace-triggers').click();
+      await page.getByTestId('triggers-panel').waitFor();
+      await page.getByTestId('trigger-add').click();
+      await page.getByTestId('trigger-editor').waitFor();
+      const before = (await hook(page, 'projectDoc')).triggers[0].pos;
+      const canvas = page.locator('[data-panel=viewport] canvas').first();
+      const box = await canvas.boundingBox();
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await page.waitForTimeout(300);
+      doc = await hook(page, 'projectDoc');
+      const t = doc.triggers[0];
+      assert(t && JSON.stringify(t.pos) !== JSON.stringify(before), `trigger placed on the car (${JSON.stringify(t?.pos)})`);
+      await page.getByTestId('trigger-mirror').click();
+      doc = await hook(page, 'projectDoc');
+      assert(doc.triggers.length === 2, 'trigger copied to the other side');
+      await shot(page, 'triggers');
+      const files = await hook(page, 'preparedJbeams');
+      assert(files && files.files.some((f) => f.text.includes('"triggers2"') && f.text.includes(`"${t.id}"`)), 'the trigger is written as triggers2');
+      await hook(page, 'applyPreset', 'modelling');
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,

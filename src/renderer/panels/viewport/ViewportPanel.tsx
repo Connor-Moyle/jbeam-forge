@@ -1,3 +1,5 @@
+import { placeTrigger, useTriggerUi } from '@renderer/triggers/commands';
+import { triggerCorners } from '@shared/triggers/schema';
 import { addTriangleFromSelection, selectBeamsOfSelection, selectTrianglesOfSelection } from '@renderer/jbeam/commands';
 import { triKey } from '@shared/jbeam/workbench';
 import { useEffect, useRef, useState } from 'react';
@@ -89,6 +91,10 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
         onDoublePick: (key) => focusMesh(key),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
+        onPlace: (hit) => {
+          const t = useTriggerUi.getState();
+          if (t.placing && t.selected) placeTrigger(t.selected, hit.point, hit.normal);
+        },
         onBrush: (hit, phase) => {
           const tool = usePainter.getState().tool;
           if (tool === 'vinyl') vinylPointer(hit, phase);
@@ -207,6 +213,21 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       if (ui.view && ui.view !== prev.view) rt.viewFrom(SIDE_FRAMES[ui.view.side].n);
     });
     pushStructure();
+    // Triggers workspace: the boxes, and click-to-place.
+    const pushTriggers = () => {
+      const ui = useTriggerUi.getState();
+      rt.setPlacing(ui.placing);
+      const doc = projectStore.getState().doc;
+      rt.setMarkers(ui.visible ? (doc?.triggers ?? []).map((t) => ({ corners: triggerCorners(t), selected: t.id === ui.selected })) : []);
+    };
+    pushTriggers();
+    const unsubscribeTriggerUi = useTriggerUi.subscribe(pushTriggers);
+    let lastTriggers: unknown = null;
+    const unsubscribeTriggerDoc = projectStore.subscribe((st) => {
+      if (st.doc?.triggers === lastTriggers) return;
+      lastTriggers = st.doc?.triggers;
+      pushTriggers();
+    });
     const unsubscribeFrameNodes = useEditStore.subscribe((e, prev) => {
       if (!e.frameRequest || e.frameRequest === prev.frameRequest) return;
       const want = new Set(e.frameRequest.nodes);
@@ -413,6 +434,8 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeFaces();
       unsubscribeStructure();
       unsubscribeFrameNodes();
+      unsubscribeTriggerUi();
+      unsubscribeTriggerDoc();
       unsubscribeSettings();
       unsubscribeView();
       unsubscribeEdit();

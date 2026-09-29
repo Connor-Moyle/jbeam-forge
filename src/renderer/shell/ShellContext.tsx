@@ -152,8 +152,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       ['layout1', 'modelling'],
       ['layout2', 'materials'],
       ['layout3', 'jbeam'],
-      ['layout4', 'moving' as PresetId],
-      ['layout5', 'triggers' as PresetId],
+      ['layout4', 'moving'],
+      ['layout5', 'triggers'],
       ['layout6', 'scripts'],
       ['layout7', 'testing'],
     ];

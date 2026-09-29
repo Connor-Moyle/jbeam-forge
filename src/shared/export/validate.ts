@@ -8,7 +8,7 @@ import { bodyPart, flexGroupOf, slotTypeOf, type TaxonomyLookup } from './jbeam'
  * broken in-game; warnings don't.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'triggers'>>;
 
 export interface ExportIssue {
   code: string;
@@ -94,6 +94,12 @@ export function validateExport(doc: Doc, tax: TaxonomyLookup, input: ValidationI
   for (const t of input.missingTextures) err('texture-missing', `Material ${t.material}: texture ${t.ref} was not found (Locate folder… in the Scene panel).`);
 
   const unassigned = input.loadedMeshKeys.filter((k) => !doc.assignments[k] && !doc.ignoredMeshes.includes(k)).length;
+  // Triggers need a part with at least three nodes to sit on.
+  for (const t of doc.triggers ?? []) {
+    const owner = partById.get(t.partId);
+    if (!owner) warn('trigger-orphan', `Trigger ${t.id} was on a part that no longer exists; move it to another part in the Triggers workspace.`);
+    else if (doc.nodes.filter((n) => n.partId === t.partId).length < 3) warn('trigger-no-nodes', `Trigger ${t.id} needs ${owner.displayName} to have nodes (generate its structure), or it won't be written.`, owner.id);
+  }
   if (unassigned) warn('meshes-unassigned', `${unassigned} mesh${unassigned === 1 ? ' is' : 'es are'} not assigned to any part and won't be exported.`);
   return { errors, warnings };
 }
