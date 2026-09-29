@@ -31,6 +31,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls.js';
+import { frameDue } from './frameCap';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 import { BEAMNG_TO_VIEW_ROTATION_X } from '@shared/coords';
@@ -1473,10 +1474,11 @@ export class ViewportRuntime {
   }
 
   private tick(): void {
-    // Frame-rate cap: skip frames that come too soon (a little early is fine; rAF isn't exact).
+    // Frame-rate cap (see frameCap.ts).
     const now = performance.now();
-    if (this.maxFps > 0 && now - this.lastFrame < 1000 / this.maxFps - 2) return;
-    this.lastFrame = now;
+    const due = frameDue(now, this.lastFrame, this.maxFps);
+    if (due === null) return;
+    this.lastFrame = due;
     this.frames++;
     if (now - this.fpsWindow >= 1000) {
       this.fps = Math.round((this.frames * 1000) / (now - this.fpsWindow));

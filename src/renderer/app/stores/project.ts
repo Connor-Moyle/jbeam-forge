@@ -78,6 +78,9 @@ export interface SavedHistory {
 /** Keep saved history to what's useful and fast to load. */
 const MAX_SAVED_ENTRIES = 300;
 
+/** A saved state no undo can get back to (its step dropped off the undo limit). */
+const UNREACHABLE_STATE = -1;
+
 /** Undo steps kept in memory (Settings → General); the oldest drop off. */
 let undoLimit = 1000;
 export function setUndoLimit(n: number): void {
@@ -172,7 +175,12 @@ export function createProjectStore(): StoreApi<ProjectState> {
           ? { ...top, patches: [...top.patches, ...patches], inverse: [...inverse, ...top.inverse], at: now }
           : { id: nextEntryId++, label: command.label, patches, inverse, coalesce: command.coalesce, at: now };
         const stack = [...(merge ? s.undoStack.slice(0, -1) : s.undoStack), entry];
-        return { doc: next, undoStack: stack.length > undoLimit ? stack.slice(stack.length - undoLimit) : stack, redoStack: [] };
+        if (stack.length <= undoLimit) return { doc: next, undoStack: stack, redoStack: [] };
+        // The oldest steps drop off. If the saved state was among them (or was the bottom of the stack, id 0),
+        // it can no longer be reached by undoing: mark it unreachable so the project reads as changed until saved.
+        const dropped = stack.slice(0, stack.length - undoLimit);
+        const savedGone = s.savedStateId === 0 || dropped.some((e) => e.id === s.savedStateId);
+        return { doc: next, undoStack: stack.slice(stack.length - undoLimit), redoStack: [], ...(savedGone ? { savedStateId: UNREACHABLE_STATE } : {}) };
       });
       return true;
     },

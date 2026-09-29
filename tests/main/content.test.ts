@@ -101,6 +101,24 @@ describe('content repositories', () => {
     expect((await svc.installed('textures')).items).toEqual({});
   });
 
+  it('records each item’s version; a download where everything failed claims no new version', async () => {
+    const src = join(dir, 'src');
+    await pack(src, 'Candy Red', 'red');
+    const repo = join(dir, 'repo');
+    await buildContentRepo(src, repo, 'textures', '1.0.0');
+    const svc = new ContentService(join(dir, 'content'), fakeGithub(repo).fetch, quiet, {}, ENV);
+    await svc.download('textures', 'me/textures', 'main', 'all');
+    const it1 = Object.values((await svc.installed('textures')).items)[0]!;
+    expect([it1.ref, it1.version]).toEqual(['main', '1.0.0']);
+    // Version 2 lists a new item, but every download fails.
+    await pack(src, 'Matte Black', 'black');
+    await buildContentRepo(src, repo, 'textures', '2.0.0');
+    const broken = new ContentService(join(dir, 'content'), fakeGithub(repo, { tamper: 'items/' }).fetch, quiet, {}, ENV);
+    const r = await broken.download('textures', 'me/textures', 'main', 'all');
+    expect(r.failed).toHaveLength(1);
+    expect((await broken.installed('textures')).version).toBe('1.0.0');
+  });
+
   it('refuses a download that does not match its hash, and keeps what was installed', async () => {
     const src = join(dir, 'src');
     await pack(src, 'Candy Red', 'red');

@@ -200,7 +200,7 @@ function stableId(prefix: string, path: string, max: number): string {
 export async function loadBundledPack(dir: string, logger: Logger, prefix = 'pack'): Promise<LibraryItem[]> {
   const found: string[] = [];
   const walk = async (d: string, depth: number): Promise<void> => {
-    if (depth > 4) return;
+    if (depth > 7) return; // content items sit up to 6 folders deep
     let entries: Dirent[];
     try {
       entries = await readdir(d, { withFileTypes: true });
@@ -235,7 +235,7 @@ const ObjectFileSchema = z.object({ version: z.literal(1), name: z.string().min(
 export async function loadBundledObjects(dir: string, logger: Logger, prefix = 'obj'): Promise<ObjectItem[]> {
   const found: string[] = [];
   const walk = async (d: string, depth: number): Promise<void> => {
-    if (depth > 5) return;
+    if (depth > 7) return;
     let entries: Dirent[];
     try {
       entries = await readdir(d, { withFileTypes: true });

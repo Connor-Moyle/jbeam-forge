@@ -70,6 +70,9 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const [dir, setDir] = useState(settings.beamngInstallDir ?? '');
   // Everything but the install folder is edited as one draft and saved as the fields that changed.
   const [d, setD] = useState<Settings>(settings);
+  // What the window opened with: Save sends only what was changed here, so a setting changed
+  // elsewhere meanwhile (the Debug Logging menu item, a library scan…) isn't put back.
+  const [initial] = useState<Settings>(settings);
   const set = (patch: Partial<Settings>) => setD((cur) => ({ ...cur, ...patch }));
   const [section, setSection] = useState<string>(SECTIONS[0].id);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -145,7 +148,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
     const patch: Record<string, unknown> = {};
     for (const key of Object.keys(d) as (keyof Settings)[]) {
       if (key === 'version' || key === 'beamngInstallDir' || key === 'beamngUserDir') continue;
-      if (JSON.stringify(d[key]) !== JSON.stringify(settings[key])) patch[key] = d[key];
+      if (JSON.stringify(d[key]) !== JSON.stringify(initial[key])) patch[key] = d[key];
     }
     if (dirChanged) patch.beamngInstallDir = trimmedDir || null;
     if (Object.keys(patch).length === 0) {

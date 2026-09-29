@@ -68,11 +68,12 @@ export type ContentManifest = z.infer<typeof ContentManifestSchema>;
 export const InstalledContentSchema = z.object({
   format: z.literal(CONTENT_FORMAT),
   kind: z.enum(CONTENT_KINDS),
-  /** Repository and ref (branch or tag) the items were downloaded from. */
+  /** Repository, ref (branch or tag) and version of the last successful download. */
   repo: z.string(),
   ref: z.string(),
   version: z.string(),
-  items: z.record(z.string(), z.object({ sha256: z.string(), dir: z.string(), size: z.number(), installedAt: z.string() })),
+  /** Each item's zip hash and where it came from (an item can be from another version than the rest). */
+  items: z.record(z.string(), z.object({ sha256: z.string(), dir: z.string(), size: z.number(), installedAt: z.string(), ref: z.string().optional(), version: z.string().optional() })),
 });
 
 export type InstalledContent = z.infer<typeof InstalledContentSchema>;
@@ -111,7 +112,8 @@ export interface DownloadPlan {
 
 /** Which of `ids` (or every item) need downloading. */
 export function planDownload(m: ContentManifest, installed: InstalledContent, ids: readonly string[] | 'all'): DownloadPlan {
-  const want = ids === 'all' ? m.items : m.items.filter((i) => ids.includes(i.id));
+  const pick = ids === 'all' ? null : new Set(ids);
+  const want = pick ? m.items.filter((i) => pick.has(i.id)) : m.items;
   const fetch: ContentItem[] = [];
   const current: ContentItem[] = [];
   for (const i of want) (installed.items[i.id]?.sha256 === i.sha256 ? current : fetch).push(i);

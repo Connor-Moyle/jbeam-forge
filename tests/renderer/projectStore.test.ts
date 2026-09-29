@@ -163,3 +163,26 @@ describe('coalesced edits', () => {
     expect(isDirty(s.getState())).toBe(true);
   });
 });
+
+describe('undo limit', () => {
+  it('keeps only the newest steps, and a project whose saved state dropped off stays changed', async () => {
+    const { setUndoLimit } = await import('../../src/renderer/app/stores/project');
+    setUndoLimit(5);
+    try {
+      const s = createProjectStore();
+      s.getState().load(doc(), 'x.jbforge');
+      for (let i = 0; i < 8; i++) s.getState().execute({ label: `rename ${i}`, apply: (d) => void (d.meta.name = `N${i}`) });
+      expect(s.getState().undoStack).toHaveLength(5);
+      // Undo everything that's left: 3 edits are still unsaved, so it must not read as saved.
+      for (let i = 0; i < 5; i++) s.getState().undo();
+      expect(s.getState().undoStack).toHaveLength(0);
+      expect(s.getState().doc?.meta.name).toBe('N2');
+      expect(isDirty(s.getState())).toBe(true);
+      // Saving makes it clean again.
+      s.getState().markSaved('x.jbforge', currentStateId(s.getState()));
+      expect(isDirty(s.getState())).toBe(false);
+    } finally {
+      setUndoLimit(1000);
+    }
+  });
+});

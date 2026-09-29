@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Download, FolderOpen, History, RefreshCw, Rocket, Trash2, X } from 'lucide-react';
 import type { AppRelease, ReleaseAsset, UpdatesInfo } from '@shared/content/types';
+import { isNewer } from '@shared/content/versions';
 import { call } from '@renderer/diagnostics/ipc';
 import { projectStore, isDirty } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -9,23 +10,6 @@ import { Button } from '@renderer/ui/components/Button';
 import { Callout } from '@renderer/ui/components/Callout';
 import { errorText, formatBytes, formatDate } from './format';
 import styles from './Downloads.module.css';
-
-/** Semver-ish comparison for the "update available" badge (the main process does the real ordering). */
-function newer(a: string, b: string): boolean {
-  const p = (v: string) => v.replace(/^v/, '').split(/[.-]/).map((x) => (/^\d+$/.test(x) ? Number(x) : x));
-  const x = p(a);
-  const y = p(b);
-  for (let i = 0; i < Math.max(x.length, y.length); i++) {
-    const s = x[i];
-    const t = y[i];
-    if (s === t) continue;
-    if (s === undefined) return typeof t === 'string'; // 1.0.0 > 1.0.0-beta
-    if (t === undefined) return typeof s !== 'string';
-    if (typeof s === 'number' && typeof t === 'number') return s > t;
-    return String(s) > String(t);
-  }
-  return false;
-}
 
 interface Job {
   asset: string;
@@ -83,16 +67,20 @@ export function AppVersions() {
 
   const run = async (asset: string) => {
     // The installer closes the app: unsaved work gets saved (or not) first.
-    if (/setup/i.test(asset) && isDirty(projectStore.getState())) {
-      const ok = await useDialogStore.getState().askUnsaved(projectStore.getState().doc?.meta.name ?? 'this project');
-      if (ok === 'cancel') return;
-      if (ok === 'save') {
+    const installing = /setup/i.test(asset) && info?.platform === 'win32';
+    let discard = false;
+    if (installing && isDirty(projectStore.getState())) {
+      const choice = await useDialogStore.getState().askUnsaved(projectStore.getState().doc?.meta.name ?? 'this project');
+      if (choice === 'cancel') return;
+      if (choice === 'save') {
         const { saveProject } = await import('@renderer/project/actions');
         if (!(await saveProject())) return;
-      } else await call('window:setDirty', { dirty: false }); // discard: don't ask again as the app closes
+      } else discard = true;
     }
     try {
       const r = await call('updates:run', { asset });
+      // Only once the installer is really running: stop the close guard asking again about work already discarded.
+      if (r === 'installing' && discard) await call('window:setDirty', { dirty: false });
       if (r === 'shown') setReady(null);
     } catch (err) {
       setError(errorText(err));
@@ -100,7 +88,7 @@ export function AppVersions() {
   };
 
   const latest = info?.releases[0];
-  const upToDate = !!info && !!latest && !newer(latest.version, info.current);
+  const upToDate = !!info && !!latest && !isNewer(latest.version, info.current);
   const older = info?.releases.slice(1) ?? [];
   const isDownloaded = (a: ReleaseAsset) => info?.downloaded.some((d) => d.name === a.name && d.size === a.size);
 

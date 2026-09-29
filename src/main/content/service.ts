@@ -155,7 +155,7 @@ export class ContentService {
               s.repo = repo;
               s.ref = ref;
               s.version = manifest.version;
-              s.items[item.id] = { sha256: item.sha256, dir: item.dir, size: item.size, installedAt: new Date().toISOString() };
+              s.items[item.id] = { sha256: item.sha256, dir: item.dir, size: item.size, installedAt: new Date().toISOString(), ref, version: manifest.version };
             });
           } catch (err) {
             if (ctrl.signal.aborted) break;
@@ -168,8 +168,8 @@ export class ContentService {
         }
       };
       await Promise.all(Array.from({ length: Math.max(1, Math.min(8, Math.round(concurrency))) }, worker));
-      // The version is recorded even when everything asked for was already current.
-      if (!installedIds.length && !ctrl.signal.aborted)
+      // Everything asked for was already current: that version is what's installed. (Not when items failed.)
+      if (!installedIds.length && !failed.length && !ctrl.signal.aborted && plan.current.length)
         await this.update(kind, (s) => {
           s.repo = repo;
           s.ref = ref;
@@ -177,12 +177,15 @@ export class ContentService {
         });
       const cancelled = ctrl.signal.aborted;
       progress = { ...progress, current: null, state: cancelled ? 'cancelled' : 'finished' };
-      report(true);
       this.logger.info(`${kind}: ${installedIds.length} installed, ${plan.current.length} already current, ${failed.length} failed${cancelled ? ' (cancelled)' : ''} from ${repo}@${ref}`);
       return { installed: installedIds, skipped: plan.current.map((i) => i.id), failed, cancelled };
     } finally {
+      // Clean up before the job ends, so a new download of this kind can't have its files swept away;
+      // only then say it's finished.
+      await rm(join(this.root, '.tmp', kind), { recursive: true, force: true }).catch(() => undefined);
       this.jobs.delete(kind);
-      await rm(join(this.root, '.tmp', kind), { recursive: true, force: true });
+      if (progress.state === 'running') progress = { ...progress, current: null, state: ctrl.signal.aborted ? 'cancelled' : 'finished' };
+      report(true);
       if (installedIds.length) this.hooks.onChange?.(kind);
     }
   }

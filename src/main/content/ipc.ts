@@ -149,11 +149,14 @@ export async function checkOnStartup(ctx: ContentContext, notify: (text: string)
     try {
       const c = ctx.content();
       const installed = await c.installed(kind);
-      if (!Object.keys(installed.items).length || installed.ref !== s.contentBranch) continue;
+      // Only items that follow the latest content (not ones picked from an older version).
+      const following = new Set(Object.entries(installed.items).flatMap(([id, it]) => ((it.ref ?? installed.ref) === s.contentBranch ? [id] : [])));
+      if (!following.size) continue;
       const manifest = await c.manifest(kind, kind === 'textures' ? s.texturesRepo : s.meshesRepo, s.contentBranch);
-      const { updated } = await c.changes(kind, manifest);
-      const added = manifest.items.filter((i) => !installed.items[i.id]).length;
-      if (updated.length || (added && manifest.version !== installed.version)) notify(`New ${kind} are available (${updated.length} updated, ${added} not downloaded). Open Downloads to get them.`);
+      const updated = (await c.changes(kind, manifest)).updated.filter((id) => following.has(id));
+      const versions = new Set([...following].map((id) => installed.items[id]!.version ?? installed.version));
+      const added = versions.has(manifest.version) ? 0 : manifest.items.filter((i) => !installed.items[i.id]).length;
+      if (updated.length || added) notify(`New ${kind} are available (${updated.length} updated, ${added} not downloaded). Open Downloads to get them.`);
     } catch (err) {
       ctx.logger.info(`${kind} check skipped:`, err instanceof Error ? err.message : String(err));
     }

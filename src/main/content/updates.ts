@@ -4,6 +4,9 @@ import { mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Logger } from '@shared/logger';
 import type { AppRelease, ReleaseAsset } from '@shared/content/types';
+import { compareVersions, parseVersion } from '@shared/content/versions';
+
+export { compareVersions, parseVersion };
 import { apiUrl, assertRepo, downloadFile, endpoints, getJson, GithubError, type Endpoints, type FetchFn } from './github';
 
 /**
@@ -11,37 +14,6 @@ import { apiUrl, assertRepo, downloadFile, endpoints, getJson, GithubError, type
  * roll back to. A chosen version's installer (or portable exe) is
  * downloaded, checked against the size GitHub lists, and then run or shown.
  */
-
-/** Numeric parts of a version ("v0.12.0-beta.2" → [0,12,0] + pre "beta.2"). */
-export function parseVersion(v: string): { nums: number[]; pre: string } | null {
-  const m = /^v?(\d+)\.(\d+)(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?$/.exec(v.trim());
-  if (!m) return null;
-  return { nums: [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)], pre: m[4] ?? '' };
-}
-
-/** Semver order: <0 when a is older than b. Unparseable versions sort oldest. */
-export function compareVersions(a: string, b: string): number {
-  const x = parseVersion(a);
-  const y = parseVersion(b);
-  if (!x || !y) return x ? 1 : y ? -1 : 0;
-  for (let i = 0; i < 3; i++) if (x.nums[i] !== y.nums[i]) return x.nums[i]! - y.nums[i]!;
-  if (x.pre === y.pre) return 0;
-  if (!x.pre) return 1; // a release is newer than its pre-releases
-  if (!y.pre) return -1;
-  const pa = x.pre.split('.');
-  const pb = y.pre.split('.');
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const s = pa[i];
-    const t = pb[i];
-    if (s === undefined) return -1;
-    if (t === undefined) return 1;
-    const ns = /^\d+$/.test(s) ? Number(s) : NaN;
-    const nt = /^\d+$/.test(t) ? Number(t) : NaN;
-    if (!Number.isNaN(ns) && !Number.isNaN(nt) && ns !== nt) return ns - nt;
-    if (s !== t) return s < t ? -1 : 1;
-  }
-  return 0;
-}
 
 export function assetRole(name: string): ReleaseAsset['role'] {
   if (/setup.*\.exe$/i.test(name)) return 'installer';
@@ -110,18 +82,19 @@ export class UpdateService {
   async download(repo: string, tag: string, assetName: string, onProgress: (done: number, total: number) => void): Promise<string> {
     if (this.job) throw new GithubError('A download is already running', 'BAD_INPUT');
     if (!/^JBeam-Forge-[A-Za-z0-9._-]+\.(exe|zip)$/.test(assetName)) throw new GithubError(`Not a JBeam Forge download: ${assetName}`, 'BAD_INPUT');
-    const release = (await this.releases(repo, true)).find((r) => r.tag === tag);
-    const asset = release?.assets.find((a) => a.name === assetName);
-    if (!release || !asset) throw new GithubError(`${assetName} isn't part of ${tag}`, 'NOT_FOUND');
-    await mkdir(this.downloads, { recursive: true });
-    const dest = join(this.downloads, asset.name);
-    // Already downloaded (and intact): no second download.
-    if (await intact(dest, asset.size, asset.sha256)) return dest;
+    // Taken before the first await, so a second call can't slip past the check.
     const ctrl = new AbortController();
     this.job = ctrl;
-    let done = 0;
-    let last = 0;
     try {
+      const release = (await this.releases(repo, true)).find((r) => r.tag === tag);
+      const asset = release?.assets.find((a) => a.name === assetName);
+      if (!release || !asset) throw new GithubError(`${assetName} isn't part of ${tag}`, 'NOT_FOUND');
+      await mkdir(this.downloads, { recursive: true });
+      const dest = join(this.downloads, asset.name);
+      // Already downloaded (and intact): no second download.
+      if (await intact(dest, asset.size, asset.sha256)) return dest;
+      let done = 0;
+      let last = 0;
       await downloadFile(this.fetchFn, asset.url, dest, this.e, {
         maxBytes: asset.size,
         expectedSize: asset.size,
@@ -139,7 +112,7 @@ export class UpdateService {
       this.logger.info(`downloaded ${asset.name} (${asset.size} bytes)`);
       return dest;
     } finally {
-      this.job = null;
+      if (this.job === ctrl) this.job = null;
     }
   }
 
