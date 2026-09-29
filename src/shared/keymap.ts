@@ -60,6 +60,9 @@ export const KEYMAP: readonly KeymapAction[] = [
   { id: 'nodeDelete', label: 'Delete the selection', group: 'Nodes & beams', default: 'Delete' },
   { id: 'nodeAdd', label: 'Add a node', group: 'Nodes & beams', default: 'N' },
   { id: 'nodeMirror', label: 'Mirror the selection to the other side', group: 'Nodes & beams', default: 'Shift+M' },
+  { id: 'triAdd', label: 'Make a triangle of three nodes', group: 'Nodes & beams', default: 'T' },
+  { id: 'selectTris', label: 'Select the triangles of the selected nodes', group: 'Nodes & beams', default: 'Shift+T' },
+  { id: 'selectBeams', label: 'Select the beams between the selected nodes', group: 'Nodes & beams', default: 'Shift+B' },
 ];
 
 export type KeymapId = (typeof KEYMAP)[number]['id'];

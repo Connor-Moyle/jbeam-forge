@@ -171,6 +171,9 @@ export function principalAxes(positions: ArrayLike<number>): { center: [number, 
   return { center: c, axes: eig.map((e) => e.axis) };
 }
 
+/** A fitted box or cylinder is at least this thick (m): a flat one has nodes in the same place. */
+const MIN_THICKNESS = 0.01;
+
 function extents(positions: ArrayLike<number>, center: [number, number, number], axes: [number, number, number][]): { lo: number[]; hi: number[] } {
   const lo = [Infinity, Infinity, Infinity];
   const hi = [-Infinity, -Infinity, -Infinity];
@@ -181,6 +184,13 @@ function extents(positions: ArrayLike<number>, center: [number, number, number],
       lo[k] = Math.min(lo[k]!, s);
       hi[k] = Math.max(hi[k]!, s);
     });
+  }
+  for (let k = 0; k < 3; k++) {
+    const mid = (lo[k]! + hi[k]!) / 2;
+    if (hi[k]! - lo[k]! < MIN_THICKNESS) {
+      lo[k] = mid - MIN_THICKNESS / 2;
+      hi[k] = mid + MIN_THICKNESS / 2;
+    }
   }
   return { lo, hi };
 }

@@ -41,6 +41,21 @@ export function previewSelectionMove(delta: Vec3 | null): void {
 
 export function deleteSelection(): void {
   const e = useEditStore.getState();
+  if (!e.nodes.length && !e.beams.length && e.tris.length) {
+    const keys = new Set(e.tris);
+    let n = 0;
+    projectStore.getState().execute({
+      label: `Delete ${plural(keys.size, 'triangle')}`,
+      apply: (d) => {
+        const before = d.tris.length;
+        d.tris = d.tris.filter((t) => !keys.has([...t.ids].sort().join('|')));
+        n = before - d.tris.length;
+      },
+    });
+    e.clear();
+    useUiStore.getState().pushStatus(`Deleted ${plural(n, 'triangle')}`);
+    return;
+  }
   if (!e.nodes.length && !e.beams.length) return;
   let result = { nodes: 0, beams: 0, tris: 0 };
   projectStore.getState().execute({

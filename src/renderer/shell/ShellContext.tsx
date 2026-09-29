@@ -151,7 +151,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     const layouts: [KeymapId, PresetId][] = [
       ['layout1', 'modelling'],
       ['layout2', 'materials'],
-      ['layout3', 'jbeam' as PresetId],
+      ['layout3', 'jbeam'],
       ['layout4', 'moving' as PresetId],
       ['layout5', 'triggers' as PresetId],
       ['layout6', 'scripts'],

@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, type LucideIcon } from 'lucide-react';
+import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, type LucideIcon } from 'lucide-react';
 import { ScenePanel } from '@renderer/panels/ScenePanel';
 import { InspectorPanel } from '@renderer/panels/InspectorPanel';
 import { MaterialsPanel } from '@renderer/panels/MaterialsPanel';
@@ -7,6 +7,8 @@ import { TestResultsPanel } from '@renderer/panels/TestResultsPanel';
 import { ViewportPanel } from '@renderer/panels/viewport/ViewportPanel';
 import { KitGalleryPanel } from '@renderer/panels/KitGallery';
 import { JbeamPreviewPanel } from '@renderer/panels/JbeamPreviewPanel';
+import { JbeamTablesPanel } from '@renderer/jbeam/JbeamTablesPanel';
+import { JbeamPropertiesPanel } from '@renderer/jbeam/JbeamPropertiesPanel';
 import { ObjectsPanel } from '@renderer/panels/ObjectsPanel';
 import { ReferencePanel } from '@renderer/panels/ReferencePanel';
 import { SuspensionPanel } from '@renderer/suspension/SuspensionPanel';
@@ -33,6 +35,8 @@ export const PANELS = {
   materials: { title: 'Materials', icon: Palette, component: MaterialsPanel },
   'test-results': { title: 'Test Results', icon: FlaskConical, component: TestResultsPanel },
   'jbeam-preview': { title: 'jbeam', icon: FileCode, component: JbeamPreviewPanel },
+  'jbeam-tables': { title: 'Nodes & beams', icon: Table2, component: JbeamTablesPanel },
+  'jbeam-props': { title: 'Properties', icon: SlidersHorizontal, component: JbeamPropertiesPanel },
   objects: { title: 'Objects', icon: Package, component: ObjectsPanel },
   reference: { title: 'Reference car', icon: CarFront, component: ReferencePanel },
   suspension: { title: 'Suspension', icon: Wrench, component: SuspensionPanel },

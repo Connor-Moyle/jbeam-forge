@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, SphereGeometry } from 'three';
+import { BoxGeometry, BufferAttribute, BufferGeometry, Color, CylinderGeometry, DoubleSide, Group, InstancedMesh, LineBasicMaterial, LineSegments, Matrix4, Mesh, MeshBasicMaterial, SphereGeometry } from 'three';
 import type { Project } from '@shared/project/schema';
 import type { TaxonomyEntry } from '@shared/taxonomy/schema';
 import { resolveToken } from '@renderer/ui/tokens';
@@ -15,6 +15,8 @@ export interface StructureData {
   nodeColors: Float32Array;
   beamPositions: Float32Array;
   beamColors: Float32Array;
+  /** Filled triangles (selection highlight): 9 floats each. */
+  triPositions?: Float32Array;
 }
 
 const CATEGORY_TOKEN: Record<string, Parameters<typeof resolveToken>[0]> = {
@@ -77,6 +79,8 @@ export class StructureOverlay {
   readonly root = new Group();
   private nodes: InstancedMesh | null = null;
   private beams: LineSegments | null = null;
+  private tris: Mesh | null = null;
+  private readonly triMaterial = new MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.35, side: DoubleSide });
   private readonly sphere = new SphereGeometry(1, 8, 6);
   private readonly nodeMaterial = new MeshBasicMaterial({ depthTest: false, transparent: true, opacity: 0.95 });
   private readonly beamMaterial = new LineBasicMaterial({ vertexColors: true, depthTest: false, transparent: true, opacity: 0.8 });
@@ -111,6 +115,16 @@ export class StructureOverlay {
     this.nodes = nodes;
     this.beams = beams;
     this.root.add(beams, nodes);
+    if (data.triPositions?.length) {
+      const tg = new BufferGeometry();
+      tg.setAttribute('position', new BufferAttribute(data.triPositions, 3));
+      this.triMaterial.color.setRGB(data.nodeColors[0] ?? 1, data.nodeColors[1] ?? 1, data.nodeColors[2] ?? 1);
+      const tris = new Mesh(tg, this.triMaterial);
+      tris.renderOrder = 2;
+      tris.frustumCulled = false;
+      this.tris = tris;
+      this.root.add(tris);
+    }
   }
 
   private clear(): void {
@@ -124,6 +138,11 @@ export class StructureOverlay {
       this.beams.geometry.dispose();
       this.beams = null;
     }
+    if (this.tris) {
+      this.root.remove(this.tris);
+      this.tris.geometry.dispose();
+      this.tris = null;
+    }
   }
 
   dispose(): void {
@@ -131,6 +150,7 @@ export class StructureOverlay {
     this.sphere.dispose();
     this.nodeMaterial.dispose();
     this.beamMaterial.dispose();
+    this.triMaterial.dispose();
   }
 }
 
@@ -284,8 +304,18 @@ export class LiveOverlay {
 }
 
 /** Edit-mode selection highlight: selected nodes and beams in the accent colour. */
-export function selectionData(positions: ReadonlyMap<string, [number, number, number]>, nodes: readonly string[], beams: readonly [string, string][]): StructureData {
+export function selectionData(positions: ReadonlyMap<string, [number, number, number]>, nodes: readonly string[], beams: readonly [string, string][], tris: readonly (readonly string[])[] = []): StructureData {
   const accent = new Color(resolveToken('accent') || undefined);
+  // A picked triangle shows its corners and edges too.
+  const triNodes = tris.flat();
+  const triEdges = tris.flatMap((t) => [[t[0]!, t[1]!], [t[1]!, t[2]!], [t[2]!, t[0]!]] as [string, string][]);
+  beams = triEdges.length ? [...beams, ...triEdges] : beams;
+  nodes = triNodes.length ? [...new Set([...nodes, ...triNodes])] : nodes;
+  const tp: number[] = [];
+  for (const t of tris) {
+    const ps = t.map((id) => positions.get(id));
+    if (ps.every((p) => !!p)) for (const p of ps) tp.push(...p);
+  }
   const picked = nodes.map((id) => positions.get(id)).filter((p): p is [number, number, number] => !!p);
   const nodePositions = new Float32Array(picked.flat());
   const nodeColors = new Float32Array(picked.flatMap(() => [accent.r, accent.g, accent.b]));
@@ -295,5 +325,5 @@ export function selectionData(positions: ReadonlyMap<string, [number, number, nu
     const pb = positions.get(b);
     if (pa && pb) bp.push(...pa, ...pb);
   }
-  return { nodePositions, nodeColors, beamPositions: new Float32Array(bp), beamColors: new Float32Array(bp.length).map((_, i) => [accent.r, accent.g, accent.b][i % 3]!) };
+  return { nodePositions, nodeColors, beamPositions: new Float32Array(bp), beamColors: new Float32Array(bp.length).map((_, i) => [accent.r, accent.g, accent.b][i % 3]!), ...(tp.length ? { triPositions: new Float32Array(tp) } : {}) };
 }

@@ -4,6 +4,7 @@ import { PropSchema } from '../props/props';
 import { CameraSchema } from '../cameras/cameras';
 import { MaterialDefSchema } from '../materials/schema';
 import { HingeSchema } from '../hinges/schema';
+import { TriggerSchema } from '../triggers/schema';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -139,6 +140,14 @@ export const BRACING_VALUES = ['none', 'light', 'standard', 'heavy'] as const;
 export const ATTACHMENT_STYLE_VALUES = ['bolted', 'clipped', 'rivets', 'welded'] as const;
 
 /** A jbeam node, BeamNG space. */
+/**
+ * Hand-set jbeam properties of one node, beam or triangle (fork, JBeam
+ * workspace): written into that row's options on export, over the values
+ * the part's preset gives it. Keys are jbeam property names.
+ */
+export const JBEAM_KEY = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+export const RowOptionsSchema = z.record(z.string().regex(JBEAM_KEY), z.union([z.number(), z.string().max(200), z.boolean()]));
+
 export const StructNodeSchema = z.object({
   id: z.string().regex(NODE_ID),
   partId: z.string().min(1),
@@ -147,6 +156,7 @@ export const StructNodeSchema = z.object({
   weight: z.number().positive(),
   /** Moved/edited by hand: regeneration keeps it (Phase 7). */
   manual: z.boolean().optional(),
+  options: RowOptionsSchema.optional(),
 });
 
 /** A beam between two node ids. Values come from the part's preset (edge/brace) or attachment style (attach) at export. */
@@ -155,12 +165,14 @@ export const StructBeamSchema = z.object({
   id2: z.string().min(1),
   partId: z.string().min(1),
   kind: z.enum(BEAM_KINDS),
+  options: RowOptionsSchema.optional(),
 });
 
 /** A collision triangle (outward winding). */
 export const StructTriSchema = z.object({
   ids: z.tuple([z.string().min(1), z.string().min(1), z.string().min(1)]),
   partId: z.string().min(1),
+  options: RowOptionsSchema.optional(),
 });
 
 export const PartProxySchema = z.object({
@@ -532,6 +544,8 @@ export const ProjectV18Schema = z.object({
   cameras: z.array(CameraSchema).optional(),
   /** Vehicle scripts (fork): Lua controllers that ship with the car. */
   scripts: z.array(VehicleScriptSchema).optional(),
+  /** Clickable triggers (fork): handles, switches and buttons that run input actions. */
+  triggers: z.array(TriggerSchema).optional(),
   /** Engine and gearbox (v12, Phase 11). */
   powertrain: PowertrainSchema,
   /** Vehicle configurations beyond the default (v14, Phase 13). */
@@ -578,5 +592,6 @@ export type ConstructionMaterial = (typeof CONSTRUCTION_MATERIALS)[number];
 export type StructNode = z.infer<typeof StructNodeSchema>;
 export type StructBeam = z.infer<typeof StructBeamSchema>;
 export type StructTri = z.infer<typeof StructTriSchema>;
+export type RowOptions = z.infer<typeof RowOptionsSchema>;
 export type PartProxy = z.infer<typeof PartProxySchema>;
 export type RefNodes = z.infer<typeof RefNodesSchema>;

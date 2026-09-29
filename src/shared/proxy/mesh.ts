@@ -111,3 +111,37 @@ export function signedVolume(m: ProxyMesh): number {
   }
   return v / 6;
 }
+
+/**
+ * Merge nodes closer than `tolerance` (m) in a finished proxy, keeping its
+ * extra edges: two nodes in one place make a beam with no length, which the
+ * game can't solve. Degenerate triangles and self-edges go.
+ */
+export function weldGraph(m: ProxyMesh, tolerance: number): ProxyMesh {
+  const canon = weldMap(m.positions, tolerance);
+  const n = m.positions.length / 3;
+  if (canon.every((c, i) => c === i)) return m;
+  const idx: number[] = [];
+  for (let t = 0; t + 2 < m.index.length; t += 3) {
+    const a = canon[m.index[t]!]!;
+    const b = canon[m.index[t + 1]!]!;
+    const c = canon[m.index[t + 2]!]!;
+    if (a !== b && b !== c && a !== c) idx.push(a, b, c);
+  }
+  const extra = (m.extraEdges ?? []).map(([a, b]) => [canon[a]!, canon[b]!] as [number, number]).filter(([a, b]) => a !== b);
+  const used = new Uint8Array(n);
+  for (const v of idx) used[v] = 1;
+  for (const [a, b] of extra) used[a] = used[b] = 1;
+  const remap = new Int32Array(n).fill(-1);
+  const out: number[] = [];
+  for (let v = 0; v < n; v++) {
+    if (!used[v]) continue;
+    remap[v] = out.length / 3;
+    out.push(m.positions[v * 3]!, m.positions[v * 3 + 1]!, m.positions[v * 3 + 2]!);
+  }
+  return {
+    positions: new Float32Array(out),
+    index: new Uint32Array(idx.map((v) => remap[v]!)),
+    ...(extra.length ? { extraEdges: extra.map(([a, b]) => [remap[a]!, remap[b]!] as [number, number]) } : {}),
+  };
+}

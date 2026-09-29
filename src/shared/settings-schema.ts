@@ -58,6 +58,27 @@ export const SettingsSchema = z.object({
   showStatusBar: z.boolean(),
   /** Ask before deleting parts, scripts and other things that take work to make again. */
   confirmDeletes: z.boolean(),
+  /** JBeam workspace (fork): every property and tool, not just the common ones. */
+  jbeamAdvanced: z.boolean(),
+  /** Structure checks: beams shorter than this (mm) are flagged. */
+  jbeamShortBeamMm: z.number().min(0.1).max(500),
+  /** …and longer than this (m). */
+  jbeamLongBeamM: z.number().min(0.1).max(20),
+  /** A node needs at least this many beams. */
+  jbeamMinBeams: z.number().int().min(1).max(12),
+  /** Nodes closer than this (mm) are flagged as on top of each other. */
+  jbeamOverlapMm: z.number().min(0.01).max(100),
+  /** A node heavier than this many times its part's average is flagged. */
+  jbeamHeavyFactor: z.number().min(1.5).max(100),
+  /** Logical naming: numbers grow front to back or bottom to top. */
+  jbeamNamingOrder: z.enum(['front-back', 'bottom-top']),
+  /** Logical naming: l/r endings for mirrored pairs. */
+  jbeamNamingSides: z.boolean(),
+  jbeamNamingStart: z.number().int().min(0).max(1000),
+  /** Rows the JBeam tables show before "Show more". */
+  jbeamPageSize: z.number().int().min(50).max(5000),
+  /** Picking a row in a JBeam table frames it in the 3D view. */
+  jbeamFrameOnPick: z.boolean(),
   /** The first-run tour was taken or skipped (Help → Start the Tutorial runs it again). */
   tutorialSeen: z.boolean(),
 
@@ -193,6 +214,17 @@ export const DEFAULT_SETTINGS: Settings = {
   tooltipDelay: 300,
   showStatusBar: true,
   confirmDeletes: true,
+  jbeamAdvanced: false,
+  jbeamShortBeamMm: 10,
+  jbeamLongBeamM: 2.5,
+  jbeamMinBeams: 3,
+  jbeamOverlapMm: 2,
+  jbeamHeavyFactor: 10,
+  jbeamNamingOrder: 'front-back',
+  jbeamNamingSides: true,
+  jbeamNamingStart: 1,
+  jbeamPageSize: 300,
+  jbeamFrameOnPick: false,
   tutorialSeen: false,
   zoomToCursor: true,
   panSpeed: 1,

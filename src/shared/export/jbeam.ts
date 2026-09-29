@@ -1,4 +1,6 @@
-import type { Part, Project, StructBeam, StructNode, StructTri, TuningVar, PowertrainEdits } from '../project/schema';
+import type { Part, Project, RowOptions, StructBeam, StructNode, StructTri, TuningVar, PowertrainEdits } from '../project/schema';
+import { RESERVED } from '../jbeam/properties';
+import { triggerCorners, type Trigger } from '../triggers/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
 import type { JbeamObject, JbeamValue } from '../jbeam/parse';
 import { serializeJbeam, JbeamComment, type WritableObject, type WritableValue } from '../jbeam/serialize';
@@ -32,7 +34,7 @@ import { applyPowertrainEdits } from '../powertrain/edits';
  * Node groups are per *slot*, so parts riding on a slot keep working whichever variant is installed.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features' | 'props' | 'cameras'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'axles' | 'sources' | 'powertrain' | 'variables' | 'features' | 'props' | 'cameras' | 'triggers'>>;
 
 export interface TaxonomyLookup {
   entry(id: string): TaxonomyEntry | undefined;
@@ -174,6 +176,20 @@ function nodeOrder(a: StructNode, b: StructNode): number {
   return x.stem.localeCompare(y.stem) || x.n - y.n || x.side - y.side;
 }
 
+/** A row's hand-set properties (JBeam workspace), without the ones JBeam Forge writes itself. */
+function rowOptions(options: RowOptions | undefined, target: keyof typeof RESERVED): JbeamObject | undefined {
+  if (!options) return undefined;
+  const out: JbeamObject = {};
+  for (const [k, v] of Object.entries(options)) if (!RESERVED[target].includes(k)) out[k] = v;
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** They're written on the row itself ("…, {"collision": false}]"), so the rows after it are untouched. */
+function inline(options: RowOptions | undefined, target: keyof typeof RESERVED): { inlineOptions?: JbeamObject } {
+  const own = rowOptions(options, target);
+  return own ? { inlineOptions: own } : {};
+}
+
 function beamOptions(v: BeamValues): JbeamObject {
   return { beamSpring: v.beamSpring, beamDamp: v.beamDamp, beamDeform: v.beamDeform, beamStrength: v.beamStrength ?? 'FLT_MAX' };
 }
@@ -220,7 +236,8 @@ function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamP
   const p = BEAM_PRESET_VALUES[preset];
   const records: WritableRecord[] = [...nodes].sort(nodeOrder).map((n) => ({
     values: { id: n.id, posX: num(n.pos[0]), posY: num(n.pos[1]), posZ: num(n.pos[2]) },
-    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: scaled(n.weight, vars.mass) },
+    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: scaled(n.weight, vars.mass), ...rowOptions(n.options, 'node') },
+    ...inline(n.options, 'node'),
   }));
   const table = writeTable(['id', 'posX', 'posY', 'posZ'], records, { resetValues: { group: '' } });
   return [...table, { group: '' }];
@@ -264,7 +281,7 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
       if (vars.strength && typeof options.beamDeform === 'number') options.beamDeform = scaled(options.beamDeform, vars.strength);
       if (vars.strength && typeof options.beamStrength === 'number') options.beamStrength = scaled(options.beamStrength, vars.strength);
     }
-    return { values, options };
+    return { values, options: { ...options, ...rowOptions(b.options, 'beam') }, ...inline(b.options, 'beam') };
   });
   const comments = new Map<number, string>();
   const firstBrace = sorted.findIndex((b) => b.kind === 'brace');
@@ -297,7 +314,9 @@ function trianglesSection(tris: readonly StructTri[], group: string, preset: Bea
   };
   const records: WritableRecord[] = tris.map((t) => {
     const lift = aero && facesUp(t) ? { liftCoef: scaled(aero.lift, aero.downforce), stallAngle: aero.stall } : undefined;
-    return { values: { 'id1:': t.ids[0], 'id2:': t.ids[1], 'id3:': t.ids[2] }, options: { ...(aero ? { dragCoef: aero.drag } : {}), groundModel: gm, group, ...lift }, ...(lift ? { inlineOptions: lift } : {}) };
+    const own = rowOptions(t.options, 'tri');
+    const rowOnly = lift || own ? { ...lift, ...own } : undefined;
+    return { values: { 'id1:': t.ids[0], 'id2:': t.ids[1], 'id3:': t.ids[2] }, options: { ...(aero ? { dragCoef: aero.drag } : {}), groundModel: gm, group, ...rowOnly }, ...(rowOnly ? { inlineOptions: rowOnly } : {}) };
   });
   return [...writeTable(['id1:', 'id2:', 'id3:'], records, { resetValues: { group: '' }, inlineKeys: ['liftCoef', 'stallAngle'] }), { group: '' }];
 }
@@ -535,6 +554,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const aero = AERO[part.taxonomyId];
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset, aero && { ...aero, pos: posOf, downforce: partVars.downforce });
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
+    const clickable = (doc.triggers ?? []).filter((t) => t.partId === part.id);
+    if (clickable.length && nodes.length >= 3) addTriggers(content, clickable, nodes);
     const scripted = opts.scripts?.get(part.id);
     if (scripted) {
       const rows = Array.isArray(content.controller) ? (content.controller) : [['fileName']];
@@ -587,7 +608,7 @@ function hingeSections(doc: Doc, part: Part, hinge: Hinge, nodes: readonly Struc
     return { id, row: [id, t.ref, t.x, t.y, 'box', size, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, t.offset] as WritableValue[] };
   });
   if (triggers.length) {
-    out.triggers2 = [['id', 'idRef:', 'idX:', 'idY:', 'type', 'size', 'baseRotation', 'rotation', 'translation', 'baseTranslation'], ...triggers.map((t) => t.row)];
+    out.triggers2 = [TRIGGERS_HEADER, ...triggers.map((t) => t.row)];
     out.triggerEventLinks2 = [['triggerId:triggers2', 'triggerInput', 'inputAction'], ...triggers.map((t) => [t.id, 'action0', hinge.action])];
   }
   out.actionsEnabled = [['id'], [hinge.action]];
@@ -599,7 +620,42 @@ function hingeSections(doc: Doc, part: Part, hinge: Hinge, nodes: readonly Struc
  * reference node, one towards its X and one towards its Y. The box centre is
  * the handle position in that frame.
  */
-function triggerFrame(nodes: readonly StructNode[], at: readonly number[]): { ref: string; x: string; y: string; offset: JbeamObject } {
+const TRIGGERS_HEADER = ['id', 'idRef:', 'idX:', 'idY:', 'type', 'size', 'baseRotation', 'rotation', 'translation', 'baseTranslation'];
+
+/**
+ * The part's own triggers (JBeam Forge's Triggers workspace), added to any
+ * its hinge wrote. Each box is placed in the frame of three nodes near it;
+ * its size there covers the box as turned on the car.
+ */
+function addTriggers(content: Record<string, WritableValue>, triggers: readonly Trigger[], nodes: readonly StructNode[]): void {
+  const rows = (Array.isArray(content.triggers2) ? content.triggers2.slice(1) : []) as WritableValue[][];
+  const links = (Array.isArray(content.triggerEventLinks2) ? content.triggerEventLinks2.slice(1) : []) as WritableValue[][];
+  const taken = new Set(rows.map((r) => (typeof r[0] === 'string' ? r[0] : '')));
+  for (const t of triggers) {
+    let id = t.id;
+    for (let i = 2; taken.has(id); i++) id = `${t.id}${i}`;
+    taken.add(id);
+    const f = triggerFrame(nodes, t.pos);
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (const c of triggerCorners(t)) {
+      const d = [c[0] - f.origin[0]!, c[1] - f.origin[1]!, c[2] - f.origin[2]!];
+      f.axes.forEach((ax, k) => {
+        const v = d[0]! * ax[0]! + d[1]! * ax[1]! + d[2]! * ax[2]!;
+        lo[k] = Math.min(lo[k]!, v);
+        hi[k] = Math.max(hi[k]!, v);
+      });
+    }
+    const size = { x: num(hi[0]! - lo[0]!), y: num(hi[1]! - lo[1]!), z: num(hi[2]! - lo[2]!) };
+    const centre = { x: num((hi[0]! + lo[0]!) / 2), y: num((hi[1]! + lo[1]!) / 2), z: num((hi[2]! + lo[2]!) / 2) };
+    rows.push([id, f.ref, f.x, f.y, 'box', size, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, centre]);
+    links.push([id, 'action0', t.action]);
+  }
+  content.triggers2 = [TRIGGERS_HEADER, ...rows];
+  content.triggerEventLinks2 = [['triggerId:triggers2', 'triggerInput', 'inputAction'], ...links];
+}
+
+function triggerFrame(nodes: readonly StructNode[], at: readonly number[]): { ref: string; x: string; y: string; offset: JbeamObject; origin: readonly number[]; axes: number[][] } {
   const byDist = [...nodes].sort((a, b) => Math.hypot(a.pos[0] - at[0]!, a.pos[1] - at[1]!, a.pos[2] - at[2]!) - Math.hypot(b.pos[0] - at[0]!, b.pos[1] - at[1]!, b.pos[2] - at[2]!));
   const ref = byDist[0]!;
   const sub = (p: readonly number[], q: readonly number[]) => [p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!];
@@ -616,7 +672,7 @@ function triggerFrame(nodes: readonly StructNode[], at: readonly number[]): { re
   const ey = norm(yRaw.map((c, i) => c - dot(yRaw, ex) * ex[i]!));
   const ez = [ex[1]! * ey[2]! - ex[2]! * ey[1]!, ex[2]! * ey[0]! - ex[0]! * ey[2]!, ex[0]! * ey[1]! - ex[1]! * ey[0]!];
   const d = sub(at, ref.pos);
-  return { ref: ref.id, x: xNode.id, y: yNode.id, offset: { x: num(dot(d, ex)), y: num(dot(d, ey)), z: num(dot(d, ez)) } };
+  return { ref: ref.id, x: xNode.id, y: yNode.id, offset: { x: num(dot(d, ex)), y: num(dot(d, ey)), z: num(dot(d, ez)) }, origin: ref.pos, axes: [ex, ey, ez] };
 }
 
 /** Chase camera sized from the body (official Sunburst: distance 5.1 for a ~4.3 m car). */

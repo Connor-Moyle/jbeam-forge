@@ -42,3 +42,9 @@
   tab-size: 4;
   white-space: pre;
 }
+
+.mark {
+  display: block;
+  background: var(--accent-dim);
+  color: var(--text-0);
+}

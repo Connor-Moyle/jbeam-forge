@@ -1,3 +1,5 @@
+import { addTriangleFromSelection, selectBeamsOfSelection, selectTrianglesOfSelection } from '@renderer/jbeam/commands';
+import { triKey } from '@shared/jbeam/workbench';
 import { useEffect, useRef, useState } from 'react';
 import { FileInput, MonitorX } from 'lucide-react';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
@@ -183,7 +185,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       const doc = projectStore.getState().doc;
       const focus = scene.getState().focus;
       const edit = useEditStore.getState();
-      const key = doc ? [doc.nodes, doc.beams, doc.parts, focus, edit.preview, edit.active, edit.nodes, edit.beams] : null;
+      const key = doc ? [doc.nodes, doc.beams, doc.parts, focus, edit.preview, edit.active, edit.nodes, edit.beams, edit.tris, doc.tris] : null;
       if (!key || !lastStructure || (lastStructure as unknown[]).some((x, i) => x !== key[i])) {
         const structureChanged = !lastStructure || (lastStructure as unknown[]).slice(0, 5).some((x, i) => x !== key?.[i]);
         lastStructure = key;
@@ -205,6 +207,11 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       if (ui.view && ui.view !== prev.view) rt.viewFrom(SIDE_FRAMES[ui.view.side].n);
     });
     pushStructure();
+    const unsubscribeFrameNodes = useEditStore.subscribe((e, prev) => {
+      if (!e.frameRequest || e.frameRequest === prev.frameRequest) return;
+      const want = new Set(e.frameRequest.nodes);
+      rt.framePoints((projectStore.getState().doc?.nodes ?? []).filter((n) => want.has(n.id)).map((n) => n.pos));
+    });
     rt.setView(useUiStore.getState().view);
     rt.setChannel(useUiStore.getState().channel);
     const unsubscribeStructure = projectStore.subscribe(() => {
@@ -405,6 +412,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeVinylView();
       unsubscribeFaces();
       unsubscribeStructure();
+      unsubscribeFrameNodes();
       unsubscribeSettings();
       unsubscribeView();
       unsubscribeEdit();
@@ -550,11 +558,17 @@ function FocusPill() {
 }
 
 /** What edit mode can pick: the (focused) nodes at their previewed positions, and beams between them. */
-function editView(doc: { nodes: readonly { id: string; partId: string; pos: [number, number, number] }[]; beams: readonly { id1: string; id2: string; partId: string }[] }, only: ReadonlySet<string> | undefined, edit: { preview: ReadonlyMap<string, [number, number, number]> | null; nodes: readonly string[]; beams: readonly string[] }): EditView {
+function editView(
+  doc: { nodes: readonly { id: string; partId: string; pos: [number, number, number] }[]; beams: readonly { id1: string; id2: string; partId: string }[]; tris: readonly { ids: readonly string[] }[] },
+  only: ReadonlySet<string> | undefined,
+  edit: { preview: ReadonlyMap<string, [number, number, number]> | null; nodes: readonly string[]; beams: readonly string[]; tris: readonly string[] },
+): EditView {
   const nodes = doc.nodes.filter((n) => !only || only.has(n.partId)).map((n) => ({ id: n.id, pos: edit.preview?.get(n.id) ?? n.pos }));
   const ids = new Set(nodes.map((n) => n.id));
   const beams = doc.beams.filter((b) => ids.has(b.id1) && ids.has(b.id2)).map((b) => [b.id1, b.id2] as [string, string]);
-  return { nodes, beams, selectedNodes: edit.nodes, selectedBeams: edit.beams };
+  const tris = edit.tris.length ? new Set(edit.tris) : null;
+  const selectedTris = tris ? doc.tris.filter((t) => tris.has(triKey(t.ids))).map((t) => t.ids) : [];
+  return { nodes, beams, selectedNodes: edit.nodes, selectedBeams: edit.beams, selectedTris };
 }
 
 /** Edit-mode keys. Returns true when the key was handled. */
@@ -569,7 +583,10 @@ function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
   else if (isKey(e, 'beamSplit')) splitSelectedBeams();
   else if (isKey(e, 'nodeMirror')) mirrorSelection();
   else if (isKey(e, 'nodeAdd')) addNodeAtSelection();
-  else if (isKey(e, 'cancel') && (edit.nodes.length || edit.beams.length)) edit.clear();
+  else if (isKey(e, 'triAdd')) addTriangleFromSelection();
+  else if (isKey(e, 'selectTris')) selectTrianglesOfSelection();
+  else if (isKey(e, 'selectBeams')) selectBeamsOfSelection();
+  else if (isKey(e, 'cancel') && (edit.nodes.length || edit.beams.length || edit.tris.length)) edit.clear();
   else if (e.key.startsWith('Arrow') && edit.nodes.length) {
     // The nudge step from Settings → Editing (5 mm); Shift × 5, Alt ÷ 5. Left/right and up/down follow the screen, snapped to the nearest axis.
     const base = (useSettingsStore.getState().settings?.nudgeMm ?? 5) / 1000;

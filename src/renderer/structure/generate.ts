@@ -1,3 +1,5 @@
+import { beamKey } from '@shared/structure/edit';
+import { triKey } from '@shared/jbeam/workbench';
 import { create } from 'zustand';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
@@ -5,7 +7,7 @@ import { useUiStore } from '@renderer/app/stores/ui';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { rlog } from '@renderer/diagnostics/logger';
 import type { ImportedMesh } from '@renderer/import/normalize';
-import type { PartProxy } from '@shared/project/schema';
+import type { PartProxy, Project } from '@shared/project/schema';
 import type { ProxyMesh } from '@shared/proxy/mesh';
 import { buildProxy } from '@shared/proxy/build';
 import { meshoptReady } from '@shared/proxy/shapes';
@@ -91,6 +93,7 @@ export async function generateParts(partIds: readonly string[], label?: string):
     projectStore.getState().execute({
       label: label ?? (partIds.length === 1 ? 'Generate part' : `Generate ${partIds.length} parts`),
       apply: (d) => {
+        keepRowOptions(d, work);
         d.nodes = work.nodes;
         d.beams = work.beams;
         d.tris = work.tris;
@@ -118,6 +121,23 @@ export async function generateParts(partIds: readonly string[], label?: string):
   } finally {
     useStructureUi.getState().setBusy(false);
   }
+}
+
+/** Properties set by hand in the JBeam workspace stay on the nodes, beams and triangles that are regenerated with the same names. */
+function keepRowOptions(from: Pick<Project, 'nodes' | 'beams' | 'tris'>, to: Pick<Project, 'nodes' | 'beams' | 'tris'>): void {
+  const nodes = new Map(from.nodes.filter((n) => n.options).map((n) => [n.id, n.options]));
+  const beams = new Map(from.beams.filter((b) => b.options).map((b) => [`${beamKey(b.id1, b.id2)}|${b.kind}`, b.options]));
+  const tris = new Map(from.tris.filter((t) => t.options).map((t) => [triKey(t.ids), t.options]));
+  if (!nodes.size && !beams.size && !tris.size) return;
+  to.nodes = to.nodes.map((n) => (!n.options && nodes.has(n.id) ? { ...n, options: nodes.get(n.id) } : n));
+  to.beams = to.beams.map((b) => {
+    const o = beams.get(`${beamKey(b.id1, b.id2)}|${b.kind}`);
+    return !b.options && o ? { ...b, options: o } : b;
+  });
+  to.tris = to.tris.map((t) => {
+    const o = tris.get(triKey(t.ids));
+    return !t.options && o ? { ...t, options: o } : t;
+  });
 }
 
 export function generateAll(): Promise<PartReport[]> {

@@ -1583,6 +1583,78 @@ const scenarios = [
     },
   },
   {
+    id: 'jbeam',
+    name: 'JBeam workspace: tables · pick · rename · property · triangle · logical names · checks',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      // The practice car, without the tour: parts and structure.
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes < 30; i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !(await hook(page, 'projectDoc')).nodes.length; i++) await page.waitForTimeout(100);
+      await page.getByTestId('workspace-jbeam').click();
+      await page.getByTestId('jbeam-tables').waitFor();
+      await page.getByTestId('jbeam-properties').waitFor();
+      // Pick the hood's nodes in the tables.
+      await page.getByTestId('jbeam-search').fill('');
+      const hoodPart = (await hook(page, 'projectDoc')).parts.find((p) => p.taxonomyId === 'hood');
+      await page.getByTestId('jbeam-part').click();
+      await page.getByRole('option', { name: hoodPart.displayName, exact: true }).click();
+      const firstRow = page.getByTestId('jbeam-nodes').locator('tbody tr').first();
+      const firstId = await firstRow.getAttribute('data-node');
+      await firstRow.click();
+      await page.getByTestId('jbeam-node-name').waitFor();
+      await shot(page, 'jbeam-node');
+      // Rename it, then give it its own property.
+      await page.getByTestId('jbeam-node-name').fill('hoodtest1');
+      await page.getByTestId('jbeam-node-name').press('Enter');
+      let doc = await hook(page, 'projectDoc');
+      assert(doc.nodes.some((n) => n.id === 'hoodtest1') && !doc.nodes.some((n) => n.id === firstId), `renamed ${firstId} → hoodtest1`);
+      assert(doc.beams.every((b) => b.id1 !== firstId && b.id2 !== firstId), 'its beams follow the new name');
+      await page.getByTestId('jbeam-props-node').getByRole('textbox', { name: 'Friction' }).fill('0.9');
+      await page.getByTestId('jbeam-props-node').getByRole('textbox', { name: 'Friction' }).press('Enter');
+      doc = await hook(page, 'projectDoc');
+      assert(doc.nodes.find((n) => n.id === 'hoodtest1').options?.frictionCoef === 0.9, 'friction set on the node');
+      // Three nodes make a triangle; T is the key.
+      const rows = page.getByTestId('jbeam-nodes').locator('tbody tr');
+      await rows.nth(1).click();
+      await rows.nth(2).click({ modifiers: ['Shift'] });
+      await rows.nth(3).click({ modifiers: ['Shift'] });
+      const tris0 = doc.tris.length;
+      await page.getByTestId('jbeam-add-tri').click();
+      doc = await hook(page, 'projectDoc');
+      assert(doc.tris.length === tris0 + 1 || (await page.getByTestId('status-bar').textContent()).includes('already make a triangle'), 'a triangle from three nodes');
+      // Nothing picked: logical names for the whole car.
+      await page.keyboard.press('Escape');
+      await page.getByTestId('jbeam-part').click();
+      await page.getByRole('option', { name: 'All parts' }).click();
+      await hook(page, 'clearEdit');
+      await page.getByTestId('jbeam-apply-naming').waitFor({ timeout: 5000 }).catch(() => undefined);
+      if (await page.getByTestId('jbeam-apply-naming').isVisible()) {
+        await page.getByTestId('jbeam-apply-naming').click();
+        doc = await hook(page, 'projectDoc');
+        const hood = doc.nodes.filter((n) => n.partId === hoodPart.id);
+        assert(hood.every((n) => /^[a-z]+\d+[lr]?$/.test(n.id)), `logical hood names (${hood.slice(0, 4).map((n) => n.id).join(', ')})`);
+      }
+      // Checks.
+      await page.getByRole('tab', { name: /Checks/ }).click();
+      await shot(page, 'jbeam-checks');
+      // The export writes the property on the node's row.
+      const files = await hook(page, 'preparedJbeams');
+      assert(files && files.files.some((f) => /"frictionCoef"\s*:\s*0\.9/.test(f.text)), 'the node row carries frictionCoef 0.9');
+      await hook(page, 'applyPreset', 'modelling');
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,

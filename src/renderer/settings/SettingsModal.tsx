@@ -42,6 +42,7 @@ const SECTIONS = [
   { id: 'navigation', label: 'Navigation' },
   { id: 'editing', label: 'Editing' },
   { id: 'keymap', label: 'Keymap' },
+  { id: 'jbeam', label: 'JBeam' },
   { id: 'files', label: 'Files & backups' },
   { id: 'units', label: 'Units' },
   { id: 'export', label: 'Export' },
@@ -448,6 +449,42 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
             <FieldGroup title="Keymap">
               <p className={styles.help}>Click a key to change it, then press the new key (Esc cancels, Backspace clears). Keymaps can be saved and shared as .jbkeys files.</p>
               <KeymapEditor value={d.keymap} onChange={(keymap) => set({ keymap })} />
+            </FieldGroup>
+          </section>
+
+          <section data-section="jbeam">
+            <FieldGroup title="JBeam workspace">
+              <Toggle checked={d.jbeamAdvanced} onChange={(jbeamAdvanced) => set({ jbeamAdvanced })} label="Advanced: every property, any other property by name, scaling and moving nodes between parts" />
+              <Toggle checked={d.jbeamFrameOnPick} onChange={(jbeamFrameOnPick) => set({ jbeamFrameOnPick })} label="Picking a row in the tables frames it in the 3D view" />
+              <Field label="Rows shown at once" hint="More rows are a click away (Show more). Fewer keep big cars quick.">
+                <NumberInput value={d.jbeamPageSize} onChange={(jbeamPageSize) => set({ jbeamPageSize })} min={50} max={5000} step={50} precision={0} aria-label="Rows shown at once" />
+              </Field>
+            </FieldGroup>
+            <FieldGroup title="Logical node names">
+              <Field label="Numbers grow">
+                <Select value={d.jbeamNamingOrder} onChange={(jbeamNamingOrder) => set({ jbeamNamingOrder })} options={[{ value: 'front-back', label: 'Front to back (like the game’s cars)' }, { value: 'bottom-top', label: 'Bottom to top' }]} aria-label="Numbers grow" />
+              </Field>
+              <Field label="First number">
+                <NumberInput value={d.jbeamNamingStart} onChange={(jbeamNamingStart) => set({ jbeamNamingStart })} min={0} max={1000} step={1} precision={0} aria-label="First number" />
+              </Field>
+              <Toggle checked={d.jbeamNamingSides} onChange={(jbeamNamingSides) => set({ jbeamNamingSides })} label="l and r endings for the two sides of a pair" />
+            </FieldGroup>
+            <FieldGroup title="Structure checks">
+              <Field label="Short beams" hint="Beams shorter than this can make the car shake.">
+                <NumberInput value={d.jbeamShortBeamMm} onChange={(jbeamShortBeamMm) => set({ jbeamShortBeamMm })} min={0.1} max={500} step={1} precision={1} unit="mm" aria-label="Short beams" />
+              </Field>
+              <Field label="Long beams">
+                <NumberInput value={d.jbeamLongBeamM} onChange={(jbeamLongBeamM) => set({ jbeamLongBeamM })} min={0.1} max={20} step={0.1} precision={2} unit="m" aria-label="Long beams" />
+              </Field>
+              <Field label="Beams a node needs">
+                <NumberInput value={d.jbeamMinBeams} onChange={(jbeamMinBeams) => set({ jbeamMinBeams })} min={1} max={12} step={1} precision={0} aria-label="Beams a node needs" />
+              </Field>
+              <Field label="Nodes on top of each other" hint="Closer than this counts as the same place.">
+                <NumberInput value={d.jbeamOverlapMm} onChange={(jbeamOverlapMm) => set({ jbeamOverlapMm })} min={0.01} max={100} step={0.5} precision={2} unit="mm" aria-label="Overlap distance" />
+              </Field>
+              <Field label="Heavy nodes" hint="Flag a node heavier than this many times its part’s average.">
+                <NumberInput value={d.jbeamHeavyFactor} onChange={(jbeamHeavyFactor) => set({ jbeamHeavyFactor })} min={1.5} max={100} step={0.5} precision={1} unit="×" aria-label="Heavy nodes" />
+              </Field>
             </FieldGroup>
           </section>
 

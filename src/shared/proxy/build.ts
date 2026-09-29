@@ -1,4 +1,4 @@
-import { faceCount, vertexCount, type ProxyMesh } from './mesh';
+import { faceCount, vertexCount, weldGraph, type ProxyMesh } from './mesh';
 import { collapseShortEdges, orientOutward, removeDegenerate, subdivideLongEdges } from './quality';
 import { convexHull, decimate, fitBox, fitCylinder } from './shapes';
 import { isMirrorSymmetric, leftHalf, mirrorGraph, mirrorHalf } from './symmetry';
@@ -95,6 +95,9 @@ function clean(m: ProxyMesh, s: ProxyBuildSettings, target: number, hardCap: num
 }
 
 /** Build a part's proxy from its (BeamNG-space) render geometry. Requires `await meshoptReady` for decimate/hull. */
+/** Nodes closer than this (m) are merged: a 1 mm beam can only shake. */
+const WELD_NODES = 0.001;
+
 export function buildProxy(input: ProxyMesh, s: ProxyBuildSettings): ProxyBuildResult {
   const started = performance.now();
   const mirrored = s.symmetry && (s.mode === 'decimate' || s.mode === 'surface') && isMirrorSymmetric(input.positions);
@@ -112,6 +115,7 @@ export function buildProxy(input: ProxyMesh, s: ProxyBuildSettings): ProxyBuildR
   } else {
     mesh = s.mode === 'box' || s.mode === 'cylinder' ? shape(input, s, s.targetVertices) : clean(shape(input, s, s.targetVertices), s, s.targetVertices, s.maxVertices ?? Infinity);
   }
-  mesh = insetShell(orientOutward(mesh), s.inset);
+  // Nodes that ended up in one place (the centre seam, inset thin panels) become one node.
+  mesh = weldGraph(insetShell(orientOutward(mesh), s.inset), WELD_NODES);
   return { mesh, mirrored, stats: { inputTriangles: input.index.length / 3, vertices: vertexCount(mesh), triangles: faceCount(mesh), ms: performance.now() - started } };
 }

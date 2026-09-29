@@ -1,7 +1,10 @@
 import {
   type Intersection,
   Box3,
+  BufferAttribute,
   BufferGeometry,
+  LineBasicMaterial,
+  LineSegments,
   Color,
   CylinderGeometry,
   DirectionalLight,
@@ -100,6 +103,8 @@ export interface EditView {
   beams: readonly [string, string][];
   selectedNodes: readonly string[];
   selectedBeams: readonly string[];
+  /** Picked triangles' node ids. */
+  selectedTris?: readonly (readonly string[])[];
 }
 
 const PICK_NODE_PX = 12;
@@ -128,6 +133,8 @@ export interface ViewportCallbacks {
   onMeshTransform?: (t: MeshGizmoTransform, done: boolean) => void;
   /** Paint brush: the surface under the pointer while painting (null: off the car). */
   onBrush?: (hit: BrushHit | null, phase: 'start' | 'move' | 'end') => void;
+  /** Place mode: a click on the car (point and outward normal, BeamNG space). */
+  onPlace?: (hit: { point: Vec3; normal: Vec3 | null; meshKey: string }) => void;
 }
 
 /** Where the paint brush touches a mesh: its key, the triangle, and the texture coordinate there. */
@@ -235,6 +242,10 @@ export class ViewportRuntime {
   /** Hinge wizard: the hinge line, latch, handles and a ghost of the part swung open. */
   private readonly hingeRoot = new Group();
   private readonly featureRoot = new Group();
+  /** Trigger boxes (Triggers workspace), BeamNG space. */
+  private readonly markerRoot = new Group();
+  /** Placing something on the car: a left click on a mesh reports the point. */
+  private placing = false;
   private readonly hingeGhostMaterial: MeshStandardMaterial;
   private liveFramedFor: unknown = null;
   private viewToggles = { mesh: true, structure: true, xray: false };
@@ -298,6 +309,8 @@ export class ViewportRuntime {
     this.scene.add(this.hingeRoot);
     this.featureRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.scene.add(this.featureRoot);
+    this.markerRoot.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
+    this.scene.add(this.markerRoot);
     this.hingeGhostMaterial = new MeshStandardMaterial({ color: new Color(resolveToken('accent') || undefined), transparent: true, opacity: 0.35, depthWrite: false });
     this.editOverlay.root.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.editOverlay.root.renderOrder = 6;
@@ -474,6 +487,28 @@ export class ViewportRuntime {
       }
       const hit = this.pickEdit(x, y);
       this.callbacks.onEditPick?.(hit.node, hit.beam, d.op);
+    });
+
+    // Place mode: a click (not a drag) on the car reports where.
+    let placeDown: [number, number] | null = null;
+    this.listen(canvas, 'pointerdown', (e) => {
+      placeDown = this.placing && e.button === 0 && !this.brush && !this.tool ? [e.clientX, e.clientY] : null;
+    });
+    this.listen(canvas, 'pointerup', (e) => {
+      const down = placeDown;
+      placeDown = null;
+      if (!down || e.button !== 0 || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > CLICK_MAX_DRAG_PX) return;
+      const hit = this.hitAt(e.clientX, e.clientY);
+      if (!hit) return;
+      const p = this.modelRoot.worldToLocal(hit.point.clone());
+      let normal: Vec3 | null = null;
+      if (hit.face) {
+        const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+        const toLocal = this.modelRoot.getWorldQuaternion(new Quaternion()).invert();
+        n.applyQuaternion(toLocal);
+        normal = [n.x, n.y, n.z];
+      }
+      this.callbacks.onPlace?.({ point: [p.x, p.y, p.z], normal, meshKey: (hit.object.userData.meshKey as string) ?? '' });
     });
 
     // Paint brush: left-drag paints on the surface under the pointer.
@@ -1074,9 +1109,9 @@ export class ViewportRuntime {
     }
     const pos = new Map(view.nodes.map((n) => [n.id, n.pos]));
     const beams = view.selectedBeams.map((k) => k.split('|') as [string, string]);
-    this.editOverlay.set(selectionData(pos, view.selectedNodes, beams), this.structure.nodeRadius * 1.7);
+    this.editOverlay.set(selectionData(pos, view.selectedNodes, beams, view.selectedTris), this.structure.nodeRadius * 1.7);
     const picked = view.selectedNodes.map((id) => pos.get(id)).filter((p): p is Vec3 => !!p);
-    if (!picked.length) {
+    if (!picked.length || view.selectedTris?.length) {
       this.gizmo.detach();
       return;
     }
@@ -1239,6 +1274,44 @@ export class ViewportRuntime {
       bottle.rotation.z = Math.PI / 2;
       bottle.position.set(...view.bottle.pos);
       this.featureRoot.add(bottle);
+    }
+  }
+
+  /** Place mode on or off (the cursor becomes a crosshair). */
+  setPlacing(on: boolean): void {
+    this.placing = on;
+    this.canvas.style.cursor = on ? 'crosshair' : '';
+  }
+
+  /**
+   * Boxes drawn over the car (triggers): outlines, the selected one filled
+   * faintly. Corners in BeamNG space, eight per box (bit order x, y, z).
+   */
+  setMarkers(boxes: readonly { corners: readonly Vec3[]; selected: boolean }[]): void {
+    for (const child of [...this.markerRoot.children]) {
+      this.markerRoot.remove(child);
+      if (child instanceof LineSegments || child instanceof Mesh) {
+        (child.geometry as BufferGeometry).dispose();
+        (child.material as Material).dispose();
+      }
+    }
+    const EDGES = [0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 1, 3, 4, 6, 5, 7, 0, 4, 1, 5, 2, 6, 3, 7];
+    const FACES = [0, 2, 3, 0, 3, 1, 4, 5, 7, 4, 7, 6, 0, 1, 5, 0, 5, 4, 2, 6, 7, 2, 7, 3, 0, 4, 6, 0, 6, 2, 1, 3, 7, 1, 7, 5];
+    for (const b of boxes) {
+      if (b.corners.length !== 8) continue;
+      const color = new Color(resolveToken(b.selected ? 'accent' : 'warning') || undefined);
+      const lines = new BufferGeometry();
+      lines.setAttribute('position', new BufferAttribute(new Float32Array(EDGES.flatMap((i) => b.corners[i]!)), 3));
+      const outline = new LineSegments(lines, new LineBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }));
+      outline.renderOrder = 9;
+      this.markerRoot.add(outline);
+      if (b.selected) {
+        const faces = new BufferGeometry();
+        faces.setAttribute('position', new BufferAttribute(new Float32Array(FACES.flatMap((i) => b.corners[i]!)), 3));
+        const fill = new Mesh(faces, new MeshBasicMaterial({ color, side: DoubleSide, transparent: true, opacity: 0.25, depthTest: false }));
+        fill.renderOrder = 8;
+        this.markerRoot.add(fill);
+      }
     }
   }
 
@@ -1443,6 +1516,21 @@ export class ViewportRuntime {
     const targets = keys.length ? keys.map((k) => this.meshObjects.get(k)).filter((m): m is Mesh => !!m) : [...this.meshObjects.values()].filter((m) => m.visible);
     this.modelRoot.updateMatrixWorld(true);
     for (const m of targets) box.expandByObject(m);
+    this.frameBox(box, glide);
+  }
+
+  /** Frame points given in BeamNG space (nodes picked in the JBeam tables). */
+  framePoints(points: readonly Vec3[], glide = true): void {
+    if (!points.length) return;
+    this.structure.root.updateMatrixWorld(true);
+    const box = new Box3();
+    for (const p of points) box.expandByPoint(this.structure.root.localToWorld(new Vector3(p[0], p[1], p[2])));
+    // A lone node: frame half a metre around it.
+    if (box.getSize(new Vector3()).length() < 0.2) box.expandByScalar(0.25);
+    this.frameBox(box, glide);
+  }
+
+  private frameBox(box: Box3, glide: boolean): void {
     if (box.isEmpty()) return;
     const sphere = box.getBoundingSphere(new Sphere());
     const fov = (this.camera.fov * Math.PI) / 180;

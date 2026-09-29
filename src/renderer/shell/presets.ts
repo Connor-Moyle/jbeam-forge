@@ -8,6 +8,7 @@ export const DEFAULT_PRESET: PresetId = 'modelling';
 export const PRESET_LABELS: Record<PresetId, string> = {
   modelling: 'Modelling',
   materials: 'Materials',
+  jbeam: 'JBeam',
   testing: 'Testing',
   scripts: 'Scripts',
 };
@@ -35,6 +36,13 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'paints', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
     { id: 'materials', relativeTo: 'paints', direction: 'within' },
     { id: 'inspector', relativeTo: 'materials', direction: 'below' },
+  ],
+  // Nodes, beams and triangles: the tables on the left, the picked ones' values on the right, the file under the car.
+  jbeam: [
+    { id: 'viewport' },
+    { id: 'jbeam-tables', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel-wide' },
+    { id: 'jbeam-props', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'jbeam-preview', relativeTo: 'viewport', direction: 'below' },
   ],
   testing: [
     { id: 'viewport' },

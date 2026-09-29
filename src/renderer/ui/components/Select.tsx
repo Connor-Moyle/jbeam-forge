@@ -18,6 +18,7 @@ export interface SelectProps<V extends string = string> {
   disabled?: boolean;
   id?: string;
   'aria-label'?: string;
+  'data-testid'?: string;
   className?: string;
 }
 
@@ -30,10 +31,11 @@ export function Select<V extends string = string>({
   id,
   className,
   'aria-label': ariaLabel,
+  'data-testid': testId,
 }: SelectProps<V>) {
   return (
     <S.Root value={value} onValueChange={(v) => onChange(v as V)} disabled={disabled}>
-      <S.Trigger id={id} aria-label={ariaLabel} className={cx(styles.trigger, className)}>
+      <S.Trigger id={id} aria-label={ariaLabel} className={cx(styles.trigger, className)} data-testid={testId}>
         <S.Value placeholder={placeholder} />
         <S.Icon className={styles.chevron}>
           <ChevronDown size={iconSize('size-icon-sm')} aria-hidden />

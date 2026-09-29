@@ -250,6 +250,7 @@ function AppEffects() {
           return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
         },
         selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
+        clearEdit: () => useEditStore.getState().clear(),
         gizmoTransform: (t: MeshGizmoTransform) => transformMeshes(useSceneStore.getState().selection, t),
         preparedJbeams: async () => {
           await loadFittedSets();
