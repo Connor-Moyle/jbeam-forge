@@ -6,6 +6,7 @@ The materials and objects packs are no longer inside the installer. They live in
 |---|---|---|
 | Textures | `Connor-Moyle/jbeam-forge-textures` | material folders (the old materials pack) |
 | Meshes | `Connor-Moyle/jbeam-forge-meshes` | object folders (the old objects pack) |
+| Scripts | `Connor-Moyle/jbeam-forge-scripts` | vehicle script folders (`script.jbscript` + its `.lua`) |
 
 Both can be changed in Settings → Downloads (repository and branch), for a mirror or your own content.
 
@@ -22,9 +23,9 @@ README.md
 
 ## Publishing a version
 
-1. Put the source folders in `packs/materials` and `packs/objects` (as before).
+1. Put the source folders in `packs/materials`, `packs/objects` and `packs/scripts`. Without `packs/scripts`, the scripts repository is made from the app's built-in templates.
 2. `npm run build-content-repos -- --version 2026.09.29`
-   writes `release/content/textures` and `release/content/meshes`. Zips are deterministic, so unchanged items keep the same hash and aren't downloaded again.
+   writes `release/content/textures`, `release/content/meshes` and `release/content/scripts`. Zips are deterministic, so unchanged items keep the same hash and aren't downloaded again.
 3. Copy each folder over a clone of its repository, commit, push to `main`, and tag it `v<version>` (e.g. `v2026.09.29`). Push the tag.
 
 Each tag is a version users can roll back to (Downloads → Textures/Meshes → Version). "Latest" follows the branch set in Settings (default `main`).

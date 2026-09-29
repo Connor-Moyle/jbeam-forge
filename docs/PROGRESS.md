@@ -207,6 +207,16 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - **Code review, two rounds:** fixes include the undo limit leaving the project dirty, an update-download race, stale settings overwriting newer ones, temp-folder cleanup racing a new download, engines renamed when reordered (they now keep a tag and share one slot and the `e_` node names, so the gearbox fits whichever is chosen), props hung from nodes that aren't exported, the suspension drop's pitch message naming the wrong end, and channel views skipping painted overlays and back faces.
 - **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 733/733 ✔ · `npm run run-desktop` 18/18 ✔. The new downloads scenario runs against a local fake GitHub: installs the latest app release, rolls back, downloads one texture then all, all meshes, checks the library sees them, and removes them.
 
+**Drive shafts, pictures, configurations, scripts and extensions** (fork)
+- **Drive shafts** (`src/shared/powertrain/drivetrain.ts`): works out which axles the gearbox drives and adds a part with the missing shafts, or a centre differential (front share, type) for all-wheel drive. Undriven axles roll freely. Warns about duplicate devices. Engine & gearbox → Drive shafts.
+- **Studio pictures** (`src/renderer/panels/viewport/studio.ts`): three-quarter view, seamless backdrop, soft shadow, each configuration's parts and paint. Settings → Export: size, angle, backdrop, per-configuration pictures.
+- **Configurations manager**: cards with pictures and figures (`configStats`), default spawn (`default_pc`), reorder, duplicate, import/export .pc, compare, vehicle selector details (per config and the model).
+- **Vehicle scripts** (`src/shared/lua/`, `src/renderer/scripts/`, docs/scripts.md): 16 templates, checker, CodeMirror editor, fengari test runner in a worker with a BeamNG stand-in API, playback on the car, head unit preview, library, `.jbscript` sharing, and a Scripts download kind. Export writes controllers, controller rows with settings, input actions and default keys.
+- **Extensions** (`src/shared/extensions/`, docs/extensions.md): sandboxed workers with a small `forge` API (commands, script templates, JSON Patch project edits validated against the schema, notifications).
+- **Settings**: Lua editor size and indent, test frame rate, strict script checks.
+- **Code review:** fixes include duplicate extension workers, sound series gaps, the per-call step budget, numeric v.data keys, `self` in colon methods, scripts on set parts, and config stats recomputed on every key.
+- **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 789/789 ✔ · `npm run run-desktop` 19/19 ✔ (new: configurations manager and studio pictures, scripts (template, test, playback, checker, head unit, export), extensions).
+
 ### Between phases: objects library and Assetto Corsa import (0.8.2–0.8.3)
 
 **Objects library (0.8.2):**
