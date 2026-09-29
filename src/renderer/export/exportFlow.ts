@@ -9,7 +9,7 @@ import { useSettingsStore } from '@renderer/app/stores/settings';
 import { capturePreview } from '@renderer/panels/viewport/registry';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import type { ExportBundle, PublishListing } from '@shared/ipc-contract';
-import { bodyPart, buildJbeamFiles, damagedMaterialName } from '@shared/export/jbeam';
+import { bodyPart, buildJbeamFiles, damagedMaterialName, nodesExported } from '@shared/export/jbeam';
 import type { Project } from '@shared/project/schema';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
@@ -102,7 +102,7 @@ export function prepareExport(): PreparedExport | null {
     takenNames,
   );
   // Only props the jbeam can hang get their origin at the pivot; the rest stay plain flexbodies.
-  const propPivot = new Map([...exportableProps(doc, bodyPart(doc, tax)?.id)].map(([k, x]) => [k, x.prop.pivot] as const));
+  const propPivot = new Map([...exportableProps(doc, bodyPart(doc, tax)?.id, nodesExported(doc, tax))].map(([k, x]) => [k, x.prop.pivot] as const));
   const daeMeshes: DaeMesh[] = exported.map((m) => {
     const imported = Array.isArray(m.material) ? m.material : [m.material];
     const ids = slotsOf(doc, m.key);

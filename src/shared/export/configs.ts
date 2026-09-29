@@ -1,7 +1,7 @@
 import type { Part, Project, VehicleConfig } from '../project/schema';
 import { partPrice } from '../parts/materials';
 import { pcPaints, type GamePaint } from '../paints/paints';
-import { axleTag, bodyPart, engineTag, SET_KINDS, slotTypeOf, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
+import { axleTag, bodyPart, engineSlotType, engineTags, SET_KINDS, slotTypeOf, type SuspensionSetData, type TaxonomyLookup } from './jbeam';
 
 /**
  * Vehicle configurations (Phase 13): the slots a player can fill, what a
@@ -61,14 +61,14 @@ export function slotChoices(doc: Pick<Project, 'parts'> & Partial<Pick<Project, 
   const pt = doc.powertrain;
   const engineData = pt?.engine && sets?.[pt.engine.setId];
   if (pt?.engine && engineData && pt.alternates?.length && doc.meta) {
-    const rootSlot = typeof engineData.parts[engineData.root]?.slotType === 'string' ? (engineData.parts[engineData.root]!.slotType as string) : engineData.root;
     const partsOf = (sourceId: string) => [...new Set(Object.entries(doc.assignments ?? {}).flatMap(([k, id]) => (k.startsWith(`${sourceId}:`) ? [id] : [])))];
-    const engines = [pt.engine, ...pt.alternates].flatMap((e, n) => {
+    const tags = engineTags(pt);
+    const engines = [pt.engine, ...pt.alternates].flatMap((e) => {
       const data = sets[e.setId];
-      return data ? [{ name: `${doc.meta!.slug}_${engineTag(n)}_${data.root}`, label: `${e.vehicle} ${e.name}`, ids: partsOf(e.sourceId) }] : [];
+      return data ? [{ name: `${doc.meta!.slug}_${tags.get(e.sourceId) ?? 'E'}_${data.root}`, label: `${e.vehicle} ${e.name}`, ids: partsOf(e.sourceId) }] : [];
     });
     axles.push({
-      slotType: `${doc.meta.slug}_E_${rootSlot}`,
+      slotType: engineSlotType(doc.meta.slug),
       label: 'Engine',
       parent: body ? slotTypeOf(parts, body) : null,
       depth: 1,

@@ -192,9 +192,18 @@ export function simNodeId(i: number): string | undefined {
 /** The project's axles for the suspension drop: springs and dampers from their tuning when set (the game's N/m and N·s/m), else sized from the car. */
 export function axleSpecs(axles: readonly { name: string; y: number; track: number; tuning: Record<string, number> }[]): AxleSpec[] {
   return axles.map((a) => {
-    const find = (re: RegExp, min: number) => Object.entries(a.tuning).find(([k, v]) => re.test(k) && v >= min)?.[1];
-    const spring = find(/spring(?!height)/i, 1000);
-    const damp = find(/damp.*bump|bump|damp/i, 100);
+    // Anti-roll bars, rebound damping and ride heights aren't the main spring or bump damper.
+    const other = /arb|anti_?roll|sway|rebound|height|fast/i;
+    const find = (res: RegExp[], min: number) => {
+      const entries = Object.entries(a.tuning).filter(([k, v]) => !other.test(k) && v >= min);
+      for (const re of res) {
+        const hit = entries.find(([k]) => re.test(k));
+        if (hit) return hit[1];
+      }
+      return undefined;
+    };
+    const spring = find([/^\$?spring(_|$)/i, /spring/i], 1000);
+    const damp = find([/^\$?damp_?bump(_|$)/i, /bump/i, /^\$?damp(_|$)/i, /damp/i], 100);
     return { name: a.name, y: a.y, track: a.track, ...(spring ? { spring } : {}), ...(damp ? { damp } : {}) };
   });
 }

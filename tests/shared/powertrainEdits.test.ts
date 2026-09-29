@@ -132,7 +132,7 @@ describe('more than one engine', () => {
     const { doc, sets } = twoEngines();
     const files = buildJbeamFiles(doc, tax, { meshNames: new Map(), author: 'x', suspensions: sets });
     const alt = parseJbeam(files.find((f) => f.part === 'test_E2_i4_engine')!.text).value as JbeamObject;
-    expect((alt.test_E2_i4_engine as JbeamObject).slotType).toBe('test_E_car_engine');
+    expect((alt.test_E2_i4_engine as JbeamObject).slotType).toBe('test_E_engine');
     expect(files.some((f) => f.part === 'test_E_v6_engine')).toBe(true);
   });
 
@@ -148,5 +148,36 @@ describe('more than one engine', () => {
     expect(on.has('p_i4')).toBe(true);
     expect(on.has('p_v6')).toBe(false);
     expect(includedParts(doc, tax, resolveConfig(doc, tax, null, sets), sets).has('p_v6')).toBe(true);
+  });
+
+  it('keeps each engine’s part names when another is made the default', async () => {
+    const { slotChoices } = await import('../../src/shared/export/configs');
+    const { doc, sets } = twoEngines();
+    const before = slotChoices(doc, tax, sets).find((s) => s.label === 'Engine')!;
+    // Make default: the engines swap places, carrying their tags.
+    doc.powertrain.engine = { ...doc.powertrain.engine!, tag: 'E' };
+    doc.powertrain.alternates = [{ ...doc.powertrain.alternates![0]!, tag: 'E2' }];
+    const [main, alt] = [doc.powertrain.alternates[0]!, doc.powertrain.engine];
+    doc.powertrain.engine = main;
+    doc.powertrain.alternates = [alt];
+    const after = slotChoices(doc, tax, sets).find((s) => s.label === 'Engine')!;
+    expect(after.slotType).toBe(before.slotType);
+    expect(after.options.map((o) => o.name).sort()).toEqual(before.options.map((o) => o.name).sort());
+    expect(after.defaultPart).toBe('test_E2_i4_engine');
+    const files = buildJbeamFiles(doc, tax, { meshNames: new Map(), author: 'x', suspensions: sets });
+    for (const name of ['test_E2_i4_engine', 'test_E_v6_engine']) {
+      const part = (parseJbeam(files.find((f) => f.part === name)!.text).value as JbeamObject)[name] as JbeamObject;
+      expect(part.slotType).toBe(before.slotType);
+    }
+    // Both engines use the same node names, so a gearbox fits either.
+    const v6 = files.find((f) => f.part === 'test_E_v6_engine')!.text;
+    expect(v6).toContain('"e_e1"');
+  });
+
+  it('gives untagged engines free tags', async () => {
+    const { engineTags } = await import('../../src/shared/export/jbeam');
+    expect([...engineTags({ engine: { sourceId: 'a', tag: 'E2' }, alternates: [{ sourceId: 'b' }, { sourceId: 'c', tag: 'E' }] })]).toEqual([['a', 'E2'], ['c', 'E'], ['b', 'E3']]);
+    expect([...engineTags({ engine: { sourceId: 'a' }, alternates: [{ sourceId: 'b' }] })]).toEqual([['a', 'E'], ['b', 'E2']]);
+    expect(engineTags(undefined).size).toBe(0);
   });
 });

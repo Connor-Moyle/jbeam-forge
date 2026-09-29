@@ -70,12 +70,47 @@ function slotDefaultsOf(part: JbeamObject): { type: string; def: string }[] {
   return out;
 }
 
+/** Whether the export writes a part's own nodes (only parts in the 'own' role do). */
+export function nodesExported(doc: Pick<Project, 'parts' | 'proxy'>, tax: TaxonomyLookup): (partId: string) => boolean {
+  const byId = new Map(doc.parts.map((p) => [p.id, p]));
+  return (partId) => {
+    const part = byId.get(partId);
+    const entry = part && tax.entry(part.taxonomyId);
+    return !!part && !!entry && partRole(entry, partSettings(doc, part, entry)) === 'own';
+  };
+}
+
 /** Parts standing in for a fitted suspension, engine or gearbox (replaced by the game's jbeam on export). */
 export const SET_KINDS: ReadonlySet<string> = new Set(['suspension_set', 'engine_set', 'gearbox_set']);
 
 /** Axle tags for part and node names: F, R, R2, R3… */
-/** Tag of the n-th engine (0 = the default one): E, E2, E3… (part and node prefixes). */
+/** The car's engine slot: every engine fits it. */
+export const engineSlotType = (slug: string) => `${slug}_E_engine`;
+
+/** Tag of the n-th engine (0 = the default one): E, E2, E3… (part name prefixes). */
 export const engineTag = (n: number) => (n ? `E${n + 1}` : 'E');
+
+/**
+ * Each engine's tag in part names, by source id. An engine keeps the tag it
+ * was given (so reordering engines doesn't rename their parts and break
+ * saved configurations); untagged ones (older projects) take their
+ * position's tag, or the next free one.
+ */
+export function engineTags(pt: { engine: { sourceId: string; tag?: string | undefined } | null; alternates?: readonly { sourceId: string; tag?: string | undefined }[] | undefined } | undefined): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!pt?.engine) return out;
+  const all = [pt.engine, ...(pt.alternates ?? [])];
+  const used = new Set(all.flatMap((e) => (e.tag ? [e.tag] : [])));
+  for (const e of all) if (e.tag) out.set(e.sourceId, e.tag);
+  all.forEach((e, n) => {
+    if (out.has(e.sourceId)) return;
+    let tag = engineTag(n);
+    for (let k = n; used.has(tag); k++) tag = engineTag(k + 1);
+    used.add(tag);
+    out.set(e.sourceId, tag);
+  });
+  return out;
+}
 
 export function axleTag(i: number): string {
   return i === 0 ? 'F' : i === 1 ? 'R' : `R${i}`;
@@ -302,7 +337,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const meshNames: Record<string, string> = {};
     for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
     const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
-    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites });
+    // Every engine shares the e_ node names (only one is fitted at a time), so the gearbox fits whichever is chosen.
+    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.startsWith('E') ? 'e' : tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites });
     for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
     return t;
   };
@@ -338,19 +374,25 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const engineTransmissionSlots = pt?.engine ? rewritesFor(pt.engine.setId).slots : [];
   let engineNodes: { id: string; pos: [number, number, number] }[] = [];
   if (pt?.engine) {
-    const t = bring(pt.engine.setId, pt.engine.sourceId, 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices);
+    const tags = engineTags(pt);
+    const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices);
     if (t) {
-      extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Engine']);
+      // One engine slot name whichever engine is the default (engines from different cars name theirs differently), so configurations keep working.
+      const engineSlot = engineSlotType(slug);
+      const setSlot = (part: string, content: JbeamObject | undefined) => {
+        if (!content) return;
+        content.slotType = engineSlot;
+        const file = files.find((f) => f.part === part);
+        if (file) file.text = serializeJbeam({ [part]: content });
+      };
+      if (engineSlot !== t.rootSlotType) setSlot(t.rootPart, t.parts[t.rootPart]);
+      extraSlots.push([engineSlot, [engineSlot], [], t.rootPart, 'Engine']);
       engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
       // The other engines fill the same slot: the player (or a configuration) picks one.
-      (pt.alternates ?? []).forEach((alt, i) => {
-        const a = bring(alt.setId, alt.sourceId, engineTag(i + 1), bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices);
-        const root = a?.parts[a.rootPart];
-        if (!a || !root) return;
-        root.slotType = t.rootSlotType;
-        const file = files.find((f) => f.part === a.rootPart);
-        if (file) file.text = serializeJbeam({ [a.rootPart]: root });
-      });
+      for (const alt of pt.alternates ?? []) {
+        const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices);
+        if (a) setSlot(a.rootPart, a.parts[a.rootPart]);
+      }
     }
   }
   if (pt?.gearbox) {
@@ -402,7 +444,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   files.push({ file: `${slug}.jbeam`, part: slug, text: serializeJbeam(main) });
 
   // Animated meshes move as props, not flexbodies (those that can't be hung stay flexbodies).
-  const propFrames = exportableProps(fullDoc, bodyPart(doc, tax)?.id);
+  const propFrames = exportableProps(fullDoc, bodyPart(doc, tax)?.id, nodesExported(doc, tax));
   const propKeys = new Set(propFrames.keys());
   const meshesOf = (partId: string) =>
     Object.keys(doc.assignments)

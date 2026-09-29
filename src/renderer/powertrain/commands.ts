@@ -3,7 +3,8 @@ import { Box3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
-import { emptyEdits } from '@shared/project/schema';
+import { emptyEdits, type Project } from '@shared/project/schema';
+import { engineTags } from '@shared/export/jbeam';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -137,12 +138,19 @@ export async function addEngineOption(set: SuspensionSet): Promise<void> {
     label: `Add engine option ${set.vehicleName} ${set.name}`,
     apply: (d) => {
       d.powertrain.alternates = [...(d.powertrain.alternates ?? []), { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId, tuning: {}, edits: emptyEdits() }];
+      fixEngineTags(d.powertrain);
     },
   });
   // Both engines sit in the same place: show the default one.
   useSceneStore.getState().setHidden(keys, true);
   await useSetData.getState().ensure([set.id]);
   useUiStore.getState().pushStatus(`Added the ${set.vehicleName} ${set.name} as another engine. Each configuration picks its engine; it's hidden here while the default one shows.`, 'success', 9000);
+}
+
+/** Give every engine its tag for exported part names, where it has none yet. */
+function fixEngineTags(p: Project['powertrain']): void {
+  const tags = engineTags(p);
+  for (const e of [p.engine, ...(p.alternates ?? [])]) if (e && !e.tag) e.tag = tags.get(e.sourceId);
 }
 
 /** Make another engine the default one (the old default becomes an option). */
@@ -158,6 +166,8 @@ export function makeDefaultEngine(sourceId: string): void {
       if (!p.engine || !p.alternates) return;
       const i = p.alternates.findIndex((a) => a.sourceId === sourceId);
       if (i < 0) return;
+      // Tags travel with the engines, so their part names (and configurations naming them) don't change.
+      fixEngineTags(p);
       const next = p.alternates[i]!;
       p.alternates[i] = p.engine;
       p.engine = next;
@@ -287,6 +297,7 @@ export function startEngineOptionSync(): void {
   if (optionSyncStarted) return;
   optionSyncStarted = true;
   const done = new Set<string>();
+  let shownDefault: string | null = null;
   const sync = () => {
     const alts = projectStore.getState().doc?.powertrain.alternates ?? [];
     const sources = useSceneStore.getState().sources;
@@ -299,6 +310,16 @@ export function startEngineOptionSync(): void {
     }
     // A source that became the default again is shown by makeDefaultEngine; forget it so a later swap back hides it.
     for (const id of [...done]) if (!alts.some((a) => a.sourceId === id)) done.delete(id);
+    // The default engine changed (Make default, or its undo/redo): show the new one.
+    const main = projectStore.getState().doc?.powertrain.engine?.sourceId ?? null;
+    if (main !== shownDefault) {
+      const meshes = main ? sources[main]?.meshes : undefined;
+      if (!main) shownDefault = null;
+      else if (meshes?.length) {
+        shownDefault = main;
+        if (alts.length) useSceneStore.getState().setHidden(meshes.map((m) => m.key), false);
+      }
+    }
   };
   useSceneStore.subscribe((s, prev) => {
     if (s.sources !== prev.sources) sync();

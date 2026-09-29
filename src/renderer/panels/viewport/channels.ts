@@ -101,6 +101,10 @@ export function channelMaterial(src: Material, channel: Channel): Material {
   else if (channel === 'metallic') out = greyMaterial(m.metalness ?? 0, m.metalnessMap ?? null, 2);
   else out = greyMaterial(1, m.aoMap ?? null, 0);
   out.side = src.side;
+  // Painted-face overlays sit on their mesh by polygon offset: keep it.
+  out.polygonOffset = src.polygonOffset;
+  out.polygonOffsetFactor = src.polygonOffsetFactor;
+  out.polygonOffsetUnits = src.polygonOffsetUnits;
   per.set(channel, out);
   return out;
 }

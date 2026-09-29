@@ -295,7 +295,13 @@ let gameMaterials: Promise<{ name: string; vehicle: string; paint: boolean }[]> 
 function GameMaterialField({ def, onChange }: { def: MaterialDef; onChange: (name: string | null) => void }) {
   const [list, setList] = useState<{ name: string; vehicle: string; paint: boolean }[] | null>(null);
   const load = () => {
-    gameMaterials ??= call('beamng:gameMaterials').catch(() => []);
+    // An empty answer (no game folder yet, or a failed read) isn't kept: the next open asks again.
+    gameMaterials ??= call('beamng:gameMaterials')
+      .catch(() => [])
+      .then((list) => {
+        if (!list.length) gameMaterials = null;
+        return list;
+      });
     void gameMaterials.then(setList);
   };
   const known = list?.find((m) => m.name === def.gameMaterial);

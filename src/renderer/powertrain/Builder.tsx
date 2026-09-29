@@ -394,7 +394,13 @@ function EngineSound({ parts, fitted, idle, limit }: { parts: Record<string, Jbe
   const preview = useRef<RevPreview | null>(null);
   const sweep = useRef<number | null>(null);
   useEffect(() => {
-    gameSounds ??= call('beamng:engineSounds').catch(() => []);
+    // An empty answer (no game folder yet, or a failed read) isn't kept: the next open asks again.
+    gameSounds ??= call('beamng:engineSounds')
+      .catch(() => [])
+      .then((list) => {
+        if (!list.length) gameSounds = null;
+        return list;
+      });
     void gameSounds.then(setSounds);
     return () => {
       if (sweep.current !== null) cancelAnimationFrame(sweep.current);

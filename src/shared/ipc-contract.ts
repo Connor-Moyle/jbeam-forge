@@ -7,11 +7,11 @@ export interface LibraryStatus {
   folders: { kind: 'materials' | 'objects' | 'beamng'; folder: string; count: number; error: string | null }[];
 }
 
-/** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
 import type { SetOptions } from './suspension/options';
 import type { ContentKind, ContentManifest } from './content/manifest';
 import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, UpdatesInfo } from './content/types';
 
+/** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
 export interface SuspensionSet {
   /** "<vehicle>/<part>" */
   id: string;
@@ -239,13 +239,13 @@ export interface InvokeContract {
   'export:reveal': { req: undefined; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
-  /** Material names in the game's vehicle zips (fork), for using a stock material by name. */
   /** Engine sound blends in the install (fork): names an engine's soundConfig sampleName can take. */
   'beamng:engineSounds': { req: undefined; res: { name: string }[] };
   /** A sound blend's recorded samples by rpm and load, for the rev preview. */
   'beamng:soundSamples': { req: { name: string }; res: { path: string; rpm: number; load: number }[] };
   /** One sample file's bytes (null when the install doesn't have it). */
   'beamng:soundFile': { req: { path: string }; res: Uint8Array | null };
+  /** Material names in the game's vehicle zips (fork), for using a stock material by name. */
   'beamng:gameMaterials': { req: undefined; res: { name: string; vehicle: string; paint: boolean }[] };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
   /** Downloads: the content folder and what's installed of textures and meshes. */

@@ -7,7 +7,7 @@ import { assignMeshes, createPart } from '../../src/shared/parts/ops';
 import { buildJbeamFiles } from '../../src/shared/export/jbeam';
 import { parseJbeam, type JbeamObject } from '../../src/shared/jbeam/parse';
 import { meshoptReady } from '../../src/shared/proxy/shapes';
-import { propAmount, PROP_KINDS, referenceNodes, toNodeFrame, type Prop } from '../../src/shared/props/props';
+import { exportableProps, propAmount, PROP_KINDS, referenceNodes, toNodeFrame, type Prop } from '../../src/shared/props/props';
 
 const tax = new Classifier(TaxonomyFileSchema.parse(shipped).entries);
 
@@ -85,5 +85,19 @@ describe('props that can’t be hung', () => {
     const file = buildJbeamFiles(doc, tax, { meshNames: new Map([['s:wheel', 't_wheel']]), author: 'x' }).find((f) => f.part === body.name)!;
     expect(file.text).not.toContain('"props"');
     expect(file.text).toContain('t_wheel');
+  });
+
+  it('hang only from nodes the export writes', () => {
+    const doc = {
+      parts: [{ id: 'body', parentPartId: null }, { id: 'dash', parentPartId: 'body' }],
+      nodes: [0, 1, 2].map((i) => ({ id: `d${i}`, partId: 'dash', pos: [i * 0.3, (i % 2) * 0.3, 0.8] })).concat([0, 1, 2].map((i) => ({ id: `b${i}`, partId: 'body', pos: [i * 0.5, (i % 2) * 0.5 - 1, 0.5] }))),
+      assignments: { 's:needle': 'dash' },
+      ignoredMeshes: [],
+      props: [{ id: 'p', meshKey: 's:needle', func: 'rpm', pivot: [0.3, 0.1, 0.8], axis: [0, 1, 0], slide: [0, 0, 0], min: 0, max: 270, offset: 0, multiplier: 1 }] as Prop[],
+    };
+    expect(exportableProps(doc, 'body').get('s:needle')!.refs.every((r) => r.startsWith('d'))).toBe(true);
+    // The dash's nodes aren't exported: the prop hangs from the body's.
+    expect(exportableProps(doc, 'body', (id) => id !== 'dash').get('s:needle')!.refs.every((r) => r.startsWith('b'))).toBe(true);
+    expect(exportableProps(doc, 'body', () => false).size).toBe(0);
   });
 });

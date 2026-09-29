@@ -666,7 +666,7 @@ export class ViewportRuntime {
     const bg = g.background === 'theme' ? 'bg-0' : (`viewport-bg-${g.background}` as const);
     this.scene.background = new Color(resolveToken(bg) || resolveToken('bg-0'));
     // The orbit view's field of view (an interior camera being looked through keeps its own).
-    const looking = this.camera.fov !== this.orbitFov;
+    const looking = this.looking;
     this.orbitFov = g.fov;
     if (!looking) {
       this.camera.fov = g.fov;
@@ -676,6 +676,9 @@ export class ViewportRuntime {
     this.controls.zoomSpeed = g.invertZoom ? -g.zoomSpeed : g.zoomSpeed;
   }
 
+  /** Looking through an interior camera (not the orbit view). */
+  private looking = false;
+
   /**
    * Look through an interior camera (BeamNG eye position, vertical field of
    * view in degrees), facing forward (−Y); null goes back to the orbit view.
@@ -683,7 +686,8 @@ export class ViewportRuntime {
   lookFrom(view: { pos: [number, number, number]; fov: number } | null): void {
     this.modelRoot.updateMatrixWorld();
     if (!view) {
-      if (this.camera.fov !== this.orbitFov) {
+      if (this.looking) {
+        this.looking = false;
         this.camera.fov = this.orbitFov;
         this.camera.near = 0.05;
         this.camera.updateProjectionMatrix();
@@ -693,6 +697,7 @@ export class ViewportRuntime {
     }
     const eye = new Vector3(...view.pos).applyMatrix4(this.modelRoot.matrixWorld);
     const ahead = new Vector3(view.pos[0], view.pos[1] - 1, view.pos[2]).applyMatrix4(this.modelRoot.matrixWorld);
+    this.looking = true;
     this.camera.fov = view.fov;
     this.camera.near = 0.01;
     this.camera.updateProjectionMatrix();
@@ -776,7 +781,27 @@ export class ViewportRuntime {
         obj.add(child);
         obj.userData.faceOverlay = child;
       }
-      child.material = want.materials;
+      child.userData.source = want.materials;
+      this.lookOfExtras(obj);
+    }
+  }
+
+  /**
+   * The painted-face overlay and back-face copy follow their mesh's look: the
+   * channel view's materials, hidden while the mesh is a ghost (and the
+   * overlay in the normals and UV checker views, which don't depend on the material).
+   */
+  private lookOfExtras(obj: Mesh): void {
+    const ghost = obj.material === this.ghostMaterial;
+    const overlay = obj.userData.faceOverlay as Mesh | undefined;
+    if (overlay) {
+      overlay.visible = !ghost && this.channel !== 'normals' && this.channel !== 'uv';
+      overlay.material = channelMaterials(overlay.userData.source as Material[], this.channel);
+    }
+    const back = obj.userData.back as Mesh | undefined;
+    if (back) {
+      back.visible = !ghost;
+      back.material = channelMaterials(back.userData.source as Material, this.channel);
     }
   }
 
@@ -797,7 +822,8 @@ export class ViewportRuntime {
         obj.add(back);
         obj.userData.back = back;
       }
-      back.material = want;
+      back.userData.source = want;
+      this.lookOfExtras(obj);
     }
   }
 
@@ -810,6 +836,7 @@ export class ViewportRuntime {
       const ghost = xray || (!!focus && !focus.has(key));
       obj.material = ghost ? this.ghostMaterial : channelMaterials(obj.userData.material as Material | Material[], this.channel);
       obj.renderOrder = ghost ? 2 : 0; // ghosts draw after the solid part so it shows through
+      this.lookOfExtras(obj);
     }
   }
 

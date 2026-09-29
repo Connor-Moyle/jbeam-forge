@@ -244,10 +244,6 @@ export const MeshCopySchema = z.object({
 });
 
 /**
- * An axle (v11, Phase 10): where it is, how wide, whether it steers, and the
- * suspension fitted to it (a complete set from the game, as its own model).
- */
-/**
  * Edits to a fitted engine or gearbox's jbeam (v16), applied on export after
  * the transplant. `fields` keys are "<part>/<section>/<key>" in the game's
  * names, e.g. "etk_engine_i6_3.0/mainEngine/maxRPM"; only numbers the game
@@ -268,6 +264,10 @@ export const emptyEdits = (): z.infer<typeof PowertrainEditsSchema> => ({ fields
 /** Per slot of a fitted set: the default part and the game's other parts offered in the parts menu. */
 export const SetChoicesSchema = z.record(z.string(), z.object({ default: z.string(), offer: z.array(z.string()) }));
 
+/**
+ * An axle (v11, Phase 10): where it is, how wide, whether it steers, and the
+ * suspension fitted to it (a complete set from the game, as its own model).
+ */
 export const AxleSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -310,6 +310,8 @@ export const FittedSetSchema = z.object({
   edits: PowertrainEditsSchema,
   /** The game's other parts for its slots (fork): default per slot and which ship as choices. */
   choices: SetChoicesSchema.optional(),
+  /** An engine's tag in exported part names (fork): E, E2, E3…, kept when engines are reordered so configurations stay valid. */
+  tag: z.string().regex(/^E\d*$/).optional(),
 });
 
 export const PowertrainSchema = z.object({
@@ -495,11 +497,11 @@ export const ProjectV18Schema = z.object({
   /** Axles and their suspension (v11, Phase 10). */
   axles: z.array(AxleSchema),
   suspension: placeholderMap, // Phase 10
-  /** Engine and gearbox (v12, Phase 11). */
   /** Animated parts (fork): meshes the game turns or slides by an electrics value (steering wheel, needles, pedals). */
   props: z.array(PropSchema).optional(),
   /** Interior cameras (fork): the driver's view and others, as camerasInternal. */
   cameras: z.array(CameraSchema).optional(),
+  /** Engine and gearbox (v12, Phase 11). */
   powertrain: PowertrainSchema,
   /** Vehicle configurations beyond the default (v14, Phase 13). */
   configs: z.array(VehicleConfigSchema),

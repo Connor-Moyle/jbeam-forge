@@ -140,21 +140,23 @@ type PropDoc = { parts: readonly { id: string; parentPartId: string | null }[]; 
 /**
  * The props that can be exported, with their reference nodes: the nodes of
  * the mesh's part, else of the nearest part above it with nodes, else the
- * body's. A prop without three usable nodes isn't exported as a prop; its
+ * body's (only parts whose nodes are exported count). A prop without three usable nodes isn't exported as a prop; its
  * mesh stays an ordinary flexbody (so it never vanishes in game).
  */
-export function exportableProps(doc: PropDoc, bodyId?: string): Map<string, { prop: Prop; refs: [string, string, string] }> {
+export function exportableProps(doc: PropDoc, bodyId?: string, exportsNodes: (partId: string) => boolean = () => true): Map<string, { prop: Prop; refs: [string, string, string] }> {
   const out = new Map<string, { prop: Prop; refs: [string, string, string] }>();
   const byId = new Map(doc.parts.map((p) => [p.id, p]));
+  // Only nodes the export writes can hold a prop.
+  const nodesOf = (partId: string) => (exportsNodes(partId) ? doc.nodes.filter((n) => n.partId === partId) : []);
   for (const prop of doc.props ?? []) {
     const partId = doc.assignments[prop.meshKey];
     if (!partId || doc.ignoredMeshes.includes(prop.meshKey)) continue;
     let frame: PropDoc['nodes'] = [];
     for (let cur = byId.get(partId), guard = 0; cur && !frame.length && guard < 32; guard++) {
-      frame = doc.nodes.filter((n) => n.partId === cur!.id);
+      frame = nodesOf(cur.id);
       cur = cur.parentPartId ? byId.get(cur.parentPartId) : undefined;
     }
-    if (!frame.length && bodyId) frame = doc.nodes.filter((n) => n.partId === bodyId);
+    if (!frame.length && bodyId) frame = nodesOf(bodyId);
     const refs = referenceNodes(frame, prop.pivot);
     if (refs) out.set(prop.meshKey, { prop, refs });
   }

@@ -511,7 +511,7 @@ export function suspensionDrop(model: SimModel, axles: readonly AxleSpec[], heig
   summary.push(`Dropped ${(height * 100).toFixed(0)} cm onto ${corners.length} wheels (${Math.round(total)} kg): ${minBody < 0.01 ? 'the body hit the ground: it bottoms out. Stiffer springs, or more ride height.' : `the lowest point of the body came within ${(minBody * 100).toFixed(0)} cm of the ground.`}`);
   summary.push(byAxle.map((a) => `${a.name}: compressed up to ${(a.max * 100).toFixed(1)} cm, settles ${(a.sag * 100).toFixed(1)} cm down`).join('; ') + '.');
   if (hitBump.some(Boolean)) summary.push(`Hit the bump stops on ${corners.filter((_, k) => hitBump[k]).map((c) => c.name).join(', ')}: fine on a hard landing, but if it happens at rest it needs stiffer springs.`);
-  if (front !== rear) summary.push(Math.abs(pitch) < 0.5 ? 'Sits level.' : `Sits ${pitch > 0 ? 'nose up' : 'nose down'} by ${Math.abs(pitch).toFixed(1)}°: ${pitch > 0 ? 'the front' : 'the rear'} carries more weight for its springs.`);
+  if (front !== rear) summary.push(Math.abs(pitch) < 0.5 ? 'Sits level.' : `Sits ${pitch > 0 ? 'nose up' : 'nose down'} by ${Math.abs(pitch).toFixed(1)}°: ${pitch > 0 ? 'the rear' : 'the front'} carries more weight for its springs.`);
   summary.push(settledAt !== null ? `Stopped bouncing after ${settledAt.toFixed(1)} s.` : `Still bouncing after ${seconds} s: more damping.`);
   const mountSet = new Set(springs.flatMap((sp) => sp.mounts));
   const mountBroken = s.breakLog.filter((b) => mountSet.has(model.beamA[b]!) || mountSet.has(model.beamB[b]!)).length;
