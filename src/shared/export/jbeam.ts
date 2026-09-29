@@ -13,6 +13,7 @@ import { limiterBound } from '../hinges/geometry';
 import { definedNodes, transplantSuspension } from '../suspension/transplant';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
+import { applyDrivetrainToAxle, DEFAULT_DRIVETRAIN, planDrivetrain } from '../powertrain/drivetrain';
 import { camerasInternalSection } from '../cameras/cameras';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
@@ -342,10 +343,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
     return t;
   };
+  const axleSets: { index: number; t: ReturnType<typeof transplantSuspension> }[] = [];
   (fullDoc.axles ?? []).forEach((axle, i) => {
     if (!axle.fitted) return;
     const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), bodyNodes, axle.tuning, undefined, undefined, axle.fitted.choices, axle.edits);
     if (!t) return;
+    axleSets.push({ index: i, t });
     extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
     // The user's own meshes ride on the set's nodes (every node group the set's meshes used).
     const own = axle.ownMeshes.filter((k) => opts.meshNames.has(k) && !fullDoc.ignoredMeshes.includes(k)).map((k) => opts.meshNames.get(k)!);
@@ -373,6 +376,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   };
   const engineTransmissionSlots = pt?.engine ? rewritesFor(pt.engine.setId).slots : [];
   let engineNodes: { id: string; pos: [number, number, number] }[] = [];
+  let engineParts: Record<string, JbeamObject> | null = null;
+  let gearboxParts: Record<string, JbeamObject> | null = null;
   if (pt?.engine) {
     const tags = engineTags(pt);
     const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices);
@@ -388,6 +393,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       if (engineSlot !== t.rootSlotType) setSlot(t.rootPart, t.parts[t.rootPart]);
       extraSlots.push([engineSlot, [engineSlot], [], t.rootPart, 'Engine']);
       engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
+      engineParts = t.parts;
       // The other engines fill the same slot: the player (or a configuration) picks one.
       for (const alt of pt.alternates ?? []) {
         const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices);
@@ -399,6 +405,23 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...bodyNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits, pt.gearbox.choices);
     // Without an engine of ours to plug into, the gearbox hangs off the body.
     if (t && !engineTransmissionSlots.length) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Transmission']);
+    if (t) gearboxParts = t.parts;
+  }
+  // Drive shafts: join the gearbox to the driven axles' differentials (and drop the rest's rows).
+  if (axleSets.length && (engineParts || gearboxParts)) {
+    const axles = fullDoc.axles ?? [];
+    const plan = planDrivetrain({ engine: engineParts, gearbox: gearboxParts, axles: axleSets.map(({ index, t }) => ({ index, name: axles[index]!.name, y: axles[index]!.y, parts: t.parts })) }, pt?.drivetrain ?? DEFAULT_DRIVETRAIN);
+    for (const { index, t } of axleSets) {
+      for (const part of applyDrivetrainToAxle(t.parts, plan, index)) {
+        const file = files.find((f) => f.part === part);
+        if (file) file.text = serializeJbeam({ [part]: t.parts[part]! });
+      }
+    }
+    if (plan.rows) {
+      const name = `${slug}_drivetrain`;
+      files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: { information: { authors: opts.author || 'JBeam Forge', name: 'Drive shafts' }, slotType: name, powertrain: plan.rows as WritableValue[] } }) });
+      extraSlots.push([name, [name], [], name, 'Drive shafts', { coreSlot: true }]);
+    }
   }
   const body = bodyPart(doc, tax);
   const byId = new Map(doc.parts.map((p) => [p.id, p]));

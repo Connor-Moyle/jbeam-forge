@@ -5,6 +5,7 @@ import type { SuspensionSet } from '@shared/ipc-contract';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
 import { emptyEdits, type Project } from '@shared/project/schema';
 import { engineTags } from '@shared/export/jbeam';
+import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from '@shared/powertrain/drivetrain';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -326,4 +327,15 @@ export function startEngineOptionSync(): void {
   });
   projectStore.subscribe(sync);
   sync();
+}
+
+/** How the gearbox reaches the axles (drive shafts). */
+export function setDrivetrain(patch: Partial<DrivetrainSettings>): void {
+  projectStore.getState().execute({
+    label: 'Change drive shafts',
+    coalesce: 'drivetrain',
+    apply: (d) => {
+      d.powertrain.drivetrain = { ...(d.powertrain.drivetrain ?? DEFAULT_DRIVETRAIN), ...patch };
+    },
+  });
 }

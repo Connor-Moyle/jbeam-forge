@@ -319,6 +319,14 @@ export const PowertrainSchema = z.object({
   gearbox: FittedSetSchema.nullable(),
   /** More engines (fork): offered in the engine's slot, one chosen per configuration; `engine` is the default. */
   alternates: z.array(FittedSetSchema).optional(),
+  /** How the gearbox reaches the axles (fork): which are driven, and the centre differential for all-wheel drive. Absent = as the axles were. */
+  drivetrain: z
+    .object({
+      layout: z.enum(['auto', 'rwd', 'fwd', 'awd']),
+      frontShare: z.number().min(0).max(1),
+      centre: z.enum(['viscous', 'lsd', 'open', 'locked']),
+    })
+    .optional(),
 });
 
 /**

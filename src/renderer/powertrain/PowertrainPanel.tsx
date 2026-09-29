@@ -11,6 +11,7 @@ import { addEngineOption, fitPowertrain, makeDefaultEngine, removeEngineOption, 
 import { useUnits } from '@renderer/settings/useUnits';
 import styles from '@renderer/workshop/Workshop.module.css';
 import { EngineBuilder, GearboxBuilder } from './Builder';
+import { DrivetrainCard } from './DrivetrainCard';
 
 const LABEL: Record<PowertrainKind, string> = { engine: 'Engine', gearbox: 'Gearbox' };
 
@@ -67,8 +68,9 @@ export function PowertrainPanel() {
         <Card kind="engine" fitted={powertrain?.engine ?? null} />
         {powertrain?.engine && <EngineOptions alternates={powertrain.alternates ?? []} />}
         <Card kind="gearbox" fitted={powertrain?.gearbox ?? null} />
+        <DrivetrainCard />
         {sets && sets.length === 0 && <p className={styles.note}>No engines or gearboxes yet: they come from your BeamNG.drive install. Set its folder in Settings.</p>}
-        <p className={styles.note}>The gearbox bolts to the engine&rsquo;s transmission slot, so pick one that suits the engine&rsquo;s drive layout. Drivetrain (driveshafts, differentials) comes with the suspension on each axle.</p>
+        <p className={styles.note}>The gearbox bolts to the engine&rsquo;s transmission slot, so pick one that suits the engine&rsquo;s drive layout. Differentials come with the suspension on each axle; Drive shafts joins them to the gearbox.</p>
       </ScrollArea>
     </div>
   );
