@@ -7,12 +7,12 @@ import { TaxonomyEntrySchema } from '@shared/taxonomy/schema';
 import type { SettingsService } from '../services/settings';
 import type { UserTaxonomyService } from '../services/userTaxonomy';
 import type { MaterialLibraryService } from '../services/materialLibrary';
-import type { LibraryItem, ObjectItem } from '@shared/ipc-contract';
 import { MaterialDefSchema } from '@shared/materials/schema';
 import type { LayoutService } from '../services/layout';
 import type { RecentService } from '../services/recent';
 import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
 import type { BeamngService } from '../beamng/service';
+import type { Packs } from '../content/packs';
 import { scanGameMaterials } from '../beamng/gameMaterials';
 import { engineSoundSamples, readSoundFile, scanEngineSounds } from '../beamng/engineSounds';
 import type { SetOptions } from '@shared/suspension/options';
@@ -51,10 +51,8 @@ export interface HandlerServices {
   trust: FolderTrust;
   userTaxonomy: UserTaxonomyService;
   materialLibrary: MaterialLibraryService;
-  /** The bundled material pack (loaded in the background at startup). */
-  materialPack: Promise<LibraryItem[]>;
-  /** The bundled objects pack. */
-  objectPack: Promise<ObjectItem[]>;
+  /** The material and object packs: bundled with older installs, and downloaded (reloaded after downloads). */
+  packs: Packs;
   userLibrary: UserLibrary;
   /** Where textures embedded in kn5 files are extracted. */
   kn5Cache: string;
@@ -79,7 +77,7 @@ function describeProject(text: string): { name: string; slug: string } | null {
 }
 
 export function registerIpcHandlers(services: HandlerServices): void {
-  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, materialPack, objectPack } = services;
+  const { settings, layout, beamng, recent, projects, windowState, trust, userTaxonomy, materialLibrary, packs } = services;
   /** Folders each opened project wants but the user hasn't allowed yet. */
   const pendingByProject = new Map<string, string[]>();
 
@@ -443,8 +441,8 @@ export function registerIpcHandlers(services: HandlerServices): void {
 
   const LibraryEntry = z.object({ name: z.string().min(1).max(100), category: z.string().max(60), def: MaterialDefSchema });
   registerInvoke('materials:library', () => materialLibrary.get());
-  registerInvoke('materials:pack', async () => [...(await materialPack), ...services.userLibrary.items.materials]);
-  registerInvoke('objects:list', async () => [...(await objectPack), ...services.userLibrary.items.objects]);
+  registerInvoke('materials:pack', async () => [...(await packs.materials()), ...services.userLibrary.items.materials]);
+  registerInvoke('objects:list', async () => [...(await packs.objects()), ...services.userLibrary.items.objects]);
   registerInvoke('suspension:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'suspension'));
   registerInvoke('powertrain:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind !== 'suspension'));
   registerInvoke(

@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS } from '../../src/shared/settings-schema';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -135,7 +136,7 @@ describe('NewModWizard', () => {
         <NewModWizard onClose={() => undefined} />
       </TooltipProvider>,
     );
-    act(() => useSettingsStore.setState({ settings: { version: 1, debugLogging: false, beamngInstallDir: null, beamngUserDir: null, author: 'Fatkiwi', focusGhostOpacity: 0.12, autoRenameMeshes: true, autoRenameDisplayNames: true, materialFolders: [], objectFolders: [] } }));
+    act(() => useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, author: 'Fatkiwi' } }));
     expect(screen.getByTestId('newmod-author')).toHaveValue('Fatkiwi');
     await userEvent.type(screen.getByTestId('newmod-name'), 'Car');
     await userEvent.click(screen.getByTestId('newmod-create'));

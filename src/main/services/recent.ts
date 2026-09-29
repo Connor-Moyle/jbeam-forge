@@ -7,7 +7,8 @@ import { describeError, type Logger } from '@shared/logger';
 import { atomicWrite } from './atomicWrite';
 import { samePath } from '../beamng/locate';
 
-const MAX_RECENT = 12;
+/** Kept on disk; the home screen shows the first `limit` (Settings → General). */
+const MAX_RECENT = 30;
 const MAX_THUMB_BYTES = 512 * 1024;
 const THUMB_PREFIX = 'data:image/jpeg;base64,';
 
@@ -51,13 +52,20 @@ export class RecentService {
     }
   }
 
+  private limit = 12;
+
+  /** How many the home screen lists. */
+  setLimit(n: number): void {
+    this.limit = Math.max(1, Math.min(MAX_RECENT, Math.round(n)));
+  }
+
   has(path: string): boolean {
     return this.entries.some((e) => samePath(e.path, path));
   }
 
   async list(): Promise<RecentProject[]> {
     return Promise.all(
-      this.entries.map(async (e) => ({
+      this.entries.slice(0, this.limit).map(async (e) => ({
         path: e.path,
         name: e.name,
         slug: e.slug,

@@ -25,6 +25,11 @@ export class SettingsService {
     private readonly logger: Logger,
   ) {}
 
+  /** The settings file (for "show in folder"). */
+  get path(): string {
+    return this.filePath;
+  }
+
   async load(): Promise<Settings> {
     let text: string;
     try {

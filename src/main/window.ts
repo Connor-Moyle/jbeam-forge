@@ -9,6 +9,8 @@ const logger = scoped('window');
 export interface WindowOptions {
   devServerUrl: string | undefined;
   harness: boolean;
+  /** Initial size (and position, when remembered) from the display settings. */
+  bounds?: { x?: number; y?: number; width: number; height: number };
 }
 
 export function rendererIndexUrl(): string {
@@ -46,8 +48,9 @@ export function createMainWindow(opts: WindowOptions): BrowserWindow {
   if (opts.devServerUrl) args.push('--jbforge-dev');
 
   const win = new BrowserWindow({
-    width: 1440,
-    height: 900,
+    width: opts.bounds?.width ?? 1440,
+    height: opts.bounds?.height ?? 900,
+    ...(opts.bounds?.x !== undefined && opts.bounds.y !== undefined ? { x: opts.bounds.x, y: opts.bounds.y } : {}),
     minWidth: 960,
     minHeight: 600,
     show: false,

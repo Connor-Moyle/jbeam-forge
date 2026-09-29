@@ -9,6 +9,8 @@ export interface LibraryStatus {
 
 /** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
 import type { SetOptions } from './suspension/options';
+import type { ContentKind, ContentManifest } from './content/manifest';
+import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, UpdatesInfo } from './content/types';
 
 export interface SuspensionSet {
   /** "<vehicle>/<part>" */
@@ -246,6 +248,28 @@ export interface InvokeContract {
   'beamng:soundFile': { req: { path: string }; res: Uint8Array | null };
   'beamng:gameMaterials': { req: undefined; res: { name: string; vehicle: string; paint: boolean }[] };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
+  /** Downloads: the content folder and what's installed of textures and meshes. */
+  'content:info': { req: undefined; res: ContentInfo };
+  /** A content repository's manifest at a branch or tag (default: the latest). */
+  'content:manifest': { req: { kind: ContentKind; ref?: string }; res: ContentManifest };
+  /** The latest and every tagged version of a content repository. */
+  'content:refs': { req: { kind: ContentKind }; res: ContentRef[] };
+  /** Download and install all or some items; progress arrives as content:progress. */
+  'content:download': { req: { kind: ContentKind; ref: string; ids: string[] | 'all' }; res: DownloadResult };
+  'content:cancel': { req: { kind: ContentKind }; res: undefined };
+  'content:remove': { req: { kind: ContentKind; ids: string[] | 'all' }; res: string[] };
+  /** Show the content folder (or one kind's) in the file manager. */
+  'content:reveal': { req: { kind?: ContentKind }; res: undefined };
+  /** App versions on GitHub, newest first, and what's already downloaded. */
+  'updates:info': { req: undefined; res: UpdatesInfo };
+  /** Download one release file (installer, portable exe); progress arrives as updates:progress. */
+  'updates:download': { req: { tag: string; asset: string }; res: string };
+  'updates:cancel': { req: undefined; res: undefined };
+  /** Run a downloaded installer (the app closes), or show a portable exe in its folder. */
+  'updates:run': { req: { asset: string }; res: 'installing' | 'shown' };
+  'updates:clear': { req: undefined; res: undefined };
+  /** Show the settings file in the file manager. */
+  'app:revealSettings': { req: undefined; res: undefined };
 }
 
 /** Commands the native menu forwards to the renderer. */
@@ -261,6 +285,10 @@ export interface EventContract {
   'menu:command': { command: AppCommand };
   /** Your library folders were scanned: reload the material pack and objects lists. */
   'library:changed': LibraryStatus;
+  /** Downloaded textures or meshes changed: reload the packs. */
+  'content:changed': { kind: ContentKind };
+  'content:progress': ContentProgress;
+  'updates:progress': { asset: string; done: number; total: number };
 }
 
 export type InvokeChannel = keyof InvokeContract;
@@ -325,6 +353,19 @@ export const INVOKE_CHANNELS = [
   'export:publish',
   'export:saveModel',
   'export:reveal',
+  'content:info',
+  'content:manifest',
+  'content:refs',
+  'content:download',
+  'content:cancel',
+  'content:remove',
+  'content:reveal',
+  'updates:info',
+  'updates:download',
+  'updates:cancel',
+  'updates:run',
+  'updates:clear',
+  'app:revealSettings',
 ] as const satisfies readonly InvokeChannel[];
 
 export const EVENT_CHANNELS = [
@@ -334,6 +375,9 @@ export const EVENT_CHANNELS = [
   'status:message',
   'menu:command',
   'library:changed',
+  'content:changed',
+  'content:progress',
+  'updates:progress',
 ] as const satisfies readonly EventChannel[];
 
 /** API surface exposed on `window.forge` by the preload script. */

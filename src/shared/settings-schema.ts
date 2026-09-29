@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import { REPO_PATTERN } from './content/manifest';
+
+/** Window sizes offered in Settings ("remember" = the size it had when last closed). */
+export const WINDOW_SIZES = ['remember', '1280x720', '1366x768', '1600x900', '1920x1080', '2560x1440', '3840x2160', 'custom'] as const;
+export type WindowSize = (typeof WINDOW_SIZES)[number];
 
 /**
  * User-global settings persisted to `userData/settings.json`.
@@ -26,6 +31,66 @@ export const SettingsSchema = z.object({
   materialFolders: z.array(z.string().min(1)).max(20),
   /** Your own object folders (meshes: calipers, gauges…), scanned at startup. */
   objectFolders: z.array(z.string().min(1)).max(20),
+
+  // General
+  /** Open the most recent project when the app starts. */
+  openLastProject: z.boolean(),
+  /** Save the open project every so many minutes (0 = off; only projects saved once). */
+  autosaveMinutes: z.number().int().min(0).max(60),
+  /** How many recent projects the home screen lists. */
+  recentLimit: z.number().int().min(3).max(30),
+  /** Undo steps kept in memory. */
+  undoLimit: z.number().int().min(50).max(5000),
+
+  // Window & display
+  /** Window size at startup: the last size, a resolution, or custom. */
+  windowSize: z.enum(WINDOW_SIZES),
+  windowWidth: z.number().int().min(960).max(7680),
+  windowHeight: z.number().int().min(600).max(4320),
+  startMode: z.enum(['normal', 'maximized', 'fullscreen']),
+  /** Interface zoom (text, panels, toolbar). */
+  uiScale: z.number().min(0.75).max(1.5),
+
+  // Viewport & graphics
+  /** 3D render resolution as a share of the screen's (lower is faster, higher is sharper). */
+  renderScale: z.number().min(0.5).max(2),
+  antialias: z.boolean(),
+  /** Frame-rate cap (0 = the display's rate). */
+  maxFps: z.number().int().min(0).max(240),
+  showGrid: z.boolean(),
+  /** Studio reflections on shiny materials. */
+  reflections: z.boolean(),
+  viewportBackground: z.enum(['theme', 'black', 'grey', 'light']),
+  /** Vertical field of view of the orbit camera, degrees. */
+  cameraFov: z.number().min(25).max(90),
+  orbitSpeed: z.number().min(0.2).max(3),
+  zoomSpeed: z.number().min(0.2).max(3),
+  invertZoom: z.boolean(),
+  showFps: z.boolean(),
+
+  // Units
+  speedUnit: z.enum(['kmh', 'mph']),
+  powerUnit: z.enum(['kw', 'hp', 'ps']),
+  torqueUnit: z.enum(['nm', 'lbft']),
+
+  // Export
+  openFolderAfterExport: z.boolean(),
+  /** Compress exported zips (smaller; storing is faster). */
+  compressZip: z.boolean(),
+
+  // Downloads
+  /** Where downloaded textures and meshes go (null = beside the program). */
+  contentDir: z.string().min(1).nullable(),
+  checkUpdatesOnStartup: z.boolean(),
+  includePrereleases: z.boolean(),
+  /** Files downloaded at once. */
+  downloadConcurrency: z.number().int().min(1).max(8),
+  /** GitHub repositories (owner/name): the app's releases, and the two content repositories. */
+  appRepo: z.string().regex(REPO_PATTERN),
+  texturesRepo: z.string().regex(REPO_PATTERN),
+  meshesRepo: z.string().regex(REPO_PATTERN),
+  /** Branch the content repositories' latest version lives on. */
+  contentBranch: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -41,6 +106,39 @@ export const DEFAULT_SETTINGS: Settings = {
   autoRenameDisplayNames: true,
   materialFolders: [],
   objectFolders: [],
+  openLastProject: false,
+  autosaveMinutes: 0,
+  recentLimit: 12,
+  undoLimit: 1000,
+  windowSize: 'remember',
+  windowWidth: 1440,
+  windowHeight: 900,
+  startMode: 'normal',
+  uiScale: 1,
+  renderScale: 1,
+  antialias: true,
+  maxFps: 0,
+  showGrid: true,
+  reflections: true,
+  viewportBackground: 'theme',
+  cameraFov: 45,
+  orbitSpeed: 1,
+  zoomSpeed: 1,
+  invertZoom: false,
+  showFps: false,
+  speedUnit: 'kmh',
+  powerUnit: 'hp',
+  torqueUnit: 'nm',
+  openFolderAfterExport: false,
+  compressZip: true,
+  contentDir: null,
+  checkUpdatesOnStartup: true,
+  includePrereleases: false,
+  downloadConcurrency: 4,
+  appRepo: 'Connor-Moyle/jbeam-forge',
+  texturesRepo: 'Connor-Moyle/jbeam-forge-textures',
+  meshesRepo: 'Connor-Moyle/jbeam-forge-meshes',
+  contentBranch: 'main',
 };
 
 /** Fields the renderer may change. `version` is owned by the main process. */
