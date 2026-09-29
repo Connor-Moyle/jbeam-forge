@@ -47,4 +47,4 @@ Settings → Downloads can move it anywhere. If the folder can't be written, the
 
 ## App versions
 
-The Application tab lists GitHub Releases of the app repository (Settings → Downloads). It downloads the installer or portable exe, checks its size and GitHub's SHA-256 digest when present, and runs the installer (or shows the portable exe). Older releases are listed for rolling back. Pre-releases show only with Settings → Downloads → "Include pre-releases".
+The Application tab lists GitHub Releases of the app repository (Settings → Downloads). It downloads the installer or portable exe, checks its size and GitHub's SHA-256 digest when present, and runs the installer (or shows the portable exe). Older releases are listed for rolling back. Pre-releases show only with Settings → Downloads → "Include pre-release (test) versions".
