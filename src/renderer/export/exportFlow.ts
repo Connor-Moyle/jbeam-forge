@@ -20,6 +20,7 @@ import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
 import { configLabels, configStats } from '@shared/export/configStats';
 import { exportScripts } from '@shared/lua/export';
+import { checkLua } from '@shared/lua/check';
 import { templateById } from '@renderer/scripts/registry';
 import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
@@ -206,7 +207,8 @@ export function prepareExport(): PreparedExport | null {
     if (config && config.id === doc.defaultConfigId) defaultPc = file;
     const labels = configLabels(configStats(doc, tax, pc, useSetData.getState().data), config?.info);
     configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config, labels), null, 2)}\n` });
-    const preview = capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data), config?.id ?? null);
+    const everyConfig = useSettingsStore.getState().settings?.previewEveryConfig ?? true;
+    const preview = config && !everyConfig ? null : capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data), config?.id ?? null);
     if (preview) configFiles.push({ path: `${root}/${file}.jpg`, base64: base64FromDataUrl(preview) });
   }
   const files: ExportBundle['files'] = [
@@ -228,6 +230,15 @@ export function prepareExport(): PreparedExport | null {
   });
   for (const e of scripts.errors) report.errors.push({ code: 'SCRIPT', message: e });
   for (const w of scripts.warnings) report.warnings.push({ code: 'SCRIPT', message: w });
+  // Settings → Scripts: warnings in a script's code stop the export too.
+  if (useSettingsStore.getState().settings?.scriptStrictExport) {
+    for (const sc of doc.scripts ?? []) {
+      if (!sc.enabled) continue;
+      const code = sc.code ?? (sc.templateId ? templateById(sc.templateId)?.lua : '') ?? '';
+      const first = checkLua(code, { controller: true }).diagnostics.find((d) => d.severity === 'warning');
+      if (first) report.errors.push({ code: 'SCRIPT', message: `${sc.label} (${sc.name}.lua) line ${first.line}: ${first.message} (Settings → Scripts: warnings stop the export)` });
+    }
+  }
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {
     bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies },

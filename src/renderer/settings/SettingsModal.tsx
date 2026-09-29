@@ -39,6 +39,7 @@ const SECTIONS = [
   { id: 'units', label: 'Units' },
   { id: 'export', label: 'Export' },
   { id: 'downloads', label: 'Downloads' },
+  { id: 'scripts', label: 'Scripts' },
   { id: 'extensions', label: 'Extensions' },
   { id: 'library', label: 'Library folders' },
   { id: 'naming', label: 'Naming' },
@@ -359,6 +360,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Field label="Backdrop">
                 <Select value={d.previewBackdrop} onChange={(previewBackdrop) => set({ previewBackdrop })} options={Object.entries(PREVIEW_BACKDROPS).map(([value, b]) => ({ value: value as Settings['previewBackdrop'], label: b.label }))} aria-label="Picture backdrop" />
               </Field>
+              <Toggle checked={d.previewEveryConfig} onChange={(previewEveryConfig) => set({ previewEveryConfig })} label="A picture for every configuration" />
               <p className={styles.help}>Every export draws the car in a studio, like the game&rsquo;s own vehicle pictures: default.jpg for the model, and one per configuration with its parts and paint.</p>
             </FieldGroup>
           </section>
@@ -401,6 +403,22 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                   </Callout>
                 )}
               </CollapsibleSection>
+            </FieldGroup>
+          </section>
+
+          <section data-section="scripts">
+            <FieldGroup title="Vehicle scripts">
+              <Field label="Editor text size">
+                <NumberInput value={d.scriptFontSize} onChange={(scriptFontSize) => set({ scriptFontSize })} min={10} max={22} step={1} precision={0} aria-label="Editor text size" />
+              </Field>
+              <Field label="Indent">
+                <Select value={String(d.scriptTabSize)} onChange={(v) => set({ scriptTabSize: v === '4' ? 4 : 2 })} options={[{ value: '2', label: '2 spaces' }, { value: '4', label: '4 spaces' }]} aria-label="Indent" />
+              </Field>
+              <Field label="Test frame rate" hint="How often the test calls updateGFX; the game runs it about 60 times a second">
+                <Select value={String(d.scriptTestFps)} onChange={(v) => set({ scriptTestFps: v === '30' ? 30 : v === '120' ? 120 : 60 })} options={[{ value: '30', label: '30 fps (faster tests)' }, { value: '60', label: '60 fps (like the game)' }, { value: '120', label: '120 fps' }]} aria-label="Test frame rate" />
+              </Field>
+              <Toggle checked={d.scriptStrictExport} onChange={(scriptStrictExport) => set({ scriptStrictExport })} label="Warnings stop the export too" />
+              <p className={styles.help}>Errors in a script always stop the export. With this on, warnings (an undefined name, a missing local…) do too.</p>
             </FieldGroup>
           </section>
 

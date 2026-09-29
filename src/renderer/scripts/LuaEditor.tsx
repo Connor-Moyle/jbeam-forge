@@ -2,7 +2,8 @@ import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, drawSelection, highlightActiveLine, highlightActiveLineGutter, hoverTooltip, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { bracketMatching, HighlightStyle, indentOnInput, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { bracketMatching, HighlightStyle, indentOnInput, indentUnit, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import { lua } from '@codemirror/legacy-modes/mode/lua';
 import { autocompletion, closeBrackets, type CompletionContext, type CompletionResult } from '@codemirror/autocomplete';
 import { linter, lintGutter, type Diagnostic } from '@codemirror/lint';
@@ -17,6 +18,11 @@ import styles from './Scripts.module.css';
  * problems as you type, completions for BeamNG's vehicle API (and electrics
  * values after electrics.values.), and help on hover.
  */
+
+/** Text size and indent from Settings → Scripts. */
+function lookOf(fontSize: number, tabSize: number) {
+  return [EditorState.tabSize.of(tabSize), indentUnit.of(' '.repeat(tabSize)), EditorView.theme({ '&': { fontSize: `${fontSize}px` } })];
+}
 
 export interface LuaEditorHandle {
   goToLine(line: number): void;
@@ -110,6 +116,9 @@ const lint = linter((view) =>
 );
 
 export const LuaEditor = forwardRef<LuaEditorHandle, { value: string; onChange?: (code: string) => void; readOnly?: boolean; 'aria-label'?: string }>(function LuaEditor({ value, onChange, readOnly = false, 'aria-label': ariaLabel }, ref) {
+  const fontSize = useSettingsStore((s) => s.settings?.scriptFontSize ?? 13);
+  const tabSize = useSettingsStore((s) => s.settings?.scriptTabSize ?? 2);
+  const look = useRef(new Compartment());
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -139,7 +148,7 @@ export const LuaEditor = forwardRef<LuaEditorHandle, { value: string; onChange?:
           lint,
           hover,
           theme,
-          EditorState.tabSize.of(2),
+          look.current.of(lookOf(fontSize, tabSize)),
           keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap, ...searchKeymap]),
           editable.current.of([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]),
           EditorView.contentAttributes.of({ 'aria-label': ariaLabel ?? 'Lua code' }),
@@ -168,6 +177,10 @@ export const LuaEditor = forwardRef<LuaEditorHandle, { value: string; onChange?:
   useEffect(() => {
     view.current?.dispatch({ effects: editable.current.reconfigure([EditorState.readOnly.of(readOnly), EditorView.editable.of(!readOnly)]) });
   }, [readOnly]);
+
+  useEffect(() => {
+    view.current?.dispatch({ effects: look.current.reconfigure(lookOf(fontSize, tabSize)) });
+  }, [fontSize, tabSize]);
 
   useImperativeHandle(ref, () => ({
     goToLine(line: number) {

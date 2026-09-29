@@ -99,6 +99,18 @@ export const SettingsSchema = z.object({
   /** Vehicle scripts (Lua templates and functions) to download. */
   scriptsRepo: z.string().regex(REPO_PATTERN),
 
+  // Scripts
+  /** Lua editor text size (px). */
+  scriptFontSize: z.number().int().min(10).max(22),
+  /** Spaces per indent in the Lua editor. */
+  scriptTabSize: z.union([z.literal(2), z.literal(4)]),
+  /** Warnings in a script stop the export too (not only errors). */
+  scriptStrictExport: z.boolean(),
+  /** Frames per second the script test runs updateGFX at (the game: about 60). */
+  scriptTestFps: z.union([z.literal(30), z.literal(60), z.literal(120)]),
+  /** A picture for every configuration on export (off: only the model's default.jpg). */
+  previewEveryConfig: z.boolean(),
+
   // Extensions
   /** Run extensions from the extensions folder. */
   extensionsEnabled: z.boolean(),
@@ -157,6 +169,11 @@ export const DEFAULT_SETTINGS: Settings = {
   texturesRepo: 'Connor-Moyle/jbeam-forge-textures',
   meshesRepo: 'Connor-Moyle/jbeam-forge-meshes',
   scriptsRepo: 'Connor-Moyle/jbeam-forge-scripts',
+  scriptFontSize: 13,
+  scriptTabSize: 2,
+  scriptStrictExport: false,
+  scriptTestFps: 60,
+  previewEveryConfig: true,
   extensionsEnabled: true,
   disabledExtensions: [],
   contentBranch: 'main',

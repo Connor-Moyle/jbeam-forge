@@ -5,6 +5,7 @@ import { headUnitConfig, headUnitHtml, mountHeadUnit } from '@shared/lua/library
 import type { SandboxResult } from '@shared/lua/sandbox';
 import type { VehicleScript } from '@shared/lua/types';
 import { projectStore, useProjectStore } from '@renderer/app/stores/project';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import { Button } from '@renderer/ui/components/Button';
 import { Callout } from '@renderer/ui/components/Callout';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
@@ -177,6 +178,7 @@ export function ScriptTestPanel() {
     useScriptUi.getState().set({ running: true, playT: null });
     setPlaying(false);
     const r = await runScriptTest({
+      fps: useSettingsStore.getState().settings?.scriptTestFps ?? 60,
       code,
       jbeamData: controllerData(template ?? null, script, slug),
       vdata,

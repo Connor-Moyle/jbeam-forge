@@ -74,6 +74,11 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "texturesRepo": "Connor-Moyle/jbeam-forge-textures",
   "meshesRepo": "Connor-Moyle/jbeam-forge-meshes",
   "scriptsRepo": "Connor-Moyle/jbeam-forge-scripts",
+  "scriptFontSize": 13,
+  "scriptTabSize": 2,
+  "scriptStrictExport": false,
+  "scriptTestFps": 60,
+  "previewEveryConfig": true,
   "extensionsEnabled": true,
   "disabledExtensions": [],
   "contentBranch": "main"
