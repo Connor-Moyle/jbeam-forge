@@ -34,8 +34,40 @@
   flex: 1;
 }
 
-.preset {
-  width: var(--size-preset-select);
+.workspaces {
+  display: flex;
+  flex-shrink: 0;
+  align-items: stretch;
+  gap: var(--space-half);
+  height: var(--size-control);
+  padding: 0 var(--space-2);
+  overflow-x: auto;
+  border-bottom: var(--border-width) solid var(--border-0);
+  background: var(--bg-2);
+  scrollbar-width: none;
+}
+
+.workspace,
+.workspaceOn {
+  padding: 0 var(--space-3);
+  border: none;
+  border-bottom: var(--border-width-accent) solid transparent;
+  background: none;
+  color: var(--text-1);
+  font-size: var(--text-control);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.workspace:hover {
+  color: var(--text-0);
+  background: var(--bg-3);
+}
+
+.workspaceOn {
+  color: var(--text-0);
+  border-bottom-color: var(--accent);
+  background: var(--bg-1);
 }
 
 .channel {

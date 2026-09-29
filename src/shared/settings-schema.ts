@@ -58,6 +58,8 @@ export const SettingsSchema = z.object({
   showStatusBar: z.boolean(),
   /** Ask before deleting parts, scripts and other things that take work to make again. */
   confirmDeletes: z.boolean(),
+  /** The first-run tour was taken or skipped (Help → Start the Tutorial runs it again). */
+  tutorialSeen: z.boolean(),
 
   // Navigation
   /** Zoom toward the mouse pointer instead of the view's centre. */
@@ -191,6 +193,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tooltipDelay: 300,
   showStatusBar: true,
   confirmDeletes: true,
+  tutorialSeen: false,
   zoomToCursor: true,
   panSpeed: 1,
   smoothCamera: false,

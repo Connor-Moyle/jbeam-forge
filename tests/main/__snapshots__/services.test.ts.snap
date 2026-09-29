@@ -57,6 +57,7 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "tooltipDelay": 300,
   "showStatusBar": true,
   "confirmDeletes": true,
+  "tutorialSeen": false,
   "zoomToCursor": true,
   "panSpeed": 1,
   "smoothCamera": false,

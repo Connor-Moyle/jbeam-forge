@@ -1,4 +1,5 @@
 import { confirmDelete } from '@renderer/app/confirm';
+import { keyFor } from '@renderer/app/keys';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Move3d, Pencil, Search, Tag, Trash2, Undo2, Unlink, WandSparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -64,7 +65,8 @@ export function ScenePanel() {
         </span>
         <Input aria-label="Search parts and meshes" placeholder="Search parts and meshes" value={query} onChange={(e) => setQuery(e.target.value)} className={styles.search} data-testid="scene-filter" />
         <IconButton icon={Tag} label="Assign selected meshes…" disabled={selection.length === 0} onClick={() => openAssign(selection)} data-testid="scene-assign" />
-        <IconButton icon={FileInput} label="Import model" shortcut="Ctrl+I" onClick={() => void startImport()} />
+        <IconButton icon={WandSparkles} label="Auto-classify: sort unassigned meshes into parts by their names" onClick={classifyUnassigned} data-testid="scene-classify" data-tour="auto-classify" />
+        <IconButton icon={FileInput} label="Import model" shortcut={keyFor('import')} onClick={() => void startImport()} />
       </div>
       <ScrollArea className={styles.list}>
         <SourcesSection sourceIds={sourceIds} />
@@ -72,6 +74,12 @@ export function ScenePanel() {
       </ScrollArea>
     </div>
   );
+}
+
+/** Auto-classify every loaded mesh that isn't in a part yet. */
+function classifyUnassigned(): void {
+  const meshes = Object.values(useSceneStore.getState().sources).flatMap((src) => src?.meshes ?? []);
+  cmd.offerAutoClassify('the model', meshes);
 }
 
 // ---------------------------------------------------------------- sources

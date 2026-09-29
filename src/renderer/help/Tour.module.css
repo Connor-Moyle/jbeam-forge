@@ -1,0 +1,114 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-tour);
+  pointer-events: none;
+}
+
+.dim {
+  position: absolute;
+  inset: 0;
+  background: var(--spotlight-dim);
+}
+
+/* The hole: everything outside it is dimmed by the shadow; clicks go through to the app. */
+.spotlight {
+  position: absolute;
+  border: var(--border-width-accent) solid var(--accent);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 0 100vmax var(--spotlight-dim); /* token-lint-ignore: covers the whole window */
+  transition:
+    top var(--dur-slow) var(--ease),
+    left var(--dur-slow) var(--ease),
+    width var(--dur-slow) var(--ease),
+    height var(--dur-slow) var(--ease);
+  animation: pulse 1.6s var(--ease) infinite; /* token-lint-ignore: a slow pulse, not a transition */
+}
+
+:root[data-motion='off'] .spotlight {
+  animation: none;
+}
+
+@keyframes pulse {
+  50% {
+    border-color: var(--accent-ring);
+  }
+}
+
+.card {
+  position: absolute;
+  width: var(--size-tour-card);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-modal);
+  color: var(--text-0);
+  pointer-events: auto;
+  transition:
+    top var(--dur-slow) var(--ease),
+    left var(--dur-slow) var(--ease);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.count {
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--bg-3);
+  color: var(--text-0);
+}
+
+.close svg {
+  width: var(--size-icon-sm);
+  height: var(--size-icon-sm);
+}
+
+.title {
+  margin: var(--space-1) 0;
+  font-size: var(--text-modal-title);
+  font-weight: var(--weight-semibold);
+}
+
+.body {
+  margin: 0;
+  color: var(--text-1);
+  line-height: var(--line-normal);
+}
+
+.action {
+  margin: var(--space-2) 0 0;
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.spacer {
+  flex: 1;
+}

@@ -5,6 +5,7 @@ import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } fro
 import { startImport } from '@renderer/import/importFlow';
 import { startAcImport } from '@renderer/import/acImport';
 import { exportModel } from '@renderer/export/modelExport';
+import { startTutorial } from '@renderer/help/tutorial';
 import { useEditStore } from '@renderer/structure/editStore';
 import { selectAll } from '@renderer/structure/editCommands';
 import { redoStroke, undoStroke, usePainter } from '@renderer/paint/painter';
@@ -66,7 +67,7 @@ export function runAppCommand(command: AppCommand): void {
       useDialogStore.getState().setHelpOpen(true);
       break;
     case 'tutorial':
-      useDialogStore.getState().setTutorialOpen(true);
+      void startTutorial();
       break;
     case 'settings':
       useDialogStore.getState().setSettingsOpen(true);

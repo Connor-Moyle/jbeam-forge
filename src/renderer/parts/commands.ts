@@ -201,7 +201,10 @@ export function offerAutoClassify(fileName: string, meshes: readonly Pick<Import
   const doc = projectStore.getState().doc;
   if (!doc) return;
   const fresh = meshes.filter((m) => !doc.assignments[m.key] && !doc.ignoredMeshes.includes(m.key));
-  if (fresh.length === 0) return;
+  if (fresh.length === 0) {
+    if (fileName === 'the model') useUiStore.getState().pushStatus('Every mesh is already in a part (or ignored).', 'info');
+    return;
+  }
   const { centers, origin } = meshCenters(fresh.map((m) => m.key));
   const proposal = proposeParts(
     fresh.map((m) => {

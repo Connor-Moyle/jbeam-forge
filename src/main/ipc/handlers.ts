@@ -1,5 +1,6 @@
 import { shell } from 'electron';
 import { z } from 'zod';
+import { demoCarObj } from '@shared/tutorial/demoCar';
 import { SettingsPatchSchema } from '@shared/settings-schema';
 import { StoredLayoutSchema } from '@shared/layout-schema';
 import { parseProject } from '@shared/project/io';
@@ -385,6 +386,17 @@ export function registerIpcHandlers(services: HandlerServices): void {
     if (!format) throw new Error('Unsupported file type. Import DAE, FBX, OBJ, glTF/GLB or STL.');
     projects.grantFile(path); // also grants its folder: MTL, .bin and textures live next to it
     return { path, format, bytes: (await stat(path)).size };
+  });
+
+  registerInvoke('tutorial:demoModel', async () => {
+    const dir = join(dirname(services.paintedTextures), 'tutorial');
+    await mkdir(dir, { recursive: true });
+    const { obj, mtl } = demoCarObj();
+    const path = join(dir, 'demo_car.obj');
+    await writeFile(path, obj);
+    await writeFile(join(dir, 'demo_car.mtl'), mtl);
+    projects.grantFile(path);
+    return { path };
   });
 
   registerInvoke(

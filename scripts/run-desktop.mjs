@@ -1515,6 +1515,74 @@ const scenarios = [
     },
   },
   {
+    id: 'tutorial',
+    name: 'tutorial: practice car · spotlight steps · auto-classify · generate · finish',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      // From wherever the last scenario left off: back to the home screen.
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      await page.waitForSelector('[data-testid=tour-card][data-step=welcome]');
+      let st;
+      for (let i = 0; i < 300; i++) {
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 0 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.meshes >= 30, `practice car loaded (${st.meshes} meshes)`);
+      await shot(page, 'tour-welcome');
+      const step = (id, timeout = 10_000) => page.waitForSelector(`[data-testid=tour-card][data-step="${id}"]`, { timeout });
+      await page.getByTestId('tour-next').click();
+      await step('viewport');
+      await page.getByTestId('tour-next').click();
+      await step('scene');
+      await page.getByTestId('tour-next').click();
+      await step('classify');
+      await shot(page, 'tour-classify');
+      await page.getByTestId('scene-classify').click();
+      await step('classify-apply');
+      await page.getByTestId('classify-apply').click();
+      await step('inspector');
+      const parts = await hook(page, 'partNames');
+      assert(parts.length >= 10, `practice car sorted into parts (${parts.join(', ')})`);
+      await page.getByTestId('tour-next').click();
+      await step('materials-tab');
+      await page.getByTestId('workspace-materials').click();
+      await step('materials');
+      await page.getByTestId('tour-next').click();
+      await step('modelling-tab');
+      await page.getByTestId('workspace-modelling').click();
+      await step('generate');
+      await shot(page, 'tour-generate');
+      await page.getByTestId('toolbar-generate').click();
+      await step('views', 180_000);
+      const doc = await hook(page, 'projectDoc');
+      assert(doc.nodes.length > 50, `structure generated (${doc.nodes.length} nodes)`);
+      for (let i = 0; i < 12; i++) {
+        if (await page.locator('[data-testid=tour-card][data-step=done]').count()) break;
+        await page.getByTestId('tour-next').click();
+        await page.waitForTimeout(150);
+      }
+      await step('done');
+      await shot(page, 'tour-done');
+      await page.getByTestId('tour-finish').click();
+      assert((await page.getByTestId('tour').count()) === 0, 'the tour closes');
+      // Help centre: guides, search.
+      await page.getByTestId('open-help').click();
+      await page.getByTestId('help-centre').waitFor();
+      await page.getByTestId('guide-first-mod').click();
+      await page.getByTestId('help-article').getByText('Get the model ready').waitFor();
+      await page.getByTestId('help-search').fill('hinge');
+      await shot(page, 'help-centre');
+      await page.keyboard.press('Escape');
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,

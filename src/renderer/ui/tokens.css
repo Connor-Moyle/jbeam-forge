@@ -37,6 +37,7 @@
   --danger-dim: rgba(229, 83, 75, 0.16);
 
   --backdrop: rgba(5, 6, 8, 0.6);
+  --spotlight-dim: rgba(5, 6, 8, 0.6);
   --grid-major: #2c313a; /* viewport grid */
   --grid-minor: #1c1f25;
   --mesh-default: #9aa1ab; /* untextured imported meshes (STL, missing materials) */
@@ -184,12 +185,15 @@
   --size-side-panel-wide: 340px;
   --size-viewport-pill: 32px;
   --size-preset-select: 120px;
+  --size-tour-card: 340px;
+  --size-help-nav: 220px;
 
   /* Layering */
   --z-overlay: 10;
   --z-popover: 100;
   --z-modal: 200;
   --z-tooltip: 300;
+  --z-tour: 250; /* the guided tour: above dialogs, under tooltips */
 
   /* States */
   --opacity-disabled: 0.45;

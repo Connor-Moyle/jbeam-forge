@@ -5,6 +5,9 @@ import { ShellProvider, useShell } from '@renderer/shell/ShellContext';
 import { StatusBar } from '@renderer/shell/StatusBar';
 import { Toolbar } from '@renderer/shell/Toolbar';
 import { CommandPalette } from '@renderer/shell/CommandPalette';
+import { TourOverlay } from '@renderer/help/TourOverlay';
+import { HelpCentre } from '@renderer/help/HelpCentre';
+import { maybeStartFirstRun } from '@renderer/help/tutorial';
 import { ShortcutsModal } from '@renderer/shell/ShortcutsModal';
 import { HomeScreen } from '@renderer/home/HomeScreen';
 import { DialogHost } from '@renderer/project/DialogHost';
@@ -90,6 +93,16 @@ function AppEffects() {
     };
   }, []);
   useEffect(() => void loadUserTaxonomy(), []);
+  // The first start opens the tour (once settings are known).
+  useEffect(() => {
+    maybeStartFirstRun();
+    let started = false;
+    return useSettingsStore.subscribe((s) => {
+      if (started || !s.settings) return;
+      started = true;
+      maybeStartFirstRun();
+    });
+  }, []);
   useEffect(() => installNamingRules(), []);
 
   // run-desktop harness hooks available on every screen (home and editor).
@@ -306,6 +319,7 @@ function Editor() {
       <StatusBar />
       <CommandPalette />
       <ShortcutsModal />
+      <TourOverlay />
     </div>
   );
 }
@@ -326,6 +340,7 @@ export function App() {
       <AppEffects />
       <Root />
       <DialogHost />
+      <HelpCentre />
       <ImportHost />
     </TooltipProvider>
   );

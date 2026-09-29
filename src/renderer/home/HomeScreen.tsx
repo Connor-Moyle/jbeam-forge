@@ -1,5 +1,6 @@
+import { startTutorial } from '@renderer/help/tutorial';
 import { useCallback, useEffect, useState } from 'react';
-import { Car, Clock, CloudDownload, FolderOpen, Settings, FolderSearch, ImageOff, Plus, Trash2, X } from 'lucide-react';
+import { Car, CircleHelp, Compass, Clock, CloudDownload, FolderOpen, Settings, FolderSearch, ImageOff, Plus, Trash2, X } from 'lucide-react';
 import type { RecentProject } from '@shared/ipc-contract';
 import { relativeTime } from '@shared/text';
 import { call } from '@renderer/diagnostics/ipc';
@@ -51,6 +52,7 @@ export function HomeScreen() {
             <p className={styles.subtitle}>Turn a 3D vehicle model into an installable BeamNG.drive mod · v{__APP_VERSION__}</p>
             <div className={styles.headerActions}>
               <IconButton icon={CloudDownload} label="Downloads: updates, textures and meshes" onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="home-downloads" />
+              <IconButton icon={CircleHelp} label="Help and guides" onClick={() => useDialogStore.getState().setHelpOpen(true)} data-testid="home-help" />
               <IconButton icon={Settings} label="Settings" onClick={() => useDialogStore.getState().setSettingsOpen(true)} data-testid="home-settings" />
             </div>
           </header>
@@ -65,6 +67,11 @@ export function HomeScreen() {
               <FolderOpen className={styles.cardIcon} size={iconSize('size-icon-lg')} aria-hidden />
               <span className={styles.cardTitle}>Open existing</span>
               <span className={styles.cardText}>Continue a .jbforge project.</span>
+            </button>
+            <button type="button" className={styles.card} onClick={() => void startTutorial()} data-testid="home-tour">
+              <Compass className={styles.cardIcon} size={iconSize('size-icon-lg')} aria-hidden />
+              <span className={styles.cardTitle}>Learn</span>
+              <span className={styles.cardText}>A five-minute tour with a practice car, and guides for your first mod.</span>
             </button>
           </div>
 

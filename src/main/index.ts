@@ -43,7 +43,9 @@ async function start(): Promise<void> {
   const userData = app.getPath('userData');
   const settings = new SettingsService(join(userData, 'settings.json'), scoped('settings'));
   const layout = new LayoutService(join(userData, 'layouts', 'current.json'), scoped('layout'));
-  const loaded = await settings.load();
+  let loaded = await settings.load();
+  // The harness's scenarios start from the home screen; the first-run tour only when asked for.
+  if (harness && !loaded.tutorialSeen && process.env.JBFORGE_TUTORIAL !== '1') loaded = await settings.update({ tutorialSeen: true });
   setDebugLogging(loaded.debugLogging);
   logger.info(`starting JBeam Forge ${app.getVersion()} (electron ${process.versions.electron})`, harness ? '[harness]' : '');
 

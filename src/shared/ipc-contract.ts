@@ -188,6 +188,8 @@ export interface InvokeContract {
   'window:setDirty': { req: { dirty: boolean }; res: undefined };
   /** Pick a model file to import (grants its folder for side files and textures). */
   'import:pickSource': { req: undefined; res: { path: string; format: SourceFormat; bytes: number } | null };
+  /** Write the tutorial's practice car (OBJ + MTL) under the app's data folder; its path. */
+  'tutorial:demoModel': { req: undefined; res: { path: string } };
   /** Read a model/texture/side file inside a granted folder. */
   'import:readFile': { req: { path: string }; res: Uint8Array };
   /** Resolve texture references for a model (see src/main/import/textures.ts). */
@@ -351,6 +353,7 @@ export const INVOKE_CHANNELS = [
   'beamng:soundFile',
   'dialog:pickDirectory',
   'import:pickSource',
+  'tutorial:demoModel',
   'import:readFile',
   'import:resolveTextures',
   'import:pickTextureDir',

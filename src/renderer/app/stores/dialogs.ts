@@ -61,9 +61,6 @@ interface DialogState {
   /** Help centre. */
   helpOpen: boolean;
   setHelpOpen: (open: boolean) => void;
-  /** The guided tour (Help → Start the Tutorial, and the first start). */
-  tutorialOpen: boolean;
-  setTutorialOpen: (open: boolean) => void;
 }
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
@@ -125,6 +122,4 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   setConfigsOpen: (configsOpen) => set({ configsOpen }),
   helpOpen: false,
   setHelpOpen: (helpOpen) => set({ helpOpen }),
-  tutorialOpen: false,
-  setTutorialOpen: (tutorialOpen) => set({ tutorialOpen }),
 }));
