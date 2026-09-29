@@ -11,6 +11,8 @@ import { Packs } from './content/packs';
 import { ContentService } from './content/service';
 import { UpdateService } from './content/updates';
 import { checkOnStartup, contentHooks, registerContentHandlers, type ContentContext } from './content/ipc';
+import { ScriptLibrary } from './scripts/library';
+import { registerScriptHandlers } from './scripts/ipc';
 import type { FetchFn } from './content/github';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
@@ -78,6 +80,7 @@ async function start(): Promise<void> {
   const updates = new UpdateService(join(userData, 'updates'), fetchFn, scoped('updates'));
   const contentCtx: ContentContext = { settings, updates, packs, logger: scoped('content'), getWindow: () => mainWindow, content: () => content!, where: () => where, portableDir };
   registerContentHandlers(contentCtx);
+  registerScriptHandlers(new ScriptLibrary(join(userData, 'scripts'), () => join(where.root, 'scripts'), scoped('scripts')));
   let contentDir = loaded.contentDir;
   let lastSettings = settings.get();
   const moveContent = async (next: string | null) => {
@@ -88,6 +91,7 @@ async function start(): Promise<void> {
     packs.reload('all');
     hooks.onChange('textures');
     hooks.onChange('meshes');
+    hooks.onChange('scripts');
     logger.info(`content folder: ${where.root}${where.fallback ? ` (fell back from ${where.preferred})` : ''}`);
   };
   // Your own library folders: scanned in the background once the window is up (see below).

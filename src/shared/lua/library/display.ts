@@ -18,20 +18,186 @@ export function headUnitElectrics(name: string): string[] {
   return ['wheelspeed', 'rpm', 'rpmTacho', 'gear', 'fuel', 'watertemp', 'oiltemp', 'ignitionLevel', 'lights', 'odometer', 'steering', 'throttle', 'signal_L', 'signal_R', outputName(name, 'app'), outputName(name, 'play'), outputName(name, 'track'), outputName(name, 'on')];
 }
 
-/** The page: plain HTML, CSS and JS for the game's browser (and the app's preview). */
-export function headUnitHtml(ctx: Pick<TemplateContext, 'name' | 'params'>): string {
+export interface HeadUnitConfig {
+  theme: 'android' | 'carplay';
+  accent: string;
+  units: 'kmh' | 'mph';
+  clock: 12 | 24;
+  brand: string;
+  tracks: string[];
+  out: { app: string; play: string; track: string; on: string };
+}
+
+export function headUnitConfig(ctx: Pick<TemplateContext, 'name' | 'params'>): HeadUnitConfig {
   const p = ctx.params;
-  const config = {
+  return {
     theme: p.theme === 'carplay' ? 'carplay' : 'android',
     accent: typeof p.accent === 'string' && /^#[0-9a-f]{6}$/i.test(p.accent) ? p.accent : '#4f8cff',
     units: p.units === 'mph' ? 'mph' : 'kmh',
     clock: p.clock === '12' ? 12 : 24,
     brand: typeof p.brand === 'string' ? p.brand.slice(0, 40) : 'Drive',
-    driver: typeof p.driver === 'string' ? p.driver.slice(0, 40) : 'Driver',
     tracks: (typeof p.tracks === 'string' ? p.tracks : '').split('\n').map((t) => t.trim()).filter(Boolean).slice(0, 50),
     out: { app: outputName(ctx.name, 'app'), play: outputName(ctx.name, 'play'), track: outputName(ctx.name, 'track'), on: outputName(ctx.name, 'on') },
   };
-  const json = JSON.stringify(config).replace(/</g, '\\u003c');
+}
+
+/**
+ * The page's behaviour, self-contained so its source can be written into the
+ * page for the game and also run by the app against the preview's document
+ * (the app's own security policy keeps scripts out of preview frames).
+ */
+export function mountHeadUnit(doc: Document, config: HeadUnitConfig): { update: (e: Record<string, number>) => void; render: () => void } {
+  const $ = (id: string) => doc.getElementById(id) as HTMLElement;
+  const tracks = config.tracks.length ? config.tracks : ['Midnight Drive - The Overpass', 'Coastline - Salt Flats', 'Red Line - Apex', 'Night Rain - Ferro', 'Open Road - Wanderers'];
+  doc.body.className = config.theme;
+  doc.documentElement.style.setProperty('--accent', config.accent);
+  $('brand').textContent = config.brand;
+  $('unit').textContent = config.units === 'mph' ? 'mph' : 'km/h';
+  $('tripUnit').textContent = config.units === 'mph' ? 'mi' : 'km';
+  const calls = [['Mum', 'Mobile · 2 min ago'], ['Workshop', 'Missed · 1 h ago'], ['Alex', 'Outgoing · yesterday'], ['Parts store', 'Mobile · Monday']];
+  $('calls').innerHTML = calls.map((c) => '<div>' + c[0] + '<span>' + c[1] + '</span></div>').join('');
+  const state = { e: {} as Record<string, number>, heading: 0, x: 0, y: 0, trip: 0, startOdo: null as number | null, songT: 0, lastTrack: -1, last: Date.now() };
+  const trackAt = (i: number) => {
+    const t = tracks[((i % tracks.length) + tracks.length) % tracks.length]!.split(' - ');
+    return { title: t[0] ?? '', artist: t[1] ?? '' };
+  };
+  const speedText = () => {
+    const ms = state.e.wheelspeed || 0;
+    return String(Math.round(config.units === 'mph' ? ms * 2.23694 : ms * 3.6));
+  };
+  const drawMap = (canvas: HTMLCanvasElement, big: boolean) => {
+    const g = canvas.getContext('2d');
+    if (!g) return;
+    const w = canvas.width;
+    const h = canvas.height;
+    g.fillStyle = config.theme === 'carplay' ? '#dfe6ee' : '#1f2631';
+    g.fillRect(0, 0, w, h);
+    g.save();
+    g.translate(w / 2, h * 0.68);
+    g.rotate(-state.heading);
+    const s = 90;
+    const ox = state.x % s;
+    const oy = state.y % s;
+    g.strokeStyle = config.theme === 'carplay' ? '#ffffff' : '#2e3847';
+    g.lineWidth = 22;
+    for (let i = -12; i <= 12; i++) {
+      g.beginPath();
+      g.moveTo(i * s - ox, -h * 2);
+      g.lineTo(i * s - ox, h * 2);
+      g.stroke();
+      g.beginPath();
+      g.moveTo(-w * 2, i * s - oy);
+      g.lineTo(w * 2, i * s - oy);
+      g.stroke();
+    }
+    g.strokeStyle = config.accent;
+    g.lineWidth = 16;
+    g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(-ox, h);
+    g.lineTo(-ox, -oy - s * 3);
+    g.lineTo(s * 2 - ox, -oy - s * 3);
+    g.stroke();
+    g.restore();
+    g.fillStyle = config.accent;
+    g.beginPath();
+    g.moveTo(w / 2, h * 0.68 - 26);
+    g.lineTo(w / 2 + 18, h * 0.68 + 18);
+    g.lineTo(w / 2, h * 0.68 + 8);
+    g.lineTo(w / 2 - 18, h * 0.68 + 18);
+    g.closePath();
+    g.fill();
+    if (big) {
+      g.fillStyle = 'rgba(0,0,0,.5)';
+      g.fillRect(24, 24, 260, 70);
+      g.fillStyle = '#fff';
+      g.font = '600 34px sans-serif';
+      g.fillText(speedText() + ' ' + $('unit').textContent, 44, 72);
+    }
+  };
+  const render = () => {
+    const e = state.e;
+    const now = Date.now();
+    const dt = Math.min(0.2, (now - state.last) / 1000);
+    state.last = now;
+    const on = e[config.out.on] === undefined ? (e.ignitionLevel || 0) >= 1 : e[config.out.on]! > 0.5;
+    $('screen').className = on ? '' : 'off';
+    const app = Math.max(0, Math.min(4, Math.round(e[config.out.app] || 0)));
+    const icons = doc.querySelectorAll('.rail .icon');
+    for (let i = 0; i < icons.length; i++) icons[i]!.className = 'icon' + (i === app ? ' on' : '');
+    const apps = doc.querySelectorAll('.app');
+    for (let j = 0; j < apps.length; j++) apps[j]!.className = 'app' + (j === app ? ' on' : '');
+    const d = new Date();
+    const hh = d.getHours();
+    $('clock').textContent = (config.clock === 12 ? ((hh + 11) % 12) + 1 : hh) + ':' + ('0' + d.getMinutes()).slice(-2);
+    const speed = e.wheelspeed || 0;
+    state.heading += (e.steering || 0) * 0.0006 * speed * dt * 10;
+    state.x += Math.sin(state.heading) * speed * dt * 6;
+    state.y -= Math.cos(state.heading) * speed * dt * 6;
+    $('speed').textContent = speedText();
+    $('cSpeed').textContent = speedText();
+    $('cRpm').textContent = String(Math.round((e.rpmTacho || e.rpm || 0) / 10) * 10);
+    const gear = e.gear as number | string | undefined;
+    $('cGear').textContent = gear === undefined ? 'N' : typeof gear === 'number' ? (gear < 0 ? 'R' : gear === 0 ? 'N' : String(gear)) : String(gear);
+    $('cFuel').textContent = Math.round((e.fuel || 0) * 100) + '%';
+    $('fuelBar').style.width = Math.round((e.fuel || 0) * 100) + '%';
+    $('cTemp').textContent = Math.round(e.watertemp || 0) + '°';
+    if (e.odometer !== undefined) {
+      if (state.startOdo === null) state.startOdo = e.odometer;
+      state.trip = (e.odometer - state.startOdo) / 1000;
+    } else state.trip += (speed * dt) / 1000;
+    $('cTrip').textContent = (config.units === 'mph' ? state.trip * 0.621371 : state.trip).toFixed(1);
+    const track = Math.round(e[config.out.track] || 0);
+    if (track !== state.lastTrack) {
+      state.lastTrack = track;
+      state.songT = 0;
+    }
+    if ((e[config.out.play] || 0) > 0.5) state.songT += dt;
+    const song = trackAt(track);
+    const pct = Math.min(100, state.songT / 2.1) + '%';
+    $('title').textContent = song.title;
+    $('artist').textContent = song.artist;
+    $('homeTitle').textContent = song.title;
+    $('homeArtist').textContent = song.artist;
+    $('bar').style.width = pct;
+    $('homeBar').style.width = pct;
+    const hue = (track * 67) % 360;
+    $('art').style.background = 'linear-gradient(135deg, hsl(' + hue + ',70%,55%), hsl(' + (hue + 60) + ',70%,30%))';
+    let q = '';
+    for (let k = 1; k <= 4; k++) {
+      const n = trackAt(track + k);
+      q += '<div>' + n.title + '<span>' + n.artist + '</span></div>';
+    }
+    $('queue').innerHTML = q;
+    const turn = Math.floor(state.y / -400);
+    $('turn').textContent = ['Continue straight for 400 m', 'Turn right onto High Street', 'Keep left at the fork'][((turn % 3) + 3) % 3]!;
+    if (app === 0) drawMap($('homeMap') as HTMLCanvasElement, false);
+    if (app === 1) drawMap($('map') as HTMLCanvasElement, true);
+  };
+  return {
+    update: (e) => {
+      state.e = e;
+    },
+    render,
+  };
+}
+
+/** The page: HTML and CSS, with its script for the game (the app's preview runs mountHeadUnit itself). */
+export function headUnitHtml(ctx: Pick<TemplateContext, 'name' | 'params'>, opts: { script?: boolean } = {}): string {
+  const json = JSON.stringify(headUnitConfig(ctx)).replace(/</g, '\\u003c');
+  const script =
+    opts.script === false
+      ? ''
+      : `<script>
+(function () {
+  // The game's gauges controller calls setup and updateData with the car's electrics.
+  var hu = (${mountHeadUnit.toString()})(document, ${json});
+  window.setup = function () {};
+  window.updateData = function (data) { if (data && data.electrics) hu.update(data.electrics); };
+  setInterval(hu.render, 50);
+  hu.render();
+})();
+</script>`;
   return `<!doctype html>
 <html>
 <head>
@@ -116,83 +282,7 @@ export function headUnitHtml(ctx: Pick<TemplateContext, 'name' | 'params'>): str
     </section>
   </main>
 </div>
-<script>
-(function () {
-  var CONFIG = ${json};
-  var TRACKS = CONFIG.tracks.length ? CONFIG.tracks : ["Midnight Drive - The Overpass", "Coastline - Salt Flats", "Red Line - Apex", "Night Rain - Ferro", "Open Road - Wanderers"];
-  document.body.className = CONFIG.theme;
-  document.documentElement.style.setProperty("--accent", CONFIG.accent);
-  var $ = function (id) { return document.getElementById(id); };
-  $("brand").textContent = CONFIG.brand;
-  $("unit").textContent = CONFIG.units === "mph" ? "mph" : "km/h";
-  $("tripUnit").textContent = CONFIG.units === "mph" ? "mi" : "km";
-  var calls = [["Mum", "Mobile · 2 min ago"], ["Workshop", "Missed · 1 h ago"], ["Alex", "Outgoing · yesterday"], ["Parts store", "Mobile · Monday"]];
-  $("calls").innerHTML = calls.map(function (c) { return "<div>" + c[0] + "<span>" + c[1] + "</span></div>"; }).join("");
-  var state = { e: {}, app: 0, heading: 0, x: 0, y: 0, trip: 0, startOdo: null, songT: 0, lastTrack: -1, last: Date.now() };
-
-  function trackAt(i) { var t = TRACKS[((i % TRACKS.length) + TRACKS.length) % TRACKS.length].split(" - "); return { title: t[0], artist: t[1] || "" }; }
-  function hue(i) { return (i * 67) % 360; }
-
-  function drawMap(canvas, big) {
-    var g = canvas.getContext("2d"), w = canvas.width, h = canvas.height;
-    g.fillStyle = CONFIG.theme === "carplay" ? "#dfe6ee" : "#1f2631"; g.fillRect(0, 0, w, h);
-    g.save(); g.translate(w / 2, h * 0.68); g.rotate(-state.heading);
-    var s = 90, ox = state.x % s, oy = state.y % s;
-    g.strokeStyle = CONFIG.theme === "carplay" ? "#ffffff" : "#2e3847"; g.lineWidth = 22;
-    for (var i = -12; i <= 12; i++) {
-      g.beginPath(); g.moveTo(i * s - ox, -h * 2); g.lineTo(i * s - ox, h * 2); g.stroke();
-      g.beginPath(); g.moveTo(-w * 2, i * s - oy); g.lineTo(w * 2, i * s - oy); g.stroke();
-    }
-    g.strokeStyle = CONFIG.accent; g.lineWidth = 16; g.lineCap = "round";
-    g.beginPath(); g.moveTo(-ox, h); g.lineTo(-ox, -oy - s * 3); g.lineTo(s * 2 - ox, -oy - s * 3); g.stroke();
-    g.restore();
-    g.fillStyle = CONFIG.accent; g.beginPath(); g.moveTo(w / 2, h * 0.68 - 26); g.lineTo(w / 2 + 18, h * 0.68 + 18); g.lineTo(w / 2, h * 0.68 + 8); g.lineTo(w / 2 - 18, h * 0.68 + 18); g.closePath(); g.fill();
-    if (big) { g.fillStyle = "rgba(0,0,0,.5)"; g.fillRect(24, 24, 260, 70); g.fillStyle = "#fff"; g.font = "600 34px sans-serif"; g.fillText(speedText() + " " + $("unit").textContent, 44, 72); }
-  }
-
-  function speedText() { var ms = state.e.wheelspeed || 0; return String(Math.round(CONFIG.units === "mph" ? ms * 2.23694 : ms * 3.6)); }
-
-  function render() {
-    var e = state.e, now = Date.now(), dt = Math.min(0.2, (now - state.last) / 1000); state.last = now;
-    var on = e[CONFIG.out.on] === undefined ? (e.ignitionLevel || 0) >= 1 : e[CONFIG.out.on] > 0.5;
-    $("screen").className = on ? "" : "off";
-    var app = Math.max(0, Math.min(4, Math.round(e[CONFIG.out.app] || 0)));
-    var icons = document.querySelectorAll(".rail .icon");
-    for (var i = 0; i < icons.length; i++) icons[i].className = "icon" + (i === app ? " on" : "");
-    var apps = document.querySelectorAll(".app");
-    for (var j = 0; j < apps.length; j++) apps[j].className = "app" + (j === app ? " on" : "");
-    var d = new Date(), hh = d.getHours(), mm = ("0" + d.getMinutes()).slice(-2);
-    $("clock").textContent = (CONFIG.clock === 12 ? ((hh + 11) % 12 + 1) : hh) + ":" + mm;
-    var speed = e.wheelspeed || 0;
-    state.heading += (e.steering || 0) * 0.0006 * speed * dt * 10;
-    state.x += Math.sin(state.heading) * speed * dt * 6; state.y -= Math.cos(state.heading) * speed * dt * 6;
-    $("speed").textContent = speedText(); $("cSpeed").textContent = speedText();
-    $("cRpm").textContent = String(Math.round((e.rpmTacho || e.rpm || 0) / 10) * 10);
-    var gear = e.gear; $("cGear").textContent = gear === undefined ? "N" : (typeof gear === "number" ? (gear < 0 ? "R" : gear === 0 ? "N" : String(gear)) : String(gear));
-    $("cFuel").textContent = Math.round((e.fuel || 0) * 100) + "%"; $("fuelBar").style.width = Math.round((e.fuel || 0) * 100) + "%";
-    $("cTemp").textContent = Math.round(e.watertemp || 0) + "°";
-    if (e.odometer !== undefined) { if (state.startOdo === null) state.startOdo = e.odometer; state.trip = (e.odometer - state.startOdo) / 1000; } else state.trip += speed * dt / 1000;
-    $("cTrip").textContent = (CONFIG.units === "mph" ? state.trip * 0.621371 : state.trip).toFixed(1);
-    var track = Math.round(e[CONFIG.out.track] || 0);
-    if (track !== state.lastTrack) { state.lastTrack = track; state.songT = 0; }
-    if ((e[CONFIG.out.play] || 0) > 0.5) state.songT += dt;
-    var song = trackAt(track), pct = Math.min(100, state.songT / 2.1) + "%";
-    $("title").textContent = song.title; $("artist").textContent = song.artist; $("homeTitle").textContent = song.title; $("homeArtist").textContent = song.artist;
-    $("bar").style.width = pct; $("homeBar").style.width = pct;
-    $("art").style.background = "linear-gradient(135deg, hsl(" + hue(track) + ",70%,55%), hsl(" + (hue(track) + 60) + ",70%,30%))";
-    var q = ""; for (var k = 1; k <= 4; k++) { var n = trackAt(track + k); q += "<div>" + n.title + "<span>" + n.artist + "</span></div>"; } $("queue").innerHTML = q;
-    var turn = Math.floor((state.y / -400)) % 3; $("turn").textContent = ["Continue straight for 400 m", "Turn right onto High Street", "Keep left at the fork"][((turn % 3) + 3) % 3];
-    if (app === 0) drawMap($("homeMap"), false); if (app === 1) drawMap($("map"), true);
-  }
-
-  // The game's gauges controller calls these; the app's preview posts the same data.
-  window.setup = function () {};
-  window.updateData = function (data) { if (data && data.electrics) state.e = data.electrics; };
-  window.addEventListener("message", function (ev) { if (ev.data && ev.data.electrics) state.e = ev.data.electrics; });
-  setInterval(render, 50);
-  render();
-})();
-</script>
+${script}
 </body>
 </html>
 `;

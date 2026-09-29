@@ -77,6 +77,7 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'downloads-textures', label: 'Download textures…', group: 'Action', run: () => useDialogStore.getState().setDownloads('textures') },
       { id: 'configs-manager', label: 'Configurations manager…', group: 'Action', run: () => useDialogStore.getState().setConfigsOpen(true) },
       { id: 'downloads-meshes', label: 'Download meshes…', group: 'Action', run: () => useDialogStore.getState().setDownloads('meshes') },
+      { id: 'downloads-scripts', label: 'Download vehicle scripts…', group: 'Action', run: () => useDialogStore.getState().setDownloads('scripts') },
       { id: 'mesh', label: view.mesh ? 'Hide mesh' : 'Show mesh', group: 'Action', run: () => useUiStore.getState().toggleView('mesh') },
       { id: 'structure', label: view.structure ? 'Hide nodes & beams' : 'Show nodes & beams', group: 'Action', run: () => useUiStore.getState().toggleView('structure') },
       { id: 'xray', label: view.xray ? 'X-ray off' : 'X-ray on', group: 'Action', run: () => useUiStore.getState().toggleView('xray') },

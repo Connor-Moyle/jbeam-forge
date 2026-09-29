@@ -32,6 +32,9 @@ import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simS
 import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
 import { useHingeUi } from '@renderer/hinges/commands';
 import { usePropUi } from '@renderer/props/commands';
+import { useScriptUi } from '@renderer/scripts/commands';
+import { posesAt } from '@renderer/scripts/poses';
+import { valueAt } from '@renderer/scripts/ScriptTestPanel';
 import { useCameraUi } from '@renderer/cameras/commands';
 import { propAmount } from '@shared/props/props';
 import { useFeatureUi } from '@renderer/features/commands';
@@ -280,6 +283,16 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
     pushHinge();
     const unsubscribeHinge = useHingeUi.subscribe(pushHinge);
     const unsubscribeProp = usePropUi.subscribe(pushHinge);
+    // Script test playback: the animations the test drove, on the real meshes.
+    const pushPoses = () => {
+      const { result, playT } = useScriptUi.getState();
+      const props = projectStore.getState().doc?.props ?? [];
+      if (!result || playT === null || !props.length) return rt.setMeshPoses(null);
+      rt.setMeshPoses(posesAt(props, (func) => valueAt(result, func, playT)));
+    };
+    const unsubscribePoses = useScriptUi.subscribe((s, prev) => {
+      if (s.playT !== prev.playT || s.result !== prev.result) pushPoses();
+    });
     // Interior cameras: look through one from the Extras panel.
     const unsubscribeLook = useCameraUi.subscribe((st, prev) => {
       if (st.look !== prev.look) rt.lookFrom(st.look);
@@ -400,6 +413,8 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeLiveView();
       unsubscribeHinge();
       unsubscribeProp();
+      unsubscribePoses();
+      rt.setMeshPoses(null);
       unsubscribeLook();
       unsubscribeHingeDoc();
       unsubscribeFeatures();

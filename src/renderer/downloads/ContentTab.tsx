@@ -25,6 +25,11 @@ const LABEL: Record<ContentKind, { one: string; many: string; what: string }> = 
     many: 'meshes',
     what: 'Ready-made parts: calipers, discs, gauges, suspension and steering pieces…',
   },
+  scripts: {
+    one: 'script',
+    many: 'scripts',
+    what: 'Vehicle scripts to add to any car in the Scripts tab: functions, effects, screens…',
+  },
 };
 
 /** How many rows the list shows at once (search narrows it). */
@@ -159,7 +164,7 @@ export function ContentTab({ kind, info, onInfo }: { kind: ContentKind; info: Co
     setSelected(next);
   };
   const allShownPicked = filtered.length > 0 && filtered.slice(0, SHOWN).every((i) => selected.has(i.id));
-  const repo = kind === 'textures' ? settings?.texturesRepo : settings?.meshesRepo;
+  const repo = settings ? { textures: settings.texturesRepo, meshes: settings.meshesRepo, scripts: settings.scriptsRepo }[kind] : undefined;
   const refOptions = [
     { value: branch, label: `Latest (${branch})` },
     ...(refs ?? [])

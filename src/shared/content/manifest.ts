@@ -11,7 +11,7 @@ import { z } from 'zod';
  * packs always had, so ids (and projects using them) stay the same.
  */
 
-export const CONTENT_KINDS = ['textures', 'meshes'] as const;
+export const CONTENT_KINDS = ['textures', 'meshes', 'scripts'] as const;
 export type ContentKind = (typeof CONTENT_KINDS)[number];
 
 export const CONTENT_FORMAT = 1;

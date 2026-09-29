@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const LAYOUT_VERSION = 1;
 
-export const PRESET_IDS = ['modelling', 'materials', 'testing'] as const;
+export const PRESET_IDS = ['modelling', 'materials', 'testing', 'scripts'] as const;
 export const PresetIdSchema = z.enum(PRESET_IDS);
 export type PresetId = z.infer<typeof PresetIdSchema>;
 

@@ -96,6 +96,8 @@ export const SettingsSchema = z.object({
   appRepo: z.string().regex(REPO_PATTERN),
   texturesRepo: z.string().regex(REPO_PATTERN),
   meshesRepo: z.string().regex(REPO_PATTERN),
+  /** Vehicle scripts (Lua templates and functions) to download. */
+  scriptsRepo: z.string().regex(REPO_PATTERN),
   /** Branch the content repositories' latest version lives on. */
   contentBranch: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/),
 });
@@ -148,6 +150,7 @@ export const DEFAULT_SETTINGS: Settings = {
   appRepo: 'Connor-Moyle/jbeam-forge',
   texturesRepo: 'Connor-Moyle/jbeam-forge-textures',
   meshesRepo: 'Connor-Moyle/jbeam-forge-meshes',
+  scriptsRepo: 'Connor-Moyle/jbeam-forge-scripts',
   contentBranch: 'main',
 };
 

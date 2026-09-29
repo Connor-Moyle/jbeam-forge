@@ -1378,11 +1378,78 @@ const scenarios = [
       await shot(page, 'camera-driver-view');
       await page.getByTestId('camera-look').click();
       await page.getByTestId('toggle-features').click();
+
+      // Vehicle scripts: folding mirrors from a template on the box, tested in the sandbox and played on the car.
+      await hook(page, 'applyPreset', 'scripts');
+      await page.getByTestId('scripts-panel').waitFor();
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').waitFor();
+      await page.getByRole('button', { name: 'Add Folding mirrors' }).click();
+      await page.getByTestId('script-panel').waitFor();
+      const boxKey = Object.keys((await hook(page, 'projectDoc')).assignments)[0];
+      await hook(page, 'selectMeshes', [boxKey]);
+      await page.getByTestId('script-use-selection').first().click();
+      await page.waitForTimeout(200);
+      const withMirror = await hook(page, 'projectDoc');
+      assert(withMirror.scripts.length === 1 && withMirror.scripts[0].name === 'mirrors', `mirrors script added (${JSON.stringify(withMirror.scripts)})`);
+      assert(withMirror.props.some((p) => p.meshKey === boxKey && p.func === 'jbf_mirrors'), `picking the mesh animates it (${JSON.stringify(withMirror.props)})`);
+      await page.getByTestId('script-run').click();
+      await page.getByTestId('script-results').waitFor({ timeout: 30_000 });
+      assert((await page.getByTestId('script-results').textContent()).includes('jbf_mirrors'), 'the test recorded the mirrors value');
+      await page.waitForTimeout(1500);
+      await shot(page, 'script-mirrors-test');
+      await page.getByTestId('script-mode-code').click();
+      await page.getByTestId('lua-editor').waitFor();
+      assert((await page.getByTestId('script-problems').textContent()).includes('No problems'), 'the template code checks clean');
+      await shot(page, 'script-code');
+
+      // A hand-written script with a mistake: the checker explains it.
+      await page.getByTestId('scripts-view-list').click();
+      await page.getByTestId('scripts-add-blank').click();
+      await page.locator('[data-testid="lua-editor"] .cm-content').click();
+      await page.keyboard.press('Control+a');
+      await page.keyboard.type('local M = {}\nlocal x = 1\nx += 1\nreturn M\n');
+      await page.waitForTimeout(600);
+      const problems = await page.getByTestId('script-problems').textContent();
+      assert(/no \+= or -=/.test(problems), `the checker explains += (${problems})`);
+      await shot(page, 'script-problem');
+      await page.getByTestId('script-remove').click();
+
+      // Head unit on the box: its page previews with the test's values (then removed, the box keeps its paint).
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByRole('button', { name: 'Add Head unit (phone projection)' }).click();
+      await hook(page, 'selectMeshes', [boxKey]);
+      await page.getByTestId('script-mode-easy').click();
+      await page.getByTestId('script-use-selection').first().click();
+      await page.getByTestId('script-run').click();
+      await page.getByTestId('headunit-preview').waitFor();
+      await page.getByTestId('script-results').waitFor({ timeout: 30_000 });
+      await page.waitForTimeout(2500);
+      await shot(page, 'script-headunit');
+      await page.getByTestId('headunit-preview').screenshot({ path: join(outDir, 'headunit-preview.png') });
+      const mapDrawn = await page.evaluate(() => {
+        const doc = document.querySelector('[data-testid="headunit-preview"]').contentDocument;
+        const canvas = [doc.getElementById('map'), doc.getElementById('homeMap')].find((c) => c.closest('.app.on'));
+        const g = canvas?.getContext('2d');
+        if (!g) return 'no canvas';
+        const px = g.getImageData(Math.round(canvas.width / 2), Math.round(canvas.height * 0.45), 1, 1).data;
+        return [...px].join(',');
+      });
+      // The route runs up the middle of the map in the accent colour (blue).
+      const [r, , b] = mapDrawn.split(',').map(Number);
+      assert(b > 200 && r < 150, `the head unit's map is drawn (${mapDrawn})`);
+      await page.getByTestId('script-remove').click();
+      await hook(page, 'applyPreset', 'modelling');
+
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
       await page.getByTestId('export-install').click();
       await page.getByTestId('export-result').waitFor({ timeout: 30_000 });
       const vdir = join(fakeUserDir, 'mods', 'unpacked', 'paint_test', 'vehicles', 'paint_test');
+      const luaFile = join(fakeUserDir, 'mods', 'unpacked', 'paint_test', 'lua', 'vehicle', 'controller', 'jbf_paint_test', 'mirrors.lua');
+      assert(existsSync(luaFile) && readFileSync(luaFile, 'utf8').includes('return M'), 'the mirrors controller is exported');
+      assert(JSON.parse(readFileSync(join(vdir, 'input_actions.json'), 'utf8')).jbf_paint_test_mirrors_toggle, 'its key is an input action');
+      assert(readdirSync(vdir).filter((f) => f.endsWith('.jbeam')).some((f) => readFileSync(join(vdir, f), 'utf8').includes('"jbf_paint_test/mirrors"')), 'a part carries the controller');
       const out = readdirSync(vdir);
       const mats = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       const paint = Object.values(mats).find((m) => typeof m.Stages?.[0]?.colorPaletteMap === 'string');

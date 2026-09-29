@@ -12,6 +12,7 @@ const PRESET_LABELS: Record<(typeof PRESET_IDS)[number], string> = {
   modelling: 'Modelling',
   materials: 'Materials',
   testing: 'Testing',
+  scripts: 'Scripts',
 };
 
 export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; settings: SettingsService; isDev: boolean }): void {

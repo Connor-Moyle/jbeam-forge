@@ -141,7 +141,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const dirValid = !trimmedDir || (check.state === 'done' && check.forDir === trimmedDir && check.result.ok);
   const canSave = !saving && (!dirChanged || dirValid);
 
-  const badRepos = (['appRepo', 'texturesRepo', 'meshesRepo'] as const).filter((k) => !REPO_PATTERN.test(d[k]));
+  const badRepos = (['appRepo', 'texturesRepo', 'meshesRepo', 'scriptsRepo'] as const).filter((k) => !REPO_PATTERN.test(d[k]));
   const badBranch = !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/.test(d.contentBranch) || d.contentBranch.includes('..');
   const canSaveAll = canSave && !badRepos.length && !badBranch;
 
@@ -386,6 +386,9 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                 </Field>
                 <Field label="Meshes">
                   <Input mono value={d.meshesRepo} onChange={(e) => set({ meshesRepo: e.target.value.trim() })} invalid={!REPO_PATTERN.test(d.meshesRepo)} aria-label="Meshes repository" />
+                </Field>
+                <Field label="Scripts">
+                  <Input mono value={d.scriptsRepo} onChange={(e) => set({ scriptsRepo: e.target.value.trim() })} invalid={!REPO_PATTERN.test(d.scriptsRepo)} aria-label="Scripts repository" />
                 </Field>
                 <Field label="Latest content branch">
                   <Input mono value={d.contentBranch} onChange={(e) => set({ contentBranch: e.target.value.trim() })} invalid={badBranch} aria-label="Content branch" />

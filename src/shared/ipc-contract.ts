@@ -8,6 +8,7 @@ export interface LibraryStatus {
 }
 
 import type { SetOptions } from './suspension/options';
+import type { LibraryScript } from './lua/types';
 import type { ContentKind, ContentManifest } from './content/manifest';
 import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, UpdatesInfo } from './content/types';
 
@@ -217,6 +218,14 @@ export interface InvokeContract {
   'vinyl:open': { req: undefined; res: { path: string; text: string } | null };
   /** Save a text file of one of the app's kinds (.pc configuration, .lua script…) where the user picks; the path, or null if cancelled. */
   'file:saveText': { req: { kind: TextFileKind; suggestedName: string; text: string }; res: string | null };
+  /** Saved vehicle scripts: the user's library and downloaded ones. */
+  'scripts:library': { req: undefined; res: { scripts: { path: string; source: 'mine' | 'downloaded'; entry: LibraryScript }[]; errors: string[] } };
+  /** Save a script to the user's library; returns its path. */
+  'scripts:save': { req: { entry: LibraryScript }; res: string };
+  /** Delete a script from the user's library. */
+  'scripts:delete': { req: { path: string }; res: undefined };
+  /** Show the user's script library folder. */
+  'scripts:reveal': { req: undefined; res: undefined };
   /** Open text files of one kind the user picks (several when `multiple`). */
   'file:openText': { req: { kind: TextFileKind; multiple?: boolean }; res: { path: string; name: string; text: string }[] };
   /** Pick an image for a material slot; its folder becomes readable. */
@@ -348,6 +357,10 @@ export const INVOKE_CHANNELS = [
   'vinyl:open',
   'file:saveText',
   'file:openText',
+  'scripts:library',
+  'scripts:save',
+  'scripts:delete',
+  'scripts:reveal',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

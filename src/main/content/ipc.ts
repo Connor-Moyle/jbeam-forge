@@ -36,9 +36,12 @@ export interface ContentContext {
   portableDir: string | undefined;
 }
 
+/** The repository each kind downloads from. */
+export const repoFor = (kind: ContentKind, s: Settings) => ({ textures: s.texturesRepo, meshes: s.meshesRepo, scripts: s.scriptsRepo })[kind];
+
 export function registerContentHandlers(ctx: ContentContext): void {
   const { settings, updates } = ctx;
-  const repoOf = (kind: ContentKind, s: Settings = settings.get()) => (kind === 'textures' ? s.texturesRepo : s.meshesRepo);
+  const repoOf = (kind: ContentKind, s: Settings = settings.get()) => repoFor(kind, s);
   const send = <E extends 'content:changed' | 'content:progress' | 'updates:progress'>(channel: E, payload: Parameters<typeof sendEvent<E>>[2]) => {
     const w = ctx.getWindow();
     if (w && !w.isDestroyed()) sendEvent(w.webContents, channel, payload);
@@ -46,8 +49,8 @@ export function registerContentHandlers(ctx: ContentContext): void {
 
   registerInvoke('content:info', async (): Promise<ContentInfo> => {
     const c = ctx.content();
-    const [textures, meshes] = await Promise.all([c.status('textures'), c.status('meshes')]);
-    return { ...ctx.where(), textures, meshes };
+    const [textures, meshes, scripts] = await Promise.all([c.status('textures'), c.status('meshes'), c.status('scripts')]);
+    return { ...ctx.where(), textures, meshes, scripts };
   });
   registerInvoke('content:manifest', ({ kind, ref }) => ctx.content().manifest(kind, repoOf(kind), ref ?? settings.get().contentBranch), z.object({ kind: Kind, ref: z.string().min(1).max(100).optional() }));
   registerInvoke('content:refs', ({ kind }) => ctx.content().refs(repoOf(kind), settings.get().contentBranch), z.object({ kind: Kind }));
@@ -152,7 +155,7 @@ export async function checkOnStartup(ctx: ContentContext, notify: (text: string)
       // Only items that follow the latest content (not ones picked from an older version).
       const following = new Set(Object.entries(installed.items).flatMap(([id, it]) => ((it.ref ?? installed.ref) === s.contentBranch ? [id] : [])));
       if (!following.size) continue;
-      const manifest = await c.manifest(kind, kind === 'textures' ? s.texturesRepo : s.meshesRepo, s.contentBranch);
+      const manifest = await c.manifest(kind, repoFor(kind, s), s.contentBranch);
       const updated = (await c.changes(kind, manifest)).updated.filter((id) => following.has(id));
       const versions = new Set([...following].map((id) => installed.items[id]!.version ?? installed.version));
       const added = versions.has(manifest.version) ? 0 : manifest.items.filter((i) => !installed.items[i.id]).length;

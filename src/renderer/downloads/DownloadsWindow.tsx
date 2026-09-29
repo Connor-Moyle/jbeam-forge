@@ -7,7 +7,7 @@ import { AppVersions } from './AppVersions';
 import { ContentTab } from './ContentTab';
 import styles from './Downloads.module.css';
 
-export type DownloadsTab = 'app' | 'textures' | 'meshes';
+export type DownloadsTab = 'app' | 'textures' | 'meshes' | 'scripts';
 
 /**
  * Downloads: JBeam Forge's own versions (update, or roll back), and the two
@@ -22,7 +22,7 @@ export function DownloadsWindow({ tab, onTab, onClose }: { tab: DownloadsTab; on
   };
   useEffect(loadInfo, []);
   useEffect(() => window.forge.on('content:changed', loadInfo), []);
-  const count = (k: 'textures' | 'meshes') => (info ? Object.keys(info[k].installed.items).length : 0);
+  const count = (k: 'textures' | 'meshes' | 'scripts') => (info ? Object.keys(info[k].installed.items).length : 0);
   return (
     <Modal
       open
@@ -42,6 +42,7 @@ export function DownloadsWindow({ tab, onTab, onClose }: { tab: DownloadsTab; on
             { value: 'app', label: 'JBeam Forge' },
             { value: 'textures', label: `Textures${count('textures') ? ` (${count('textures')})` : ''}` },
             { value: 'meshes', label: `Meshes${count('meshes') ? ` (${count('meshes')})` : ''}` },
+            { value: 'scripts', label: `Scripts${count('scripts') ? ` (${count('scripts')})` : ''}` },
           ]}
         >
           <TabPanel value="app" className={styles.tabs}>
@@ -52,6 +53,9 @@ export function DownloadsWindow({ tab, onTab, onClose }: { tab: DownloadsTab; on
           </TabPanel>
           <TabPanel value="meshes" className={styles.tabs}>
             <ContentTab kind="meshes" info={info} onInfo={loadInfo} />
+          </TabPanel>
+          <TabPanel value="scripts" className={styles.tabs}>
+            <ContentTab kind="scripts" info={info} onInfo={loadInfo} />
           </TabPanel>
         </Tabs>
       </div>

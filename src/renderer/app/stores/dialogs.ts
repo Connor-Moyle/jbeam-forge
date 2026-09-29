@@ -42,8 +42,8 @@ interface DialogState {
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   /** Downloads window (null = closed), open on a tab. */
-  downloads: 'app' | 'textures' | 'meshes' | null;
-  setDownloads: (tab: 'app' | 'textures' | 'meshes' | null) => void;
+  downloads: 'app' | 'textures' | 'meshes' | 'scripts' | null;
+  setDownloads: (tab: 'app' | 'textures' | 'meshes' | 'scripts' | null) => void;
   /** Configurations manager window. */
   configsOpen: boolean;
   setConfigsOpen: (open: boolean) => void;

@@ -61,6 +61,7 @@ export interface ContentInfo {
   fallback: boolean;
   textures: ContentStatus;
   meshes: ContentStatus;
+  scripts: ContentStatus;
 }
 
 export interface UpdatesInfo {

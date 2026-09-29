@@ -36,7 +36,7 @@ describe('script test runner', () => {
     const r = runSandbox({
       code: t.lua,
       jbeamData: { ...controllerData(t, { name: 'windows', params: defaultParams(t) }), frameless: true },
-      scenario: { seconds: 4, tracks: [{ name: 'doorFL_coupler_notAttached', points: [[0, 0], [1, 0], [1.01, 1], [2, 1], [2.01, 0], [4, 0]] }], presses: [] },
+      scenario: { seconds: 4, tracks: [{ name: 'door_FL_coupler_notAttached', points: [[0, 0], [1, 0], [1.01, 1], [2, 1], [2.01, 0], [4, 0]] }], presses: [] },
     });
     expect(at(r, 'jbf_windows', 0.5)).toBe(0);
     expect(at(r, 'jbf_windows', 1.5)).toBeCloseTo(0.04);

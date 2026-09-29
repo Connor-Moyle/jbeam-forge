@@ -1468,6 +1468,29 @@ export class ViewportRuntime {
   }
 
   /** Render a frame now and copy it, cover-cropped, into a w×h JPEG. */
+  private posed = new Set<string>();
+
+  /** Script test playback: meshes moved by their animations (null puts every one back). */
+  setMeshPoses(poses: ReadonlyMap<string, Matrix4> | null): void {
+    const next = new Set(poses?.keys() ?? []);
+    for (const key of this.posed) {
+      if (next.has(key)) continue;
+      const obj = this.meshObjects.get(key);
+      if (!obj) continue;
+      obj.matrix.identity();
+      obj.matrixAutoUpdate = true;
+      obj.updateMatrix();
+    }
+    for (const [key, m] of poses ?? []) {
+      const obj = this.meshObjects.get(key);
+      if (!obj) continue;
+      obj.matrixAutoUpdate = false;
+      obj.matrix.copy(m);
+      obj.matrixWorldNeedsUpdate = true;
+    }
+    this.posed = next;
+  }
+
   /** A studio picture of the car (vehicle-selector style), with the shaded look whatever the viewport shows. */
   captureStudio(opts: StudioOptions): string | null {
     const saved = new Map<Mesh, Material | Material[]>();

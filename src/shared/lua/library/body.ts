@@ -177,7 +177,7 @@ export const seats: ScriptTemplate = {
     { id: 'backrest', label: 'Backrest (reclines)', kind: 'meshes', default: [], animate: { output: 'recline', motion: 'rotate', from: -8, to: 22, axis: [1, 0, 0], pivot: 'bottom' } },
     { id: 'speed', label: 'Motor speed', kind: 'number', default: 0.25, min: 0.05, max: 1, step: 0.05, unit: 'of the travel per s' },
     { id: 'easyEntry', label: 'Easy entry', kind: 'boolean', default: true, hint: 'Slides fully back while the door is open' },
-    { id: 'door', label: 'Door signal', kind: 'electrics', default: 'doorFL_coupler_notAttached', hint: 'Electrics value that is 1 while the door is open' },
+    { id: 'door', label: 'Door signal', kind: 'electrics', default: 'door_FL_coupler_notAttached', hint: 'Electrics value that is 1 while the door is open' },
     { id: 'start', label: 'Starting position', kind: 'number', default: 0.5, min: 0, max: 1, step: 0.05, advanced: true },
   ],
   outputs: [
@@ -197,7 +197,7 @@ M.type = "auxiliary"
 local outSlide, outRecline = "jbf_seat_slide", "jbf_seat_recline"
 local speed = 0.25
 local easyEntry = true
-local door = "doorFL_coupler_notAttached"
+local door = "door_FL_coupler_notAttached"
 local slide, recline = 0.5, 0.3
 local slideTarget, reclineTarget = 0.5, 0.3
 local saved = nil
@@ -251,7 +251,7 @@ M.nudge = nudge
 M.tilt = tilt
 return M
 `,
-  test: { seconds: 12, tracks: [{ name: 'doorFL_coupler_notAttached', points: [[0, 0], [6, 0], [6.01, 1], [9, 1], [9.01, 0], [12, 0]] }], presses: [{ at: 0.5, action: 'forward' }, { at: 0.8, action: 'forward' }, { at: 2.5, action: 'recline' }, { at: 2.8, action: 'recline' }] },
+  test: { seconds: 12, tracks: [{ name: 'door_FL_coupler_notAttached', points: [[0, 0], [6, 0], [6.01, 1], [9, 1], [9.01, 0], [12, 0]] }], presses: [{ at: 0.5, action: 'forward' }, { at: 0.8, action: 'forward' }, { at: 2.5, action: 'recline' }, { at: 2.8, action: 'recline' }] },
 };
 
 export const popupLights: ScriptTemplate = {

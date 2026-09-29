@@ -11,7 +11,7 @@ import { CONTENT_FORMAT, ContentManifestSchema, isSafeDir, manifestProblems, typ
  * keeps its hash from one version to the next and isn't downloaded again.
  */
 
-const MARKER: Record<ContentKind, string> = { textures: 'material.json', meshes: 'object.json' };
+const MARKER: Record<ContentKind, string> = { textures: 'material.json', meshes: 'object.json', scripts: 'script.jbscript' };
 const FIXED_TIME = new Date('2020-01-01T00:00:00Z');
 
 function walkFiles(dir: string): string[] {
@@ -88,7 +88,7 @@ export async function buildContentRepo(source: string, out: string, kind: Conten
       continue;
     }
     const folder = join(source, ...dir.split('/'));
-    let meta: { name?: unknown; category?: unknown; group?: unknown };
+    let meta: { name?: unknown; label?: unknown; category?: unknown; group?: unknown };
     try {
       meta = JSON.parse(readFileSync(join(folder, MARKER[kind]), 'utf8')) as typeof meta;
     } catch (err) {
@@ -100,7 +100,9 @@ export async function buildContentRepo(source: string, out: string, kind: Conten
     const zipPath = join(out, 'items', `${id}.zip`);
     const { files, unpacked } = await zipFolder(folder, zipPath);
     const bytes = readFileSync(zipPath);
-    const name = typeof meta.name === 'string' && meta.name.trim() ? meta.name.trim().slice(0, 120) : dir.split('/').pop()!.slice(0, 120);
+    // A script's display name is its label (its name is the controller's).
+    const shown = typeof meta.label === 'string' && meta.label.trim() ? meta.label : meta.name;
+    const name = typeof shown === 'string' && shown.trim() ? shown.trim().slice(0, 120) : dir.split('/').pop()!.slice(0, 120);
     const category = typeof meta.category === 'string' ? meta.category.slice(0, 80) : dir.split('/')[0]!.slice(0, 80);
     items.push({ id, name, category, ...(typeof meta.group === 'string' ? { group: meta.group.slice(0, 80) } : {}), dir, path, size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex'), files, unpacked });
     log(`${category.padEnd(20)} ${name.padEnd(40)} ${files} files, ${(bytes.length / 1e6).toFixed(2)} MB`);

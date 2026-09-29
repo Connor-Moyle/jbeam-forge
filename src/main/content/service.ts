@@ -27,7 +27,8 @@ import { apiUrl, assertRef, assertRepo, downloadFile, endpoints, getJson, Github
  * ever leaving a half-written folder, removing items, and what's installed.
  */
 
-const MARKER: Record<ContentKind, string> = { textures: 'material.json', meshes: 'object.json' };
+const MARKER: Record<ContentKind, string> = { textures: 'material.json', meshes: 'object.json', scripts: 'script.jbscript' };
+const KIND_LABEL: Record<ContentKind, string> = { textures: 'Textures are', meshes: 'Meshes are', scripts: 'Scripts are' };
 const UNPACK_LIMIT = 2 * 1024 * 1024 * 1024;
 
 export class ContentService {
@@ -122,7 +123,7 @@ export class ContentService {
   async download(kind: ContentKind, repo: string, ref: string, ids: readonly string[] | 'all', concurrency = 4): Promise<DownloadResult> {
     assertRepo(repo);
     assertRef(ref);
-    if (this.jobs.has(kind)) throw new GithubError(`${kind === 'textures' ? 'Textures are' : 'Meshes are'} already downloading`, 'BAD_INPUT');
+    if (this.jobs.has(kind)) throw new GithubError(`${KIND_LABEL[kind]} already downloading`, 'BAD_INPUT');
     const ctrl = new AbortController();
     this.jobs.set(kind, ctrl);
     const failed: DownloadResult['failed'] = [];

@@ -39,7 +39,8 @@ export class Packs {
     return this.objectsP;
   }
 
-  reload(kind: 'textures' | 'meshes' | 'all' = 'all'): void {
+  reload(kind: 'textures' | 'meshes' | 'scripts' | 'all' = 'all'): void {
+    if (kind === 'scripts') return;
     if (kind !== 'meshes') this.materialsP = this.loadMaterials();
     if (kind !== 'textures') this.objectsP = this.loadObjects();
   }

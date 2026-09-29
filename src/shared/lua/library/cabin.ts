@@ -10,7 +10,7 @@ export const welcomeLights: ScriptTemplate = {
   description: 'Puddle and courtesy lights that come on while a door is open and fade out after it shuts, and headlights that stay on for a while after you switch off (follow me home).',
   name0: 'welcome',
   params: [
-    { id: 'doors', label: 'Door signals', kind: 'text', default: 'doorFL_coupler_notAttached,doorFR_coupler_notAttached', hint: 'Electrics values that are 1 while a door is open' },
+    { id: 'doors', label: 'Door signals', kind: 'text', default: 'door_FL_coupler_notAttached,door_FR_coupler_notAttached', hint: 'Electrics values that are 1 while a door is open' },
     { id: 'fade', label: 'Fade out', kind: 'number', default: 1.5, min: 0.1, max: 10, step: 0.1, unit: 's' },
     { id: 'follow', label: 'Follow me home', kind: 'number', default: 30, min: 0, max: 120, step: 5, unit: 's', hint: '0 = off' },
   ],
@@ -66,7 +66,7 @@ return M
   test: {
     seconds: 12,
     tracks: [
-      { name: 'doorFL_coupler_notAttached', points: [[0, 0], [1, 0], [1.01, 1], [3, 1], [3.01, 0], [12, 0]] },
+      { name: 'door_FL_coupler_notAttached', points: [[0, 0], [1, 0], [1.01, 1], [3, 1], [3.01, 0], [12, 0]] },
       { name: 'ignitionLevel', points: [[0, 2], [6, 2], [6.01, 0], [12, 0]] },
       { name: 'lights', points: [[0, 1], [12, 1]] },
     ],

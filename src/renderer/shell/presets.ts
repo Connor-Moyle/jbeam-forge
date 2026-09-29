@@ -9,6 +9,7 @@ export const PRESET_LABELS: Record<PresetId, string> = {
   modelling: 'Modelling',
   materials: 'Materials',
   testing: 'Testing',
+  scripts: 'Scripts',
 };
 
 interface PresetPlacement {
@@ -39,6 +40,15 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'viewport' },
     { id: 'test-results', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
     { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+  ],
+  // Vehicle scripts: the car's scripts and templates on the left, the script (settings or code) on the right, its test under the car.
+  scripts: [
+    { id: 'viewport' },
+    // Scene shares the left strip (to pick meshes); Scripts, added last, is the tab shown.
+    { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+    { id: 'scripts', relativeTo: 'scene', direction: 'within' },
+    { id: 'script', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'script-test', relativeTo: 'viewport', direction: 'below' },
   ],
 };
 

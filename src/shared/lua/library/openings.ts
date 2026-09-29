@@ -15,7 +15,7 @@ export const windows: ScriptTemplate = {
     { id: 'seconds', label: 'Full travel time', kind: 'number', default: 3.5, min: 1, max: 10, step: 0.1, unit: 's' },
     { id: 'frameless', label: 'Frameless: drop when the door opens', kind: 'boolean', default: false },
     { id: 'drop', label: 'Drop', kind: 'number', default: 0.04, min: 0.01, max: 0.2, step: 0.005, unit: 'of the travel', hint: 'About 1.5 cm on most cars' },
-    { id: 'doors', label: 'Door signals', kind: 'text', default: 'doorFL_coupler_notAttached,doorFR_coupler_notAttached', hint: 'Electrics values that are 1 while a door is open, comma separated' },
+    { id: 'doors', label: 'Door signals', kind: 'text', default: 'door_FL_coupler_notAttached,door_FR_coupler_notAttached', hint: 'Electrics values that are 1 while a door is open, comma separated' },
     { id: 'riseDelay', label: 'Rise after closing', kind: 'number', default: 0.35, min: 0, max: 3, step: 0.05, unit: 's', advanced: true },
   ],
   outputs: [{ suffix: '', label: 'Open (0 shut, 1 fully down)', min: 0, max: 1 }],
@@ -101,7 +101,7 @@ return M
 `,
   test: {
     seconds: 14,
-    tracks: [{ name: 'doorFL_coupler_notAttached', points: [[0, 0], [9, 0], [9.01, 1], [11, 1], [11.01, 0], [14, 0]] }],
+    tracks: [{ name: 'door_FL_coupler_notAttached', points: [[0, 0], [9, 0], [9.01, 1], [11, 1], [11.01, 0], [14, 0]] }],
     presses: [{ at: 0.5, action: 'toggle' }, { at: 2, action: 'toggle' }, { at: 3, action: 'toggle' }, { at: 7.5, action: 'vent' }],
   },
 };
