@@ -21,8 +21,7 @@ if (!process.argv.includes('--no-build')) execSync('npm run dist', { cwd: root, 
 
 const assets = [`JBeam-Forge-Setup-${version}.exe`, `JBeam-Forge-${version}-portable.exe`].map((f) => join(root, 'release', f));
 for (const a of assets) if (!existsSync(a)) throw new Error(`Missing build output: ${a}`);
-// The material pack as its own download, when it was built for this version.
-// The optional packs, each its own download.
+// Old-style pack zips, if built (content now ships from the textures and meshes repositories).
 for (const name of ['Materials', 'Objects']) {
   const pack = join(root, 'release', `JBeam-Forge-${name}-${version}.zip`);
   if (existsSync(pack)) assets.push(pack);

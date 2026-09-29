@@ -199,6 +199,14 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - A paint scheme, a configuration with its own paints, and a painted mask and livery.
 - A material with a different inside.
 
+**Downloads and Settings** (fork)
+- The materials and objects packs are unbundled into two optional GitHub repositories, textures and meshes (`docs/content-repos.md`). `npm run build-content-repos` builds them from `packs/`.
+- **Downloads window** (`src/renderer/downloads/`): the app's GitHub releases (latest, notes, installer or portable download with SHA-256 check, install, roll back to an older release); textures and meshes each with version/tag choice, download all, update changed, single items, remove, search and filters, progress and cancel.
+- **Main process** (`src/main/content/`): manifest validation, verified downloads (size + SHA-256, GitHub hosts only), safe unzip and atomic swap, per-item version records, cancel, content folder beside the app (portable/installed/dev) with a fallback, and a startup check for updates.
+- **Settings** rebuilt as a sectioned page with every setting wired: display (window size presets, start mode, UI scale), graphics (render scale, anti-aliasing, frame cap, FPS counter, grid, reflections, background, FOV, orbit/zoom speed), units, autosave, undo limit, recent list, export (zip compression, open folder), downloads (content folder, repositories, branch, pre-releases, parallel downloads, startup check).
+- **Code review, two rounds:** fixes include the undo limit leaving the project dirty, an update-download race, stale settings overwriting newer ones, temp-folder cleanup racing a new download, engines renamed when reordered (they now keep a tag and share one slot and the `e_` node names, so the gearbox fits whichever is chosen), props hung from nodes that aren't exported, the suspension drop's pitch message naming the wrong end, and channel views skipping painted overlays and back faces.
+- **Verification:** `npm run typecheck` ✔ · `npm run lint` ✔ · `npm test` 733/733 ✔ · `npm run run-desktop` 18/18 ✔. The new downloads scenario runs against a local fake GitHub: installs the latest app release, rolls back, downloads one texture then all, all meshes, checks the library sees them, and removes them.
+
 ### Between phases: objects library and Assetto Corsa import (0.8.2–0.8.3)
 
 **Objects library (0.8.2):**
