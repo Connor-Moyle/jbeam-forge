@@ -46,6 +46,12 @@
   width: var(--size-modal-md);
 }
 
+/* Big windows (Settings, Downloads): a fixed height so switching sections doesn't resize them. */
+.lg {
+  width: var(--size-modal-lg);
+  height: var(--size-modal-lg-height);
+}
+
 .header {
   display: flex;
   align-items: center;

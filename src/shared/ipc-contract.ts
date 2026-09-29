@@ -273,7 +273,7 @@ export interface InvokeContract {
 }
 
 /** Commands the native menu forwards to the renderer. */
-export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'settings', 'exportModelGlb', 'exportModelDae'] as const;
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'settings', 'downloads', 'exportModelGlb', 'exportModelDae'] as const;
 export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */

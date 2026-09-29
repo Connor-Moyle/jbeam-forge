@@ -65,6 +65,9 @@ export function runAppCommand(command: AppCommand): void {
     case 'settings':
       useDialogStore.getState().setSettingsOpen(true);
       break;
+    case 'downloads':
+      useDialogStore.getState().setDownloads('app');
+      break;
     case 'exportModelGlb':
       if (projectStore.getState().doc) void exportModel('glb');
       break;

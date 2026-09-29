@@ -45,6 +45,7 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
         },
         { type: 'separator' },
         { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: command('settings') },
+        { label: 'Downloads…', accelerator: 'CmdOrCtrl+Shift+D', click: command('downloads') },
         { type: 'separator' },
         { label: 'Close Project', click: command('close') },
         { type: 'separator' },

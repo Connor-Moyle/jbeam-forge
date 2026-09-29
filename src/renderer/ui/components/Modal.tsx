@@ -13,7 +13,7 @@ export interface ModalProps {
   children?: ReactNode;
   /** Right-aligned action row; put the single primary button last. */
   footer?: ReactNode;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export function Modal({ open, onOpenChange, title, description, children, footer, size = 'md' }: ModalProps) {
@@ -25,7 +25,7 @@ export function Modal({ open, onOpenChange, title, description, children, footer
         <Dialog.Overlay className={styles.backdrop} />
         <Dialog.Content
           ref={contentRef}
-          className={cx(styles.modal, size === 'sm' ? styles.sm : styles.md)}
+          className={cx(styles.modal, size === 'sm' ? styles.sm : size === 'lg' ? styles.lg : styles.md)}
           aria-describedby={description === undefined ? undefined : descriptionId}
           // Focus the dialog itself: auto-focusing the close button would pop its tooltip.
           onOpenAutoFocus={(e) => {

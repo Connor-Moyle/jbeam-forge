@@ -8,6 +8,7 @@ import { Button } from '@renderer/ui/components/Button';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
 import { addEngineOption, fitPowertrain, makeDefaultEngine, removeEngineOption, removePowertrain, setPowertrainChoices, setPowertrainTuning, usePowertrainCatalogue, usePowertrainUi, type PowertrainKind } from './commands';
+import { useUnits } from '@renderer/settings/useUnits';
 import styles from '@renderer/workshop/Workshop.module.css';
 import { EngineBuilder, GearboxBuilder } from './Builder';
 
@@ -149,11 +150,12 @@ function EngineOptions({ alternates }: { alternates: readonly FittedSet[] }) {
 }
 
 function EngineLine({ set }: { set: SuspensionSet }) {
+  const units = useUnits();
   const e = set.engine;
   if (!e) return null;
   const bits = [
-    e.peakPower && `${Math.round(e.peakPower.kw)} kW (${Math.round(e.peakPower.kw * 1.341)} hp) @ ${Math.round(e.peakPower.rpm)}`,
-    e.peakTorque && `${Math.round(e.peakTorque.nm)} Nm @ ${Math.round(e.peakTorque.rpm)}`,
+    e.peakPower && `${units.power(e.peakPower.kw)} @ ${Math.round(e.peakPower.rpm)}`,
+    e.peakTorque && `${units.torque(e.peakTorque.nm)} @ ${Math.round(e.peakTorque.rpm)}`,
     e.displacementL && `${e.displacementL} L`,
     e.fuel !== 'petrol' && e.fuel,
     e.forcedInduction,

@@ -51,6 +51,9 @@
   --preview-checker-b: #5e636b;
   --preview-sky-top: #6f9fd8;
   --preview-sky-bottom: #d8e3ee;
+  --viewport-bg-black: #000000;
+  --viewport-bg-grey: #54575d;
+  --viewport-bg-light: #d6d8dc;
   --viewport-key: #ffffff; /* key light */
 
   /* Category colour dots (scene tree); extended in Phase 3 */
@@ -147,6 +150,12 @@
   --size-popover-max: 340px;
   --size-modal-sm: 400px;
   --size-modal-md: 560px;
+  --size-modal-lg: 960px;
+  --size-modal-lg-height: 720px;
+  --size-notes-height: 180px;
+  --size-search-min: 160px;
+  --size-filter: 180px;
+  --size-settings-nav: 180px;
   --size-empty-max: 280px;
   --size-number-input: 88px;
   --size-select-max: 280px;

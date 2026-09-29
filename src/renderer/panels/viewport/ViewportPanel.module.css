@@ -128,3 +128,16 @@ button.pill:hover {
   border-color: var(--accent);
   color: var(--text-0);
 }
+
+.fps {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--text-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  pointer-events: none;
+}

@@ -115,10 +115,11 @@ export async function installUnpacked(modsDir: string, bundle: ModBundle): Promi
 }
 
 /** Write a zip (paths as in the bundle, so it drops straight into mods/). */
-export async function writeZip(zipPath: string, bundle: ModBundle): Promise<{ path: string; bytes: number }> {
+export async function writeZip(zipPath: string, bundle: ModBundle, compress = true): Promise<{ path: string; bytes: number }> {
   const zip = new ZipFile();
-  for (const f of bundle.files) zip.addBuffer(f.base64 !== undefined ? Buffer.from(f.base64, 'base64') : Buffer.from(f.text ?? '', 'utf8'), f.path);
-  for (const c of bundle.copies) zip.addBuffer(await readFile(c.from), c.to);
+  const opts = { compress };
+  for (const f of bundle.files) zip.addBuffer(f.base64 !== undefined ? Buffer.from(f.base64, 'base64') : Buffer.from(f.text ?? '', 'utf8'), f.path, opts);
+  for (const c of bundle.copies) zip.addBuffer(await readFile(c.from), c.to, opts);
   const tmp = `${zipPath}.jbforge-tmp`;
   await new Promise<void>((resolve, reject) => {
     const out = createWriteStream(tmp);

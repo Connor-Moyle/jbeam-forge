@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Car, Clock, FolderOpen, FolderSearch, ImageOff, Plus, Trash2, X } from 'lucide-react';
+import { Car, Clock, CloudDownload, FolderOpen, Settings, FolderSearch, ImageOff, Plus, Trash2, X } from 'lucide-react';
 import type { RecentProject } from '@shared/ipc-contract';
 import { relativeTime } from '@shared/text';
 import { call } from '@renderer/diagnostics/ipc';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import { openProject, openRecentProject } from '@renderer/project/actions';
 import { Badge } from '@renderer/ui/components/Badge';
 import { ContextMenu } from '@renderer/ui/components/ContextMenu';
@@ -12,6 +13,8 @@ import { IconButton } from '@renderer/ui/components/IconButton';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { iconSize } from '@renderer/ui/tokens';
 import styles from './HomeScreen.module.css';
+
+let triedLastProject = false;
 
 /** Startup screen (SPEC §4.1): New Mod / Open cards + recent projects. */
 export function HomeScreen() {
@@ -26,6 +29,15 @@ export function HomeScreen() {
 
   useEffect(refresh, [refresh]);
 
+  // Settings → General: open the last project at startup (once per launch; the home screen comes back after closing it).
+  const openLast = useSettingsStore((s) => s.settings?.openLastProject);
+  useEffect(() => {
+    if (triedLastProject || openLast === undefined || !recent) return;
+    triedLastProject = true;
+    const last = recent[0];
+    if (openLast && last?.exists) void openRecentProject(last.path);
+  }, [openLast, recent]);
+
   const remove = (path: string) => {
     call('recent:remove', { path }).then(refresh).catch(() => undefined);
   };
@@ -37,6 +49,10 @@ export function HomeScreen() {
           <header className={styles.header}>
             <h1 className={styles.title}>JBeam Forge</h1>
             <p className={styles.subtitle}>Turn a 3D vehicle model into an installable BeamNG.drive mod · v{__APP_VERSION__}</p>
+            <div className={styles.headerActions}>
+              <IconButton icon={CloudDownload} label="Downloads: updates, textures and meshes" onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="home-downloads" />
+              <IconButton icon={Settings} label="Settings" onClick={() => useDialogStore.getState().setSettingsOpen(true)} data-testid="home-settings" />
+            </div>
           </header>
 
           <div className={styles.cards}>

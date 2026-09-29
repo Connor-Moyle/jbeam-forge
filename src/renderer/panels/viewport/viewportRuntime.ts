@@ -258,8 +258,9 @@ export class ViewportRuntime {
     private readonly canvas: HTMLCanvasElement,
     host: HTMLElement,
     private readonly callbacks: ViewportCallbacks,
+    options: { antialias?: boolean } = {},
   ) {
-    this.renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer = new WebGLRenderer({ canvas, antialias: options.antialias ?? true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.raycaster.firstHitOnly = true;
 
@@ -273,6 +274,7 @@ export class ViewportRuntime {
     room.dispose();
     pmrem.dispose();
     const grid = new GridHelper(GRID_SIZE_M, GRID_DIVISIONS, new Color(resolveToken('grid-major')), new Color(resolveToken('grid-minor')));
+    this.grid = grid;
     const hemi = new HemisphereLight(new Color(resolveToken('viewport-sky')), new Color(resolveToken('viewport-ground')), 2.2);
     const key = new DirectionalLight(new Color(resolveToken('viewport-key')), 2.4);
     key.position.set(4, 8, 6);
@@ -637,6 +639,41 @@ export class ViewportRuntime {
   }
 
   private orbitFov = 45;
+  private grid: GridHelper | null = null;
+  private maxFps = 0;
+  private lastFrame = 0;
+  private frames = 0;
+  private fpsWindow = performance.now();
+  /** Frames drawn per second, measured over the last second. */
+  fps = 0;
+
+  /**
+   * Settings → Viewport & graphics: render resolution, frame-rate cap, grid,
+   * reflections, background, field of view, orbit and zoom speed.
+   * (Anti-aliasing is fixed when the WebGL context is made: the view restarts for it.)
+   */
+  setGraphics(g: { renderScale: number; maxFps: number; showGrid: boolean; reflections: boolean; background: 'theme' | 'black' | 'grey' | 'light'; fov: number; orbitSpeed: number; zoomSpeed: number; invertZoom: boolean }): void {
+    const ratio = window.devicePixelRatio * g.renderScale;
+    if (Math.abs(this.renderer.getPixelRatio() - ratio) > 1e-6) {
+      this.renderer.setPixelRatio(ratio);
+      const size = this.renderer.getSize(new Vector2());
+      if (size.x > 0 && size.y > 0) this.renderer.setSize(size.x, size.y, false);
+    }
+    this.maxFps = g.maxFps;
+    if (this.grid) this.grid.visible = g.showGrid;
+    this.scene.environment = g.reflections ? this.environment : null;
+    const bg = g.background === 'theme' ? 'bg-0' : (`viewport-bg-${g.background}` as const);
+    this.scene.background = new Color(resolveToken(bg) || resolveToken('bg-0'));
+    // The orbit view's field of view (an interior camera being looked through keeps its own).
+    const looking = this.camera.fov !== this.orbitFov;
+    this.orbitFov = g.fov;
+    if (!looking) {
+      this.camera.fov = g.fov;
+      this.camera.updateProjectionMatrix();
+    }
+    this.controls.rotateSpeed = g.orbitSpeed;
+    this.controls.zoomSpeed = g.invertZoom ? -g.zoomSpeed : g.zoomSpeed;
+  }
 
   /**
    * Look through an interior camera (BeamNG eye position, vertical field of
@@ -1436,6 +1473,16 @@ export class ViewportRuntime {
   }
 
   private tick(): void {
+    // Frame-rate cap: skip frames that come too soon (a little early is fine; rAF isn't exact).
+    const now = performance.now();
+    if (this.maxFps > 0 && now - this.lastFrame < 1000 / this.maxFps - 2) return;
+    this.lastFrame = now;
+    this.frames++;
+    if (now - this.fpsWindow >= 1000) {
+      this.fps = Math.round((this.frames * 1000) / (now - this.fpsWindow));
+      this.frames = 0;
+      this.fpsWindow = now;
+    }
     if (this.injectedFrameErrors > 0) {
       this.injectedFrameErrors--;
       throw new Error('[harness-triggered] injected frame error');

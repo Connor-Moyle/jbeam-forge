@@ -45,3 +45,60 @@
   color: var(--text-2);
   font-size: var(--text-label);
 }
+
+.layout {
+  display: grid;
+  grid-template-columns: var(--size-settings-nav) minmax(0, 1fr);
+  gap: var(--space-3);
+  height: 100%;
+  min-height: 0;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  overflow: auto;
+}
+
+.navItem {
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--text-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.navItem:hover {
+  background: var(--bg-3);
+}
+
+.navOn {
+  background: var(--accent-dim);
+  color: var(--text-0);
+}
+
+.sections {
+  min-height: 0;
+  overflow: auto;
+  padding-right: var(--space-2);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.spacer {
+  flex: 1;
+}

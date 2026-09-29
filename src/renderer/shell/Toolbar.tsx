@@ -1,4 +1,4 @@
-import { BadgePlus, Box, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wand2, Wrench } from 'lucide-react';
+import { BadgePlus, Box, CloudDownload, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wand2, Wrench } from 'lucide-react';
 import { PRESET_IDS, type PresetId } from '@shared/layout-schema';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -106,7 +106,8 @@ export function Toolbar() {
         <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!hasParts} data-testid="toolbar-export">
           Export
         </Button>
-        <IconButton icon={Settings} label="Settings" onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
+        <IconButton icon={CloudDownload} label="Downloads: updates, textures and meshes" shortcut="Ctrl+Shift+D" onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="open-downloads" />
+        <IconButton icon={Settings} label="Settings" shortcut="Ctrl+," onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
       </div>
     </header>
   );

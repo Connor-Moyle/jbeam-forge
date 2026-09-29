@@ -28,6 +28,7 @@ import { installNamingRules, renameFromParts } from '@renderer/parts/naming';
 import { mirrorPartners } from '@shared/structure/edit';
 import { useObjects } from '@renderer/panels/ObjectsPanel';
 import { loadFittedSets } from '@renderer/suspension/commands';
+import { startAutosave } from '@renderer/project/autosave';
 import { prepareExport } from '@renderer/export/exportFlow';
 import { transformMeshes } from '@renderer/scene/meshCommands';
 import type { MeshGizmoTransform } from '@renderer/panels/viewport/viewportRuntime';
@@ -59,6 +60,16 @@ function AppEffects() {
       }),
     [pushStatus],
   );
+  // Textures or meshes downloaded or removed: reload the material pack and objects list.
+  useEffect(
+    () =>
+      window.forge.on('content:changed', ({ kind }) => {
+        if (kind === 'meshes') void useObjects.getState().reload();
+        else void call('materials:pack').then((pack) => useLibrary.getState().setPack(pack));
+      }),
+    [],
+  );
+  useEffect(() => startAutosave(), []);
   useEffect(() => void loadUserTaxonomy(), []);
   useEffect(() => installNamingRules(), []);
 

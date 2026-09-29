@@ -16,6 +16,7 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { resetPowertrainEdits, setGearRatios, setPowertrainField, setPowertrainText, setTorqueCurve, usePowertrainUi, type PowertrainKind } from './commands';
 import { RevPreview } from './revPreview';
 import { call } from '@renderer/diagnostics/ipc';
+import { useUnits } from '@renderer/settings/useUnits';
 import styles from './Builder.module.css';
 
 /**
@@ -23,7 +24,6 @@ import styles from './Builder.module.css';
  * the game, changed here and written into the mod's copy of its jbeam.
  */
 
-const hp = (kw: number) => kw * 1.341;
 const kwAt = (rpm: number, nm: number) => (nm * rpm * 2 * Math.PI) / 60000;
 
 function useFitted(kind: PowertrainKind): { fitted: FittedSet | null; parts: Record<string, JbeamObject> | null; root: string } {
@@ -96,6 +96,7 @@ const PAD = { l: 34, r: 34, t: 10, b: 20 };
 /** Torque (accent) and power (warning) against rpm; drag a point to change its torque. */
 function DynoEditor({ curve, reference, limit, selected, onSelect, onChange }: { curve: [number, number][]; reference: [number, number][] | null; limit: number; selected: number | null; onSelect: (i: number | null) => void; onChange: (curve: [number, number][], drag: string) => void }) {
   const svg = useRef<SVGSVGElement>(null);
+  const units = useUnits();
   const drag = useRef<{ i: number; id: string } | null>(null);
   const all = [...curve, ...(reference ?? [])];
   const maxRpm = Math.max(limit, ...all.map(([r]) => r), 1000);
@@ -134,10 +135,10 @@ function DynoEditor({ curve, reference, limit, selected, onSelect, onChange }: {
       ))}
       <line className={styles.limit} x1={x(limit)} x2={x(limit)} y1={PAD.t} y2={H - PAD.b} />
       <text className={styles.axisTorque} x={4} y={PAD.t + 8}>
-        {Math.round(maxNm)} Nm
+        {units.torque(maxNm)}
       </text>
       <text className={styles.axisPower} x={W - 4} y={PAD.t + 8} textAnchor="end">
-        {Math.round(hp(maxKw))} hp
+        {units.power(maxKw)}
       </text>
       {reference && <polyline className={styles.reference} points={line(reference, (_r, t) => yT(t))} />}
       <polyline className={styles.torque} points={line(curve, (_r, t) => yT(t))} />
@@ -164,6 +165,7 @@ function DynoEditor({ curve, reference, limit, selected, onSelect, onChange }: {
 
 export function EngineBuilder() {
   const { fitted, parts, root } = useFitted('engine');
+  const units = useUnits();
   const [selected, setSelected] = useState<number | null>(null);
   const fields = useMemo(() => (parts ? editableFields(parts) : []), [parts]);
   if (!fitted) return null;
@@ -201,8 +203,8 @@ export function EngineBuilder() {
       <Header title={`Engine builder · ${fitted.vehicle} ${fitted.name}`} onReset={() => resetPowertrainEdits('engine')} />
       <ScrollArea className={styles.scroll}>
         <div className={styles.stats}>
-          <Stat label="Power" value={peaks.power ? `${Math.round(hp(peaks.power.kw))} hp` : '—'} sub={peaks.power ? `${Math.round(peaks.power.kw)} kW @ ${Math.round(peaks.power.rpm)}` : ''} was={gamePeaks.power ? Math.round(hp(gamePeaks.power.kw)) : null} now={peaks.power ? Math.round(hp(peaks.power.kw)) : null} />
-          <Stat label="Torque" value={peaks.torque ? `${Math.round(peaks.torque.nm)} Nm` : '—'} sub={peaks.torque ? `@ ${Math.round(peaks.torque.rpm)} rpm` : ''} was={gamePeaks.torque ? Math.round(gamePeaks.torque.nm) : null} now={peaks.torque ? Math.round(peaks.torque.nm) : null} />
+          <Stat label="Power" value={peaks.power ? units.power(peaks.power.kw) : '—'} sub={peaks.power ? `@ ${Math.round(peaks.power.rpm)} rpm` : ''} was={gamePeaks.power ? units.powerValue(gamePeaks.power.kw) : null} now={peaks.power ? units.powerValue(peaks.power.kw) : null} />
+          <Stat label="Torque" value={peaks.torque ? units.torque(peaks.torque.nm) : '—'} sub={peaks.torque ? `@ ${Math.round(peaks.torque.rpm)} rpm` : ''} was={gamePeaks.torque ? units.torqueValue(gamePeaks.torque.nm) : null} now={peaks.torque ? units.torqueValue(peaks.torque.nm) : null} />
           <Stat label="Rev limit" value={`${Math.round(limit)} rpm`} sub={valueOf(idleKey) !== null ? `idle ${Math.round(valueOf(idleKey)!)}` : ''} was={null} now={null} />
           <Stat label="Weight" value={`${Math.round(mass)} kg`} sub={massScale !== 1 ? `× ${massScale.toFixed(2)}` : 'as the game has it'} was={null} now={null} />
         </div>
@@ -268,6 +270,7 @@ function Stat({ label, value, sub, was, now }: { label: string; value: string; s
 
 export function GearboxBuilder() {
   const { fitted, parts, root } = useFitted('gearbox');
+  const units = useUnits();
   const engine = useFitted('engine');
   const [finalDrive, setFinalDrive] = useState(3.9);
   const [tyre, setTyre] = useState(0.31);
@@ -313,7 +316,7 @@ export function GearboxBuilder() {
                   {r > 0 ? (
                     <span className={styles.bar}>
                       <span className={styles.barFill} style={{ inlineSize: `${(kmh / top) * 100}%` }} />
-                      <span className={styles.barText}>{Math.round(kmh)} km/h</span>
+                      <span className={styles.barText}>{units.speed(kmh)}</span>
                     </span>
                   ) : (
                     <span />

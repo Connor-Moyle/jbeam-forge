@@ -9,12 +9,8 @@ files:
   - package.json
   - '!**/*.map'
 asar: true
-# The material pack ships inside the app (built with npm run build-material-pack).
-extraResources:
-  - from: packs/materials
-    to: materials-pack
-  - from: packs/objects
-    to: objects-pack
+# Textures and meshes are optional downloads from their own repositories (Downloads window;
+# npm run build-content-repos builds them), so the installer no longer carries the packs.
 win:
   icon: build/icon.png
   target:

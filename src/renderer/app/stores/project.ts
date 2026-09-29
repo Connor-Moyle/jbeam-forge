@@ -77,6 +77,12 @@ export interface SavedHistory {
 
 /** Keep saved history to what's useful and fast to load. */
 const MAX_SAVED_ENTRIES = 300;
+
+/** Undo steps kept in memory (Settings → General); the oldest drop off. */
+let undoLimit = 1000;
+export function setUndoLimit(n: number): void {
+  undoLimit = Math.max(1, Math.round(n));
+}
 const MAX_SAVED_CHARS = 32 * 1024 * 1024;
 
 /**
@@ -165,7 +171,8 @@ export function createProjectStore(): StoreApi<ProjectState> {
         const entry: HistoryEntry = merge
           ? { ...top, patches: [...top.patches, ...patches], inverse: [...inverse, ...top.inverse], at: now }
           : { id: nextEntryId++, label: command.label, patches, inverse, coalesce: command.coalesce, at: now };
-        return { doc: next, undoStack: [...(merge ? s.undoStack.slice(0, -1) : s.undoStack), entry], redoStack: [] };
+        const stack = [...(merge ? s.undoStack.slice(0, -1) : s.undoStack), entry];
+        return { doc: next, undoStack: stack.length > undoLimit ? stack.slice(stack.length - undoLimit) : stack, redoStack: [] };
       });
       return true;
     },

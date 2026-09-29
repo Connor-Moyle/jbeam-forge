@@ -65,7 +65,8 @@ async function start(): Promise<void> {
   projects.grantRoot(objectsDir);
   // Downloaded textures and meshes: beside the program (Settings → Downloads can move them).
   const portableDir = process.env.PORTABLE_EXECUTABLE_DIR || undefined;
-  const contentPaths = (override: string | null) => ({ override, isPackaged: app.isPackaged, portableDir, execPath: process.execPath, appPath: app.getAppPath(), userData });
+  // The harness keeps downloads in its temp folder (JBFORGE_CONTENT_DIR), never in the repository.
+  const contentPaths = (override: string | null) => ({ override: process.env.JBFORGE_CONTENT_DIR || override, isPackaged: app.isPackaged, portableDir, execPath: process.execPath, appPath: app.getAppPath(), userData });
   let where = await resolveContentRoot(contentPaths(loaded.contentDir));
   if (where.fallback) logger.warn(`content folder ${where.preferred} isn't writable; using ${where.root}`);
   projects.grantRoot(where.root);

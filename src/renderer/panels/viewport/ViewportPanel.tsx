@@ -45,8 +45,15 @@ import { transformMeshes } from '@renderer/scene/meshCommands';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
 
+/** The viewport; anti-aliasing is fixed when the WebGL context is made, so changing it restarts the view. */
 export function ViewportPanel() {
+  const antialias = useSettingsStore((s) => s.settings?.antialias ?? true);
+  return <ViewportCanvas key={antialias ? 'aa' : 'no-aa'} antialias={antialias} />;
+}
+
+function ViewportCanvas({ antialias }: { antialias: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const runtimeRef = useRef<ViewportRuntime | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [glState, setGlState] = useState<GlState>(() => (webglAvailable() ? 'starting' : 'unsupported'));
   const [fatal, setFatal] = useState<Error | null>(null);
@@ -113,7 +120,7 @@ export function ViewportPanel() {
           previewSelectionMove(null);
           if (Math.hypot(...delta) > 1e-6) moveSelection(delta);
         },
-      });
+      }, { antialias });
     } catch (err) {
       reportError('viewport init failed', err);
       // One-shot fallback when WebGL init throws; cannot cascade.
@@ -122,6 +129,7 @@ export function ViewportPanel() {
       return;
     }
     const rt = runtime;
+    runtimeRef.current = rt;
 
     // Scene store → runtime, outside React rendering (hundreds of meshes, per-frame hover).
     let meshesSource: unknown = null;
@@ -199,7 +207,11 @@ export function ViewportPanel() {
       push();
     });
     const unsubscribeTextures = useTextureVersion.subscribe(push);
-    const ghost = () => rt.setGhostOpacity(useSettingsStore.getState().settings?.focusGhostOpacity ?? DEFAULT_SETTINGS.focusGhostOpacity);
+    const ghost = () => {
+      const st = useSettingsStore.getState().settings ?? DEFAULT_SETTINGS;
+      rt.setGhostOpacity(st.focusGhostOpacity);
+      rt.setGraphics({ renderScale: st.renderScale, maxFps: st.maxFps, showGrid: st.showGrid, reflections: st.reflections, background: st.viewportBackground, fov: st.cameraFov, orbitSpeed: st.orbitSpeed, zoomSpeed: st.zoomSpeed, invertZoom: st.invertZoom });
+    };
     ghost();
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
     const unsubscribeView = useUiStore.subscribe((s) => {
@@ -397,6 +409,7 @@ export function ViewportPanel() {
       host.removeEventListener('dragover', onDragOver);
       host.removeEventListener('drop', onDrop);
       rt.dispose();
+      runtimeRef.current = null;
     };
     // Runtime is created once per mount; state changes must not recreate it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -416,6 +429,7 @@ export function ViewportPanel() {
       <EditToolbar />
       <FocusPill />
       <MovePill />
+      <FpsCounter runtime={runtimeRef} />
       {toolShape && toolShape.length >= 4 && (
         <svg className={splitStyles.shape} aria-hidden>
           <polygon points={svgPoints(toolShape)} />
@@ -433,6 +447,23 @@ export function ViewportPanel() {
           Import a model to begin
         </button>
       )}
+    </div>
+  );
+}
+
+/** Settings → Show frame rate: the viewport's measured frames per second. */
+function FpsCounter({ runtime }: { runtime: { current: ViewportRuntime | null } }) {
+  const show = useSettingsStore((s) => s.settings?.showFps ?? false);
+  const [fps, setFps] = useState(0);
+  useEffect(() => {
+    if (!show) return;
+    const t = setInterval(() => setFps(runtime.current?.fps ?? 0), 500);
+    return () => clearInterval(t);
+  }, [show, runtime]);
+  if (!show) return null;
+  return (
+    <div className={styles.fps} data-testid="viewport-fps" aria-live="off">
+      {fps} fps
     </div>
   );
 }

@@ -199,3 +199,10 @@
 .row:focus-within .rowAction {
   opacity: 1;
 }
+
+.headerActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}

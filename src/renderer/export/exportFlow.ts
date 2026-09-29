@@ -255,6 +255,7 @@ export async function runExport(mode: 'install' | 'zip'): Promise<void> {
     if (r) {
       ui.set({ result: { ...r, mode } });
       logger.info(`export ${mode}: ${r.path}`);
+      if (useSettingsStore.getState().settings?.openFolderAfterExport) void call('export:reveal').catch(() => undefined);
     }
   } catch (err) {
     ui.set({ error: errorText(err) });
@@ -273,6 +274,7 @@ export async function runPublish(listing: PublishListing): Promise<void> {
     const r = await call('export:publish', { bundle: prepared.bundle, listing });
     if (r) {
       ui.set({ result: { ...r, mode: 'publish' } });
+      if (useSettingsStore.getState().settings?.openFolderAfterExport) void call('export:reveal').catch(() => undefined);
       logger.info(`export publish: ${r.path}`);
     }
   } catch (err) {

@@ -188,7 +188,7 @@ export function registerIpcHandlers(services: HandlerServices): void {
       const safeVersion = listing.version.replace(/[^\w.-]+/g, '_') || '1.0';
       const out = join(dir, `${bundle.slug}_${safeVersion}`);
       await mkdir(join(out, 'pictures'), { recursive: true });
-      const zip = await writeZip(join(out, `${bundle.slug}_${safeVersion}.zip`), bundle);
+      const zip = await writeZip(join(out, `${bundle.slug}_${safeVersion}.zip`), bundle, settings.get().compressZip);
       // The config previews double as the listing's pictures.
       for (const f of bundle.files) if (f.base64 && /\.(jpg|png)$/i.test(f.path)) await writeFile(join(out, 'pictures', f.path.split('/').pop()!), Buffer.from(f.base64, 'base64'));
       const readme = [`# ${listing.title} ${listing.version}`, '', listing.tagline, '', listing.description, '', `Tags: ${listing.tags.join(', ')}`, '', '## Checks', '', ...listing.checklist.map((c) => `- ${c}`), ''].join('\n');
@@ -207,7 +207,7 @@ export function registerIpcHandlers(services: HandlerServices): void {
       checkBundle(bundle, (p) => projects.isUnderGrantedRoot(p));
       const picked = await pickSaveFile(event.sender, { title: 'Save mod zip', defaultPath: `${bundle.slug}.zip`, filters: [{ name: 'BeamNG mod (.zip)', extensions: ['zip'] }] });
       if (!picked) return null;
-      const r = await writeZip(picked.toLowerCase().endsWith('.zip') ? picked : `${picked}.zip`, bundle);
+      const r = await writeZip(picked.toLowerCase().endsWith('.zip') ? picked : `${picked}.zip`, bundle, settings.get().compressZip);
       lastExport = r.path;
       logger.info(`exported ${bundle.slug} as ${r.path} (${r.bytes} bytes)`);
       return r;

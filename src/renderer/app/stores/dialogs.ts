@@ -41,6 +41,9 @@ interface DialogState {
   setShortcutsOpen: (open: boolean) => void;
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
+  /** Downloads window (null = closed), open on a tab. */
+  downloads: 'app' | 'textures' | 'meshes' | null;
+  setDownloads: (tab: 'app' | 'textures' | 'meshes' | null) => void;
 }
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
@@ -85,4 +88,6 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  downloads: null,
+  setDownloads: (downloads) => set({ downloads }),
 }));

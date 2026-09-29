@@ -10,6 +10,8 @@
  *        node scripts/run-desktop.mjs --only=crash,gl
  */
 import { _electron } from 'playwright-core';
+import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:http';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -52,6 +54,33 @@ if (!existsSync(join(ROOT, 'out', 'main', 'index.js'))) {
 
 const consoleErrors = [];
 const consoleWarnings = [];
+
+// A fake GitHub for the Downloads window: releases, tags, and the two content repositories,
+// built with the real repository builder into the temp folder.
+const fakeGh = join(userData, 'fake-github');
+const appVersion = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+execFileSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lib', 'fake-content.ts'), fakeGh, appVersion], { cwd: ROOT, stdio: 'ignore' });
+const ghHits = [];
+const ghServer = createServer((req, res) => {
+  const url = new URL(req.url ?? '/', 'http://x');
+  ghHits.push(url.pathname);
+  const send = (status, body, type = 'application/json') => {
+    res.writeHead(status, { 'content-type': type, 'content-length': Buffer.byteLength(body) });
+    res.end(body);
+  };
+  const base = `http://127.0.0.1:${ghServer.address().port}`;
+  let m;
+  if (/^\/api\/repos\/[^/]+\/jbeam-forge\/releases$/.test(url.pathname)) return send(200, readFileSync(join(fakeGh, 'releases.json'), 'utf8').replaceAll('ASSETS/', `${base}/assets/`));
+  if (/^\/api\/repos\/[^/]+\/jbeam-forge-(textures|meshes)\/tags$/.test(url.pathname)) return send(200, JSON.stringify([{ name: 'v2.0.0' }, { name: 'v1.0.0' }]));
+  if ((m = /^\/raw\/[^/]+\/jbeam-forge-(textures|meshes)\/[^/]+\/(.+)$/.exec(url.pathname))) {
+    const file = join(fakeGh, 'repos', m[1], ...decodeURIComponent(m[2]).split('/'));
+    return existsSync(file) ? send(200, readFileSync(file), 'application/octet-stream') : send(404, 'not found', 'text/plain');
+  }
+  if ((m = /^\/assets\/([\w.-]+)$/.exec(url.pathname)) && existsSync(join(fakeGh, 'assets', m[1]))) return send(200, readFileSync(join(fakeGh, 'assets', m[1])), 'application/octet-stream');
+  send(404, 'not found', 'text/plain');
+});
+await new Promise((r) => ghServer.listen(0, '127.0.0.1', r));
+const ghBase = `http://127.0.0.1:${ghServer.address().port}`;
 let shotIndex = 0;
 
 async function launch() {
@@ -66,6 +95,9 @@ async function launch() {
       ELECTRON_RENDERER_URL: '',
       JBFORGE_LOCALAPPDATA: fakeLocalAppData,
       JBFORGE_STEAM_ROOTS: '',
+      JBFORGE_GITHUB_API: `${ghBase}/api`,
+      JBFORGE_GITHUB_RAW: `${ghBase}/raw`,
+      JBFORGE_CONTENT_DIR: join(userData, 'content'),
     },
     timeout: TIMEOUT,
   });
@@ -128,6 +160,75 @@ const scenarios = [
       assert(state.name === 'Harness Test Car' && state.dirty === true && state.filePath === null, `new project is open and unsaved (${JSON.stringify(state)})`);
       const settingsJson = JSON.parse(readFileSync(join(userData, 'settings.json'), 'utf8'));
       assert(settingsJson.author === 'Fatkiwi', 'author remembered in settings');
+    },
+  },
+  {
+    id: 'downloads',
+    name: 'downloads: app versions (update + roll back), textures and meshes (single, all, remove)',
+    async run({ page }) {
+      const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
+      await page.getByTestId('open-downloads').click();
+      await page.getByTestId('downloads-window').waitFor();
+      // JBeam Forge: a newer version is out; download its installer, checked against its size.
+      await page.getByTestId('update-latest').waitFor();
+      assert((await page.getByTestId('downloads-app').textContent()).includes('is out'), 'newer version offered');
+      await shot(page, 'downloads-app');
+      await page.getByTestId('update-download').first().click();
+      await page.getByText(/is downloaded and checked/).waitFor();
+      const updates = join(userData, 'updates');
+      assert(readdirSync(updates).some((f) => /Setup-.*\.exe$/.test(f)), `installer downloaded (${readdirSync(updates)})`);
+      // Roll back: the older version's installer.
+      await page.getByTestId('update-older-toggle').click();
+      await page.getByTestId('update-older').waitFor();
+      await shot(page, 'downloads-rollback');
+      const older = page.getByTestId('update-older').locator('li').last();
+      await older.getByTestId('update-rollback').first().click();
+      await page.getByText(/is downloaded and checked/).waitFor();
+      assert(readdirSync(updates).length >= 2, `older version downloaded too (${readdirSync(updates)})`);
+
+      // Textures: one item, then all.
+      await page.getByRole('tab', { name: /Textures/ }).click();
+      await page.getByTestId('textures-items').waitFor();
+      assert((await page.getByTestId('content-item').count()) === 3, 'three texture sets listed');
+      await page.getByTestId('content-item').filter({ hasText: 'Harness Candy Red' }).getByTestId('content-item-download').click();
+      for (let i = 0; i < 100; i++) {
+        const info = await invoke('content:info');
+        if (Object.keys(info.textures.installed.items).length === 1) break;
+        await page.waitForTimeout(100);
+      }
+      const content = join(userData, 'content');
+      assert(existsSync(join(content, 'textures', 'Paint', 'Harness Candy Red', 'material.json')), 'single item unpacked beside the others');
+      await page.getByTestId('textures-download-all').click();
+      for (let i = 0; i < 100 && Object.keys((await invoke('content:info')).textures.installed.items).length < 3; i++) await page.waitForTimeout(100);
+      await page.getByText('All downloaded').waitFor();
+      await shot(page, 'downloads-textures');
+      const pack = await invoke('materials:pack');
+      assert(['Harness Candy Red', 'Harness Pearl White', 'Harness Brushed Steel'].every((n) => pack.some((m) => m.name === n)), 'downloaded textures are in the material library');
+
+      // Meshes: all at once, then they're in the objects list.
+      await page.getByRole('tab', { name: /Meshes/ }).click();
+      await page.getByTestId('meshes-items').waitFor();
+      await page.getByTestId('meshes-download-all').click();
+      for (let i = 0; i < 100 && Object.keys((await invoke('content:info')).meshes.installed.items).length < 2; i++) await page.waitForTimeout(100);
+      await page.getByText('All downloaded').waitFor();
+      const objects = await invoke('objects:list');
+      assert(objects.some((o) => o.name === 'Harness Caliper') && objects.some((o) => o.name === 'Harness Gauge'), 'downloaded meshes are in the objects list');
+      await shot(page, 'downloads-meshes');
+
+      // Remove everything again (later scenarios count the library).
+      await page.getByTestId('meshes-remove-all').click();
+      await page.getByRole('tab', { name: /Textures/ }).click();
+      await page.getByTestId('textures-remove-all').click();
+      for (let i = 0; i < 50; i++) {
+        const info = await invoke('content:info');
+        if (!Object.keys(info.textures.installed.items).length && !Object.keys(info.meshes.installed.items).length) break;
+        await page.waitForTimeout(100);
+      }
+      assert(!existsSync(join(content, 'textures', 'Paint')), 'removed from the content folder');
+      assert(!(await invoke('materials:pack')).some((m) => m.name === 'Harness Candy Red'), 'removed from the library');
+      await page.keyboard.press('Escape');
+      await page.getByTestId('downloads-window').waitFor({ state: 'detached' });
+      assert(ghHits.some((h) => h.includes('/releases')) && ghHits.some((h) => h.includes('/items/')), 'went through the (fake) GitHub');
     },
   },
   {

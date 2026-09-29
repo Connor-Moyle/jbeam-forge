@@ -3,6 +3,7 @@ import { Button } from '@renderer/ui/components/Button';
 import { Modal } from '@renderer/ui/components/Modal';
 import { NewModWizard } from '@renderer/home/NewModWizard';
 import { SettingsModal } from '@renderer/settings/SettingsModal';
+import { DownloadsWindow } from '@renderer/downloads/DownloadsWindow';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import styles from './DialogHost.module.css';
 
@@ -19,10 +20,13 @@ export function DialogHost() {
   const settingsOpen = useDialogStore((s) => s.settingsOpen);
   const setSettingsOpen = useDialogStore((s) => s.setSettingsOpen);
   const settings = useSettingsStore((s) => s.settings);
+  const downloads = useDialogStore((s) => s.downloads);
+  const setDownloads = useDialogStore((s) => s.setDownloads);
 
   return (
     <>
       {settingsOpen && settings && <SettingsModal settings={settings} onClose={() => setSettingsOpen(false)} />}
+      {downloads && <DownloadsWindow tab={downloads} onTab={setDownloads} onClose={() => setDownloads(null)} />}
       {unsaved && (
         <Modal
           open
