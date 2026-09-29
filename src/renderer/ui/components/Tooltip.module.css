@@ -18,3 +18,8 @@
   font-size: var(--text-label);
   color: var(--text-2);
 }
+
+/* Settings → Interface: tooltips off. */
+:global(:root[data-tooltips='off']) .tooltip {
+  display: none;
+}

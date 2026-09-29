@@ -62,6 +62,12 @@ export function runAppCommand(command: AppCommand): void {
     case 'shortcuts':
       useDialogStore.getState().setShortcutsOpen(true);
       break;
+    case 'help':
+      useDialogStore.getState().setHelpOpen(true);
+      break;
+    case 'tutorial':
+      useDialogStore.getState().setTutorialOpen(true);
+      break;
     case 'settings':
       useDialogStore.getState().setSettingsOpen(true);
       break;

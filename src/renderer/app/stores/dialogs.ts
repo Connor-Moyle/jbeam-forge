@@ -18,6 +18,13 @@ interface PendingAlert {
   resolve: () => void;
 }
 
+interface PendingConfirm {
+  title: string;
+  message: string;
+  confirm: string;
+  resolve: (yes: boolean) => void;
+}
+
 interface PendingFolders {
   folders: string[];
   resolve: (allow: boolean) => void;
@@ -29,6 +36,10 @@ interface DialogState {
   askFolders: (folders: string[]) => Promise<boolean>;
   answerFolders: (allow: boolean) => void;
   alert: PendingAlert | null;
+  /** "Delete X?" and the like: resolves true for yes. */
+  confirm: PendingConfirm | null;
+  askConfirm: (title: string, message: string, confirm?: string) => Promise<boolean>;
+  answerConfirm: (yes: boolean) => void;
   newModOpen: boolean;
   askUnsaved: (projectName: string) => Promise<UnsavedChoice>;
   answerUnsaved: (choice: UnsavedChoice) => void;
@@ -47,6 +58,12 @@ interface DialogState {
   /** Configurations manager window. */
   configsOpen: boolean;
   setConfigsOpen: (open: boolean) => void;
+  /** Help centre. */
+  helpOpen: boolean;
+  setHelpOpen: (open: boolean) => void;
+  /** The guided tour (Help → Start the Tutorial, and the first start). */
+  tutorialOpen: boolean;
+  setTutorialOpen: (open: boolean) => void;
 }
 
 export const useDialogStore = create<DialogState>()((set, get) => ({
@@ -64,6 +81,17 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
     pending?.resolve(allow);
   },
   newModOpen: false,
+  confirm: null,
+  askConfirm: (title, message, confirm = 'Delete') =>
+    new Promise<boolean>((resolve) => {
+      get().confirm?.resolve(false);
+      set({ confirm: { title, message, confirm, resolve } });
+    }),
+  answerConfirm: (yes) => {
+    const pending = get().confirm;
+    set({ confirm: null });
+    pending?.resolve(yes);
+  },
   askUnsaved: (projectName) =>
     new Promise<UnsavedChoice>((resolve) => {
       get().unsaved?.resolve('cancel'); // never leave an earlier caller hanging
@@ -95,4 +123,8 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   setDownloads: (downloads) => set({ downloads }),
   configsOpen: false,
   setConfigsOpen: (configsOpen) => set({ configsOpen }),
+  helpOpen: false,
+  setHelpOpen: (helpOpen) => set({ helpOpen }),
+  tutorialOpen: false,
+  setTutorialOpen: (tutorialOpen) => set({ tutorialOpen }),
 }));

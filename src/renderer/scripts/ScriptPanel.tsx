@@ -1,3 +1,4 @@
+import { confirmDelete } from '@renderer/app/confirm';
 import { useMemo, useRef, useState } from 'react';
 import { BookMarked, Code2, Download, FileCode, Plus, RotateCcw, Share2, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { BEAMNG_API, CONTROLLER_HOOKS, ELECTRICS } from '@shared/lua/api';
@@ -58,7 +59,7 @@ function Header({ script }: { script: VehicleScript }) {
     <div className={styles.header}>
       <div className={styles.row}>
         <Input value={script.label} onChange={(e) => updateScript(script.id, { label: e.target.value || 'Script' })} aria-label="Script name" className={styles.grow} data-testid="script-label" />
-        <IconButton icon={Trash2} label="Remove this script (and the animations it drives)" onClick={() => removeScript(script.id)} data-testid="script-remove" />
+        <IconButton icon={Trash2} label="Remove this script (and the animations it drives)" onClick={() => void confirmDelete(script.label, 'The animations it drives go too. You can undo this with Ctrl+Z.').then((yes) => yes && removeScript(script.id))} data-testid="script-remove" />
       </div>
       <div className={styles.row}>
         <Input

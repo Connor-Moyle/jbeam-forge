@@ -1,4 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
+import { copyFile, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname, extname, resolve } from 'node:path';
 import { parseProject } from '@shared/project/io';
 import { atomicWrite } from './atomicWrite';
@@ -66,10 +66,11 @@ export class ProjectFiles {
   }
 
   /** Validates before writing: we never write a document we could not load back. */
-  async write(path: string, text: string): Promise<{ name: string; slug: string }> {
+  async write(path: string, text: string, backups = 0): Promise<{ name: string; slug: string }> {
     if (!this.isFileGranted(path)) throw new AccessError('Saving to this path was not granted by a file dialog');
     if (extname(path).toLowerCase() !== '.jbforge') throw new AccessError('Projects must be saved as .jbforge files');
     const { project } = parseProject(text);
+    if (backups > 0) await rotateBackups(path, backups);
     await atomicWrite(path, text);
     return { name: project.meta.name, slug: project.meta.slug };
   }
@@ -96,4 +97,30 @@ export async function writeHistory(files: ProjectFiles, projectPath: string, tex
 /** Ensure a chosen save path ends in .jbforge. */
 export function withProjectExtension(path: string): string {
   return extname(path).toLowerCase() === '.jbforge' ? path : `${path}.jbforge`;
+}
+
+/**
+ * Settings → Files: keep the last few saved versions beside the project
+ * (name.jbforge.1.bak is the newest). A backup that can't be made never stops the save.
+ */
+export async function rotateBackups(path: string, keep: number): Promise<void> {
+  try {
+    await stat(path);
+  } catch {
+    return; // nothing saved there yet
+  }
+  const bak = (i: number) => `${path}.${i}.bak`;
+  try {
+    await rm(bak(keep), { force: true });
+    for (let i = keep - 1; i >= 1; i--) {
+      try {
+        await rename(bak(i), bak(i + 1));
+      } catch {
+        /* that one didn't exist */
+      }
+    }
+    await copyFile(path, bak(1));
+  } catch {
+    /* a backup is never worth failing a save over */
+  }
 }

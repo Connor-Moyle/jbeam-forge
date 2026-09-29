@@ -56,6 +56,26 @@
   --viewport-bg-light: #d6d8dc;
   --viewport-key: #ffffff; /* key light */
 
+  /* Settings → Interface: accent swatches and theme previews (fixed, whatever the theme). */
+  --swatch-blue: #4f8ef7;
+  --swatch-orange: #e8813a;
+  --swatch-green: #3fb67a;
+  --swatch-purple: #9b7bf2;
+  --swatch-red: #e5534b;
+  --swatch-teal: #2fb8b0;
+  --swatch-pink: #e0609f;
+  --swatch-yellow: #d8a820;
+  --theme-dark-bg: #15171b;
+  --theme-dark-panel: #22262d;
+  --theme-midnight-bg: #0f131c;
+  --theme-midnight-panel: #1c2230;
+  --theme-blender-bg: #282828;
+  --theme-blender-panel: #3d3d3d;
+  --theme-light-bg: #f5f6f8;
+  --theme-light-panel: #dfe2e8;
+  --theme-contrast-bg: #000000;
+  --theme-contrast-panel: #8a8a8a;
+
   /* Category colour dots (scene tree); extended in Phase 3 */
   --cat-body: #4f8ef7;
   --cat-panel: #9b7bf2;
@@ -183,4 +203,188 @@
     --dur-slow: 0ms;
     --scale-enter: 1;
   }
+}
+
+/*
+ * Themes (Settings → Interface). The default above is "Dark"; each theme
+ * redefines surfaces, borders, text and the viewport's colours.
+ */
+:root[data-theme='midnight'] {
+  --bg-0: #0a0d14;
+  --bg-1: #0f131c;
+  --bg-2: #151a25;
+  --bg-3: #1c2230;
+  --bg-4: #242b3b;
+  --border-0: #161b26;
+  --border-1: #232a38;
+  --border-2: #323b4d;
+  --text-0: #e3e8f2;
+  --text-1: #9ba6ba;
+  --text-2: #637088;
+  --grid-major: #252d3d;
+  --grid-minor: #161b26;
+  --viewport-sky: #242b3b;
+  --viewport-ground: #0a0d14;
+}
+
+:root[data-theme='blender'] {
+  --bg-0: #1d1d1d;
+  --bg-1: #282828;
+  --bg-2: #303030;
+  --bg-3: #3d3d3d;
+  --bg-4: #474747;
+  --border-0: #1f1f1f;
+  --border-1: #3a3a3a;
+  --border-2: #505050;
+  --text-0: #e6e6e6;
+  --text-1: #b0b0b0;
+  --text-2: #7a7a7a;
+  --grid-major: #3a3a3a;
+  --grid-minor: #2a2a2a;
+  --viewport-sky: #3d3d3d;
+  --viewport-ground: #1d1d1d;
+  --backdrop: rgba(10, 10, 10, 0.6);
+}
+
+:root[data-theme='light'] {
+  --bg-0: #e9ebee;
+  --bg-1: #f5f6f8;
+  --bg-2: #ffffff;
+  --bg-3: #eceef2;
+  --bg-4: #dfe2e8;
+  --border-0: #dadde3;
+  --border-1: #c9cdd5;
+  --border-2: #adb3be;
+  --text-0: #1b1e24;
+  --text-1: #4a5261;
+  --text-2: #7c8594;
+  --grid-major: #c3c8d0;
+  --grid-minor: #d8dce2;
+  --viewport-sky: #ffffff;
+  --viewport-ground: #9aa1ab;
+  --backdrop: rgba(30, 34, 40, 0.35);
+  --shadow-float: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+:root[data-theme='contrast'] {
+  --bg-0: #000000;
+  --bg-1: #050505;
+  --bg-2: #0d0d0d;
+  --bg-3: #1f1f1f;
+  --bg-4: #333333;
+  --border-0: #5c5c5c;
+  --border-1: #8a8a8a;
+  --border-2: #d0d0d0;
+  --text-0: #ffffff;
+  --text-1: #e6e6e6;
+  --text-2: #bdbdbd;
+  --grid-major: #5c5c5c;
+  --grid-minor: #2e2e2e;
+  --focus-ring: 0 0 0 3px var(--accent);
+}
+
+/* Accent colours (Settings → Interface). */
+:root[data-accent='orange'] {
+  --accent: #e8813a;
+  --accent-hover: #f09752;
+  --accent-press: #c96b28;
+  --accent-dim: rgba(232, 129, 58, 0.16);
+  --accent-ring: rgba(232, 129, 58, 0.5);
+}
+
+:root[data-accent='green'] {
+  --accent: #3fb67a;
+  --accent-hover: #57c78e;
+  --accent-press: #2f9a64;
+  --accent-dim: rgba(63, 182, 122, 0.16);
+  --accent-ring: rgba(63, 182, 122, 0.5);
+}
+
+:root[data-accent='purple'] {
+  --accent: #9b7bf2;
+  --accent-hover: #ae93f5;
+  --accent-press: #8362e0;
+  --accent-dim: rgba(155, 123, 242, 0.16);
+  --accent-ring: rgba(155, 123, 242, 0.5);
+}
+
+:root[data-accent='red'] {
+  --accent: #e5534b;
+  --accent-hover: #ec6d66;
+  --accent-press: #c9423b;
+  --accent-dim: rgba(229, 83, 75, 0.16);
+  --accent-ring: rgba(229, 83, 75, 0.5);
+}
+
+:root[data-accent='teal'] {
+  --accent: #2fb8b0;
+  --accent-hover: #4ccac2;
+  --accent-press: #229a93;
+  --accent-dim: rgba(47, 184, 176, 0.16);
+  --accent-ring: rgba(47, 184, 176, 0.5);
+}
+
+:root[data-accent='pink'] {
+  --accent: #e0609f;
+  --accent-hover: #e87cb1;
+  --accent-press: #c24c86;
+  --accent-dim: rgba(224, 96, 159, 0.16);
+  --accent-ring: rgba(224, 96, 159, 0.5);
+}
+
+:root[data-accent='yellow'] {
+  --accent: #d8a820;
+  --accent-hover: #e4ba42;
+  --accent-press: #b88d14;
+  --accent-dim: rgba(216, 168, 32, 0.16);
+  --accent-ring: rgba(216, 168, 32, 0.5);
+  --text-on-accent: #1b1e24;
+}
+
+/* Density (Settings → Interface): control and row heights. */
+:root[data-density='compact'] {
+  --size-control: 24px;
+  --size-control-sm: 20px;
+  --size-tree-row: 22px;
+  --size-toolbar: 36px;
+  --size-panel-header: 28px;
+}
+
+:root[data-density='spacious'] {
+  --size-control: 32px;
+  --size-control-sm: 26px;
+  --size-tree-row: 30px;
+  --size-toolbar: 46px;
+  --size-panel-header: 36px;
+}
+
+/* Text size (Settings → Interface). */
+:root[data-font='small'] {
+  --text-label: 10px;
+  --text-control: 11px;
+  --text-panel-title: 12px;
+  --text-modal-title: 14px;
+}
+
+:root[data-font='large'] {
+  --text-label: 12px;
+  --text-control: 14px;
+  --text-panel-title: 15px;
+  --text-modal-title: 17px;
+}
+
+/* Corners (Settings → Interface). */
+:root[data-corners='square'] {
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 2px;
+}
+
+/* Animations off (Settings → Interface), whatever the system says. */
+:root[data-motion='off'] {
+  --dur-fast: 0ms;
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
+  --scale-enter: 1;
 }

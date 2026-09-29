@@ -1,11 +1,14 @@
 import type { ReactElement, ReactNode } from 'react';
 import { Tooltip as T } from 'radix-ui';
 import { numericToken } from '../tokens';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import styles from './Tooltip.module.css';
 
 export function TooltipProvider({ children }: { children: ReactNode }) {
+  // Settings → Interface: tooltip delay (and on/off, which hides them in CSS).
+  const delay = useSettingsStore((s) => s.settings?.tooltipDelay);
   return (
-    <T.Provider delayDuration={numericToken('delay-tooltip')} skipDelayDuration={numericToken('dur-slow')}>
+    <T.Provider delayDuration={delay ?? numericToken('delay-tooltip')} skipDelayDuration={numericToken('dur-slow')}>
       {children}
     </T.Provider>
   );

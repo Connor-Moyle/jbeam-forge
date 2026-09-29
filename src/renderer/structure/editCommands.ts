@@ -179,3 +179,35 @@ export function splitSelectedBeams(): void {
   });
   useEditStore.getState().select(created, []);
 }
+
+/** Shift+M: copy the selected nodes (and beams between them) to the other side. */
+export function mirrorSelection(): void {
+  const ids = useEditStore.getState().nodes;
+  if (!ids.length) return;
+  let created: string[] = [];
+  projectStore.getState().execute({
+    label: `Mirror ${plural(ids.length, 'node')}`,
+    apply: (d) => {
+      created = edit.mirrorNodes(d, ids);
+    },
+  });
+  useUiStore.getState().pushStatus(created.length ? `Mirrored to ${plural(created.length, 'new node')}` : 'Those nodes are on the centre line or already have partners');
+  if (created.length) useEditStore.getState().select(created, []);
+}
+
+/** N: a new node in the middle of the selected ones (their part), selected. */
+export function addNodeAtSelection(): void {
+  const doc = projectStore.getState().doc;
+  const ids = useEditStore.getState().nodes;
+  const picked = (doc?.nodes ?? []).filter((n) => ids.includes(n.id));
+  if (!doc || !picked.length) {
+    useUiStore.getState().pushStatus('Select a node first: the new one goes between the selected nodes, in their part.');
+    return;
+  }
+  const at = edit.centroid(picked);
+  // One node selected: put the new one beside it, not on top.
+  if (picked.length === 1) at[2] += 0.05;
+  let id = '';
+  projectStore.getState().execute({ label: 'Add node', apply: (d) => void (id = edit.addNode(d, picked[0]!.partId, at)) });
+  useEditStore.getState().select([id], []);
+}

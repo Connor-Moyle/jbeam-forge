@@ -19,6 +19,8 @@ export const TEXT_FILE_KINDS = {
   pc: { label: 'BeamNG configuration (.pc)', ext: 'pc' },
   lua: { label: 'Lua script (.lua)', ext: 'lua' },
   jbscript: { label: 'JBeam Forge script (.jbscript)', ext: 'jbscript' },
+  jbkeys: { label: 'JBeam Forge keymap (.jbkeys)', ext: 'jbkeys' },
+  jbeam: { label: 'JBeam file (.jbeam)', ext: 'jbeam' },
 } as const;
 export type TextFileKind = keyof typeof TEXT_FILE_KINDS;
 
@@ -302,7 +304,7 @@ export interface InvokeContract {
 }
 
 /** Commands the native menu forwards to the renderer. */
-export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'settings', 'downloads', 'exportModelGlb', 'exportModelDae'] as const;
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'help', 'tutorial', 'settings', 'downloads', 'exportModelGlb', 'exportModelDae'] as const;
 export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */

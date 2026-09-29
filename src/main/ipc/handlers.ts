@@ -276,7 +276,8 @@ export function registerIpcHandlers(services: HandlerServices): void {
   // ---- projects: every path comes from a dialog, the recent list, or an earlier grant ----
 
   registerInvoke('project:open', async (_req, event) => {
-    const path = await pickOpenFile(event.sender, { title: 'Open project', filters: PROJECT_FILTERS, properties: ['openFile'] });
+    const folder = settings.get().projectFolder;
+    const path = await pickOpenFile(event.sender, { title: 'Open project', filters: PROJECT_FILTERS, properties: ['openFile'], ...(folder ? { defaultPath: folder } : {}) });
     if (!path) return null;
     const text = await projects.read(path);
     const pendingFolders = await grantForOpenedProject(path, text);
@@ -301,7 +302,7 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke(
     'project:save',
     async ({ path, text, thumbnail }) => {
-      const info = await projects.write(path, text);
+      const info = await projects.write(path, text, settings.get().backupCount);
       await touchRecent(path, info, thumbnail);
       return undefined;
     },
@@ -311,11 +312,13 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke(
     'project:saveAs',
     async ({ text, suggestedName, thumbnail }, event) => {
-      const chosen = await pickSaveFile(event.sender, { title: 'Save project', defaultPath: suggestedName, filters: PROJECT_FILTERS });
+      // Settings → Files: start in the projects folder when one is set.
+      const folder = settings.get().projectFolder;
+      const chosen = await pickSaveFile(event.sender, { title: 'Save project', defaultPath: folder ? join(folder, suggestedName) : suggestedName, filters: PROJECT_FILTERS });
       if (!chosen) return null;
       const path = withProjectExtension(chosen);
       projects.grantFile(path);
-      const info = await projects.write(path, text);
+      const info = await projects.write(path, text, settings.get().backupCount);
       await touchRecent(path, info, thumbnail);
       return path;
     },

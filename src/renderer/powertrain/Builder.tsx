@@ -397,7 +397,8 @@ function EngineSound({ parts, fitted, idle, limit }: { parts: Record<string, Jbe
     // An empty answer (no game folder yet, or a failed read) isn't kept: the next open asks again.
     gameSounds ??= call('beamng:engineSounds')
       .catch(() => [])
-      .then((list) => {
+      .then((got) => {
+        const list = Array.isArray(got) ? got : [];
         if (!list.length) gameSounds = null;
         return list;
       });

@@ -1,3 +1,4 @@
+import { confirmDelete } from '@renderer/app/confirm';
 import { useEffect, useMemo, useState } from 'react';
 import { BookmarkPlus, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
 import { useMergeUi } from '@renderer/materials/MergeDialog';
@@ -158,7 +159,7 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
         <IconButton icon={Copy} label="Duplicate" size="sm" onClick={() => void mc.duplicateMaterial(def.id)} />
         <IconButton icon={BookmarkPlus} label="Save to your library" size="sm" onClick={() => void saveToLibrary(def)} data-testid="material-save-library" />
         <IconButton icon={Share2} label="Share as a .jbmat file" size="sm" onClick={() => void shareMaterial(def)} />
-        <IconButton icon={Trash2} label={used ? `Delete (its ${used} meshes go back to their imported look)` : 'Delete'} size="sm" onClick={() => mc.deleteMaterial(def.id, null)} />
+        <IconButton icon={Trash2} label={used ? `Delete (its ${used} meshes go back to their imported look)` : 'Delete'} size="sm" onClick={() => void (used ? confirmDelete(`the ${def.name} material`, `Its ${used} meshes go back to their imported look. You can undo this with Ctrl+Z.`) : Promise.resolve(true)).then((yes) => yes && mc.deleteMaterial(def.id, null))} />
       </div>
 
       <FieldGroup title="Kind">

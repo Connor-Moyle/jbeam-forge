@@ -1,3 +1,7 @@
+import type { KeymapId } from '@shared/keymap';
+import { inField, isKey } from '@renderer/app/keys';
+import { useDialogStore } from '@renderer/app/stores/dialogs';
+import { openExport } from '@renderer/export/exportFlow';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DockviewApi, SerializedDockview } from 'dockview-react';
 import { LAYOUT_VERSION, PresetIdSchema, type PresetId, type StoredLayout } from '@shared/layout-schema';
@@ -141,6 +145,35 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       offPreset();
     };
   }, [applyPreset, resetLayout]);
+
+  // App-wide keys that aren't menu items (Settings → Keymap): layouts, views, export, configurations, help.
+  useEffect(() => {
+    const layouts: [KeymapId, PresetId][] = [
+      ['layout1', 'modelling'],
+      ['layout2', 'materials'],
+      ['layout3', 'jbeam' as PresetId],
+      ['layout4', 'moving' as PresetId],
+      ['layout5', 'triggers' as PresetId],
+      ['layout6', 'scripts'],
+      ['layout7', 'testing'],
+    ];
+    const onKey = (e: KeyboardEvent) => {
+      if (inField(e) || e.defaultPrevented) return;
+      const layout = layouts.find(([id]) => isKey(e, id));
+      let handled = true;
+      if (layout && PresetIdSchema.safeParse(layout[1]).success) applyPreset(layout[1]);
+      else if (isKey(e, 'viewMesh')) useUiStore.getState().toggleView('mesh');
+      else if (isKey(e, 'viewStructure')) useUiStore.getState().toggleView('structure');
+      else if (isKey(e, 'viewXray')) useUiStore.getState().toggleView('xray');
+      else if (isKey(e, 'export')) void openExport();
+      else if (isKey(e, 'configs')) useDialogStore.getState().setConfigsOpen(true);
+      else if (isKey(e, 'help')) useDialogStore.getState().setHelpOpen(true);
+      else handled = false;
+      if (handled) e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [applyPreset]);
 
   // Flush a pending save when the window closes.
   useEffect(() => {

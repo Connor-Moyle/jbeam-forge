@@ -13,6 +13,7 @@ import styles from './DialogHost.module.css';
 export function DialogHost() {
   const unsaved = useDialogStore((s) => s.unsaved);
   const alert = useDialogStore((s) => s.alert);
+  const confirm = useDialogStore((s) => s.confirm);
   const folders = useDialogStore((s) => s.folders);
   const answerFolders = useDialogStore((s) => s.answerFolders);
   const newModOpen = useDialogStore((s) => s.newModOpen);
@@ -96,6 +97,28 @@ export function DialogHost() {
           <p className={styles.message} data-testid="alert-message">
             {alert.message}
           </p>
+        </Modal>
+      )}
+      {confirm && (
+        <Modal
+          open
+          size="sm"
+          onOpenChange={(o) => {
+            if (!o) useDialogStore.getState().answerConfirm(false);
+          }}
+          title={confirm.title}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => useDialogStore.getState().answerConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="danger" onClick={() => useDialogStore.getState().answerConfirm(true)} data-testid="confirm-yes">
+                {confirm.confirm}
+              </Button>
+            </>
+          }
+        >
+          <p className={styles.message}>{confirm.message}</p>
         </Modal>
       )}
       {newModOpen && <NewModWizard onClose={() => setNewModOpen(false)} />}

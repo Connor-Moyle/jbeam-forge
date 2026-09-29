@@ -14,7 +14,7 @@ export interface FieldProps {
 /** Label + control + optional hint: the canonical form row. */
 export function Field({ label, htmlFor, hint, children, className }: FieldProps) {
   return (
-    <div className={cx(styles.field, className)}>
+    <div className={cx(styles.field, className)} data-field>
       <label className={styles.label} htmlFor={htmlFor}>
         {label}
       </label>

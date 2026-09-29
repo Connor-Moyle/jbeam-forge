@@ -1414,6 +1414,7 @@ const scenarios = [
       assert(/no \+= or -=/.test(problems), `the checker explains += (${problems})`);
       await shot(page, 'script-problem');
       await page.getByTestId('script-remove').click();
+      await page.getByTestId('confirm-yes').click();
 
       // Head unit on the box: its page previews with the test's values (then removed, the box keeps its paint).
       await page.getByTestId('scripts-view-gallery').click();
@@ -1439,6 +1440,7 @@ const scenarios = [
       const [r, , b] = mapDrawn.split(',').map(Number);
       assert(b > 200 && r < 150, `the head unit's map is drawn (${mapDrawn})`);
       await page.getByTestId('script-remove').click();
+      await page.getByTestId('confirm-yes').click();
       await hook(page, 'applyPreset', 'modelling');
 
       await page.getByTestId('toolbar-export').click();

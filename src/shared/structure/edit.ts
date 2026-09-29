@@ -342,3 +342,64 @@ export function adoptManualNodes(derived: { nodes: StructNode[]; beams: { id1: s
   for (const t of derived.tris) t.ids = t.ids.map(to) as [string, string, string];
   return { kept: manual.length - loose, loose };
 }
+
+/** The mirror-side name of a node: BeamNG's l/r ending swapped ("f3l" → "f3r"), else "…m". */
+export function mirrorName(id: string): string {
+  if (/l$/i.test(id)) return id.replace(/l$/, 'r').replace(/L$/, 'R');
+  if (/r$/i.test(id)) return id.replace(/r$/, 'l').replace(/R$/, 'L');
+  return `${id}m`;
+}
+
+/**
+ * Copy nodes to the other side of the car (X mirrored), with the beams
+ * between them. Nodes on the centre line, and ones that already have a
+ * partner there, are skipped. Returns the new node ids.
+ */
+export function mirrorNodes(doc: Pick<Project, 'nodes' | 'beams'>, ids: readonly string[]): string[] {
+  const byId = new Map(doc.nodes.map((n) => [n.id, n]));
+  const partners = mirrorPartners(doc.nodes);
+  const map = new Map<string, string>();
+  const created: string[] = [];
+  const taken = new Set(doc.nodes.map((n) => n.id));
+  for (const id of ids) {
+    const n = byId.get(id);
+    if (!n) continue;
+    if (Math.abs(n.pos[0]) < MIRROR_TOL) {
+      map.set(id, id);
+      continue;
+    }
+    const partner = partners.get(id);
+    if (partner) {
+      map.set(id, partner);
+      continue;
+    }
+    let name = mirrorName(id);
+    if (taken.has(name)) name = uniqueNodeId({ nodes: [...taken].map((t) => ({ id: t }) as StructNode) }, name);
+    taken.add(name);
+    const copy: StructNode = { ...n, id: name, pos: [round(-n.pos[0]), n.pos[1], n.pos[2]], manual: true };
+    doc.nodes.push(copy);
+    map.set(id, name);
+    created.push(name);
+  }
+  const have = new Set(doc.beams.map((b) => beamKey(b.id1, b.id2)));
+  for (const b of [...doc.beams]) {
+    const a = map.get(b.id1);
+    const c = map.get(b.id2);
+    if (!a || !c || (a === b.id1 && c === b.id2)) continue;
+    const key = beamKey(a, c);
+    if (have.has(key) || a === c) continue;
+    doc.beams.push({ ...b, id1: a, id2: c });
+    have.add(key);
+  }
+  return created;
+}
+
+/** A new node for a part at a position (named after the part's nodes); returns its id. */
+export function addNode(doc: Pick<Project, 'nodes'>, partId: string, pos: Vec3, weight?: number): string {
+  const same = doc.nodes.filter((n) => n.partId === partId);
+  const stem = same[0]?.id.replace(/\d+[a-z]?$/i, '') || 'n';
+  const id = uniqueNodeId(doc, stem);
+  const w = weight ?? (same.length ? same.reduce((s, n) => s + n.weight, 0) / same.length : 1);
+  doc.nodes.push({ id, partId, pos: [round(pos[0]), round(pos[1]), round(pos[2])], weight: w, manual: true });
+  return id;
+}

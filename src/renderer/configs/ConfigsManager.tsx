@@ -1,3 +1,4 @@
+import { confirmDelete } from '@renderer/app/confirm';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, Camera, Copy, FileDown, FileUp, Pencil, Plus, Star, Trash2 } from 'lucide-react';
 import type { Project, VehicleConfig } from '@shared/project/schema';
@@ -175,7 +176,7 @@ export function ConfigsManager({ onClose }: { onClose: () => void }) {
                           <IconButton icon={FileDown} label="Save as .pc…" onClick={() => void exportPcFile(c)} />
                           {c && <IconButton icon={ArrowUp} label="Move up" disabled={i <= 1} onClick={() => moveConfig(c.id, -1)} />}
                           {c && <IconButton icon={ArrowDown} label="Move down" disabled={i === list.length - 1} onClick={() => moveConfig(c.id, 1)} />}
-                          {c && <IconButton icon={Trash2} label="Delete" onClick={() => deleteConfig(c.id)} />}
+                          {c && <IconButton icon={Trash2} label="Delete" onClick={() => void confirmDelete(`the ${c.name} configuration`).then((yes) => yes && deleteConfig(c.id))} />}
                         </div>
                       </li>
                     );

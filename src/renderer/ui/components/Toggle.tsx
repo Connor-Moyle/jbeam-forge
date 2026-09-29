@@ -15,7 +15,7 @@ export interface ToggleProps {
 export function Toggle({ checked, onChange, label, disabled, className, 'aria-label': ariaLabel }: ToggleProps) {
   const id = useId();
   return (
-    <span className={cx(styles.row, disabled && styles.disabled, className)}>
+    <span className={cx(styles.row, disabled && styles.disabled, className)} data-field>
       <Switch.Root
         id={id}
         className={styles.track}

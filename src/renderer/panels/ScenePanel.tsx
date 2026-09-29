@@ -1,3 +1,4 @@
+import { confirmDelete } from '@renderer/app/confirm';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from 'react';
 import { AlertTriangle, Ban, Boxes, Combine, Copy, FlipHorizontal2, Scissors, Shapes, CornerLeftUp, Eye, EyeOff, FileBox, Focus, FileInput, FolderSearch, Merge, Move3d, Pencil, Search, Tag, Trash2, Undo2, Unlink, WandSparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
@@ -319,7 +320,7 @@ function PartRow({ row, ctx }: { row: Extract<Row, { type: 'part' }>; ctx: RowCo
       items: siblingsOfKind.map((p) => ({ label: p.displayName, onSelect: () => cmd.mergeParts(p.id, [part.id]) })),
     },
     { type: 'separator' },
-    { label: 'Delete part', icon: Trash2, danger: true, onSelect: () => cmd.deletePart(part.id) },
+    { label: 'Delete part', icon: Trash2, danger: true, onSelect: () => void confirmDelete(part.displayName, 'Its meshes go back to Unassigned. You can undo this with Ctrl+Z.').then((yes) => yes && cmd.deletePart(part.id)) },
   ];
 
   return (

@@ -1,3 +1,4 @@
+import { confirmDelete } from '@renderer/app/confirm';
 import { useEffect, useMemo } from 'react';
 import { Copy, Eye, EyeOff, LayoutGrid, Plus, Trash2 } from 'lucide-react';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -63,7 +64,7 @@ export function ConfigsPanel() {
           New
         </Button>
         <Button icon={Copy} size="sm" variant="ghost" onClick={() => addConfig(config)} aria-label="Duplicate configuration" />
-        {config && <Button icon={Trash2} size="sm" variant="ghost" onClick={() => deleteConfig(config.id)} aria-label="Delete configuration" />}
+        {config && <Button icon={Trash2} size="sm" variant="ghost" onClick={() => void confirmDelete(`the ${config.name} configuration`).then((yes) => yes && deleteConfig(config.id))} aria-label="Delete configuration" />}
         <Button icon={preview ? EyeOff : Eye} size="sm" variant={preview ? 'primary' : 'ghost'} onClick={() => useConfigUi.getState().setPreview(!preview)} data-testid="config-preview">
           {preview ? 'Previewing' : 'Preview'}
         </Button>

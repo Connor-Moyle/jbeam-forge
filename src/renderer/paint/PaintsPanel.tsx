@@ -1,3 +1,4 @@
+import { confirmDelete } from '@renderer/app/confirm';
 import { useState } from 'react';
 import { Copy, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { PAINT_PRESETS, PAINT_SCHEMES } from '@shared/paints/paints';
@@ -126,7 +127,7 @@ function PaintEditor({ paint }: { paint: Paint }) {
         <input type="color" className={styles.color} value={hex(paint.color)} onChange={(e) => set({ color: fromHex(e.target.value) })} aria-label="Paint colour" />
         <Input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== paint.name && set({ name: name.trim() })} onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()} aria-label="Paint name" className={styles.grow} />
         <IconButton icon={Copy} size="sm" label="Duplicate" onClick={() => addPaint({ ...paint, name: `${paint.name} copy` })} />
-        <IconButton icon={Trash2} size="sm" label="Delete paint" onClick={() => deletePaint(paint.id)} />
+        <IconButton icon={Trash2} size="sm" label="Delete paint" onClick={() => void confirmDelete(`the ${paint.name} paint`).then((yes) => yes && deletePaint(paint.id))} />
       </div>
       {slider('Metallic', 'metallic', 'Flake: 0 is solid paint, 1 is chrome-like')}
       {slider('Roughness', 'roughness', 'Low is glossy, high is matte')}

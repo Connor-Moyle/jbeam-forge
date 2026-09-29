@@ -5,6 +5,7 @@ import type { SettingsService } from './services/settings';
 import { copyDiagnosticsToClipboard } from './diagnostics';
 import { getLogFolder, scoped } from './log';
 import { sendEvent } from './ipc/register';
+import { effectiveKeymap, toAccelerator } from '@shared/keymap';
 
 const logger = scoped('menu');
 
@@ -23,19 +24,22 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
   };
 
   const command = (cmd: AppCommand) => () => send((w) => sendEvent(w.webContents, 'menu:command', { command: cmd }));
+  // Settings → Keymap: the user's keys (undefined = none).
+  const keys = effectiveKeymap(settings.get().keymap);
+  const key = (id: string) => toAccelerator(keys[id] ?? '');
 
   const template: MenuItemConstructorOptions[] = [
     {
       label: 'File',
       submenu: [
-        { label: 'New Mod…', accelerator: 'CmdOrCtrl+N', click: command('new') },
-        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: command('open') },
+        { label: 'New Mod…', accelerator: key('new'), click: command('new') },
+        { label: 'Open…', accelerator: key('open'), click: command('open') },
         { type: 'separator' },
-        { label: 'Import Model…', accelerator: 'CmdOrCtrl+I', click: command('import') },
+        { label: 'Import Model…', accelerator: key('import'), click: command('import') },
         { label: 'Import Assetto Corsa Car…', click: command('importAc') },
         { type: 'separator' },
-        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: command('save') },
-        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: command('saveAs') },
+        { label: 'Save', accelerator: key('save'), click: command('save') },
+        { label: 'Save As…', accelerator: key('saveAs'), click: command('saveAs') },
         { type: 'separator' },
         {
           label: 'Export Model',
@@ -45,8 +49,8 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
           ],
         },
         { type: 'separator' },
-        { label: 'Settings…', accelerator: 'CmdOrCtrl+,', click: command('settings') },
-        { label: 'Downloads…', accelerator: 'CmdOrCtrl+Shift+D', click: command('downloads') },
+        { label: 'Settings…', accelerator: key('settings'), click: command('settings') },
+        { label: 'Downloads…', accelerator: key('downloads'), click: command('downloads') },
         { type: 'separator' },
         { label: 'Close Project', click: command('close') },
         { type: 'separator' },
@@ -57,17 +61,17 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
       // Custom undo/redo: the renderer routes them to text fields or to the document history.
       label: 'Edit',
       submenu: [
-        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: command('undo') },
-        { label: 'Redo', accelerator: 'CmdOrCtrl+Y', click: command('redo') },
+        { label: 'Undo', accelerator: key('undo'), click: command('undo') },
+        { label: 'Redo', accelerator: key('redo'), click: command('redo') },
         { label: 'Redo', accelerator: 'CmdOrCtrl+Shift+Z', click: command('redo'), visible: false },
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
         // In edit mode this selects every node; in text fields it selects the text.
-        { label: 'Select All', accelerator: 'CmdOrCtrl+A', click: command('selectAll') },
+        { label: 'Select All', accelerator: key('selectAll'), click: command('selectAll') },
         { type: 'separator' },
-        { label: 'Command Palette…', accelerator: 'CmdOrCtrl+K', click: command('palette') },
+        { label: 'Command Palette…', accelerator: key('palette'), click: command('palette') },
       ],
     },
     {
@@ -94,7 +98,9 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
     {
       label: 'Help',
       submenu: [
-        { label: 'Keyboard Shortcuts', accelerator: 'F1', click: command('shortcuts') },
+        { label: 'Help and Guides', accelerator: key('help'), click: command('help') },
+        { label: 'Start the Tutorial', click: command('tutorial') },
+        { label: 'Keyboard Shortcuts', accelerator: key('shortcuts'), click: command('shortcuts') },
         { type: 'separator' },
         {
           label: 'Open Log Folder',

@@ -55,7 +55,12 @@ export function cssVar(name: Token): string {
 
 const cache = new Map<string, string>();
 
-/** Read a token's computed value from :root. Cached; tokens do not change at runtime. */
+/** Forget cached values (the theme changed). */
+export function clearTokenCache(): void {
+  cache.clear();
+}
+
+/** Read a token's computed value from :root. Cached until the theme changes (clearTokenCache). */
 export function resolveToken(name: Token | NumericToken): string {
   const hit = cache.get(name);
   if (hit !== undefined) return hit;

@@ -654,7 +654,17 @@ export class ViewportRuntime {
    * reflections, background, field of view, orbit and zoom speed.
    * (Anti-aliasing is fixed when the WebGL context is made: the view restarts for it.)
    */
-  setGraphics(g: { renderScale: number; maxFps: number; showGrid: boolean; reflections: boolean; background: 'theme' | 'black' | 'grey' | 'light'; fov: number; orbitSpeed: number; zoomSpeed: number; invertZoom: boolean }): void {
+  setGraphics(g: { renderScale: number; maxFps: number; showGrid: boolean; reflections: boolean; background: 'theme' | 'black' | 'grey' | 'light'; fov: number; orbitSpeed: number; zoomSpeed: number; invertZoom: boolean; zoomToCursor?: boolean; panSpeed?: number; smoothCamera?: boolean; invertOrbit?: boolean; nodeSizeMm?: number }): void {
+    // Settings → Navigation and Editing.
+    this.controls.zoomToCursor = g.zoomToCursor ?? true;
+    this.controls.panSpeed = g.panSpeed ?? 1;
+    this.controls.enableDamping = g.smoothCamera ?? false;
+    this.controls.dampingFactor = 0.12;
+    const size = (g.nodeSizeMm ?? 0) / 1000;
+    if (size !== this.nodeSize) {
+      this.nodeSize = size;
+      this.setStructure(this.lastStructure);
+    }
     const ratio = window.devicePixelRatio * g.renderScale;
     if (Math.abs(this.renderer.getPixelRatio() - ratio) > 1e-6) {
       this.renderer.setPixelRatio(ratio);
@@ -673,7 +683,7 @@ export class ViewportRuntime {
       this.camera.fov = g.fov;
       this.camera.updateProjectionMatrix();
     }
-    this.controls.rotateSpeed = g.orbitSpeed;
+    this.controls.rotateSpeed = g.invertOrbit ? -g.orbitSpeed : g.orbitSpeed;
     this.controls.zoomSpeed = g.invertZoom ? -g.zoomSpeed : g.zoomSpeed;
   }
 
@@ -876,10 +886,16 @@ export class ViewportRuntime {
 
   // ---------------------------------------------------------------- structure + view toggles
 
+  /** Node size from Settings (m); 0 = sized from the car. */
+  private nodeSize = 0;
+  private lastStructure: StructureData | null = null;
+
   /** Generated nodes/beams (BeamNG space), or null to clear. */
   setStructure(data: StructureData | null): void {
+    this.lastStructure = data;
     let radius = 0.012;
-    if (data && data.nodePositions.length) {
+    if (this.nodeSize > 0) radius = this.nodeSize;
+    else if (data && data.nodePositions.length) {
       let lo = Infinity;
       let hi = -Infinity;
       for (let i = 1; i < data.nodePositions.length; i += 3) {

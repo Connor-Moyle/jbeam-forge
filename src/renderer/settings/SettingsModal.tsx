@@ -20,6 +20,8 @@ import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { BeamngParts, LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
 import { ExtensionList } from './ExtensionList';
+import { KeymapEditor } from './KeymapEditor';
+import { applyInterface, useSettingsStore } from '@renderer/app/stores/settings';
 import styles from './SettingsModal.module.css';
 
 const VALIDATE_DEBOUNCE_MS = 250;
@@ -34,8 +36,13 @@ type Check =
 const SECTIONS = [
   { id: 'beamng', label: 'BeamNG.drive' },
   { id: 'general', label: 'General' },
+  { id: 'interface', label: 'Interface & theme' },
   { id: 'display', label: 'Window & display' },
   { id: 'graphics', label: 'Viewport & graphics' },
+  { id: 'navigation', label: 'Navigation' },
+  { id: 'editing', label: 'Editing' },
+  { id: 'keymap', label: 'Keymap' },
+  { id: 'files', label: 'Files & backups' },
   { id: 'units', label: 'Units' },
   { id: 'export', label: 'Export' },
   { id: 'downloads', label: 'Downloads' },
@@ -56,6 +63,14 @@ const WINDOW_LABELS: Record<WindowSize, string> = {
   '3840x2160': '3840 × 2160 (4K UHD)',
   custom: 'Custom…',
 };
+const THEMES: { value: Settings['theme']; label: string }[] = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'midnight', label: 'Midnight' },
+  { value: 'blender', label: 'Blender grey' },
+  { value: 'light', label: 'Light' },
+  { value: 'contrast', label: 'High contrast' },
+];
+const ACCENTS: Settings['accent'][] = ['blue', 'orange', 'green', 'purple', 'red', 'teal', 'pink', 'yellow'];
 const AUTOSAVE = [0, 1, 2, 5, 10, 15, 30] as const;
 const RENDER_SCALES = [0.5, 0.67, 0.75, 1, 1.25, 1.5, 2] as const;
 const FPS = [0, 30, 60, 120, 144, 240] as const;
@@ -90,6 +105,38 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
   const [saving, setSaving] = useState(false);
   const requestId = useRef(0);
   const pushStatus = useUiStore((s) => s.pushStatus);
+  const [query, setQuery] = useState('');
+
+  // Interface settings show at once while the window is open; closing without saving puts them back.
+  useEffect(() => {
+    applyInterface(d);
+  }, [d]);
+  useEffect(
+    () => () => {
+      const saved = useSettingsStore.getState().settings;
+      if (saved) applyInterface(saved);
+    },
+    [],
+  );
+
+  // Search: hide the settings (and sections) that don't mention the words typed.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const text = (el: Element) => `${el.textContent ?? ''} ${[...el.querySelectorAll('[aria-label]')].map((x) => x.getAttribute('aria-label')).join(' ')}`.toLowerCase();
+    for (const sec of body.querySelectorAll<HTMLElement>('[data-section]')) {
+      const title = SECTIONS.find((x) => x.id === sec.dataset.section)?.label.toLowerCase() ?? '';
+      const whole = words.every((w) => title.includes(w));
+      let any = whole;
+      for (const row of sec.querySelectorAll<HTMLElement>('[data-field], p')) {
+        const show = whole || words.every((w) => text(row).includes(w));
+        row.hidden = !show;
+        any ||= show;
+      }
+      sec.hidden = !any;
+    }
+  }, [query]);
 
   // Validate the path as it changes (debounced; stale answers are dropped).
   useEffect(() => {
@@ -191,6 +238,14 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
     setSection(current);
   };
 
+  const pickProjectFolder = () => {
+    call('dialog:pickDirectory', { title: 'Choose where projects are kept', ...(d.projectFolder ? { defaultPath: d.projectFolder } : {}) })
+      .then((picked) => {
+        if (picked) set({ projectFolder: picked });
+      })
+      .catch(() => undefined);
+  };
+
   const pickContentDir = () => {
     call('dialog:pickDirectory', { title: 'Choose where downloaded textures and meshes go', ...(d.contentDir ? { defaultPath: d.contentDir } : {}) })
       .then((picked) => {
@@ -222,6 +277,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
     >
       <div className={styles.layout} data-testid="settings-modal">
         <nav className={styles.nav} aria-label="Settings sections">
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search settings" aria-label="Search settings" data-testid="settings-search" />
           {SECTIONS.map((sec) => (
             <button key={sec.id} type="button" className={section === sec.id ? `${styles.navItem} ${styles.navOn}` : styles.navItem} onClick={() => jump(sec.id)} aria-current={section === sec.id ? 'true' : undefined}>
               {sec.label}
@@ -264,15 +320,48 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                 <Input value={d.author ?? ''} onChange={(e) => set({ author: e.target.value.slice(0, 100) || null })} placeholder="Your name" aria-label="Author" />
               </Field>
               <Toggle checked={d.openLastProject} onChange={(openLastProject) => set({ openLastProject })} label="Open the last project when JBeam Forge starts" />
-              <Field label="Autosave" hint="Saves the open project in the background (only projects that have been saved once).">
-                <Select value={String(d.autosaveMinutes)} onChange={(v) => set({ autosaveMinutes: Number(v) })} options={AUTOSAVE.map((m) => ({ value: String(m), label: m ? `Every ${m} minute${m === 1 ? '' : 's'}` : 'Off' }))} aria-label="Autosave" />
+            </FieldGroup>
+          </section>
+
+          <section data-section="interface">
+            <FieldGroup title="Interface & theme">
+              <Field label="Theme">
+                <div className={styles.themes} role="radiogroup" aria-label="Theme">
+                  {THEMES.map((t) => (
+                    <button key={t.value} type="button" role="radio" aria-checked={d.theme === t.value} className={d.theme === t.value ? styles.themeCardOn : styles.themeCard} onClick={() => set({ theme: t.value })} data-testid={`theme-${t.value}`}>
+                      <div className={styles.themePreview} data-theme-preview={t.value}>
+                        <span />
+                        <span />
+                      </div>
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
               </Field>
-              <Field label="Recent projects shown">
-                <NumberInput value={d.recentLimit} onChange={(recentLimit) => set({ recentLimit })} min={3} max={30} step={1} precision={0} aria-label="Recent projects shown" />
+              <Field label="Accent colour">
+                <div className={styles.swatches} role="radiogroup" aria-label="Accent colour">
+                  {ACCENTS.map((a) => (
+                    <button key={a} type="button" role="radio" aria-checked={d.accent === a} aria-label={`${a} accent`} title={a.charAt(0).toUpperCase() + a.slice(1)} className={d.accent === a ? styles.swatchOn : styles.swatch} data-accent={a} onClick={() => set({ accent: a })} />
+                  ))}
+                </div>
               </Field>
-              <Field label="Undo steps kept" hint="More steps use more memory on big projects.">
-                <NumberInput value={d.undoLimit} onChange={(undoLimit) => set({ undoLimit })} min={50} max={5000} step={50} precision={0} aria-label="Undo steps kept" />
+              <Field label="Spacing" hint="Compact fits more on screen; spacious is easier to click.">
+                <Select value={d.density} onChange={(density) => set({ density })} options={[{ value: 'compact', label: 'Compact' }, { value: 'normal', label: 'Normal' }, { value: 'spacious', label: 'Spacious' }]} aria-label="Spacing" />
               </Field>
+              <Field label="Text size">
+                <Select value={d.fontSize} onChange={(fontSize) => set({ fontSize })} options={[{ value: 'small', label: 'Small' }, { value: 'normal', label: 'Normal' }, { value: 'large', label: 'Large' }]} aria-label="Text size" />
+              </Field>
+              <Toggle checked={d.squareCorners} onChange={(squareCorners) => set({ squareCorners })} label="Square corners" />
+              <Toggle checked={d.animations} onChange={(animations) => set({ animations })} label="Animations" />
+              <Toggle checked={d.showTooltips} onChange={(showTooltips) => set({ showTooltips })} label="Show tooltips" />
+              {d.showTooltips && (
+                <Field label="Tooltip delay">
+                  <Slider value={d.tooltipDelay} onChange={(v) => set({ tooltipDelay: Math.round(v / 50) * 50 })} min={0} max={1500} step={50} format={(v) => (v ? `${Math.round(v)} ms` : 'Instant')} aria-label="Tooltip delay" />
+                </Field>
+              )}
+              <Toggle checked={d.showStatusBar} onChange={(showStatusBar) => set({ showStatusBar })} label="Status bar" />
+              <Toggle checked={d.confirmDeletes} onChange={(confirmDeletes) => set({ confirmDeletes })} label="Ask before deleting parts, materials, paints, configurations and scripts" />
+              <p className={styles.help}>Changes here show straight away; Cancel puts them back.</p>
             </FieldGroup>
           </section>
 
@@ -316,15 +405,71 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Field label="Camera field of view">
                 <Slider value={d.cameraFov} onChange={(cameraFov) => set({ cameraFov: Math.round(cameraFov) })} min={25} max={90} step={1} format={(v) => `${Math.round(v)}°`} aria-label="Camera field of view" />
               </Field>
+              <Field label="Focus mode: other parts" hint="How much of the rest of the car stays visible while you work on one part. 0% hides it.">
+                <Slider value={d.focusGhostOpacity} onChange={(focusGhostOpacity) => set({ focusGhostOpacity })} min={0} max={0.6} step={0.02} format={(v) => `${Math.round(v * 100)}%`} aria-label="Focus mode ghost opacity" />
+              </Field>
+            </FieldGroup>
+          </section>
+
+          <section data-section="navigation">
+            <FieldGroup title="Navigation">
               <Field label="Orbit speed">
                 <Slider value={d.orbitSpeed} onChange={(orbitSpeed) => set({ orbitSpeed })} min={0.2} max={3} step={0.1} format={(v) => `× ${v.toFixed(1)}`} aria-label="Orbit speed" />
+              </Field>
+              <Field label="Pan speed">
+                <Slider value={d.panSpeed} onChange={(panSpeed) => set({ panSpeed })} min={0.2} max={3} step={0.1} format={(v) => `× ${v.toFixed(1)}`} aria-label="Pan speed" />
               </Field>
               <Field label="Zoom speed">
                 <Slider value={d.zoomSpeed} onChange={(zoomSpeed) => set({ zoomSpeed })} min={0.2} max={3} step={0.1} format={(v) => `× ${v.toFixed(1)}`} aria-label="Zoom speed" />
               </Field>
+              <Toggle checked={d.zoomToCursor} onChange={(zoomToCursor) => set({ zoomToCursor })} label="Zoom towards the mouse" />
               <Toggle checked={d.invertZoom} onChange={(invertZoom) => set({ invertZoom })} label="Invert scroll-wheel zoom" />
-              <Field label="Focus mode: other parts" hint="How much of the rest of the car stays visible while you work on one part. 0% hides it.">
-                <Slider value={d.focusGhostOpacity} onChange={(focusGhostOpacity) => set({ focusGhostOpacity })} min={0} max={0.6} step={0.02} format={(v) => `${Math.round(v * 100)}%`} aria-label="Focus mode ghost opacity" />
+              <Toggle checked={d.invertOrbit} onChange={(invertOrbit) => set({ invertOrbit })} label="Invert orbit direction" />
+              <Toggle checked={d.smoothCamera} onChange={(smoothCamera) => set({ smoothCamera })} label="Smooth camera (eases to a stop)" />
+              <p className={styles.help}>Left drag orbits, right drag pans, the wheel zooms. F focuses the selection and Home frames everything (see Keymap).</p>
+            </FieldGroup>
+          </section>
+
+          <section data-section="editing">
+            <FieldGroup title="Editing">
+              <Field label="Arrow-key nudge" hint="How far the arrow keys move selected nodes. Shift moves five times as far, Alt a fifth.">
+                <NumberInput value={d.nudgeMm} onChange={(nudgeMm) => set({ nudgeMm })} min={0.1} max={100} step={1} precision={1} unit="mm" aria-label="Arrow-key nudge" />
+              </Field>
+              <Field label="Node size" hint="0 sizes nodes to the car; anything else draws every node this big.">
+                <NumberInput value={d.nodeSizeMm} onChange={(nodeSizeMm) => set({ nodeSizeMm })} min={0} max={100} step={1} precision={0} unit="mm" aria-label="Node size" />
+              </Field>
+              <Field label="Undo steps kept" hint="More steps use more memory on big projects.">
+                <NumberInput value={d.undoLimit} onChange={(undoLimit) => set({ undoLimit })} min={50} max={5000} step={50} precision={0} aria-label="Undo steps kept" />
+              </Field>
+            </FieldGroup>
+          </section>
+
+          <section data-section="keymap">
+            <FieldGroup title="Keymap">
+              <p className={styles.help}>Click a key to change it, then press the new key (Esc cancels, Backspace clears). Keymaps can be saved and shared as .jbkeys files.</p>
+              <KeymapEditor value={d.keymap} onChange={(keymap) => set({ keymap })} />
+            </FieldGroup>
+          </section>
+
+          <section data-section="files">
+            <FieldGroup title="Files & backups">
+              <Field label="Projects folder" hint="Where Open and Save As start.">
+                <span className={styles.readonly} title={d.projectFolder ?? undefined}>
+                  {d.projectFolder ?? 'Documents (default)'}
+                </span>
+                <Button icon={FolderOpen} onClick={pickProjectFolder}>
+                  Choose
+                </Button>
+                {d.projectFolder && <Button onClick={() => set({ projectFolder: null })}>Default</Button>}
+              </Field>
+              <Field label="Autosave" hint="Saves the open project in the background (only projects that have been saved once).">
+                <Select value={String(d.autosaveMinutes)} onChange={(v) => set({ autosaveMinutes: Number(v) })} options={AUTOSAVE.map((m) => ({ value: String(m), label: m ? `Every ${m} minute${m === 1 ? '' : 's'}` : 'Off' }))} aria-label="Autosave" />
+              </Field>
+              <Field label="Backups kept" hint="Each save keeps the previous versions beside the project (name.jbforge.1.bak, .2.bak…). 0 keeps none.">
+                <NumberInput value={d.backupCount} onChange={(backupCount) => set({ backupCount })} min={0} max={20} step={1} precision={0} aria-label="Backups kept" />
+              </Field>
+              <Field label="Recent projects shown">
+                <NumberInput value={d.recentLimit} onChange={(recentLimit) => set({ recentLimit })} min={3} max={30} step={1} precision={0} aria-label="Recent projects shown" />
               </Field>
             </FieldGroup>
           </section>

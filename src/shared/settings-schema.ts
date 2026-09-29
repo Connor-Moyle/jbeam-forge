@@ -45,6 +45,45 @@ export const SettingsSchema = z.object({
   /** Undo steps kept in memory. */
   undoLimit: z.number().int().min(50).max(5000),
 
+  // Interface (Blender-style preferences)
+  theme: z.enum(['dark', 'midnight', 'blender', 'light', 'contrast']),
+  accent: z.enum(['blue', 'orange', 'green', 'purple', 'red', 'teal', 'pink', 'yellow']),
+  density: z.enum(['compact', 'normal', 'spacious']),
+  fontSize: z.enum(['small', 'normal', 'large']),
+  squareCorners: z.boolean(),
+  animations: z.boolean(),
+  showTooltips: z.boolean(),
+  /** Hover time before a tooltip shows (ms). */
+  tooltipDelay: z.number().int().min(0).max(2000),
+  showStatusBar: z.boolean(),
+  /** Ask before deleting parts, scripts and other things that take work to make again. */
+  confirmDeletes: z.boolean(),
+
+  // Navigation
+  /** Zoom toward the mouse pointer instead of the view's centre. */
+  zoomToCursor: z.boolean(),
+  panSpeed: z.number().min(0.1).max(5),
+  /** Smooth (damped) camera movement. */
+  smoothCamera: z.boolean(),
+  /** Orbit the other way when dragging. */
+  invertOrbit: z.boolean(),
+
+  // Editing
+  /** Arrow-key nudge in edit mode, millimetres (Shift × 5, Alt ÷ 5). */
+  nudgeMm: z.number().min(0.1).max(100),
+  /** Node size in the viewport, millimetres (0 = automatic from the car's size). */
+  nodeSizeMm: z.number().min(0).max(100),
+
+  // Keys
+  /** Keys the user changed (action id → key; "" = none). */
+  keymap: z.record(z.string(), z.string().max(40)),
+
+  // Files
+  /** Where Save As and Open start (null = the last folder used). */
+  projectFolder: z.string().min(1).nullable(),
+  /** Earlier versions kept beside a project when it's saved (name.jbforge.1.bak…). */
+  backupCount: z.number().int().min(0).max(20),
+
   // Window & display
   /** Window size at startup: the last size, a resolution, or custom. */
   windowSize: z.enum(WINDOW_SIZES),
@@ -142,6 +181,25 @@ export const DEFAULT_SETTINGS: Settings = {
   windowHeight: 900,
   startMode: 'normal',
   uiScale: 1,
+  theme: 'dark',
+  accent: 'blue',
+  density: 'normal',
+  fontSize: 'normal',
+  squareCorners: false,
+  animations: true,
+  showTooltips: true,
+  tooltipDelay: 300,
+  showStatusBar: true,
+  confirmDeletes: true,
+  zoomToCursor: true,
+  panSpeed: 1,
+  smoothCamera: false,
+  invertOrbit: false,
+  nudgeMm: 5,
+  nodeSizeMm: 0,
+  keymap: {},
+  projectFolder: null,
+  backupCount: 2,
   renderScale: 1,
   antialias: true,
   maxFps: 0,

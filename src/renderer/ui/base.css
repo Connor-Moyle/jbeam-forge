@@ -61,3 +61,8 @@ textarea {
 *:hover::-webkit-scrollbar-thumb {
   background: var(--border-2);
 }
+
+/* The hidden attribute always hides, whatever display a class sets (settings search). */
+[hidden] {
+  display: none !important;
+}

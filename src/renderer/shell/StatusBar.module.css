@@ -63,3 +63,8 @@
     transform: translateY(100%);
   }
 }
+
+/* Settings → Interface: status bar hidden. */
+:global(:root[data-statusbar='off']) .bar {
+  display: none;
+}

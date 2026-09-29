@@ -19,7 +19,7 @@ import { SIDE_FRAMES, startVinylSync, useVinylUi, vinylKey, vinylPointer } from 
 import { facePointer, startFacePaintSync, useFaceOverlays } from '@renderer/paint/facePaint';
 import { assignMaterial, MIME_MATERIAL } from '@renderer/materials/commands';
 import { slotsOf } from '@renderer/materials/seed';
-import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams } from '@renderer/structure/editCommands';
+import { connectSelection, deleteSelection, invertSelection, mergeSelection, moveSelection, previewSelectionMove, selectAll, selectConnected, selectParts, splitSelectedBeams, mirrorSelection, addNodeAtSelection } from '@renderer/structure/editCommands';
 import { EditToolbar } from '@renderer/structure/EditToolbar';
 import { applySplitSelection, useSplitTool } from '@renderer/split/splitTool';
 import { SplitToolbar } from '@renderer/split/SplitToolbar';
@@ -39,7 +39,8 @@ import { useCameraUi } from '@renderer/cameras/commands';
 import { propAmount } from '@shared/props/props';
 import { useFeatureUi } from '@renderer/features/commands';
 import { PLATE_SIZE } from '@shared/export/features';
-import { useSettingsStore } from '@renderer/app/stores/settings';
+import { useSettingsStore, useThemeVersion } from '@renderer/app/stores/settings';
+import { isKey } from '@renderer/app/keys';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
 import { Focus, Move, Rotate3d, Scaling, X } from 'lucide-react';
 import { cx } from '@renderer/ui/cx';
@@ -51,7 +52,9 @@ import styles from './ViewportPanel.module.css';
 /** The viewport; anti-aliasing is fixed when the WebGL context is made, so changing it restarts the view. */
 export function ViewportPanel() {
   const antialias = useSettingsStore((s) => s.settings?.antialias ?? true);
-  return <ViewportCanvas key={antialias ? 'aa' : 'no-aa'} antialias={antialias} />;
+  // A new theme remakes the viewport so its grid, lights and background take the theme's colours.
+  const theme = useThemeVersion((s) => s.version);
+  return <ViewportCanvas key={`${antialias ? 'aa' : 'no-aa'}-${theme}`} antialias={antialias} />;
 }
 
 function ViewportCanvas({ antialias }: { antialias: boolean }) {
@@ -213,7 +216,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
     const ghost = () => {
       const st = useSettingsStore.getState().settings ?? DEFAULT_SETTINGS;
       rt.setGhostOpacity(st.focusGhostOpacity);
-      rt.setGraphics({ renderScale: st.renderScale, maxFps: st.maxFps, showGrid: st.showGrid, reflections: st.reflections, background: st.viewportBackground, fov: st.cameraFov, orbitSpeed: st.orbitSpeed, zoomSpeed: st.zoomSpeed, invertZoom: st.invertZoom });
+      rt.setGraphics({ renderScale: st.renderScale, maxFps: st.maxFps, showGrid: st.showGrid, reflections: st.reflections, background: st.viewportBackground, fov: st.cameraFov, orbitSpeed: st.orbitSpeed, zoomSpeed: st.zoomSpeed, invertZoom: st.invertZoom, zoomToCursor: st.zoomToCursor, panSpeed: st.panSpeed, smoothCamera: st.smoothCamera, invertOrbit: st.invertOrbit, nodeSizeMm: st.nodeSizeMm });
     };
     ghost();
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
@@ -343,19 +346,19 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
         e.preventDefault();
         return;
       }
-      // Blender-style: G move, R rotate, S scale (M too, for move); Esc puts the gizmo away.
-      const gizmoKey = { g: 'translate', m: 'translate', r: 'rotate', s: 'scale' }[e.key.toLowerCase()] as GizmoMode | undefined;
-      if (!splitting && !edit.active && gizmoKey && !e.ctrlKey && !e.altKey && !e.metaKey && scene.getState().selection.length) {
+      // Blender-style: G move, R rotate, S scale (keys in Settings → Keymap); Esc puts the gizmo away.
+      const gizmoKey: GizmoMode | undefined = isKey(e, 'move') ? 'translate' : isKey(e, 'rotate') ? 'rotate' : isKey(e, 'scale') ? 'scale' : undefined;
+      if (!splitting && !edit.active && gizmoKey && scene.getState().selection.length) {
         useMeshMove.getState().setMode(gizmoKey);
         e.preventDefault();
         return;
       }
-      if (!splitting && !edit.active && e.key === 'Escape' && useMeshMove.getState().on) {
+      if (!splitting && !edit.active && isKey(e, 'cancel') && useMeshMove.getState().on) {
         useMeshMove.getState().set(false);
         e.preventDefault();
         return;
       }
-      if (!splitting && e.key === 'Tab' && !e.ctrlKey && !e.altKey) {
+      if (!splitting && isKey(e, 'editMode')) {
         edit.setActive(!edit.active);
         e.preventDefault();
         return;
@@ -366,11 +369,11 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       }
       if (splitting && e.key === 'Escape') useSplitTool.getState().cancel();
       else if (splitting && e.key === 'Enter') void applySplitSelection();
-      else if (e.key === 'f' || e.key === 'F') {
+      else if (isKey(e, 'focus')) {
         if (!focusSelection()) rt.frame(scene.getState().selection);
-      } else if (e.key === 'Escape') {
+      } else if (isKey(e, 'cancel')) {
         if (!exitFocus()) return;
-      } else if (e.key === 'Home') rt.frame();
+      } else if (isKey(e, 'frameAll')) rt.frame();
       else return;
       e.preventDefault();
     };
@@ -557,18 +560,20 @@ function editView(doc: { nodes: readonly { id: string; partId: string; pos: [num
 /** Edit-mode keys. Returns true when the key was handled. */
 function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
   const edit = useEditStore.getState();
-  const ctrl = e.ctrlKey || e.metaKey;
-  if (e.key === 'Delete' || e.key === 'Backspace') deleteSelection();
-  else if (ctrl && (e.key === 'a' || e.key === 'A')) selectAll();
-  else if (!ctrl && (e.key === 'i' || e.key === 'I')) invertSelection();
-  else if (!ctrl && (e.key === 'l' || e.key === 'L')) selectConnected();
-  else if (!ctrl && (e.key === 'b' || e.key === 'B')) connectSelection();
-  else if (!ctrl && (e.key === 'm' || e.key === 'M')) mergeSelection();
-  else if (!ctrl && (e.key === 'd' || e.key === 'D')) splitSelectedBeams();
-  else if (e.key === 'Escape' && (edit.nodes.length || edit.beams.length)) edit.clear();
+  if (isKey(e, 'nodeDelete')) deleteSelection();
+  else if (isKey(e, 'nodeSelectAll')) selectAll();
+  else if (isKey(e, 'nodeInvert')) invertSelection();
+  else if (isKey(e, 'nodeConnected')) selectConnected();
+  else if (isKey(e, 'nodeConnect')) connectSelection();
+  else if (isKey(e, 'nodeMerge')) mergeSelection();
+  else if (isKey(e, 'beamSplit')) splitSelectedBeams();
+  else if (isKey(e, 'nodeMirror')) mirrorSelection();
+  else if (isKey(e, 'nodeAdd')) addNodeAtSelection();
+  else if (isKey(e, 'cancel') && (edit.nodes.length || edit.beams.length)) edit.clear();
   else if (e.key.startsWith('Arrow') && edit.nodes.length) {
-    // 5 mm steps; Shift for 25 mm, Alt for 1 mm. Left/right and up/down follow the screen, snapped to the nearest axis.
-    const step = e.shiftKey ? 0.025 : e.altKey ? 0.001 : 0.005;
+    // The nudge step from Settings → Editing (5 mm); Shift × 5, Alt ÷ 5. Left/right and up/down follow the screen, snapped to the nearest axis.
+    const base = (useSettingsStore.getState().settings?.nudgeMm ?? 5) / 1000;
+    const step = e.shiftKey ? base * 5 : e.altKey ? base / 5 : base;
     const { right, up } = rt.nudgeAxes();
     const dir = e.key === 'ArrowRight' ? right : e.key === 'ArrowLeft' ? right.map((v) => -v) : e.key === 'ArrowUp' ? up : up.map((v) => -v);
     moveSelection([dir[0]! * step, dir[1]! * step, dir[2]! * step], 'Nudge nodes');
