@@ -1,6 +1,8 @@
-import { shell } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
+import { sendEvent } from './register';
 import { z } from 'zod';
 import { demoCarObj } from '@shared/tutorial/demoCar';
+import { SourceWatcher } from '../services/sourceWatcher';
 import { SettingsPatchSchema } from '@shared/settings-schema';
 import { StoredLayoutSchema } from '@shared/layout-schema';
 import { parseProject } from '@shared/project/io';
@@ -387,6 +389,23 @@ export function registerIpcHandlers(services: HandlerServices): void {
     projects.grantFile(path); // also grants its folder: MTL, .bin and textures live next to it
     return { path, format, bytes: (await stat(path)).size };
   });
+
+  // Auto-reimport: tell the window when a watched model file is saved again.
+  const watcher = new SourceWatcher((path, kind) => {
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) sendEvent(w.webContents, 'sources:changed', { path, kind });
+  }, scoped('watch'));
+  app.on('before-quit', () => watcher.close());
+  registerInvoke(
+    'sources:watch',
+    async ({ paths, textures }) => {
+      await watcher.set(
+        paths.filter((p) => projects.isUnderGrantedRoot(p)),
+        textures,
+      );
+      return undefined;
+    },
+    z.object({ paths: z.array(z.string().min(1).max(4096)).max(200), textures: z.boolean() }),
+  );
 
   registerInvoke('tutorial:demoModel', async () => {
     const dir = join(dirname(services.paintedTextures), 'tutorial');

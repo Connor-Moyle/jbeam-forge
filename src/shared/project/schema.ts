@@ -35,6 +35,10 @@ export const ProjectMetaSchema = z.object({
   bodyStyle: z.string().optional(),
   country: z.string().optional(),
   years: z.object({ min: z.number().int(), max: z.number().int() }).optional(),
+  /** Reload the model when its file changes on disk (fork); unset = Settings → Files. */
+  autoReimport: z.boolean().optional(),
+  /** Export textures as DDS (fork); unset = Settings → Export. */
+  ddsConvert: z.boolean().optional(),
 });
 
 const placeholderList = z.array(z.unknown());

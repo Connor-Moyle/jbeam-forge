@@ -24,7 +24,7 @@ const USE_UV_KEY: Record<TextureSlot, string> = {
 };
 
 /** `fileFor` maps a texture path on disk to its path inside the mod ("/vehicles/<slug>/<file>"). */
-export function stageJson(layer: MaterialLayer, fileFor: (path: string) => string): Record<string, unknown> {
+export function stageJson(layer: MaterialLayer, fileFor: (path: string, slot?: TextureSlot) => string): Record<string, unknown> {
   const s: Record<string, unknown> = {};
   const [r, g, b, a] = layer.baseColor;
   if (r !== 1 || g !== 1 || b !== 1 || a !== 1 || !layer.maps.baseColorMap) s.baseColorFactor = layer.baseColor.map(round);
@@ -44,7 +44,7 @@ export function stageJson(layer: MaterialLayer, fileFor: (path: string) => strin
     s.detailScale = layer.detailScale.map(round);
     s.detailNormalMapStrength = round(layer.detailNormalStrength);
   }
-  for (const [slot, path] of Object.entries(layer.maps) as [TextureSlot, string][]) s[slot] = path.startsWith('/vehicles/') ? path : fileFor(path);
+  for (const [slot, path] of Object.entries(layer.maps) as [TextureSlot, string][]) s[slot] = path.startsWith('/vehicles/') ? path : fileFor(path, slot);
   for (const slot of layer.uv2) if (layer.maps[slot]) s[USE_UV_KEY[slot]] = 1;
   if (layer.instanceDiffuse) s.instanceDiffuse = true;
   if (layer.vertColor) s.vertColor = true;
@@ -54,7 +54,7 @@ export function stageJson(layer: MaterialLayer, fileFor: (path: string) => strin
   return { ...s, ...layer.extra };
 }
 
-export function materialJson(def: MaterialDef, exportName: string, fileFor: (path: string) => string): Record<string, unknown> {
+export function materialJson(def: MaterialDef, exportName: string, fileFor: (path: string, slot?: TextureSlot) => string): Record<string, unknown> {
   const layers = def.layers.map((l, i) => {
     // Painted: layer 0 needs a palette mask; without one the whole thing is paint slot 1.
     if (i === 0 && def.paint && !l.maps.colorPaletteMap) return { ...l, maps: { ...l.maps, colorPaletteMap: DEFAULT_PALETTE_MASK } };

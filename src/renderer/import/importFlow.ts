@@ -4,7 +4,7 @@ import { samePlacement } from '@shared/placement';
 import { applyPlacement } from './placement';
 import { applyMeshEdits, editsKey } from './meshEdits';
 import { isAcHelperMesh } from '@shared/ac/helpers';
-import { planSeed, seedMaterials } from '@renderer/materials/seed';
+import { planSeed, refreshTextures, seedMaterials } from '@renderer/materials/seed';
 import type { MaterialDef } from '@shared/materials/schema';
 import { registerImportedTextures } from '@renderer/materials/runtime';
 import { produce } from 'immer';
@@ -217,7 +217,8 @@ function stillWanted(sourceId: string, fp: string): boolean {
   return !!s && fingerprint(s) === fp;
 }
 
-async function loadFromDisk(source: Source): Promise<void> {
+/** `quiet`: a reload of a source already showing (auto-reimport): it stays on screen until the new one is ready. */
+async function loadFromDisk(source: Source, quiet = false): Promise<void> {
   const fp = fingerprint(source);
   inFlight.set(source.id, fp);
   const base = { sourceId: source.id, fingerprint: fp, fileName: fileNameOf(source.absolutePath), raw: [], meshes: [], splitsKey: '', textures: null, stats: null };
@@ -226,7 +227,7 @@ async function loadFromDisk(source: Source): Promise<void> {
   const store = (s: Parameters<ReturnType<typeof useSceneStore.getState>['setSource']>[0]) => {
     if (stillWanted(source.id, fp)) useSceneStore.getState().setSource(s);
   };
-  store({ ...base, status: 'loading', error: null });
+  if (!quiet) store({ ...base, status: 'loading', error: null });
   try {
     const path = await call('import:locateSource', { projectPath: projectStore.getState().filePath, path: source.path, absolutePath: source.absolutePath });
     if (!path) {
@@ -250,6 +251,38 @@ async function loadFromDisk(source: Source): Promise<void> {
   } finally {
     if (inFlight.get(source.id) === fp) inFlight.delete(source.id);
   }
+}
+
+/**
+ * Auto-reimport (fork): the model file was saved again. Reload it in place;
+ * parts, materials, splits and edits follow the meshes by name, so the work
+ * done on them stays. New meshes are offered to Auto-classify.
+ */
+export async function reloadSource(sourceId: string, why: 'model' | 'texture' = 'model'): Promise<void> {
+  const source = projectStore.getState().doc?.sources.find((s) => s.id === sourceId);
+  if (!source || inFlight.has(sourceId)) return;
+  const before = new Set(useSceneStore.getState().sources[sourceId]?.meshes.map((m) => m.key) ?? []);
+  const name = fileNameOf(source.absolutePath);
+  useImportUi.getState().setBusy(`Reloading ${name}…`);
+  try {
+    await loadFromDisk(source, true);
+  } finally {
+    useImportUi.getState().setBusy(null);
+  }
+  const loaded = useSceneStore.getState().sources[sourceId];
+  if (loaded?.status !== 'ready') {
+    useUiStore.getState().pushStatus(`Could not reload ${name}: ${loaded?.error ?? 'unknown error'}`, 'warning');
+    return;
+  }
+  const after = loaded.meshes;
+  const textures = refreshTextures(sourceId, loaded.raw);
+  const added = after.filter((m) => !before.has(m.key));
+  const gone = [...before].filter((k) => !after.some((m) => m.key === k)).length;
+  useUiStore
+    .getState()
+    .pushStatus(`${why === 'texture' ? 'Textures changed: reloaded' : 'Reloaded'} ${name}${added.length ? ` · ${added.length} new mesh${added.length === 1 ? '' : 'es'}` : ''}${gone ? ` · ${gone} gone` : ''}${textures ? ` · ${textures} new texture${textures === 1 ? '' : 's'}` : ''}; parts and materials kept`, 'success', 6000);
+  useSceneStore.getState().requestFrame();
+  if (added.length) offerAutoClassify(name, added);
 }
 
 /** After folder consent: retry every source that couldn't be read. */

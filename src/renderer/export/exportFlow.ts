@@ -26,7 +26,8 @@ import { validateExport, type ValidationReport } from '@shared/export/validate';
 import { writeDae, type DaeMesh } from './dae';
 import { exportableProps } from '@shared/props/props';
 import { withPaintedFaces } from '@renderer/paint/facePaint';
-import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson } from './materials';
+import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson, type TextureCopy } from './materials';
+import { textureToDds, toBase64 } from './textureConvert';
 
 const logger = rlog('export');
 
@@ -38,7 +39,8 @@ const logger = rlog('export');
  */
 
 export interface PreparedExport {
-  bundle: ExportBundle;
+  /** Copies may still be marked for DDS conversion (finalBundle does it). */
+  bundle: Omit<ExportBundle, 'copies'> & { copies: TextureCopy[] };
   report: ValidationReport;
   summary: { parts: number; meshes: number; nodes: number; beams: number; textures: number; daeBytes: number };
 }
@@ -86,7 +88,7 @@ export function prepareExport(): PreparedExport | null {
   const exported = allMeshes.filter((m) => meshNames.has(m.key));
 
   // Project materials first; a mesh without any (shouldn't happen after import) keeps its imported one.
-  const namer = createTextureNamer(slug);
+  const namer = createTextureNamer(slug, { dds: ddsWanted(doc) });
   const takenNames = new Set<string>();
   const usedIds = new Set(exported.flatMap((m) => slotsOf(doc, m.key) ?? []));
   // Materials painted onto meshes' triangles go too.
@@ -290,13 +292,52 @@ export function refreshExport(): void {
   }
 }
 
+/** This mod's textures go into the export as DDS (the mod's own choice, else Settings → Export). */
+export function ddsWanted(doc: Pick<Project, 'meta'>): boolean {
+  return doc.meta.ddsConvert ?? useSettingsStore.getState().settings?.ddsConvert ?? false;
+}
+
+/**
+ * The bundle as the writer takes it: textures marked for DDS are converted
+ * here (each a file of its own), the rest copied as they are. A texture that
+ * can't be converted is copied unchanged under its original extension, and
+ * the materials pointing at it are fixed up.
+ */
+export async function finalBundle(bundle: PreparedExport['bundle'], progress: (text: string) => void): Promise<ExportBundle> {
+  const todo = bundle.copies.filter((c) => c.convert);
+  if (!todo.length) return { ...bundle, copies: bundle.copies.map(({ from, to }) => ({ from, to })) };
+  const s = useSettingsStore.getState().settings;
+  const opts = { mipmaps: s?.ddsMipmaps ?? true, normalFormat: s?.ddsNormalFormat ?? 'BC3', maxSize: s?.ddsMaxSize ?? 0 } as const;
+  const files = [...bundle.files];
+  const copies: { from: string; to: string }[] = bundle.copies.filter((c) => !c.convert).map(({ from, to }) => ({ from, to }));
+  const renamed = new Map<string, string>();
+  let n = 0;
+  for (const c of todo) {
+    progress(`Converting textures to DDS (${++n} of ${todo.length})…`);
+    try {
+      const bytes = await textureToDds(c.from, c.convert!, opts);
+      files.push({ path: c.to, base64: toBase64(bytes) });
+    } catch (err) {
+      const original = `${c.to.slice(0, c.to.lastIndexOf('.'))}${c.from.slice(c.from.lastIndexOf('.'))}`;
+      logger.warn(`kept ${c.from} as it is: ${errorText(err)}`);
+      copies.push({ from: c.from, to: original });
+      renamed.set(c.to.slice(c.to.lastIndexOf('/') + 1), original.slice(original.lastIndexOf('/') + 1));
+    }
+  }
+  const fixed = renamed.size ? files.map((f) => (f.text && f.path.endsWith('.materials.json') ? { ...f, text: [...renamed].reduce((t, [a, b]) => t.split(a).join(b), f.text) } : f)) : files;
+  return { ...bundle, files: fixed, copies };
+}
+
+
 export async function runExport(mode: 'install' | 'zip'): Promise<void> {
   const ui = useExportUi.getState();
   const prepared = ui.prepared;
   if (!prepared || prepared.report.errors.length) return;
   ui.set({ busy: mode === 'install' ? 'Installing into BeamNG…' : 'Writing zip…', error: null });
   try {
-    const r = mode === 'install' ? await call('export:install', prepared.bundle) : await call('export:zip', prepared.bundle);
+    const bundle = await finalBundle(prepared.bundle, (busy) => ui.set({ busy }));
+    ui.set({ busy: mode === 'install' ? 'Installing into BeamNG…' : 'Writing zip…' });
+    const r = mode === 'install' ? await call('export:install', bundle) : await call('export:zip', bundle);
     if (r) {
       ui.set({ result: { ...r, mode } });
       logger.info(`export ${mode}: ${r.path}`);
@@ -316,7 +357,8 @@ export async function runPublish(listing: PublishListing): Promise<void> {
   if (!prepared || prepared.report.errors.length) return;
   ui.set({ busy: 'Writing the repository package…', error: null });
   try {
-    const r = await call('export:publish', { bundle: prepared.bundle, listing });
+    const bundle = await finalBundle(prepared.bundle, (busy) => ui.set({ busy }));
+    const r = await call('export:publish', { bundle, listing });
     if (r) {
       ui.set({ result: { ...r, mode: 'publish' } });
       if (useSettingsStore.getState().settings?.openFolderAfterExport) void call('export:reveal').catch(() => undefined);

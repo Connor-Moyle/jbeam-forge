@@ -5,6 +5,7 @@ import type { MaterialDef } from '@shared/materials/schema';
 import type { Skin } from '@shared/project/schema';
 import { skinMaterialName } from '@shared/export/features';
 import { previewLayer } from '@renderer/materials/runtime';
+import { convertible, type TextureKind } from './textureConvert';
 
 /**
  * Imported three.js materials → exported material definitions + the texture
@@ -26,28 +27,48 @@ export interface MaterialExport {
   materials: ExportMaterial[];
   /** three material → exported name */
   names: Map<Material, string>;
-  copies: { from: string; to: string }[];
+  copies: TextureCopy[];
 }
 
 function basename(p: string): string {
   return p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
 }
 
-/** Names texture files inside the mod (slug-prefixed, unique) and records what to copy. */
-export function createTextureNamer(slug: string): { file: (src: string) => string; copies: { from: string; to: string }[] } {
+/** How a texture slot's pixels are used (normal maps compress differently). */
+export function textureKind(slot: string | undefined): TextureKind {
+  if (slot === 'normalMap' || slot === 'detailNormalMap') return 'normal';
+  if (slot === 'roughnessMap' || slot === 'metallicMap' || slot === 'ambientOcclusionMap') return 'data';
+  return 'color';
+}
+
+export interface TextureCopy {
+  from: string;
+  to: string;
+  /** Converted to DDS on export (the file name already ends .dds). */
+  convert?: TextureKind;
+}
+
+/**
+ * Names texture files inside the mod (slug-prefixed, unique) and records
+ * what to copy. With `dds`, PNG/JPG/TGA… are named .dds and marked to be
+ * converted on export.
+ */
+export function createTextureNamer(slug: string, opts: { dds?: boolean } = {}): { file: (src: string, slot?: string) => string; copies: TextureCopy[] } {
   const fileFor = new Map<string, string>(); // source path → file name in the mod
   const usedFiles = new Set<string>();
-  const copies: { from: string; to: string }[] = [];
-  const file = (src: string): string => {
+  const copies: TextureCopy[] = [];
+  const file = (src: string, slot?: string): string => {
     const known = fileFor.get(src);
     if (known) return known;
-    const base = basename(src).replace(/[^A-Za-z0-9_.-]/g, '_');
+    const convert = opts.dds && convertible(src);
+    let base = basename(src).replace(/[^A-Za-z0-9_.-]/g, '_');
+    if (convert) base = `${base.includes('.') ? base.slice(0, base.lastIndexOf('.')) : base}.dds`;
     let name = base.toLowerCase().startsWith(`${slug}_`) ? base : `${slug}_${base}`;
     const dot = name.lastIndexOf('.');
     for (let i = 2; usedFiles.has(name.toLowerCase()); i++) name = `${name.slice(0, dot)}_${i}${name.slice(dot)}`;
     usedFiles.add(name.toLowerCase());
     fileFor.set(src, name);
-    copies.push({ from: src, to: `vehicles/${slug}/${name}` });
+    copies.push({ from: src, to: `vehicles/${slug}/${name}`, ...(convert ? { convert: textureKind(slot) } : {}) });
     return name;
   };
   return { file, copies };
@@ -68,7 +89,7 @@ export function projectMaterialExport(slug: string, defs: readonly MaterialDef[]
     }
     const name = exportMaterialName(slug, def.name, taken);
     names.set(def.id, name);
-    json[name] = materialJson(def, name, (path) => `/vehicles/${slug}/${namer.file(path)}`);
+    json[name] = materialJson(def, name, (path, slot) => `/vehicles/${slug}/${namer.file(path, slot)}`);
     colors.push({ name, color: [...previewLayer(def).baseColor] });
   }
   return { names, json, colors, copies: namer.copies };
@@ -90,7 +111,7 @@ export function skinMaterialsJson(slug: string, defs: readonly MaterialDef[], sk
       const [first, ...rest] = def.layers;
       const layer = { ...first!, baseColor: o.baseColor ?? first!.baseColor, maps: { ...first!.maps, ...(o.baseColorMap ? { baseColorMap: o.baseColorMap } : {}) } };
       const skinName = skinMaterialName(name, skin);
-      json[skinName] = materialJson({ ...def, layers: [layer, ...rest] }, skinName, (path) => `/vehicles/${slug}/${namer.file(path)}`);
+      json[skinName] = materialJson({ ...def, layers: [layer, ...rest] }, skinName, (path, slot) => `/vehicles/${slug}/${namer.file(path, slot)}`);
     }
   }
   return json;
@@ -112,7 +133,7 @@ export function collectMaterials(slug: string, materials: Iterable<Material>, na
     for (const [slot, prop] of SLOT_MAP) {
       const tex = m[prop];
       const src = tex instanceof Texture ? (tex.userData.sourcePath as string | undefined) : undefined;
-      if (src) maps[slot] = copyTexture(src);
+      if (src) maps[slot] = copyTexture(src, slot);
     }
     // Phong (COLLADA/OBJ/FBX) has no roughness: derive it from shininess.
     const roughness = typeof m.roughness === 'number' ? m.roughness : typeof m.shininess === 'number' ? Math.max(0.05, Math.min(1, 1 - m.shininess / 100)) : 0.5;

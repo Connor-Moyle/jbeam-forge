@@ -58,6 +58,19 @@ export const SettingsSchema = z.object({
   showStatusBar: z.boolean(),
   /** Ask before deleting parts, scripts and other things that take work to make again. */
   confirmDeletes: z.boolean(),
+  /** Textures go into exported mods as DDS (new mods start with this; each mod can change it). */
+  ddsConvert: z.boolean(),
+  ddsMipmaps: z.boolean(),
+  /** Normal maps as BC3 (DXT5, like most of the game's) or BC5 (two channels, sharper). */
+  ddsNormalFormat: z.enum(['BC3', 'BC5']),
+  /** Largest texture side in the mod (px); 0 = as they are. */
+  ddsMaxSize: z.union([z.literal(0), z.literal(512), z.literal(1024), z.literal(2048), z.literal(4096)]),
+  /** Reload a model when its file changes (new mods start with this; each mod can change it). */
+  autoReimport: z.boolean(),
+  /** Ask before reloading a changed model. */
+  autoReimportAsk: z.boolean(),
+  /** Changed textures next to the model reload it too. */
+  autoReimportTextures: z.boolean(),
   /** JBeam workspace (fork): every property and tool, not just the common ones. */
   jbeamAdvanced: z.boolean(),
   /** Structure checks: beams shorter than this (mm) are flagged. */
@@ -214,6 +227,13 @@ export const DEFAULT_SETTINGS: Settings = {
   tooltipDelay: 300,
   showStatusBar: true,
   confirmDeletes: true,
+  ddsConvert: false,
+  ddsMipmaps: true,
+  ddsNormalFormat: 'BC3',
+  ddsMaxSize: 0,
+  autoReimport: true,
+  autoReimportAsk: false,
+  autoReimportTextures: true,
   jbeamAdvanced: false,
   jbeamShortBeamMm: 10,
   jbeamLongBeamM: 2.5,

@@ -121,3 +121,38 @@ export function slotsOf(doc: { materialSlots: Readonly<Record<string, readonly s
   const slash = meshKey.indexOf('/');
   return slash > 0 ? slotsOf(doc, meshKey.slice(0, slash)) : undefined;
 }
+
+/**
+ * Auto-reimport (fork): textures the model gained since it was first
+ * imported go onto its materials, in the slots that are still empty (maps
+ * chosen by hand stay). Returns how many were added (one undo step).
+ */
+export function refreshTextures(sourceId: string, meshes: readonly ImportedMesh[]): number {
+  const doc = projectStore.getState().doc;
+  if (!doc) return 0;
+  const found = new Map<string, Partial<Record<TextureSlot, string>>>();
+  for (const mesh of meshes)
+    for (const material of materialsOf(mesh)) {
+      const maps = defFromThree(material, 'x', 'x', sourceId).layers[0]!.maps;
+      if (Object.keys(maps).length) found.set(material.name || 'material', maps);
+    }
+  const adds: { id: string; slot: TextureSlot; path: string }[] = [];
+  for (const def of doc.materials) {
+    if (def.origin?.sourceId !== sourceId) continue;
+    const maps = found.get(def.origin.name);
+    const layer = def.layers[0];
+    if (!maps || !layer) continue;
+    for (const [slot, path] of Object.entries(maps) as [TextureSlot, string][]) if (!layer.maps[slot]) adds.push({ id: def.id, slot, path });
+  }
+  if (!adds.length) return 0;
+  projectStore.getState().execute({
+    label: `Use ${adds.length} new texture${adds.length === 1 ? '' : 's'} from the model`,
+    apply: (d) => {
+      for (const a of adds) {
+        const layer = d.materials.find((m) => m.id === a.id)?.layers[0];
+        if (layer) layer.maps[a.slot] = a.path;
+      }
+    },
+  });
+  return adds.length;
+}

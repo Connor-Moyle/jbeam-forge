@@ -105,6 +105,10 @@ export interface NewProjectMeta {
   description?: string;
   brand?: string;
   type?: string;
+  /** Reload the model when its file changes (unset: the app setting). */
+  autoReimport?: boolean;
+  /** Export textures as DDS (unset: the app setting). */
+  ddsConvert?: boolean;
 }
 
 export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now: Date = new Date()): Project {
@@ -118,6 +122,8 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     type: meta.type ?? 'Car',
     createdAt: stamp,
     modifiedAt: stamp,
+    ...(meta.autoReimport !== undefined ? { autoReimport: meta.autoReimport } : {}),
+    ...(meta.ddsConvert !== undefined ? { ddsConvert: meta.ddsConvert } : {}),
   };
   return ProjectSchema.parse({
     format: PROJECT_FORMAT,

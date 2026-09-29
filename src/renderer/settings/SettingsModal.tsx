@@ -509,6 +509,12 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                 <NumberInput value={d.recentLimit} onChange={(recentLimit) => set({ recentLimit })} min={3} max={30} step={1} precision={0} aria-label="Recent projects shown" />
               </Field>
             </FieldGroup>
+            <FieldGroup title="When a model changes on disk">
+              <Toggle checked={d.autoReimport} onChange={(autoReimport) => set({ autoReimport })} label="Reload it, keeping parts, materials and the rest of the work (new mods start with this)" />
+              <Toggle checked={d.autoReimportTextures} onChange={(autoReimportTextures) => set({ autoReimportTextures })} label="Textures saved next to it reload it too" />
+              <Toggle checked={d.autoReimportAsk} onChange={(autoReimportAsk) => set({ autoReimportAsk })} label="Ask before reloading" />
+              <p className={styles.help}>Each mod can turn this on or off in the Inspector (with nothing picked).</p>
+            </FieldGroup>
           </section>
 
           <section data-section="units">
@@ -531,6 +537,17 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Toggle checked={d.openFolderAfterExport} onChange={(openFolderAfterExport) => set({ openFolderAfterExport })} label="Open the folder after exporting" />
               <Toggle checked={d.compressZip} onChange={(compressZip) => set({ compressZip })} label="Compress exported zips" />
               <p className={styles.help}>Compressed zips are smaller to share; uncompressed ones are written faster.</p>
+            </FieldGroup>
+            <FieldGroup title="DDS textures">
+              <Toggle checked={d.ddsConvert} onChange={(ddsConvert) => set({ ddsConvert })} label="Convert textures to DDS when exporting (new mods start with this)" />
+              <Toggle checked={d.ddsMipmaps} onChange={(ddsMipmaps) => set({ ddsMipmaps })} label="Mipmaps (smaller copies for distance; recommended)" />
+              <Field label="Normal maps" hint="BC3 matches most of the game’s own; BC5 keeps more detail.">
+                <Select value={d.ddsNormalFormat} onChange={(ddsNormalFormat) => set({ ddsNormalFormat })} options={[{ value: 'BC3', label: 'BC3 (DXT5)' }, { value: 'BC5', label: 'BC5 (ATI2)' }]} aria-label="Normal map format" />
+              </Field>
+              <Field label="Largest size">
+                <Select value={String(d.ddsMaxSize)} onChange={(v) => set({ ddsMaxSize: Number(v) as Settings['ddsMaxSize'] })} options={[{ value: '0', label: 'As they are' }, ...[4096, 2048, 1024, 512].map((n) => ({ value: String(n), label: `${n} px` }))]} aria-label="Largest texture size" />
+              </Field>
+              <p className={styles.help}>Colour textures become BC1 (or BC3 with transparency). DDS files you already have are copied as they are. Each mod can turn this on or off in the Inspector.</p>
             </FieldGroup>
             <FieldGroup title="Vehicle selector pictures">
               <Field label="Size">

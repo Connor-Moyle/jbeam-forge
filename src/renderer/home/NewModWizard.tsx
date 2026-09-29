@@ -44,6 +44,9 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<VehicleType>('Car');
   const [showErrors, setShowErrors] = useState(false);
   const [importNow, setImportNow] = useState(true);
+  const [autoReimport, setAutoReimport] = useState<boolean | null>(null);
+  const [ddsConvert, setDdsConvert] = useState<boolean | null>(null);
+  const defaults = useSettingsStore((s) => s.settings);
   const [busy, setBusy] = useState(false);
 
   const effectiveSlug = slugTouched ? slug : slugify(name);
@@ -59,7 +62,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
     setBusy(true);
     const trimmedAuthor = author.trim();
     if (authorDraft !== null && trimmedAuthor !== savedAuthor) call('settings:update', { author: trimmedAuthor || null }).catch(() => undefined);
-    void newProject({ name: name.trim(), slug: effectiveSlug, author: trimmedAuthor, description: description.trim(), brand: brand.trim(), type }).then((ok) => {
+    void newProject({ name: name.trim(), slug: effectiveSlug, author: trimmedAuthor, description: description.trim(), brand: brand.trim(), type, autoReimport: autoReimport ?? defaults?.autoReimport ?? true, ddsConvert: ddsConvert ?? defaults?.ddsConvert ?? false }).then((ok) => {
       setBusy(false);
       if (!ok) return;
       onClose();
@@ -124,6 +127,8 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
           </Field>
         </FieldGroup>
         <Checkbox checked={importNow} onChange={setImportNow} label="Import a 3D model right after creating" />
+        <Checkbox checked={autoReimport ?? defaults?.autoReimport ?? true} onChange={setAutoReimport} label="Reload the model when its file changes (fix it in Blender, save, and it updates here with your work kept)" data-testid="newmod-autoreimport" />
+        <Checkbox checked={ddsConvert ?? defaults?.ddsConvert ?? false} onChange={setDdsConvert} label="Convert textures to DDS when exporting (the game’s own format: smaller and faster to load)" data-testid="newmod-dds" />
         <button type="submit" hidden />
       </form>
     </Modal>

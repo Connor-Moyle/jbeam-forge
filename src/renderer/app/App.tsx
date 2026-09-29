@@ -1,3 +1,6 @@
+import { useTriggerUi } from '@renderer/triggers/commands';
+import { useMovingUi } from '@renderer/moving/MovingPartsPanel';
+import { useAutoReimport } from '@renderer/import/autoReimport';
 import { useEffect } from 'react';
 import { TooltipProvider } from '@renderer/ui/components/Tooltip';
 import { DockShell } from '@renderer/shell/DockShell';
@@ -33,7 +36,7 @@ import { mirrorPartners } from '@shared/structure/edit';
 import { useObjects } from '@renderer/panels/ObjectsPanel';
 import { loadFittedSets } from '@renderer/suspension/commands';
 import { startAutosave } from '@renderer/project/autosave';
-import { prepareExport } from '@renderer/export/exportFlow';
+import { finalBundle, prepareExport } from '@renderer/export/exportFlow';
 import { transformMeshes } from '@renderer/scene/meshCommands';
 import type { MeshGizmoTransform } from '@renderer/panels/viewport/viewportRuntime';
 import { useLibrary } from '@renderer/materials/LibraryDialog';
@@ -251,6 +254,14 @@ function AppEffects() {
         },
         selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
         clearEdit: () => useEditStore.getState().clear(),
+        /** The export as it would be written (DDS conversion included): paths, and the first bytes of each converted file. */
+        finalExport: async () => {
+          await loadFittedSets();
+          const p = prepareExport();
+          if (!p) return null;
+          const b = await finalBundle(p.bundle, () => undefined);
+          return { files: b.files.map((f) => ({ path: f.path, head: f.base64 ? atob(f.base64.slice(0, 8)).slice(0, 4) : null })), copies: b.copies.map((c) => c.to), materials: b.files.find((f) => f.path.endsWith('main.materials.json'))?.text ?? '' };
+        },
         gizmoTransform: (t: MeshGizmoTransform) => transformMeshes(useSceneStore.getState().selection, t),
         preparedJbeams: async () => {
           await loadFittedSets();
@@ -313,6 +324,14 @@ function AppEffects() {
 function Editor() {
   const { ready } = useShell();
   useSourceSync();
+  useAutoReimport();
+  // Another project: nothing picked in edit mode, triggers or moving parts carries over.
+  const projectKey = useProjectStore((s) => s.doc?.meta.createdAt ?? null);
+  useEffect(() => {
+    useEditStore.getState().setActive(false);
+    useTriggerUi.getState().select(null);
+    useMovingUi.getState().pick(null);
+  }, [projectKey]);
   return (
     <div className={styles.app} data-testid={ready ? 'app-ready' : 'app-loading'} data-view="editor">
       <Toolbar />

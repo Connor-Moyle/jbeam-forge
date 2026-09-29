@@ -188,6 +188,8 @@ export interface InvokeContract {
   'window:setDirty': { req: { dirty: boolean }; res: undefined };
   /** Pick a model file to import (grants its folder for side files and textures). */
   'import:pickSource': { req: undefined; res: { path: string; format: SourceFormat; bytes: number } | null };
+  /** Watch the open project's model files for changes (auto-reimport); [] stops. */
+  'sources:watch': { req: { paths: string[]; textures: boolean }; res: undefined };
   /** Write the tutorial's practice car (OBJ + MTL) under the app's data folder; its path. */
   'tutorial:demoModel': { req: undefined; res: { path: string } };
   /** Read a model/texture/side file inside a granted folder. */
@@ -322,6 +324,8 @@ export interface EventContract {
   'content:changed': { kind: ContentKind };
   'content:progress': ContentProgress;
   'updates:progress': { asset: string; done: number; total: number };
+  /** A watched model (or a texture beside it) was saved again. */
+  'sources:changed': { path: string; kind: 'model' | 'texture' };
 }
 
 export type InvokeChannel = keyof InvokeContract;
@@ -354,6 +358,7 @@ export const INVOKE_CHANNELS = [
   'dialog:pickDirectory',
   'import:pickSource',
   'tutorial:demoModel',
+  'sources:watch',
   'import:readFile',
   'import:resolveTextures',
   'import:pickTextureDir',
@@ -422,6 +427,7 @@ export const EVENT_CHANNELS = [
   'content:changed',
   'content:progress',
   'updates:progress',
+  'sources:changed',
 ] as const satisfies readonly EventChannel[];
 
 /** API surface exposed on `window.forge` by the preload script. */

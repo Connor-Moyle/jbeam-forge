@@ -14,6 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { deflateSync } from 'node:zlib';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -134,6 +135,44 @@ function assert(cond, msg) {
 
 async function openPanels(page) {
   return (await hook(page, 'openPanels')).sort();
+}
+
+
+/** A small RGBA PNG (a gradient), written without any image library. */
+function writePng(path, w, h) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf) => {
+    let c = 0xffffffff;
+    for (const b of buf) c = crcTable[(c ^ b) & 255] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const c = Buffer.alloc(4);
+    c.writeUInt32BE(crc(td));
+    return Buffer.concat([len, td, c]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(w, 0);
+  ihdr.writeUInt32BE(h, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const raw = Buffer.alloc((w * 4 + 1) * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const o = y * (w * 4 + 1) + 1 + x * 4;
+      raw[o] = (x * 255) / (w - 1);
+      raw[o + 1] = (y * 255) / (h - 1);
+      raw[o + 2] = 90;
+      raw[o + 3] = 255;
+    }
+  writeFileSync(path, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
 }
 
 const projectFile = join(userData, 'projects', 'harness_test_car.jbforge');
@@ -1705,6 +1744,47 @@ const scenarios = [
       const files = await hook(page, 'preparedJbeams');
       assert(files && files.files.some((f) => f.text.includes('"triggers2"') && f.text.includes(`"${t.id}"`)), 'the trigger is written as triggers2');
       await hook(page, 'applyPreset', 'modelling');
+    },
+  },
+  {
+    id: 'reimport-dds',
+    name: 'auto-reimport: the model saved again reloads with parts kept · textures exported as DDS',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      const meshes = async () => (await hook(page, 'sceneStats')).meshes;
+      for (let i = 0; i < 300 && (await meshes()) < 30; i++) await page.waitForTimeout(100);
+      const before = await meshes();
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      const parts = (await hook(page, 'partNames')).length;
+      // "Blender" saves the model again: a texture on the paint and a new spoiler.
+      const dir = join(userData, 'tutorial');
+      writePng(join(dir, 'paint.png'), 64, 32);
+      writeFileSync(join(dir, 'demo_car.mtl'), readFileSync(join(dir, 'demo_car.mtl'), 'utf8').replace('newmtl demo_paint', 'newmtl demo_paint\nmap_Kd paint.png'));
+      const obj = readFileSync(join(dir, 'demo_car.obj'), 'utf8');
+      const nv = obj.split('\n').filter((l) => l.startsWith('v ')).length;
+      const spoiler = ['o spoiler', 'usemtl demo_paint', 'v 0.7 1.0 -2.0', 'v -0.7 1.0 -2.0', 'v 0 1.1 -2.1', 'vt 0 0', 'vt 1 0', 'vt 0.5 1', `f ${nv + 1}/1 ${nv + 2}/2 ${nv + 3}/3`].join('\n');
+      writeFileSync(join(dir, 'demo_car.obj'), `${obj}${spoiler}\n`);
+      for (let i = 0; i < 100 && (await meshes()) === before; i++) await page.waitForTimeout(100);
+      assert((await meshes()) === before + 1, `reloaded with the new mesh (${before} → ${await meshes()})`);
+      assert((await hook(page, 'partNames')).length === parts, 'the parts are kept');
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+      await shot(page, 'reimported');
+      // This mod's textures as DDS (the Inspector with nothing picked).
+      await hook(page, 'selectMeshes', []);
+      await page.getByText('Convert textures to DDS when exporting').click();
+      const out = await hook(page, 'finalExport');
+      const dds = out.files.filter((f) => f.path.endsWith('.dds'));
+      assert(dds.length >= 1 && dds.every((f) => f.head === 'DDS '), `textures written as DDS (${out.files.map((f) => f.path).join(', ')})`);
+      assert(/paint\.dds/.test(out.materials) && !/paint\.png/.test(out.materials), 'materials point at the .dds');
     },
   },
   {
