@@ -14,7 +14,7 @@ const source = (id: string) => ({ id, path: `${id}.dae`, absolutePath: `C:/${id}
 beforeEach(() => {
   const doc = createEmptyProject({ name: 'Test', slug: 'test' }, '0.1.0', new Date('2026-01-01T00:00:00Z'));
   doc.sources.push(source('eng'), source('obj'));
-  doc.powertrain.engine = { setId: 'set', name: 'I6', vehicle: 'ETK', type: 'Inline-6', sourceId: 'eng', tuning: {}, edits: { fields: {}, torque: null, gearRatios: null } } as never;
+  doc.powertrain.engine = { setId: 'set', name: 'I6', vehicle: 'ETK', type: 'Inline-6', sourceId: 'eng', tuning: {}, edits: { fields: {}, torque: null, gearRatios: null } };
   projectStore.getState().load(doc, 'C:/test.jbforge');
   useSceneStore.getState().clear();
   for (const id of ['eng', 'obj']) {
