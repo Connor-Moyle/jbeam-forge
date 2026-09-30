@@ -49,7 +49,7 @@ export function tourSteps(): TourStep[] {
     {
       id: 'welcome',
       title: 'Welcome to JBeam Forge',
-      body: 'This practice car, a saloon in the style of a BMW E30, was made for the tour. Like a model you would bring in from Blender, it comes apart: doors, bonnet, boot lid, wings, glass, lights, seats, dashboard, engine and wheels are each their own piece. In a few steps you will turn it into a BeamNG mod. It takes about five minutes and you can skip at any time.',
+      body: 'This practice car, a BMW E30 318i saloon, was made for the tour. Like a model you would bring in from Blender, it comes apart: doors, bonnet, boot lid, wings, glass, lights, seats, dashboard, engine and wheels are each their own piece. In a few steps you will turn it into a BeamNG mod. It takes about five minutes and you can skip at any time.',
     },
     {
       id: 'viewport',
