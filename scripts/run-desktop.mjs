@@ -1231,6 +1231,11 @@ const scenarios = [
     async run({ page }) {
       const model = join(ROOT, 'tests', 'fixtures', 'models', 'uv_box.obj');
       const stats = () => hook(page, 'sceneStats');
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');
       await page.getByTestId('home-new').click();
       await page.getByTestId('newmod-name').fill('Paint Test');
@@ -1468,14 +1473,21 @@ const scenarios = [
       await page.waitForTimeout(2500);
       await shot(page, 'script-headunit');
       await page.getByTestId('headunit-preview').screenshot({ path: join(outDir, 'headunit-preview.png') });
-      const mapDrawn = await page.evaluate(() => {
-        const doc = document.querySelector('[data-testid="headunit-preview"]').contentDocument;
-        const canvas = [doc.getElementById('map'), doc.getElementById('homeMap')].find((c) => c.closest('.app.on'));
-        const g = canvas?.getContext('2d');
-        if (!g) return 'no canvas';
-        const px = g.getImageData(Math.round(canvas.width / 2), Math.round(canvas.height * 0.45), 1, 1).data;
-        return [...px].join(',');
-      });
+      // The map app opens on the test's schedule, later on a loaded machine: poll rather than read once.
+      let mapDrawn = 'no canvas';
+      for (let i = 0; i < 60; i++) {
+        mapDrawn = await page.evaluate(() => {
+          const doc = document.querySelector('[data-testid="headunit-preview"]').contentDocument;
+          const canvas = [doc.getElementById('map'), doc.getElementById('homeMap')].find((c) => c?.closest('.app.on'));
+          const g = canvas?.getContext('2d');
+          if (!g) return 'no canvas';
+          const px = g.getImageData(Math.round(canvas.width / 2), Math.round(canvas.height * 0.45), 1, 1).data;
+          return [...px].join(',');
+        });
+        const [r0, , b0] = mapDrawn.split(',').map(Number);
+        if (b0 > 200 && r0 < 150) break;
+        await page.waitForTimeout(250);
+      }
       // The route runs up the middle of the map in the accent colour (blue).
       const [r, , b] = mapDrawn.split(',').map(Number);
       assert(b > 200 && r < 150, `the head unit's map is drawn (${mapDrawn})`);
@@ -1521,6 +1533,11 @@ const scenarios = [
     id: 'extensions',
     name: 'extensions: new sample · command from the palette · its script template',
     async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');
       await page.getByTestId('home-new').click();
       await page.getByTestId('newmod-name').fill('Extension Test');
