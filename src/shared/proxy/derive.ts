@@ -128,12 +128,30 @@ export function braces(mesh: ProxyMesh, density: BracingDensity): [number, numbe
       if (b === undefined || a === b || connected.has(k(a, b))) return;
       out.set(k(a, b), [Math.min(a, b), Math.max(a, b)]);
     };
+    // Only where a real body has cross members: the floor, the roof and the two ends (bulkhead,
+    // rear panel). Tying every side node across would fill the cabin and engine bay with beams.
+    let zLo = Infinity;
+    let zHi = -Infinity;
+    let yLo = Infinity;
+    let yHi = -Infinity;
+    for (let v = 0; v < n; v++) {
+      zLo = Math.min(zLo, p[v * 3 + 2]!);
+      zHi = Math.max(zHi, p[v * 3 + 2]!);
+      yLo = Math.min(yLo, p[v * 3 + 1]!);
+      yHi = Math.max(yHi, p[v * 3 + 1]!);
+    }
+    const crossMember = (v: number) => {
+      const z = p[v * 3 + 2]!;
+      const y = p[v * 3 + 1]!;
+      return z < zLo + 0.22 * (zHi - zLo) || z > zHi - 0.12 * (zHi - zLo) || y < yLo + 0.08 * (yHi - yLo) || y > yHi - 0.08 * (yHi - yLo);
+    };
     for (let a = 0; a < n; a++) {
       if (p[a * 3]! <= 0) continue; // left side drives it; the right side is its mirror
+      if (!crossMember(a)) continue;
       const t = twin(a);
       if (t === undefined) continue;
       add(a, t);
-      for (const nb of neighbours.get(a) ?? []) if (p[nb * 3]! > 0) add(a, twin(nb));
+      for (const nb of neighbours.get(a) ?? []) if (p[nb * 3]! > 0 && crossMember(nb)) add(a, twin(nb));
     }
   }
   return [...out.values()];

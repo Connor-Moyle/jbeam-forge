@@ -2723,6 +2723,17 @@ const scenarios = [
       const parts = await hook(page, 'partNames');
       assert(parts.length >= 30, `sorted into ${parts.length} parts`);
       await shot(page, 'demo-car-parts');
+      // Its structure, on its own: does it follow the car's shape?
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      await page.waitForTimeout(500);
+      await page.keyboard.press('Alt+1');
+      for (const [name, dir] of Object.entries({ side: [5, 0.6, 0], front: [0, 0.8, 5], 'front-left': [3.2, 1.3, 3.6], top: [0.01, 6, 0.01] })) {
+        await hook(page, 'viewFrom', dir);
+        await page.waitForTimeout(500);
+        await shot(page, `demo-car-structure-${name}`);
+      }
+      await page.keyboard.press('Alt+1');
     },
   },
   {
