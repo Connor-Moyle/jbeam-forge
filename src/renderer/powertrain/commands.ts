@@ -78,8 +78,13 @@ function target(kind: PowertrainKind, size: { y: number }, exclude: readonly str
   return [x, frontAxle + 0.25 + (kind === 'gearbox' ? 0.5 : 0), z];
 }
 
+/** Fitting an engine or gearbox imports, places, assigns and records it: one undo step. */
+export function fitPowertrain(kind: PowertrainKind, set: SuspensionSet): Promise<void> {
+  return projectStore.getState().group(`Fit ${set.vehicleName} ${set.name}`, () => fitPowertrainSteps(kind, set));
+}
+
 /** Fit an engine or gearbox from the game (replaces the one fitted before). */
-export async function fitPowertrain(kind: PowertrainKind, set: SuspensionSet): Promise<void> {
+async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Promise<void> {
   const doc = projectStore.getState().doc;
   if (!doc) return;
   const old = doc.powertrain[kind]?.sourceId;
@@ -112,12 +117,17 @@ export async function fitPowertrain(kind: PowertrainKind, set: SuspensionSet): P
   useUiStore.getState().pushStatus(`Fitted the ${set.vehicleName} ${set.name}. Fine-tune where it sits with the gizmo (G / R / S).`, 'success', 8000);
 }
 
+/** Adding another engine is one undo step, like fitting one. */
+export function addEngineOption(set: SuspensionSet): Promise<void> {
+  return projectStore.getState().group(`Add engine option ${set.vehicleName} ${set.name}`, () => addEngineOptionSteps(set));
+}
+
 /**
  * Another engine for the car (fork): fitted where the default engine sits,
  * hidden in the viewport, and offered in the same slot so each configuration
  * (and the player, in the parts menu) picks one.
  */
-export async function addEngineOption(set: SuspensionSet): Promise<void> {
+async function addEngineOptionSteps(set: SuspensionSet): Promise<void> {
   const doc = projectStore.getState().doc;
   const main = doc?.powertrain.engine;
   if (!doc || !main) return;

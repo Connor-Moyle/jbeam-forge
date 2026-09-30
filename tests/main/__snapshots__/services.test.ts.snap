@@ -42,6 +42,7 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "autosaveMinutes": 0,
   "recentLimit": 12,
   "undoLimit": 1000,
+  "paintUndoLimit": 12,
   "windowSize": "remember",
   "windowWidth": 1440,
   "windowHeight": 900,

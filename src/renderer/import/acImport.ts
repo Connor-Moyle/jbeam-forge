@@ -52,7 +52,12 @@ export interface AcImportChoices {
   free: boolean;
 }
 
-export async function confirmAcImport(car: AcCarInfo, choices: AcImportChoices): Promise<void> {
+/** Bringing a car over (its data and its model) is one undo step. */
+export function confirmAcImport(car: AcCarInfo, choices: AcImportChoices): Promise<void> {
+  return projectStore.getState().group(`Bring over ${car.carId}`, () => confirmAcImportSteps(car, choices));
+}
+
+async function confirmAcImportSteps(car: AcCarInfo, choices: AcImportChoices): Promise<void> {
   useAcImportUi.getState().setCar(null);
   const summary = summarizeAcCar(car.files);
   projectStore.getState().execute({

@@ -236,7 +236,7 @@ This is where most of your time goes, so I put the most work into it.
 
 **Regenerating** a part keeps any nodes you've moved by hand.
 
-**Undo/redo** is unlimited, and it survives saving and reopening the project.
+**Undo/redo** takes back every action one at a time (an action that does several things, like fitting a suspension, is one step). It keeps 1000 steps by default (Settings → Editing → Undo steps kept, 1 to 10000), and it survives saving and reopening the project.
 
 **Also:** camera bookmarks, X-ray mode, mesh opacity, a measuring tool, and a shortcut cheat sheet.
 
@@ -442,7 +442,7 @@ Settings are layered. The app's built-in defaults are overridden by your persona
 | **Ctrl+K** | Command palette |
 | **F** | Focus the selected part |
 | **Esc** | Leave focus mode / cancel |
-| **Ctrl+Z / Ctrl+Y** | Undo / redo |
+| **Ctrl+Z / Ctrl+Y** (or Ctrl+Shift+Z) | Undo / redo |
 | **Arrow keys** | Nudge selection |
 | **Shift + click** | Add to selection |
 | **Ctrl + click** | Remove from selection |

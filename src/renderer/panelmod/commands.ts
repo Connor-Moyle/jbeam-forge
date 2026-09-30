@@ -48,8 +48,13 @@ export async function pickPanel(s: SuspensionSet): Promise<void> {
   await useSetData.getState().ensure([s.id]);
 }
 
+/** The guide (its import and the record of it) is one undo step. */
+export function importGuide(): Promise<void> {
+  return projectStore.getState().group('Stock panel as a guide', () => importGuideSteps());
+}
+
 /** Import the stock panel's model as a guide to line the new one up against (never exported). */
-export async function importGuide(): Promise<void> {
+async function importGuideSteps(): Promise<void> {
   const doc = projectStore.getState().doc;
   const panel = doc?.panel;
   const s = usePanelCatalogue.getState().sets?.find((x) => x.id === panel?.setId);

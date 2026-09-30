@@ -142,12 +142,17 @@ function boxOfSource(sourceId: string, only?: RegExp): Box3 {
   return box;
 }
 
+/** Fitting a suspension imports, places, assigns and records it: one undo step. */
+export function fitSuspension(axleId: string, set: SuspensionSet): Promise<void> {
+  return projectStore.getState().group(`Fit ${set.vehicleName} ${set.name}`, () => fitSuspensionSteps(axleId, set));
+}
+
 /**
  * Fit a complete suspension to an axle: it comes in as its own model (the
  * game's materials, its parts classified), centred on the car, its hubs on
  * the axle line at wheel-centre height. Replaces what was on the axle.
  */
-export async function fitSuspension(axleId: string, set: SuspensionSet): Promise<void> {
+async function fitSuspensionSteps(axleId: string, set: SuspensionSet): Promise<void> {
   const doc = projectStore.getState().doc;
   const axle = doc?.axles.find((a) => a.id === axleId);
   if (!doc || !axle) return;

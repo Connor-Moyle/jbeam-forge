@@ -186,3 +186,112 @@ describe('undo limit', () => {
     }
   });
 });
+
+describe('one undo step per action', () => {
+  it('a toggle is never merged with the step before or after it', () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    s.getState().execute({ label: 'Tick', coalesce: 'meta', apply: (d) => void (d.meta.autoReimport = true) });
+    s.getState().execute({ label: 'Untick', coalesce: 'meta', apply: (d) => void (d.meta.autoReimport = false) });
+    s.getState().execute({ label: 'Type', coalesce: 'meta', apply: (d) => void (d.meta.name = 'A') });
+    s.getState().execute({ label: 'Type', coalesce: 'meta', apply: (d) => void (d.meta.name = 'AB') });
+    expect(s.getState().undoStack.map((e) => e.label)).toEqual(['Tick', 'Untick', 'Type']);
+    // A toggle inside a replaced object counts too.
+    s.getState().execute({ label: 'Obj', coalesce: 'meta', apply: (d) => void (d.meta = { ...d.meta, ddsConvert: true }) });
+    expect(s.getState().undoStack).toHaveLength(4);
+    s.getState().undo();
+    s.getState().undo();
+    expect(s.getState().doc!.meta.name).toBe('Test');
+    expect(s.getState().doc!.meta.autoReimport).toBe(false);
+    s.getState().undo();
+    expect(s.getState().doc!.meta.autoReimport).toBe(true);
+  });
+
+  it('an edit right after an undo starts a new step', () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    s.getState().execute({ label: 'Type', coalesce: 'name', apply: (d) => void (d.meta.name = 'A') });
+    s.getState().execute({ label: 'Brand', apply: (d) => void (d.meta.brand = 'B') });
+    s.getState().undo();
+    s.getState().execute({ label: 'Type', coalesce: 'name', apply: (d) => void (d.meta.name = 'AB') });
+    expect(s.getState().undoStack).toHaveLength(2);
+    s.getState().undo();
+    expect(s.getState().doc!.meta.name).toBe('A');
+  });
+
+  it('group merges the steps of one action, nested groups included', async () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    s.getState().execute({ label: 'Before', apply: (d) => void (d.meta.brand = 'X') });
+    const result = await s.getState().group('Fit it', async () => {
+      s.getState().execute({ label: 'a', apply: (d) => void (d.meta.name = 'A') });
+      await s.getState().group('inner', async () => {
+        await Promise.resolve();
+        s.getState().execute({ label: 'b', apply: (d) => void (d.meta.author = 'B') });
+        s.getState().execute({ label: 'c', apply: (d) => void (d.meta.name = 'C') });
+      });
+      return 42;
+    });
+    expect(result).toBe(42);
+    expect(s.getState().undoStack.map((e) => e.label)).toEqual(['Before', 'Fit it']);
+    expect(s.getState().undo()).toBe('Fit it');
+    expect(s.getState().doc!.meta).toMatchObject({ name: 'Test', brand: 'X' });
+    expect(s.getState().redo()).toBe('Fit it');
+    expect(s.getState().doc!.meta).toMatchObject({ name: 'C', author: 'B' });
+  });
+
+  it('a group of one step keeps that step, and a throwing action still merges what it did', async () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    await s.getState().group('One', () => void s.getState().execute({ label: 'only', apply: (d) => void (d.meta.name = 'A') }));
+    expect(s.getState().undoStack.map((e) => e.label)).toEqual(['only']);
+    await expect(
+      s.getState().group('Half', () => {
+        s.getState().execute({ label: 'x', apply: (d) => void (d.meta.name = 'B') });
+        s.getState().execute({ label: 'y', apply: (d) => void (d.meta.brand = 'B') });
+        throw new Error('stopped');
+      }),
+    ).rejects.toThrow('stopped');
+    expect(s.getState().undoStack.map((e) => e.label)).toEqual(['only', 'Half']);
+    s.getState().undo();
+    expect(s.getState().doc!.meta.name).toBe('A');
+  });
+
+  it('a save in the middle of a group keeps the project changed until saved again', async () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    await s.getState().group('G', () => {
+      s.getState().execute({ label: 'x', apply: (d) => void (d.meta.name = 'B') });
+      s.getState().markSaved('x.jbforge', currentStateId(s.getState()));
+      s.getState().execute({ label: 'y', apply: (d) => void (d.meta.brand = 'B') });
+    });
+    expect(isDirty(s.getState())).toBe(true);
+    s.getState().undo();
+    expect(isDirty(s.getState())).toBe(true);
+  });
+
+  it('a save at the end of a group stays clean', async () => {
+    const s = createProjectStore();
+    s.getState().load(doc(), 'x.jbforge');
+    await s.getState().group('G', () => {
+      s.getState().execute({ label: 'x', apply: (d) => void (d.meta.name = 'B') });
+      s.getState().execute({ label: 'y', apply: (d) => void (d.meta.brand = 'B') });
+      s.getState().markSaved('x.jbforge', currentStateId(s.getState()));
+    });
+    expect(isDirty(s.getState())).toBe(false);
+  });
+
+  it('lowering the undo limit drops the oldest steps at once', async () => {
+    const { projectStore, setUndoLimit } = await import('../../src/renderer/app/stores/project');
+    try {
+      projectStore.getState().load(doc(), 'x.jbforge');
+      for (let i = 0; i < 6; i++) projectStore.getState().execute({ label: `rename ${i}`, apply: (d) => void (d.meta.name = `N${i}`) });
+      setUndoLimit(2);
+      expect(projectStore.getState().undoStack.map((e) => e.label)).toEqual(['rename 4', 'rename 5']);
+      expect(isDirty(projectStore.getState())).toBe(true);
+    } finally {
+      setUndoLimit(1000);
+      projectStore.getState().close();
+    }
+  });
+});

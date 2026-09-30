@@ -1837,6 +1837,113 @@ const scenarios = [
     },
   },
   {
+    id: 'undo-steps',
+    name: 'every action is its own undo step; Ctrl+Z takes them back one at a time; the undo limit setting',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        await page.getByTestId('unsaved-discard').click({ timeout: 2000 }).catch(() => undefined);
+        await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      }
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Undo Car');
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      await hook(page, 'applyPreset', 'modelling');
+      const doc = () => hook(page, 'projectDoc');
+      const labels = async () => (await hook(page, 'projectState')).undoLabels;
+      const base = (await hook(page, 'projectState')).undo;
+
+      // Four quick clicks and some typing: five actions, five steps.
+      await page.getByTestId('ported-add').click();
+      await page.getByTestId('ported-fields').waitFor();
+      await page.getByTestId('ported-game').click();
+      await page.keyboard.type('Assetto Corsa', { delay: 10 });
+      const owned = page.getByTestId('ported-fields').getByRole('checkbox').nth(0);
+      const free = page.getByTestId('ported-fields').getByRole('checkbox').nth(1);
+      await owned.click();
+      await free.click();
+      await owned.click(); // untick again straight away: still a step of its own
+      let st = await hook(page, 'projectState');
+      assert(st.undo - base === 5, `five actions, five undo steps (got ${st.undo - base}: ${st.undoLabels.join(', ')})`);
+      let p = (await doc()).meta.portedFrom;
+      assert(p.game === 'Assetto Corsa' && p.owned === false && p.free === true, `state after the clicks (${JSON.stringify(p)})`);
+
+      // Ctrl+Z with focus on the checkbox: the document's undo, one step each.
+      const expected = [
+        (x) => x?.owned === true && x.free === true,
+        (x) => x?.owned === true && x.free === false,
+        (x) => x?.owned === false && x.game === 'Assetto Corsa',
+        (x) => x?.game === '',
+        (x) => x === undefined,
+      ];
+      for (const [i, ok] of expected.entries()) {
+        await hook(page, 'runCommand', 'undo');
+        p = (await doc()).meta.portedFrom;
+        assert(ok(p), `undo ${i + 1} takes back one action (${JSON.stringify(p)})`);
+      }
+      assert((await hook(page, 'projectState')).undo === base, 'back to where it started');
+      // …and redo brings them back one at a time.
+      for (let i = 0; i < 5; i++) await hook(page, 'runCommand', 'redo');
+      p = (await doc()).meta.portedFrom;
+      assert(p?.owned === false && p.free === true && p.game === 'Assetto Corsa', 'redo replays all five');
+
+      // The real keys: Ctrl+Z and Ctrl+Y (the menu's accelerators).
+      await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => undefined);
+      await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+      await page.keyboard.press('Control+z');
+      for (let i = 0; i < 20 && (await doc()).meta.portedFrom?.owned !== true; i++) await page.waitForTimeout(50);
+      assert((await doc()).meta.portedFrom?.owned === true, 'Ctrl+Z undoes the last action');
+      await page.keyboard.press('Control+y');
+      for (let i = 0; i < 20 && (await doc()).meta.portedFrom?.owned !== false; i++) await page.waitForTimeout(50);
+      assert((await doc()).meta.portedFrom?.owned === false, 'Ctrl+Y redoes it');
+
+      // A focused text field with nothing of its own to undo doesn't swallow Ctrl+Z.
+      await page.getByTestId('ported-game').focus();
+      await hook(page, 'runCommand', 'undo');
+      assert((await doc()).meta.portedFrom?.owned === true, `undo from a focused field still undoes the last action (${await labels()})`);
+      await hook(page, 'runCommand', 'redo');
+
+      // The undo limit setting: lowering it drops the oldest steps straight away.
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      const limit = page.getByRole('spinbutton', { name: 'Undo steps kept' }).or(page.getByLabel('Undo steps kept')).first();
+      await limit.scrollIntoViewIfNeeded();
+      await limit.fill('3');
+      await limit.press('Enter');
+      await page.getByTestId('settings-save').click();
+      await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
+      for (let i = 0; i < 30 && (await hook(page, 'projectState')).undo > 3; i++) await page.waitForTimeout(100);
+      st = await hook(page, 'projectState');
+      assert(st.undo === 3, `undo limit 3 keeps three steps (got ${st.undo})`);
+      for (let i = 0; i < 5; i++) await hook(page, 'runCommand', 'undo');
+      p = (await doc()).meta.portedFrom;
+      assert(p?.game === 'Assetto Corsa' && p.owned === false && p.free === false, `only three steps come back (${JSON.stringify(p)})`);
+      assert((await hook(page, 'projectState')).dirty, 'still reads as changed');
+
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await limit.fill('1000');
+      await limit.press('Enter');
+      await page.getByTestId('settings-save').click();
+      await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
+      // Ctrl+Z while typing takes back the typing, and nothing else.
+      const before = (await doc()).meta.portedFrom;
+      const credit = page.getByTestId('ported-fields').locator('input').nth(1);
+      await credit.click();
+      await page.keyboard.type('Kunos', { delay: 10 });
+      for (let i = 0; i < 20 && (await doc()).meta.portedFrom?.credit !== 'Kunos'; i++) await page.waitForTimeout(50);
+      await page.keyboard.press('Control+z');
+      await page.waitForTimeout(200);
+      p = (await doc()).meta.portedFrom;
+      assert(p?.credit !== 'Kunos' && p?.owned === before.owned && p.free === before.free && p.game === before.game, `Ctrl+Z in a field undoes the typing only (${JSON.stringify(p)})`);
+      await hook(page, 'runCommand', 'close');
+      await page.getByTestId('unsaved-discard').click();
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+    },
+  },
+  {
     id: 'part-mods',
     name: 'part mods: a tyre mod and a wheel mod from the wizard · their builders · universal export',
     async run({ page }) {

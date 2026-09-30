@@ -98,7 +98,7 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - Meshes need UVs and a paint material; the brush says so when they're missing. A whole paint material can also be put on one slot from the Materials editor.
 
 **Paint studio, round 2** (Paints panel → Paint studio)
-- **Tools:** brush, erase, fill a whole panel, pattern, stamp and eyedropper. Keys B/E/F/P/T/I, M for mirror, [ ] for brush size. Ctrl+Z/Ctrl+Y undo and redo strokes while painting (12 steps).
+- **Tools:** brush, erase, fill a whole panel, pattern, stamp and eyedropper. Keys B/E/F/P/T/I, M for mirror, [ ] for brush size. Ctrl+Z/Ctrl+Y undo and redo strokes while painting (12 steps by default; Settings → Editing → Paint strokes kept).
 - **Mirror both sides:** the camera ray is reflected across the car's centre line, so every stroke, fill, pattern and stamp also lands on the matching point of the other side.
 - **Patterns worked out on the car in 3D** (`src/shared/paints/patterns.ts`), seamless across panels and UV seams:
   - racing, side and pinstriped stripes;
@@ -231,6 +231,13 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 - **Assetto Corsa import**: choose which model (detailed, LODs, collider, driver), sort into parts or not, the declaration, and options for effect meshes, hidden objects and paint baking (Settings → Files).
 - **Skin studio** (`src/shared/uv/skinUnwrap.ts`, `skinTemplate.ts`, `src/renderer/skins/`): a car-aware unwrap for skins. Each body triangle takes a view (left/right/top/front/rear, underside small or as a band) by its facing, with the side, end and top/underside decided by position so door insides and flipped faces land with their panel; a smoothing pass removes specks. All views share one scale on one sheet, each read from outside. Stored per mesh as `uv.project = { kind: 'skin', layout }` and projected at load. Templates as PNG and layered SVG from one drawing; the template or any skin previewed on the car; a skin made from a painted template; shared materials split on layout. Triple-check of this round also fixed Test Results and the tyre/wheel builders opening squeezed (side panel widths are now set after a workspace is built; a harness scenario checks every workspace).
 - **Body panel mods** (`panelCategory`/panel sets in `src/main/beamng/partObjects.ts`, `panelModFiles` in `src/shared/export/modKinds.ts`, `src/renderer/panelmod/`): the library scan now also packages each car's own body panels (hoods, trunks and tailgates, bumpers, fenders, doors, spoilers, skirts, mirrors, grilles, lips, roofs) as sets with their jbeam and stock model (library format 9, so installs are read again). A panel mod picks one; the stock model comes in as a guide (never exported); export writes `vehicles/<car>/<slug>_<part>.jbeam`, the stock part with the new meshes as flexbodies on its node groups, and the model under `vehicles/common/<slug>/`. The scan also no longer gives up on the whole install when one vehicle zip can't be read.
+- **Undo, one action at a time** (`src/renderer/app/stores/project.ts`, `src/renderer/project/appCommands.ts`):
+  - `projectStore.group(label, action)` merges everything an action does into one step. Multi-step actions now use it: fitting a suspension, engine or gearbox, adding an engine option, bringing over an Assetto Corsa car, the panel guide, placing an object at the corners, paint schemes, and adding a library material to the selection.
+  - Coalescing (typing, sliders, drags) no longer merges anything that switches a value on or off, so quick ticks stay separate steps, and an edit right after an undo or redo starts a new step.
+  - Settings → Editing: **Undo steps kept** (1 to 10000) applies at once when lowered. New **Paint strokes kept** (1 to 100, was a fixed 12).
+  - Ctrl+Z, Ctrl+Y and Ctrl+Shift+Z are handled in the page too, so they work without the native menu. A guard stops the menu running the same press twice.
+  - In a text field, Ctrl+Z undoes the typing; with nothing to take back there, it undoes the last action.
+  - Harness scenario `undo-steps`: five UI actions come back one Ctrl+Z at a time, then redo; real key presses; the limit setting.
 - **Not done yet**: Street Legal Racing (`.scx`) and Project CARS importers (their formats need real game files to get right).
 
 ### Between phases: objects library and Assetto Corsa import (0.8.2–0.8.3)

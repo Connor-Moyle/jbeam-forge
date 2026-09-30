@@ -5,6 +5,7 @@ import { fuzzyScore } from '@shared/fuzzy';
 import { MATERIAL_PRESETS } from '@shared/materials/presets';
 import type { MaterialDef } from '@shared/materials/schema';
 import type { LibraryItem } from '@shared/ipc-contract';
+import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { call } from '@renderer/diagnostics/ipc';
@@ -86,8 +87,11 @@ function LibraryBody({ close }: { close: () => void }) {
   );
 
   const use = (e: Entry, apply: boolean) => {
-    const id = createMaterial({ ...e.def }, e.name.replace(/[^A-Za-z0-9_.-]+/g, '_').toLowerCase());
-    if (apply) assignMaterial(id, selection);
+    // Adding the material and putting it on the selection is one undo step.
+    void projectStore.getState().group(apply ? `Use ${e.name}` : `Add ${e.name}`, () => {
+      const id = createMaterial({ ...e.def }, e.name.replace(/[^A-Za-z0-9_.-]+/g, '_').toLowerCase());
+      if (apply) assignMaterial(id, selection);
+    });
     close();
   };
 

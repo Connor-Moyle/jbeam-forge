@@ -61,11 +61,14 @@ export function setDefaultPaint(slot: Slot, id: string | null): void {
 export function applyScheme(name: string): void {
   const scheme = PAINT_SCHEMES.find((s) => s.name === name);
   if (!scheme) return;
-  const ids = scheme.slots.map((n) => {
+  // Adding the scheme's paints and setting them is one undo step.
+  void projectStore.getState().group(`Paint scheme ${scheme.name}`, () => {
+    const ids = scheme.slots.map((n) => {
     const have = projectStore.getState().doc?.paints.list.find((p) => p.name.toLowerCase() === n.toLowerCase());
     return have?.id ?? addPaint(presetByName(n)!);
   }) as [string, string, string];
-  projectStore.getState().execute({ label: `Paint scheme ${scheme.name}`, apply: (d) => void (d.paints.defaults = ids) });
+    projectStore.getState().execute({ label: `Paint scheme ${scheme.name}`, apply: (d) => void (d.paints.defaults = ids) });
+  });
 }
 
 /** A canvas as PNG bytes. */

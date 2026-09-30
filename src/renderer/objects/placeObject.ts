@@ -90,6 +90,11 @@ export function cornerTargets(excludeSource: string): { at: Record<Corner, V3>; 
 
 /** Put a freshly added object (its own source) at a corner, or at all four. */
 export function placeAtCorner(sourceId: string, choice: CornerChoice, kind?: string): void {
+  // Placing, copying to the other corners and making their parts is one undo step.
+  void projectStore.getState().group(choice === 'all' ? 'Place at all four corners' : 'Place object', () => placeAtCornerSteps(sourceId, choice, kind));
+}
+
+function placeAtCornerSteps(sourceId: string, choice: CornerChoice, kind?: string): void {
   const src = useSceneStore.getState().sources[sourceId];
   const doc = projectStore.getState().doc;
   if (!src || !doc) return;

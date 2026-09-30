@@ -1,4 +1,6 @@
 import type { AppCommand } from '@shared/ipc-contract';
+import { keyOfEvent, normaliseKey } from '@shared/keymap';
+import { isKey } from '@renderer/app/keys';
 import { projectStore } from '@renderer/app/stores/project';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } from './actions';
@@ -15,6 +17,49 @@ function isEditableTarget(el: Element | null): boolean {
   if (el instanceof HTMLTextAreaElement) return true;
   if (el instanceof HTMLInputElement) return !['checkbox', 'radio', 'button', 'range'].includes(el.type);
   return (el as HTMLElement).isContentEditable;
+}
+
+/**
+ * Undo or redo typing in the focused text field. False when no field has focus
+ * or it had nothing to take back (so a field left focused after an edit doesn't
+ * swallow Ctrl+Z: the document's undo runs instead).
+ */
+function textHistory(which: 'undo' | 'redo'): boolean {
+  const el = document.activeElement;
+  if (!isEditableTarget(el)) return false;
+  const read = () => (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement ? el.value : (el as HTMLElement).textContent);
+  const before = read();
+  document.execCommand(which);
+  return read() !== before;
+}
+
+/** When the page itself last handled an undo or redo key (see `installHistoryKeys`). */
+let historyKeyAt = -Infinity;
+const REDO_ALT = normaliseKey('Ctrl+Shift+Z');
+
+/**
+ * Undo and redo keys, handled in the page so they work wherever focus is and
+ * whether or not the native menu sees the key (a hidden menu bar, some Linux
+ * setups). Editors with their own history (the Lua editor) handle their keys
+ * first. The menu's accelerator for the same press is ignored (`runMenuCommand`).
+ */
+export function installHistoryKeys(): () => void {
+  const onKey = (e: KeyboardEvent) => {
+    if (e.defaultPrevented) return;
+    const which = isKey(e, 'undo') ? 'undo' : isKey(e, 'redo') || keyOfEvent(e) === REDO_ALT ? 'redo' : null;
+    if (!which) return;
+    e.preventDefault();
+    historyKeyAt = performance.now();
+    runAppCommand(which);
+  };
+  window.addEventListener('keydown', onKey);
+  return () => window.removeEventListener('keydown', onKey);
+}
+
+/** A command from the native menu: undo/redo the page just ran for the same key press are not run twice. */
+export function runMenuCommand(command: AppCommand): void {
+  if ((command === 'undo' || command === 'redo') && performance.now() - historyKeyAt < 300) return;
+  runAppCommand(command);
 }
 
 /** Commands from the native menu (and test hooks). */
@@ -43,14 +88,14 @@ export function runAppCommand(command: AppCommand): void {
       break;
     case 'undo':
       // Text fields keep their own undo; everything else undoes document edits.
-      if (isEditableTarget(document.activeElement)) document.execCommand('undo');
+      if (textHistory('undo')) break;
       // While painting on the car, undo takes back strokes (they aren't document edits).
-      else if (usePainter.getState().on && usePainter.getState().tool !== 'vinyl') undoStroke();
+      if (usePainter.getState().on && usePainter.getState().tool !== 'vinyl') undoStroke();
       else undo();
       break;
     case 'redo':
-      if (isEditableTarget(document.activeElement)) document.execCommand('redo');
-      else if (usePainter.getState().on && usePainter.getState().tool !== 'vinyl') redoStroke();
+      if (textHistory('redo')) break;
+      if (usePainter.getState().on && usePainter.getState().tool !== 'vinyl') redoStroke();
       else redo();
       break;
     case 'selectAll':

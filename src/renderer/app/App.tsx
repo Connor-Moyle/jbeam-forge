@@ -3,7 +3,7 @@ import { useTriggerUi } from '@renderer/triggers/commands';
 import { useMovingUi } from '@renderer/moving/MovingPartsPanel';
 import { useSkinUi } from '@renderer/skins/commands';
 import { useAutoReimport } from '@renderer/import/autoReimport';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { TooltipProvider } from '@renderer/ui/components/Tooltip';
 import { DockShell } from '@renderer/shell/DockShell';
 import { ShellProvider, useShell } from '@renderer/shell/ShellContext';
@@ -18,7 +18,7 @@ import { HomeScreen } from '@renderer/home/HomeScreen';
 import { DialogHost } from '@renderer/project/DialogHost';
 import { ImportHost } from '@renderer/import/ImportHost';
 import { useSourceSync } from '@renderer/import/importFlow';
-import { runAppCommand } from '@renderer/project/appCommands';
+import { installHistoryKeys, runAppCommand, runMenuCommand } from '@renderer/project/appCommands';
 import { call } from '@renderer/diagnostics/ipc';
 import { useSettingsStore, useSettingsSync } from './stores/settings';
 import { startExtensions, stopExtensions } from '@renderer/extensions/host';
@@ -54,7 +54,8 @@ function AppEffects() {
   const pushStatus = useUiStore((s) => s.pushStatus);
 
   useEffect(() => window.forge.on('status:message', ({ text, tone }) => pushStatus(text, tone, 8000)), [pushStatus]);
-  useEffect(() => window.forge.on('menu:command', ({ command }) => runAppCommand(command)), []);
+  useEffect(() => window.forge.on('menu:command', ({ command }) => runMenuCommand(command)), []);
+  useEffect(() => installHistoryKeys(), []);
   // Your library folders were scanned: pick up what they added.
   useEffect(
     () =>
@@ -334,15 +335,25 @@ function Editor() {
     useMovingUi.getState().pick(null);
     useSkinUi.getState().set({ include: null, optsTouched: false, preview: null });
   }, [projectKey]);
-  // A tyre, wheel or engine mod opens on its builder; a vehicle never on a part mod's workspace.
+  // A tyre, wheel, engine or panel mod opens on its builder; a vehicle never on a part mod's workspace.
   const modKind = useProjectStore((s) => s.doc?.meta.modKind);
   const { ready, preset: current, applyPreset: apply } = useShell();
+  const openedKey = useRef<string | null>(null);
   useEffect(() => {
     if (!ready) return;
     const tabs = workspacesFor(modKind);
-    if (tabs.includes(current)) return;
+    // A part mod just opened starts on its builder, even if the workspace left open (Materials) is one of its tabs.
+    const justOpened = openedKey.current !== projectKey;
+    const partMod = !!modKind && modKind !== 'vehicle';
+    if (tabs.includes(current) && !(justOpened && partMod && current !== tabs[0])) {
+      openedKey.current = projectKey;
+      return;
+    }
     // After the dock has laid itself out, so the panels get their widths.
-    const t = setTimeout(() => apply(tabs[0]!), 50);
+    const t = setTimeout(() => {
+      openedKey.current = projectKey;
+      apply(tabs[0]!);
+    }, 50);
     return () => clearTimeout(t);
   }, [ready, projectKey, modKind, current, apply]);
   return (

@@ -6,6 +6,7 @@ import { DEFAULT_PATTERN, patternAt, rasterizeMesh, type Bounds, type PatternSpe
 import { pixelsPerMetre, surfaceFrame, type SurfaceFrame } from '@shared/paints/frame';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { call } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
@@ -365,7 +366,8 @@ export async function save(s: Surface): Promise<void> {
 /** Remember the picture before a change (for undo); a new change forgets what was undone. */
 function snapshot(s: Surface): void {
   s.undo.push(s.g.getImageData(0, 0, s.canvas.width, s.canvas.height));
-  if (s.undo.length > MAX_UNDO) s.undo.shift();
+  const limit = useSettingsStore.getState().settings?.paintUndoLimit ?? MAX_UNDO;
+  while (s.undo.length > limit) s.undo.shift();
   s.redo = [];
 }
 

@@ -439,8 +439,11 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Field label="Node size" hint="0 sizes nodes to the car; anything else draws every node this big.">
                 <NumberInput value={d.nodeSizeMm} onChange={(nodeSizeMm) => set({ nodeSizeMm })} min={0} max={100} step={1} precision={0} unit="mm" aria-label="Node size" />
               </Field>
-              <Field label="Undo steps kept" hint="More steps use more memory on big projects.">
-                <NumberInput value={d.undoLimit} onChange={(undoLimit) => set({ undoLimit })} min={50} max={5000} step={50} precision={0} aria-label="Undo steps kept" />
+              <Field label="Undo steps kept" hint="How many actions Ctrl+Z can take back, one at a time (1 to 10000). Lowering it drops the oldest now; more steps use more memory on big projects.">
+                <NumberInput value={d.undoLimit} onChange={(undoLimit) => set({ undoLimit })} min={1} max={10000} step={10} precision={0} aria-label="Undo steps kept" />
+              </Field>
+              <Field label="Paint strokes kept" hint="How many brush strokes Ctrl+Z can take back while painting on the car, per texture. Each keeps a full copy of the picture, so big textures use a lot of memory.">
+                <NumberInput value={d.paintUndoLimit} onChange={(paintUndoLimit) => set({ paintUndoLimit })} min={1} max={100} step={1} precision={0} aria-label="Paint strokes kept" />
               </Field>
             </FieldGroup>
           </section>

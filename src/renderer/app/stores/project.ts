@@ -56,6 +56,12 @@ export interface ProjectState {
   undo: () => string | null;
   redo: () => string | null;
   /**
+   * Run an action that makes several changes (import a model, place it,
+   * give it a part…) as one undo step named `label`: whatever steps it adds
+   * are merged when it finishes. Groups inside groups merge into the outer.
+   */
+  group: <T>(label: string, action: () => Promise<T> | T) => Promise<T>;
+  /**
    * Record a successful save of the document as it was at history position
    * `stateId` (captured when the text was serialized — edits made while the
    * save was in flight stay dirty). `update` may stamp e.g. modifiedAt without
@@ -85,6 +91,20 @@ const UNREACHABLE_STATE = -1;
 let undoLimit = 1000;
 export function setUndoLimit(n: number): void {
   undoLimit = Math.max(1, Math.round(n));
+  // A lower limit takes effect now, not at the next edit.
+  projectStore.setState((s) => trimToLimit(s, s.undoStack));
+}
+
+/**
+ * Keep the newest `undoLimit` steps of `stack`. If the saved state was among
+ * the dropped ones (or was the bottom of the stack, id 0), no undo can reach it
+ * any more: it is marked unreachable so the project reads as changed until saved.
+ */
+function trimToLimit(s: Pick<ProjectState, 'savedStateId'>, stack: HistoryEntry[]): Pick<ProjectState, 'undoStack'> & Partial<ProjectState> {
+  if (stack.length <= undoLimit) return { undoStack: stack };
+  const dropped = stack.slice(0, stack.length - undoLimit);
+  const savedGone = s.savedStateId === 0 || dropped.some((e) => e.id === s.savedStateId);
+  return { undoStack: stack.slice(stack.length - undoLimit), ...(savedGone ? { savedStateId: UNREACHABLE_STATE } : {}) };
 }
 const MAX_SAVED_CHARS = 32 * 1024 * 1024;
 
@@ -124,6 +144,67 @@ export function parseSavedHistory(text: string): SavedHistory | null {
 }
 
 let nextEntryId = 1;
+
+/** How many `group` calls are running (only the outermost merges). */
+let groupDepth = 0;
+
+/**
+ * Merge the undo steps added after history position `start` into one named
+ * `label`. Undoing it applies their inverses newest first; redoing replays
+ * them in order.
+ */
+function mergeSince(s: ProjectState, start: number, label: string): Partial<ProjectState> {
+  const from = start === 0 ? 0 : s.undoStack.findIndex((e) => e.id === start) + 1;
+  // The start dropped off the undo limit meanwhile: merge what's left of the action.
+  const at = start !== 0 && from === 0 ? 0 : from;
+  const steps = s.undoStack.slice(at);
+  if (steps.length < 2) return {};
+  const entry: HistoryEntry = {
+    id: nextEntryId++,
+    label,
+    patches: steps.flatMap((e) => e.patches),
+    inverse: [...steps].reverse().flatMap((e) => e.inverse),
+    at: Date.now(),
+  };
+  // A save in the middle of the action no longer matches any undo position.
+  const saved = s.savedStateId;
+  const savedInside = steps.some((e) => e.id === saved);
+  const savedStateId = saved === steps[steps.length - 1]!.id ? entry.id : savedInside ? UNREACHABLE_STATE : saved;
+  return { undoStack: [...s.undoStack.slice(0, at), entry], savedStateId };
+}
+
+/** After an undo or redo the next edit starts a step of its own, even one that would coalesce. */
+function sealTop(stack: HistoryEntry[]): HistoryEntry[] {
+  const top = stack[stack.length - 1];
+  return top?.coalesce ? [...stack.slice(0, -1), { ...top, coalesce: undefined }] : stack;
+}
+
+/** Whether any true/false value differs between `a` and `b` (looked at a few levels deep). */
+function flipsBoolean(a: unknown, b: unknown, depth = 0): boolean {
+  if (typeof a === 'boolean' || typeof b === 'boolean') return a !== b;
+  if (depth > 5 || a === b || typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  const ao = a as Record<string, unknown>;
+  const bo = b as Record<string, unknown>;
+  for (const k of new Set([...Object.keys(ao), ...Object.keys(bo)])) if (flipsBoolean(ao[k], bo[k], depth + 1)) return true;
+  return false;
+}
+
+function valueAt(root: unknown, path: readonly (string | number)[]): unknown {
+  let v = root;
+  for (const k of path) {
+    if (v === null || typeof v !== 'object') return undefined;
+    v = (v as Record<string | number, unknown>)[k];
+  }
+  return v;
+}
+
+/**
+ * A coalescing command only merges continuous edits (typing, sliders, drags).
+ * One that switches something on or off is a click of its own: never merged.
+ */
+function isToggle(before: unknown, after: unknown, patches: readonly Patch[]): boolean {
+  return patches.some((p) => flipsBoolean(valueAt(before, p.path), valueAt(after, p.path)));
+}
 
 /**
  * Follow-up rules that run inside every command, in the same undo step
@@ -170,17 +251,15 @@ export function createProjectStore(): StoreApi<ProjectState> {
       const now = Date.now();
       set((s) => {
         const top = s.undoStack[s.undoStack.length - 1];
-        const merge = !!command.coalesce && top?.coalesce === command.coalesce && now - (top.at ?? 0) < COALESCE_MS && s.savedStateId !== top.id;
+        // A toggle neither merges into the step before nor takes the next one in (no coalesce key kept).
+        const toggle = !!command.coalesce && isToggle(doc, next, patches);
+        const merge = !!command.coalesce && !toggle && top?.coalesce === command.coalesce && now - (top.at ?? 0) < COALESCE_MS && s.savedStateId !== top.id;
         const entry: HistoryEntry = merge
           ? { ...top, patches: [...top.patches, ...patches], inverse: [...inverse, ...top.inverse], at: now }
-          : { id: nextEntryId++, label: command.label, patches, inverse, coalesce: command.coalesce, at: now };
+          : { id: nextEntryId++, label: command.label, patches, inverse, coalesce: toggle ? undefined : command.coalesce, at: now };
         const stack = [...(merge ? s.undoStack.slice(0, -1) : s.undoStack), entry];
-        if (stack.length <= undoLimit) return { doc: next, undoStack: stack, redoStack: [] };
-        // The oldest steps drop off. If the saved state was among them (or was the bottom of the stack, id 0),
-        // it can no longer be reached by undoing: mark it unreachable so the project reads as changed until saved.
-        const dropped = stack.slice(0, stack.length - undoLimit);
-        const savedGone = s.savedStateId === 0 || dropped.some((e) => e.id === s.savedStateId);
-        return { doc: next, undoStack: stack.slice(stack.length - undoLimit), redoStack: [], ...(savedGone ? { savedStateId: UNREACHABLE_STATE } : {}) };
+        // Inside a group the steps merge into one at the end, so don't drop the group's own start meanwhile.
+        return { doc: next, redoStack: [], ...(groupDepth > 0 ? { undoStack: stack } : trimToLimit(s, stack)) };
       });
       return true;
     },
@@ -189,7 +268,7 @@ export function createProjectStore(): StoreApi<ProjectState> {
       const { doc, undoStack } = get();
       const entry = undoStack[undoStack.length - 1];
       if (!doc || !entry) return null;
-      set((s) => ({ doc: applyPatches(doc, entry.inverse), undoStack: s.undoStack.slice(0, -1), redoStack: [...s.redoStack, entry] }));
+      set((s) => ({ doc: applyPatches(doc, entry.inverse), undoStack: sealTop(s.undoStack.slice(0, -1)), redoStack: [...s.redoStack, entry] }));
       return entry.label;
     },
 
@@ -197,15 +276,31 @@ export function createProjectStore(): StoreApi<ProjectState> {
       const { doc, redoStack } = get();
       const entry = redoStack[redoStack.length - 1];
       if (!doc || !entry) return null;
-      set((s) => ({ doc: applyPatches(doc, entry.patches), redoStack: s.redoStack.slice(0, -1), undoStack: [...s.undoStack, entry] }));
+      set((s) => ({ doc: applyPatches(doc, entry.patches), redoStack: s.redoStack.slice(0, -1), undoStack: sealTop([...s.undoStack, entry]) }));
       return entry.label;
+    },
+
+    group: async (label, action) => {
+      const start = currentStateId(get());
+      groupDepth++;
+      try {
+        return await action();
+      } finally {
+        groupDepth--;
+        if (groupDepth === 0)
+          set((s) => {
+            const merged = { ...s, ...mergeSince(s, start, label) };
+            return { ...merged, ...trimToLimit(merged, merged.undoStack) };
+          });
+      }
     },
 
     restoreHistory: (history) => {
       const ids = [...history.undo, ...history.redo].map((e) => e.id);
       nextEntryId = Math.max(nextEntryId, ...ids, 0) + 1;
       const top = history.undo[history.undo.length - 1]?.id ?? 0;
-      set({ undoStack: history.undo, redoStack: history.redo, savedStateId: top });
+      // The saved state is the top step, which the limit always keeps.
+      set({ undoStack: history.undo.slice(-undoLimit), redoStack: history.redo, savedStateId: top });
     },
 
     markSaved: (filePath, stateId, update) => {

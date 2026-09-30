@@ -43,7 +43,9 @@ export const SettingsSchema = z.object({
   /** How many recent projects the home screen lists. */
   recentLimit: z.number().int().min(3).max(30),
   /** Undo steps kept in memory. */
-  undoLimit: z.number().int().min(50).max(5000),
+  undoLimit: z.number().int().min(1).max(10000),
+  /** Paint strokes Ctrl+Z can take back per painted texture (each keeps a full copy of the picture). */
+  paintUndoLimit: z.number().int().min(1).max(100),
 
   // Interface (Blender-style preferences)
   theme: z.enum(['dark', 'midnight', 'blender', 'light', 'contrast']),
@@ -222,6 +224,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autosaveMinutes: 0,
   recentLimit: 12,
   undoLimit: 1000,
+  paintUndoLimit: 12,
   windowSize: 'remember',
   windowWidth: 1440,
   windowHeight: 900,
