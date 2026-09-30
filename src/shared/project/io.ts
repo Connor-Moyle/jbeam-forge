@@ -162,5 +162,6 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     paints: { list: [], defaults: [null, null, null] },
     vinyls: [],
     faceMaterials: {},
+    meshModels: {},
   });
 }

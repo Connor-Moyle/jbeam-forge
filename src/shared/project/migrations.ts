@@ -156,6 +156,12 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'animated parts, cameras, engine options, driveline, part choices, UV projection',
     migrate: (doc) => ({ ...doc, formatVersion: 19 }),
   },
+  {
+    from: 19,
+    // A development build of 0.13.1 kept reshaped meshes as an optional v19 field: keep them.
+    describe: 'meshes reshaped in the Modelling workspace',
+    migrate: (doc) => ({ ...doc, formatVersion: 20, meshModels: typeof doc.meshModels === 'object' && doc.meshModels !== null && !Array.isArray(doc.meshModels) ? doc.meshModels : {} }),
+  },
 ];
 
 export class MigrationError extends Error {

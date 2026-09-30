@@ -18,6 +18,9 @@ function empty() {
   return createEmptyProject({ name: 'Test Car', slug: 'test_car', author: 'Fatkiwi' }, '0.1.0', NOW);
 }
 
+/** Every upgrade step from `from` to the current format, in order. */
+const steps = (from: number): unknown[] => Array.from({ length: CURRENT_PROJECT_VERSION - from }, (_, i): unknown => expect.stringMatching(new RegExp(`^v${from + i}→v${from + i + 1}: `)));
+
 function expectLoadError(fn: () => unknown, code: string) {
   try {
     fn();
@@ -55,10 +58,10 @@ describe('.jbforge io', () => {
     }
   });
 
-  it('migrates the v2 fixture to v19, adding textureDirs to every source', () => {
+  it('migrates the v2 fixture to the current format, adding textureDirs to every source', () => {
     const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v2-assigned.jbforge'), 'utf8'));
     expect(migratedFrom).toBe(2);
-    expect(applied).toEqual([expect.stringMatching(/^v2→v3: /), expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /), expect.stringMatching(/^v9→v10: /), expect.stringMatching(/^v10→v11: /), expect.stringMatching(/^v11→v12: /), expect.stringMatching(/^v12→v13: /), expect.stringMatching(/^v13→v14: /), expect.stringMatching(/^v14→v15: /), expect.stringMatching(/^v15→v16: /), expect.stringMatching(/^v16→v17: /), expect.stringMatching(/^v17→v18: /), expect.stringMatching(/^v18→v19: /)]);
+    expect(applied).toEqual(steps(2));
     expect(project.sources.map((s) => s.textureDirs)).toEqual([[]]);
   });
 
@@ -66,14 +69,14 @@ describe('.jbforge io', () => {
     const v3 = JSON.parse(readFileSync(join(FIXTURES, 'v3-textures.jbforge'), 'utf8')) as { parts: { price: number }[] };
     v3.parts[1]!.price = 0;
     const { project, applied } = parseProject(JSON.stringify(v3));
-    expect(applied).toEqual([expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /), expect.stringMatching(/^v9→v10: /), expect.stringMatching(/^v10→v11: /), expect.stringMatching(/^v11→v12: /), expect.stringMatching(/^v12→v13: /), expect.stringMatching(/^v13→v14: /), expect.stringMatching(/^v14→v15: /), expect.stringMatching(/^v15→v16: /), expect.stringMatching(/^v16→v17: /), expect.stringMatching(/^v17→v18: /), expect.stringMatching(/^v18→v19: /)]);
+    expect(applied).toEqual(steps(3));
     expect(project.parts.map((p) => p.price)).toEqual([1000, null]);
   });
 
-  it('migrates the v1 fixture through to v19 with empty Phase 3 sections', () => {
+  it('migrates the v1 fixture through to the current format with empty Phase 3 sections', () => {
     const { project, migratedFrom, applied } = parseProject(readFileSync(join(FIXTURES, 'v1-empty.jbforge'), 'utf8'));
     expect(migratedFrom).toBe(1);
-    expect(applied).toEqual([expect.stringMatching(/^v1→v2: /), expect.stringMatching(/^v2→v3: /), expect.stringMatching(/^v3→v4: /), expect.stringMatching(/^v4→v5: /), expect.stringMatching(/^v5→v6: /), expect.stringMatching(/^v6→v7: /), expect.stringMatching(/^v7→v8: /), expect.stringMatching(/^v8→v9: /), expect.stringMatching(/^v9→v10: /), expect.stringMatching(/^v10→v11: /), expect.stringMatching(/^v11→v12: /), expect.stringMatching(/^v12→v13: /), expect.stringMatching(/^v13→v14: /), expect.stringMatching(/^v14→v15: /), expect.stringMatching(/^v15→v16: /), expect.stringMatching(/^v16→v17: /), expect.stringMatching(/^v17→v18: /), expect.stringMatching(/^v18→v19: /)]);
+    expect(applied).toEqual(steps(1));
     expect(project.meta.slug).toBe('fixture_car');
     expect(project).toMatchObject({ sources: [], splits: [], parts: [], assignments: {}, ignoredMeshes: [], customTaxonomy: [] });
   });

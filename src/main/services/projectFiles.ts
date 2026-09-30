@@ -70,6 +70,7 @@ export class ProjectFiles {
     if (!this.isFileGranted(path)) throw new AccessError('Saving to this path was not granted by a file dialog');
     if (extname(path).toLowerCase() !== '.jbforge') throw new AccessError('Projects must be saved as .jbforge files');
     const { project } = parseProject(text);
+    await keepPreUpgradeCopy(path, project.formatVersion);
     if (backups > 0) await rotateBackups(path, backups);
     await atomicWrite(path, text);
     return { name: project.meta.name, slug: project.meta.slug };
@@ -97,6 +98,27 @@ export async function writeHistory(files: ProjectFiles, projectPath: string, tex
 /** Ensure a chosen save path ends in .jbforge. */
 export function withProjectExtension(path: string): string {
   return extname(path).toLowerCase() === '.jbforge' ? path : `${path}.jbforge`;
+}
+
+/**
+ * The first save after opening a project from an older version of the app
+ * keeps the file as it was (name.jbforge.v19.bak), whatever the backup
+ * setting, so the older app can still open that copy.
+ */
+export async function keepPreUpgradeCopy(path: string, newVersion: number): Promise<void> {
+  try {
+    const old = JSON.parse(await readFile(path, 'utf8')) as { formatVersion?: unknown };
+    if (typeof old.formatVersion !== 'number' || old.formatVersion >= newVersion) return;
+    const copy = `${path}.v${old.formatVersion}.bak`;
+    try {
+      await stat(copy);
+      return; // kept already
+    } catch {
+      await copyFile(path, copy);
+    }
+  } catch {
+    /* nothing there yet, or unreadable: nothing to keep */
+  }
 }
 
 /**

@@ -21,7 +21,7 @@ import { SkinLayoutSchema } from '../uv/skinUnwrap';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 19;
+export const CURRENT_PROJECT_VERSION = 20;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -591,8 +591,6 @@ export const ProjectV18Schema = z.object({
   meshEdits: z.record(z.string(), MeshEditSchema),
   /** Copies of meshes (v10). */
   meshCopies: z.array(MeshCopySchema),
-  /** meshKey → the mesh reshaped in the Modelling workspace (fork). */
-  meshModels: z.record(z.string(), MeshModelSchema).optional(),
   /** Axles and their suspension (v11, Phase 10). */
   axles: z.array(AxleSchema),
   suspension: placeholderMap, // Phase 10
@@ -631,7 +629,14 @@ export const ProjectV18Schema = z.object({
   faceMaterials: z.record(z.string(), z.array(z.object({ materialId: z.string().min(1), runs: z.array(z.number().int().min(0)) }))),
 });
 
-export const ProjectSchema = ProjectV18Schema;
+/** v20: meshes reshaped in the Modelling workspace, a section of their own. */
+export const ProjectV20Schema = ProjectV18Schema.extend({
+  formatVersion: z.literal(20),
+  /** meshKey → the mesh reshaped in the Modelling workspace. */
+  meshModels: z.record(z.string(), MeshModelSchema),
+});
+
+export const ProjectSchema = ProjectV20Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

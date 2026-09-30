@@ -99,7 +99,7 @@ function loadFromText(path: string, text: string): boolean {
   try {
     const { project, migratedFrom } = parseProject(text);
     projectStore.getState().load(project, path);
-    status(migratedFrom === null ? `Opened ${project.meta.name}` : `Opened ${project.meta.name} (upgraded from format v${migratedFrom}; saving will write the new format)`, 'success');
+    status(migratedFrom === null ? `Opened ${project.meta.name}` : `Opened ${project.meta.name}, made with an older version of the app and brought up to date (saving keeps the original as ${path.split(/[\\/]/).pop() ?? path}.v${migratedFrom}.bak)`, 'success');
     return true;
   } catch (err) {
     const detail = err instanceof ProjectLoadError ? err.message : errorMessage(err);
