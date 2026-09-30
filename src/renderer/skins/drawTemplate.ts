@@ -35,6 +35,19 @@ export function drawTemplate(canvas: HTMLCanvasElement, d: TemplateDrawing, opts
     g.fill();
     g.stroke();
   }
+  // Shading: darker where a panel turns from the light, so the shapes read while painting.
+  g.fillStyle = '#000000'; /* token-lint-ignore: template shading */
+  for (const l of d.shading) {
+    g.globalAlpha = l.alpha;
+    g.beginPath();
+    for (let i = 0; i + 5 < l.tris.length; i += 6) {
+      g.moveTo(l.tris[i]!, l.tris[i + 1]!);
+      g.lineTo(l.tris[i + 2]!, l.tris[i + 3]!);
+      g.lineTo(l.tris[i + 4]!, l.tris[i + 5]!);
+      g.closePath();
+    }
+    g.fill();
+  }
   g.globalAlpha = 1;
   // Outlines.
   g.strokeStyle = '#333333'; /* token-lint-ignore: template ink */

@@ -17,7 +17,12 @@ export interface TemplatePiece {
   /** u, v × 3 per triangle. */
   uv: ArrayLike<number>;
   views: readonly SkinView[];
+  /** How lit each triangle is (0 dark – 1 bright), for the shading layer. */
+  shade?: ArrayLike<number>;
 }
+
+/** Grey levels of the shading layer, lightest first (darkening alpha each). */
+const SHADE_ALPHA = [0, 0.08, 0.16, 0.25, 0.34] as const;
 
 export interface TemplateDrawing {
   size: number;
@@ -31,6 +36,8 @@ export interface TemplateDrawing {
   scaleBar: { x: number; y: number; w: number };
   /** Guide lines: the centre line on the top view, the ground line on the sides. */
   guides: number[];
+  /** A light shading of the panels by how they face the light, in a few grey levels (empty when off). */
+  shading: { alpha: number; tris: number[] }[];
 }
 
 const TITLES: Record<SkinView, string> = {
@@ -57,7 +64,8 @@ export function partColor(i: number): string {
 }
 
 /** Build the template drawing at `size` pixels square. */
-export function buildTemplate(layout: SkinLayout, pieces: readonly TemplatePiece[], size: number): TemplateDrawing {
+export function buildTemplate(layout: SkinLayout, pieces: readonly TemplatePiece[], size: number, opts: { shading?: boolean } = {}): TemplateDrawing {
+  const shading = opts.shading ? SHADE_ALPHA.map((alpha) => ({ alpha, tris: [] as number[] })) : [];
   const X = (u: number) => u * size;
   const Y = (v: number) => (1 - v) * size;
   const fills = new Map<string, { part: string; color: string; tris: number[] }>();
@@ -79,6 +87,10 @@ export function buildTemplate(layout: SkinLayout, pieces: readonly TemplatePiece
         [pts[3], pts[5]] = [pts[5]!, pts[3]!];
       }
       fill.tris.push(...pts);
+      if (shading.length && p.shade) {
+        const level = Math.min(SHADE_ALPHA.length - 1, Math.max(0, Math.floor((1 - p.shade[t]!) * SHADE_ALPHA.length)));
+        if (level > 0) shading[level]!.tris.push(...pts);
+      }
       const area = Math.abs((pts[2]! - pts[0]!) * (pts[5]! - pts[1]!) - (pts[4]! - pts[0]!) * (pts[3]! - pts[1]!)) / 2;
       const key = `${p.part}|${p.views[t]}`;
       const s = spots.get(key) ?? { part: p.part, view: p.views[t]!, a: 0, x: 0, y: 0 };
@@ -131,7 +143,7 @@ export function buildTemplate(layout: SkinLayout, pieces: readonly TemplatePiece
   guides.push(X(top[0]), Y(midV), X(top[0] + top[2]), Y(midV));
   const last = frames[frames.length - 1]!;
   const scaleBar = { x: size - layout.scale * size - size * 0.02, y: Math.min(size - labelPx, last.y + last.h + labelPx * 2), w: layout.scale * size };
-  return { size, fills: [...fills.values()], outlines, labels, frames, scaleBar, guides };
+  return { size, fills: [...fills.values()], outlines, labels, frames, scaleBar, guides, shading: shading.filter((l) => l.tris.length) };
 }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -163,6 +175,21 @@ export function templateSvg(d: TemplateDrawing, title: string): string {
     `<style>text{font-family:Arial,Helvetica,sans-serif;fill:#222}.title{font-size:${px}px;font-weight:bold;fill:#555}</style>`,
     `<rect width="${d.size}" height="${d.size}" fill="#ffffff"/>`,
     layer('panels', 'Panels (paint over these)', `<g opacity="0.55">\n${fills}\n</g>`),
+    ...(d.shading.length
+      ? [
+          layer(
+            'shading',
+            'Shading (a guide: hide or delete it)',
+            d.shading
+              .map((l) => {
+                let path = '';
+                for (let i = 0; i + 5 < l.tris.length; i += 6) path += `M${r1(l.tris[i]!)} ${r1(l.tris[i + 1]!)}L${r1(l.tris[i + 2]!)} ${r1(l.tris[i + 3]!)}L${r1(l.tris[i + 4]!)} ${r1(l.tris[i + 5]!)}Z`;
+                return `<path fill="#000000" fill-opacity="${l.alpha}" d="${path}"/>`;
+              })
+              .join('\n'),
+          ),
+        ]
+      : []),
     layer('outlines', 'Outlines', `<path d="${outline}" fill="none" stroke="#333" stroke-width="${Math.max(1, d.size / 2048)}"/>`),
     layer('labels', 'Part names', labels),
     layer('guides', 'Guides', `<g fill="none" stroke="#9aa" stroke-dasharray="6 4">\n${frames}\n<path d="${guides}"/>\n</g>\n${bar}\n${titles}`),

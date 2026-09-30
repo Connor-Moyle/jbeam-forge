@@ -11,7 +11,7 @@ import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MaterialDef } from '@shared/materials/schema';
 import type { Project, Skin } from '@shared/project/schema';
 import { buildTemplate, partColor, templateSvg, type TemplateDrawing, type TemplatePiece } from '@shared/uv/skinTemplate';
-import { carBox, DEFAULT_SKIN_OPTIONS, planSkinLayout, skinStats, skinUvs, triangleFacing, type SkinLayout, type SkinOptions, type SkinStats, type SkinView } from '@shared/uv/skinUnwrap';
+import { carBox, DEFAULT_SKIN_OPTIONS, planSkinLayout, skinStats, skinUvs, triangleFacing, triangleShade, type SkinLayout, type SkinOptions, type SkinStats, type SkinView } from '@shared/uv/skinUnwrap';
 
 /**
  * The Skin studio (fork): lay the car's body panels out as a skin template,
@@ -26,12 +26,14 @@ export interface SkinUi {
   optsTouched: boolean;
   size: 2048 | 4096 | 8192;
   view: 'parts' | 'stretch';
+  /** Shade the panels on the template (a guide for painting). */
+  shading: boolean;
   /** The skin shown on the car in the viewport, or 'template' for the template itself. */
   preview: string | null;
   set: (patch: Partial<Omit<SkinUi, 'set'>>) => void;
 }
 
-export const useSkinUi = create<SkinUi>()((set) => ({ include: null, opts: DEFAULT_SKIN_OPTIONS, optsTouched: false, size: 4096, view: 'parts', preview: null, set: (patch) => set(patch) }));
+export const useSkinUi = create<SkinUi>()((set) => ({ include: null, opts: DEFAULT_SKIN_OPTIONS, optsTouched: false, size: 4096, view: 'parts', shading: true, preview: null, set: (patch) => set(patch) }));
 
 /** Kinds of part that carry the paint: the shell, its panels, bumpers and aero, mirrors. */
 const BODY_KINDS = new Set(['body', 'roof']);
@@ -120,7 +122,7 @@ export function planSkin(meshes: readonly SkinMesh[], keys: ReadonlySet<string>,
   let stretchedArea = 0;
   for (const m of chosen) {
     const { uv, views } = skinUvs(m.pos, layout);
-    pieces.push({ part: m.partName, color: partColor(m.partId ? (partIndex.get(m.partId) ?? 0) : doc.parts.length), uv, views });
+    pieces.push({ part: m.partName, color: partColor(m.partId ? (partIndex.get(m.partId) ?? 0) : doc.parts.length), uv, views, shade: triangleShade(m.pos) });
     facing.push(triangleFacing(m.pos, views));
     const st = skinStats(m.pos, views);
     for (const v of Object.keys(perView) as SkinView[]) perView[v] += st.perView[v];
@@ -221,8 +223,8 @@ export function clearSkinLayout(): void {
 }
 
 /** The template at a size, as a drawing (for the canvas and the SVG). */
-export function templateDrawing(plan: SkinPlan, size: number, view: SkinUi['view'] = 'parts'): TemplateDrawing {
-  return buildTemplate(plan.layout, view === 'stretch' ? stretchPieces(plan) : plan.pieces, size);
+export function templateDrawing(plan: SkinPlan, size: number, view: SkinUi['view'] = 'parts', shading = useSkinUi.getState().shading): TemplateDrawing {
+  return buildTemplate(plan.layout, view === 'stretch' ? stretchPieces(plan) : plan.pieces, size, { shading: shading && view === 'parts' });
 }
 
 async function canvasPng(canvas: HTMLCanvasElement): Promise<Uint8Array> {

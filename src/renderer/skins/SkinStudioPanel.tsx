@@ -37,6 +37,7 @@ export function SkinStudioPanel() {
   const size = useSkinUi((s) => s.size);
   const view = useSkinUi((s) => s.view);
   const preview = useSkinUi((s) => s.preview);
+  const shading = useSkinUi((s) => s.shading);
   const set = useSkinUi((s) => s.set);
   const pushStatus = useUiStore((s) => s.pushStatus);
 
@@ -65,13 +66,13 @@ export function SkinStudioPanel() {
     if (!c || !plan) return;
     const px = Math.round(c.clientWidth * (window.devicePixelRatio || 1)) || 512;
     c.width = c.height = px;
-    drawTemplate(c, templateDrawing(plan, px, view), { labels: view === 'parts' });
-  }, [plan, view]);
+    drawTemplate(c, templateDrawing(plan, px, view, shading), { labels: view === 'parts' });
+  }, [plan, view, shading]);
 
   // The template on the car follows the plan while it's shown.
   useEffect(() => {
-    if (preview === 'template' && plan) showTemplateOnCar(templateDrawing(plan, 2048));
-  }, [preview, plan]);
+    if (preview === 'template' && plan) showTemplateOnCar(templateDrawing(plan, 2048, 'parts', shading));
+  }, [preview, plan, shading]);
 
   const applied = current.keys.length > 0;
   const stale = applied && (current.keys.length !== keys.size || current.keys.some((k) => !keys.has(k)) || !sameOptions(current.layout, opts));
@@ -193,6 +194,7 @@ export function SkinStudioPanel() {
           <Field label="Size" hint="4096 suits most skins; 8192 for fine detail on large cars.">
             <Select value={String(size)} onChange={(v) => set({ size: Number(v) as 2048 | 4096 | 8192 })} options={[2048, 4096, 8192].map((n) => ({ value: String(n), label: `${n} × ${n}` }))} aria-label="Template size" />
           </Field>
+          <Toggle checked={shading} onChange={(on) => set({ shading: on })} label="Shade the panels (a light guide to their shape, on its own layer)" />
           <div className={styles.row}>
             <Button icon={FileImage} disabled={!applied || stale} onClick={() => void save('png')} data-testid="skin-save-png">
               Save PNG

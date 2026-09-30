@@ -329,6 +329,18 @@ export function triangleFacing(pos: ArrayLike<number>, views: readonly SkinView[
   return out;
 }
 
+/** How lit each triangle is by a soft light from above and a little ahead (0.35–1; either face). */
+export function triangleShade(pos: ArrayLike<number>): Float32Array {
+  const light: Vec3 = [0.25, -0.35, 0.9];
+  const l = Math.hypot(...light);
+  const out = new Float32Array(Math.floor(pos.length / 9));
+  for (let t = 0; t < out.length; t++) {
+    const n = normalOf(pos, t * 9);
+    out[t] = 0.35 + 0.65 * Math.abs((n[0] * light[0] + n[1] * light[1] + n[2] * light[2]) / l);
+  }
+  return out;
+}
+
 export interface SkinStats {
   triangles: number;
   perView: Record<SkinView, number>;

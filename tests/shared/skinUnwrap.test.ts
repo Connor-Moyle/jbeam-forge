@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { carBox, DEFAULT_SKIN_OPTIONS, planSkinLayout, projectPoint, skinStats, skinUvs, skinViews, triangleNeighbours, type SkinLayout, type SkinView } from '@shared/uv/skinUnwrap';
+import { carBox, DEFAULT_SKIN_OPTIONS, planSkinLayout, projectPoint, skinStats, skinUvs, skinViews, triangleNeighbours, triangleShade, type SkinLayout, type SkinView } from '@shared/uv/skinUnwrap';
 import { projectUvs } from '@shared/mesh/meshEdit';
 import { demoCarPieces } from '@shared/tutorial/demoCar';
 import { buildTemplate, partColor, templateSvg } from '@shared/uv/skinTemplate';
@@ -228,6 +228,17 @@ describe('skin template', () => {
     }
     expect(d.frames.map((f) => f.view)).toEqual(['left', 'top', 'right', 'front', 'rear', 'bottom']);
     expect(d.scaleBar.w).toBeCloseTo(L.scale * 2048, 6);
+  });
+
+  it('shades panels turning from the light on a layer of its own, when asked', () => {
+    expect(d.shading).toEqual([]);
+    const sideLight = triangleShade(leftSide)[0]!;
+    const roofLight = triangleShade(roof)[0]!;
+    expect(roofLight).toBeGreaterThan(sideLight); // the light is from above
+    const shaded = buildTemplate(L, pieces.map((p, i) => ({ ...p, shade: triangleShade([leftSide, roof, nose][i]!) })), 1024, { shading: true });
+    expect(shaded.shading.length).toBeGreaterThan(0);
+    expect(templateSvg(shaded, 'x')).toContain('id="shading" inkscape:groupmode="layer"');
+    expect(templateSvg(d, 'x')).not.toContain('id="shading"');
   });
 
   it('writes a layered SVG with a path per part', () => {
