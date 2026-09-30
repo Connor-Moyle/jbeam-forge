@@ -1843,7 +1843,8 @@ const scenarios = [
       await page.waitForSelector('[data-testid=app-ready]');
       if (await page.locator('[data-view=editor]').count()) {
         await hook(page, 'runCommand', 'close');
-        await page.getByTestId('unsaved-discard').click({ timeout: 2000 }).catch(() => undefined);
+        await page.waitForSelector('[data-view=home][data-testid=app-ready], [data-testid=unsaved-discard]');
+        if (await page.getByTestId('unsaved-discard').isVisible()) await page.getByTestId('unsaved-discard').click();
         await page.waitForSelector('[data-view=home][data-testid=app-ready]');
       }
       await page.getByTestId('home-new').click();
