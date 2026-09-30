@@ -9,8 +9,9 @@ import { numericToken } from '../../src/renderer/ui/tokens';
 
 /** Minimal DockviewApi fake recording panel operations. */
 function fakeApi() {
-  const panels = new Map<string, { id: string; api: { isActive: boolean; close: () => void; setActive: () => void } }>();
+  const panels = new Map<string, { id: string; api: { isActive: boolean; close: () => void; setActive: () => void }; group: { api: { setSize: (s: { width?: number }) => void } } }>();
   const added: { id: string; position?: unknown; initialWidth?: number }[] = [];
+  const sized: { id: string; width?: number }[] = [];
   const api = {
     clear: vi.fn(() => panels.clear()),
     getPanel: (id: string) => panels.get(id),
@@ -19,6 +20,7 @@ function fakeApi() {
       const p = {
         id: opts.id,
         api: { isActive: false, close: () => panels.delete(opts.id), setActive: vi.fn(() => (p.api.isActive = true)) },
+        group: { api: { setSize: (size: { width?: number }) => void sized.push({ id: opts.id, ...size }) } },
       };
       panels.set(opts.id, p);
       return p;
@@ -27,7 +29,7 @@ function fakeApi() {
       return [...panels.values()];
     },
   };
-  return { api: api as unknown as DockviewApi, raw: api, added };
+  return { api: api as unknown as DockviewApi, raw: api, added, sized };
 }
 
 describe('presets', () => {
@@ -46,8 +48,13 @@ describe('presets', () => {
   });
 
   it('applyPreset clears and builds the layout with token-derived widths', () => {
-    const { api, raw, added } = fakeApi();
+    const { api, raw, added, sized } = fakeApi();
     applyPreset(api, 'modelling');
+    // Widths are set again once every panel is in, so a later panel can't squeeze an earlier one.
+    expect(sized).toEqual([
+      { id: 'scene', width: numericToken('size-side-panel') },
+      { id: 'inspector', width: numericToken('size-side-panel') },
+    ]);
     expect(raw.clear).toHaveBeenCalled();
     expect(added.map((a) => a.id)).toEqual(['viewport', 'scene', 'inspector']);
     expect(added[1]?.position).toEqual({ referencePanel: 'viewport', direction: 'left' });
