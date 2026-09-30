@@ -2632,6 +2632,15 @@ const scenarios = [
       await page.getByTestId('toolbar-generate').click();
       for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
       await hook(page, 'applyPreset', 'testing');
+      // The quick suspension check, before Test Mode: drop it and read the gaps.
+      await page.getByTestId('ride-drop').click();
+      await page.waitForTimeout(900);
+      await shot(page, 'probe-ride-drop');
+      await page.getByTestId('ride-report').waitFor();
+      const ride = await page.getByTestId('ride-report').textContent();
+      assert(/Front left/.test(ride) && /Rear right/.test(ride) && /Ground clearance/.test(ride), `four wheels and the ground measured (${ride})`);
+      await page.waitForTimeout(3000);
+      await shot(page, 'probe-ride-report');
       await page.getByRole('button', { name: 'Enter Test Mode' }).click();
       await page.getByTestId('test-panel').waitFor({ timeout: 20_000 });
       await page.waitForTimeout(1000);

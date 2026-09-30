@@ -239,3 +239,11 @@
 .driven {
   color: var(--text-0);
 }
+
+.rideList {
+  display: grid;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}

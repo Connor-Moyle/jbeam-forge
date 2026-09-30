@@ -1,3 +1,4 @@
+import { RideCheck } from '@renderer/suspension/RideCheck';
 import { EMPTY_ARR } from '@shared/empty';
 import { useState } from 'react';
 import { FlaskConical, Pause, Play, RotateCcw, Square } from 'lucide-react';
@@ -29,10 +30,18 @@ export function TestResultsPanel() {
   const active = useSim((s) => s.active);
   const hasStructure = useProjectStore((s) => (s.doc?.nodes.length ?? 0) > 0);
   if (!active) {
-    return hasStructure ? (
-      <EmptyState icon={FlaskConical} message="Test the generated structure: drop it, crash it, pull on it, and see what bends and breaks." action={{ label: 'Enter Test Mode', icon: Play, onClick: () => void startTestMode() }} />
-    ) : (
-      <EmptyState icon={FlaskConical} message="Generate the structure first (Generate in the toolbar), then test it here." />
+    // Before Test Mode: the quick suspension check works on the meshes alone.
+    return (
+      <ScrollArea className={styles.scroll}>
+        <div className={styles.panel}>
+          {hasStructure ? (
+            <EmptyState icon={FlaskConical} message="Test the generated structure: drop it, crash it, pull on it, and see what bends and breaks." action={{ label: 'Enter Test Mode', icon: Play, onClick: () => void startTestMode() }} />
+          ) : (
+            <EmptyState icon={FlaskConical} message="Generate the structure first (Generate in the toolbar), then test it here." />
+          )}
+          <RideCheck />
+        </div>
+      </ScrollArea>
     );
   }
   return <ActiveTest />;

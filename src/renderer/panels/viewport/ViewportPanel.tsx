@@ -1,3 +1,4 @@
+import { useRideCheck } from '@renderer/sim/rideCheck';
 import { placeTrigger, useTriggerUi } from '@renderer/triggers/commands';
 import { useSkinUi } from '@renderer/skins/commands';
 import { previewDefs } from '@renderer/skins/preview';
@@ -301,6 +302,21 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       pushLiveMeshes();
     });
     const unsubscribeLiveView = useLiveView.subscribe(pushLiveMeshes);
+    // The suspension check: the body pushed down onto its wheels (or the whole car falling in a drop).
+    let posedKeys: string[] = [];
+    const pushRide = () => {
+      const { pose, split } = useRideCheck.getState();
+      if (posedKeys.length) rt.previewMeshTransform(posedKeys, null);
+      posedKeys = [];
+      if (!pose || !split) return;
+      const at = (dz: number) => ({ pivot: [0, 0, 0] as [number, number, number], translate: [0, 0, dz] as [number, number, number], rotate: [0, 0, 0, 1] as [number, number, number, number], scale: [1, 1, 1] as [number, number, number] });
+      const body = [...split.bodyKeys, ...split.linkKeys];
+      const wheels = split.corners.flatMap((c) => c.wheelKeys);
+      rt.previewMeshTransform(body, at(pose.body));
+      rt.previewMeshTransform(wheels, at(pose.wheels));
+      posedKeys = [...body, ...wheels];
+    };
+    const unsubscribeRide = useRideCheck.subscribe(pushRide);
     // Hinge wizard preview: follows the hinge section's part and swing slider.
     const pushHinge = () => {
       const { partId, swing } = useHingeUi.getState();
@@ -452,6 +468,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeSkin();
       unsubscribeSim();
       unsubscribeLiveView();
+      unsubscribeRide();
       unsubscribeHinge();
       unsubscribeProp();
       unsubscribePoses();

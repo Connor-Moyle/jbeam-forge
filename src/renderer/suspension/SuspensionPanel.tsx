@@ -1,3 +1,4 @@
+import { RideCheck } from './RideCheck';
 import { startPlacing } from '@renderer/scene/placeFitted';
 import { useEffect, useMemo } from 'react';
 import { Move, Plus, Trash2, Wrench } from 'lucide-react';
@@ -69,6 +70,7 @@ export function SuspensionPanel() {
           Add axle
         </Button>
         {sets && sets.length === 0 && <p className={styles.note}>No suspensions yet: they come from your BeamNG.drive install. Set its folder in Settings.</p>}
+        <RideCheck />
       </ScrollArea>
     </div>
   );
