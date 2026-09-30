@@ -36,9 +36,27 @@ export function formatDiagnostics(info: DiagnosticInfo, extra?: string): string 
     `Log file ${info.logFile}`,
     `Debug logging ${info.debugLogging ? 'on' : 'off'}`,
   ];
-  if (extra) lines.push('', '--- Context ---', extra);
-  lines.push('', `--- Last ${info.recentLog.length} log lines ---`, ...info.recentLog);
+  if (extra) lines.push('', extra);
+  const problems = logProblems(info.recentLog);
+  if (problems.length) lines.push('', `Last ${problems.length} warnings and errors in the log:`, ...problems);
   return lines.join('\n');
+}
+
+const MAX_PROBLEMS = 12;
+const MAX_LOG_LINE = 240;
+
+/**
+ * The log's recent warnings and errors, one short line each (stack lines,
+ * object dumps and info lines left out: the full log is in the log file).
+ */
+export function logProblems(lines: readonly string[]): string[] {
+  const out: string[] = [];
+  for (const l of lines) {
+    if (!/\[(warn|error)\]/i.test(l)) continue;
+    const one = l.replace(/^\[[^\]]*\]\s*/, '').replace(/\s+/g, ' ').trim();
+    out.push(`  ${one.length > MAX_LOG_LINE ? `${one.slice(0, MAX_LOG_LINE - 1)}…` : one}`);
+  }
+  return out.slice(-MAX_PROBLEMS);
 }
 
 export async function copyDiagnosticsToClipboard(extra?: string): Promise<void> {

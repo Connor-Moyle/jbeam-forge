@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Download, FolderOpen, PackageCheck, RefreshCw, Store, Wand2 } from 'lucide-react';
+import { ArrowLeft, ClipboardCopy, Download, FolderOpen, PackageCheck, RefreshCw, Store, Wand2 } from 'lucide-react';
 import type { PublishListing } from '@shared/ipc-contract';
 import { call } from '@renderer/diagnostics/ipc';
 import { generateParts, useStructureUi } from '@renderer/structure/generate';
@@ -21,6 +21,8 @@ export function ExportDialog() {
   const busy = useExportUi((s) => s.busy);
   const result = useExportUi((s) => s.result);
   const error = useExportUi((s) => s.error);
+  const errorDetail = useExportUi((s) => s.errorDetail);
+  const [copied, setCopied] = useState(false);
   const setOpen = useExportUi((s) => s.setOpen);
   const generating = useStructureUi((s) => s.busy);
   const [publishing, setPublishing] = useState(false);
@@ -87,7 +89,25 @@ export function ExportDialog() {
       }
     >
       <div className={styles.body} data-testid="export-dialog">
-        {error && <Callout tone="danger">{error}</Callout>}
+        {error && (
+          <Callout tone="danger">
+            <span data-testid="export-failure">{error}</span>
+            {errorDetail && (
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={ClipboardCopy}
+                onClick={() =>
+                  void call('diagnostics:copy', { extra: errorDetail })
+                    .then(() => setCopied(true))
+                    .catch(() => undefined)
+                }
+              >
+                {copied ? 'Copied: paste it in your message' : 'Copy error report'}
+              </Button>
+            )}
+          </Callout>
+        )}
         {busy && <Callout tone="info">{busy}</Callout>}
         {result ? (
           <div className={styles.result} data-testid="export-result">

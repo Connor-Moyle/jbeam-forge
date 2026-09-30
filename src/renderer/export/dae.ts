@@ -1,4 +1,7 @@
 import type { BufferGeometry } from 'three';
+import { rlog } from '@renderer/diagnostics/logger';
+
+const logger = rlog('export');
 
 /**
  * COLLADA 1.4.1 writer for the exported vehicle (SPEC §4.2: "Export requires
@@ -39,6 +42,8 @@ export interface DaeMaterial {
 }
 
 const f = (n: number) => {
+  // A missing or broken value (bad data in a source model) is written as 0 rather than failing the export.
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '0';
   const s = n.toFixed(6);
   return s.includes('.') ? s.replace(/0+$/, '').replace(/\.$/, '') : s;
 };
@@ -54,13 +59,15 @@ interface Compacted {
   uv1: number[] | null;
   /** Per group: [materialIndex, local triangle vertex indices]. */
   groups: { material: number; indices: number[] }[];
+  /** Triangles left out because they point past the mesh's vertices. */
+  skipped: number;
 }
 
 function compactGeometry(g: BufferGeometry, flipV: boolean): Compacted {
   const pos = g.getAttribute('position');
   let nrm = g.getAttribute('normal');
-  if (!nrm) {
-    g.computeVertexNormals(); // only for sources that had none (e.g. some STL paths)
+  if (!nrm || nrm.count < pos.count) {
+    g.computeVertexNormals(); // sources with none (e.g. some STL paths) or too few
     nrm = g.getAttribute('normal');
   }
   const uvA = g.getAttribute('uv');
@@ -70,11 +77,22 @@ function compactGeometry(g: BufferGeometry, flipV: boolean): Compacted {
   const at = (i: number) => (index ? index.getX(i) : i);
   const groupRanges = g.groups.length ? g.groups : [{ start: 0, count, materialIndex: 0 }];
   const remap = new Map<number, number>();
-  const out: Compacted = { positions: [], normals: [], uv0: uvA ? [] : null, uv1: uvB ? [] : null, groups: [] };
+  const out: Compacted = { positions: [], normals: [], uv0: uvA ? [] : null, uv1: uvB ? [] : null, groups: [], skipped: 0 };
   for (const gr of groupRanges) {
     const indices: number[] = [];
     const end = Math.min(count, gr.start + gr.count);
     for (let i = gr.start; i < end; i++) {
+      if ((i - gr.start) % 3 === 0) {
+        // A triangle that points past the vertices (bad indices in the source file) is left out whole.
+        const last = Math.min(i + 3, end);
+        let bad = last - i < 3;
+        for (let k = i; k < last && !bad; k++) bad = at(k) >= pos.count;
+        if (bad) {
+          out.skipped++;
+          i = last - 1;
+          continue;
+        }
+      }
       const v = at(i);
       let local = remap.get(v);
       if (local === undefined) {
@@ -127,13 +145,14 @@ function addBackFaces(c: Compacted, back: readonly (string | null)[], names: str
 export function writeDae(meshes: readonly DaeMesh[], materials: readonly DaeMaterial[], now = new Date()): string {
   const stamp = now.toISOString().replace(/\.\d+Z$/, 'Z');
   const effects = materials
-    .map((m) => `<effect id="${esc(m.name)}-effect"><profile_COMMON><technique sid="common"><phong><diffuse><color sid="diffuse">${m.color.map(f).join(' ')}</color></diffuse></phong></technique></profile_COMMON></effect>`)
+    .map((m) => `<effect id="${esc(m.name)}-effect"><profile_COMMON><technique sid="common"><phong><diffuse><color sid="diffuse">${[0, 1, 2, 3].map((k) => f(m.color[k] ?? 1)).join(' ')}</color></diffuse></phong></technique></profile_COMMON></effect>`)
     .join('\n    ');
   const mats = materials.map((m) => `<material id="${esc(m.name)}" name="${esc(m.name)}"><instance_effect url="#${esc(m.name)}-effect"/></material>`).join('\n    ');
   const geometries: string[] = [];
   const nodes: string[] = [];
   for (const m of meshes) {
     const c = compactGeometry(m.geometry, m.flipV);
+    if (c.skipped) logger.warn(`${m.name}: left out ${c.skipped} triangle(s) that point past its vertices (bad data in the source model)`);
     const o = m.origin && (m.origin[0] || m.origin[1] || m.origin[2]) ? m.origin : null;
     if (o) for (let i = 0; i < c.positions.length; i += 3) for (let k = 0; k < 3; k++) c.positions[i + k]! -= o[k]!;
     if (!c.groups.length) continue;

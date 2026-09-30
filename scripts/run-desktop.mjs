@@ -357,8 +357,23 @@ const scenarios = [
       await page.getByTestId('library-folders-objects').getByText('1 objects').waitFor();
       await page.waitForTimeout(300);
       await shot(page, 'settings-library-folders');
-      await page.keyboard.press('Escape');
+
+      // Dropdowns inside Settings open on top of it and change the setting (real clicks).
+      const fps = page.getByRole('combobox', { name: 'Frame-rate limit' });
+      await fps.scrollIntoViewIfNeeded();
+      await fps.click();
+      await page.getByRole('option', { name: '30 fps' }).click();
+      const speed = page.getByRole('combobox', { name: 'Speed unit' });
+      await speed.scrollIntoViewIfNeeded();
+      await speed.click();
+      await page.getByRole('option', { name: /mph/ }).click();
+      await shot(page, 'settings-dropdowns');
+      await page.getByTestId('settings-save').click();
       await page.getByTestId('settings-modal').waitFor({ state: 'detached' });
+      for (let i = 0; i < 30 && saved().maxFps !== 30; i++) await page.waitForTimeout(100);
+      assert(saved().maxFps === 30, `frame-rate limit picked from its dropdown and saved (${saved().maxFps})`);
+      assert(saved().speedUnit === 'mph', `speed unit picked from its dropdown and saved (${saved().speedUnit})`);
+      await page.evaluate(() => window.forge.invoke('settings:update', { maxFps: 0, speedUnit: 'kmh' }));
     },
   },
   {

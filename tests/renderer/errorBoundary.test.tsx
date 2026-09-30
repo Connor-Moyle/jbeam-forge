@@ -59,7 +59,7 @@ describe('PanelErrorBoundary', () => {
       </PanelErrorBoundary>,
     );
     expect(recentRendererErrors().some((l) => l.includes('boom in X'))).toBe(true);
-    expect(screen.getByText('Component stack')).toBeInTheDocument();
+    expect(screen.getByText('Where it happened')).toBeInTheDocument();
   });
 
   it('copy diagnostics sends the error context over IPC', async () => {
@@ -69,12 +69,12 @@ describe('PanelErrorBoundary', () => {
         <Bomb label="Y" />
       </PanelErrorBoundary>,
     );
-    await userEvent.click(screen.getByRole('button', { name: 'Copy diagnostics' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Copy error report' }));
     const invoke = vi.mocked(window.forge.invoke);
     const [channel, req] = invoke.mock.calls.at(-1) as [string, { extra: string }];
     expect(channel).toBe('diagnostics:copy');
     expect(req.extra).toContain('boom in Y');
-    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: /^Copied/ })).toBeInTheDocument();
   });
 });
 
@@ -93,11 +93,18 @@ describe('RootErrorBoundary', () => {
 });
 
 describe('formatErrorContext', () => {
-  it('includes message, stack and component stack', () => {
+  it('is short: where, the message, the top frames and the innermost components', () => {
     const err = new Error('bad');
-    const text = formatErrorContext(err, '\n    at Panel');
+    err.stack = ['Error: bad', ...Array.from({ length: 60 }, (_, i) => `    at fn${i} (file:///C:/Program%20Files/JBeam%20Forge/resources/app.asar/out/renderer/assets/index-X1.js:${100 + i}:7)`)].join('\n');
+    const components = Array.from({ length: 80 }, (_, i) => `\n    at Comp${i} (index-X1.js:1:1)`).join('');
+    const text = formatErrorContext(err, components, 'Materials panel crashed');
+    expect(text).toContain('Where: Materials panel crashed');
     expect(text).toContain('Error: bad');
-    expect(text).toContain('Component stack:');
-    expect(text).toContain('at Panel');
+    expect(text).toContain('fn0 (index-X1.js:100)');
+    expect(text).not.toContain('fn20');
+    expect(text).not.toContain('Program%20Files');
+    expect(text).toContain('In: Comp0 < Comp1');
+    expect(text).not.toContain('Comp10');
+    expect(text.split('\n').length).toBeLessThan(25);
   });
 });

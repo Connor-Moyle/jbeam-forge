@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BoxGeometry, type BufferGeometry } from 'three';
+import { BoxGeometry, BufferAttribute, BufferGeometry } from 'three';
 import { writeDae } from '../../src/renderer/export/dae';
 import { loadIntoLoaderSpace } from '../../src/renderer/import/loaders';
 import { bakeMeshes, toBeamng } from '../../src/renderer/import/normalize';
@@ -88,4 +88,16 @@ describe('DAE writer: animated parts', () => {
     const pos = /<float_array id="[^"]*-positions-array"[^>]*>([^<]*)</.exec(text)![1]!.trim().split(/\s+/).map(Number);
     expect(Math.max(...pos.map(Math.abs))).toBeCloseTo(0.1, 6);
   });
+
+  it('writes a model with broken data instead of failing the export', () => {
+    const g = new BufferGeometry();
+    g.setAttribute('position', new BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 1, 0]), 3));
+    g.setAttribute('normal', new BufferAttribute(new Float32Array([0, 0, 1]), 3)); // too few normals
+    g.setAttribute('uv', new BufferAttribute(new Float32Array([0, 0, 1, 0]), 2)); // too few UVs
+    g.setIndex([0, 1, 2, 1, 3, 9]); // the second triangle points past the vertices
+    const text = writeDae([{ name: 'broken', geometry: g, materials: ['m'], flipV: false }], [{ name: 'm', color: [1, 0, 0] as unknown as [number, number, number, number] }]);
+    expect(text).toContain('<triangles material="m" count="1">');
+    expect(text).not.toMatch(/NaN|undefined/);
+  });
 });
+

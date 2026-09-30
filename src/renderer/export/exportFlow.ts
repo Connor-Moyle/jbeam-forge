@@ -3,6 +3,7 @@ import { withMeshNames } from '@shared/parts/meshNames';
 import { slotsOf } from '@renderer/materials/seed';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
+import { errorReport } from '@renderer/diagnostics/errorReport';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useSettingsStore } from '@renderer/app/stores/settings';
@@ -53,6 +54,8 @@ interface ExportUiState {
   busy: string | null;
   result: { path: string; bytes: number; mode: 'install' | 'zip' | 'publish' } | null;
   error: string | null;
+  /** The short, copyable report for `error` (where it happened). */
+  errorDetail: string | null;
   setOpen: (open: boolean) => void;
   set: (patch: Partial<Omit<ExportUiState, 'setOpen' | 'set'>>) => void;
 }
@@ -63,9 +66,16 @@ export const useExportUi = create<ExportUiState>()((set) => ({
   busy: null,
   result: null,
   error: null,
-  setOpen: (open) => set({ open, ...(open ? {} : { prepared: null, result: null, error: null, busy: null }) }),
+  errorDetail: null,
+  setOpen: (open) => set({ open, ...(open ? {} : { prepared: null, result: null, error: null, errorDetail: null, busy: null }) }),
   set: (patch) => set(patch),
 }));
+
+/** Show a failure in the dialog, log it with its stack, and keep a short report to copy. */
+function fail(where: string, err: unknown, prefix = ''): void {
+  logger.error(`${where} failed:`, err instanceof Error ? (err.stack ?? err.message) : String(err));
+  useExportUi.getState().set({ error: `${prefix}${errorText(err)}`, errorDetail: errorReport({ where, error: err }) });
+}
 
 function errorText(err: unknown): string {
   if (err instanceof IpcCallError) return err.ipcError.message;
@@ -286,10 +296,9 @@ export async function openExport(): Promise<void> {
   ui.setOpen(true);
   await loadFittedSets().catch((err: unknown) => logger.warn('suspension jbeam not loaded:', errorText(err)));
   try {
-    ui.set({ prepared: prepareExport(), error: null, result: null });
+    ui.set({ prepared: prepareExport(), error: null, errorDetail: null, result: null });
   } catch (err) {
-    logger.error('export preparation failed:', errorText(err));
-    ui.set({ error: `Could not prepare the export: ${errorText(err)}` });
+    fail('Export: checking the mod', err, 'Could not prepare the export: ');
   }
 }
 
@@ -297,9 +306,9 @@ export async function openExport(): Promise<void> {
 export function refreshExport(): void {
   const ui = useExportUi.getState();
   try {
-    ui.set({ prepared: prepareExport(), error: null });
+    ui.set({ prepared: prepareExport(), error: null, errorDetail: null });
   } catch (err) {
-    ui.set({ error: errorText(err) });
+    fail('Export: re-check', err);
   }
 }
 
@@ -393,7 +402,7 @@ export async function runExport(mode: 'install' | 'zip'): Promise<void> {
   const ui = useExportUi.getState();
   const prepared = ui.prepared;
   if (!prepared || prepared.report.errors.length) return;
-  ui.set({ busy: mode === 'install' ? 'Installing into BeamNG…' : 'Writing zip…', error: null });
+  ui.set({ busy: mode === 'install' ? 'Installing into BeamNG…' : 'Writing zip…', error: null, errorDetail: null });
   try {
     const bundle = await finalBundle(prepared.bundle, (busy) => ui.set({ busy }));
     ui.set({ busy: mode === 'install' ? 'Installing into BeamNG…' : 'Writing zip…' });
@@ -404,7 +413,7 @@ export async function runExport(mode: 'install' | 'zip'): Promise<void> {
       if (useSettingsStore.getState().settings?.openFolderAfterExport) void call('export:reveal').catch(() => undefined);
     }
   } catch (err) {
-    ui.set({ error: errorText(err) });
+    fail(mode === 'install' ? 'Export: install to BeamNG' : 'Export: save zip', err);
   } finally {
     useExportUi.getState().set({ busy: null });
   }
@@ -415,7 +424,7 @@ export async function runPublish(listing: PublishListing): Promise<void> {
   const ui = useExportUi.getState();
   const prepared = ui.prepared;
   if (!prepared || prepared.report.errors.length) return;
-  ui.set({ busy: 'Writing the repository package…', error: null });
+  ui.set({ busy: 'Writing the repository package…', error: null, errorDetail: null });
   try {
     const bundle = await finalBundle(prepared.bundle, (busy) => ui.set({ busy }));
     const r = await call('export:publish', { bundle, listing });
@@ -425,7 +434,7 @@ export async function runPublish(listing: PublishListing): Promise<void> {
       logger.info(`export publish: ${r.path}`);
     }
   } catch (err) {
-    ui.set({ error: errorText(err) });
+    fail('Export: repository package', err);
   } finally {
     useExportUi.getState().set({ busy: null });
   }

@@ -190,10 +190,11 @@
 
   /* Layering */
   --z-overlay: 10;
-  --z-popover: 100;
   --z-modal: 200;
-  --z-tooltip: 300;
   --z-tour: 250; /* the guided tour: above dialogs, under tooltips */
+  /* Dropdowns, menus and popovers open from a control the user just clicked, often inside a dialog: always on top of it. */
+  --z-popover: 270;
+  --z-tooltip: 300;
 
   /* States */
   --opacity-disabled: 0.45;
