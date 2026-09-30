@@ -1,4 +1,5 @@
 import type { Part, Project } from '../project/schema';
+import { withPortedNotice } from './ported';
 import { commonPrefix } from '../taxonomy/tokenize';
 import { slotTypeOf, type TaxonomyLookup } from './jbeam';
 import { partPrice } from '../parts/materials';
@@ -63,7 +64,7 @@ export function infoJson(doc: Pick<Project, 'meta'> & Partial<Pick<Project, 'pai
     Brand: m.brand || 'JBeam Forge',
     Author: author || m.author || 'JBeam Forge',
     Type: m.type || 'Car',
-    Description: m.description || `${m.name}, built with JBeam Forge.`,
+    Description: withPortedNotice(m.description || `${m.name}, built with JBeam Forge.`, m.portedFrom),
     ...(m.bodyStyle ? { 'Body Style': m.bodyStyle } : {}),
     ...(m.country ? { Country: m.country } : {}),
     ...(m.years ? { Years: m.years } : {}),

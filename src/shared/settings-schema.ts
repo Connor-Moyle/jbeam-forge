@@ -71,6 +71,16 @@ export const SettingsSchema = z.object({
   autoReimportAsk: z.boolean(),
   /** Changed textures next to the model reload it too. */
   autoReimportTextures: z.boolean(),
+  /** Assetto Corsa (kn5) imports: effect meshes (blurred rims, damage glass…) come in ignored. */
+  acIgnoreHelpers: z.boolean(),
+  /** …objects the car file marks hidden are left out. */
+  acSkipHidden: z.boolean(),
+  /** …paint detail and per-pixel gloss are baked into the textures. */
+  acBakePaint: z.boolean(),
+  /** …the meshes are sorted into parts straight away. */
+  acClassify: z.boolean(),
+  /** …the car's name, brand and description become the mod's. */
+  acUseDetails: z.boolean(),
   /** JBeam workspace (fork): every property and tool, not just the common ones. */
   jbeamAdvanced: z.boolean(),
   /** Structure checks: beams shorter than this (mm) are flagged. */
@@ -234,6 +244,11 @@ export const DEFAULT_SETTINGS: Settings = {
   autoReimport: true,
   autoReimportAsk: false,
   autoReimportTextures: true,
+  acIgnoreHelpers: true,
+  acSkipHidden: false,
+  acBakePaint: true,
+  acClassify: true,
+  acUseDetails: true,
   jbeamAdvanced: false,
   jbeamShortBeamMm: 10,
   jbeamLongBeamM: 2.5,

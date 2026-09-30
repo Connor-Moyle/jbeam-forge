@@ -6,6 +6,7 @@ import { MaterialDefSchema } from '../materials/schema';
 import { HingeSchema } from '../hinges/schema';
 import { TriggerSchema } from '../triggers/schema';
 import { RimSpecSchema, TyreSpecSchema } from '../wheels/schema';
+import { PortedFromSchema } from '../export/ported';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -42,6 +43,8 @@ export const ProjectMetaSchema = z.object({
   ddsConvert: z.boolean().optional(),
   /** What the mod is (fork): a whole vehicle (unset), an engine for game cars, universal tyres or wheels. */
   modKind: z.enum(['vehicle', 'engine', 'tyres', 'wheels']).optional(),
+  /** Ported from another game (fork): which, and the modder's declaration (owns it, mod is free). */
+  portedFrom: PortedFromSchema.optional(),
 });
 
 const placeholderList = z.array(z.unknown());
@@ -217,12 +220,17 @@ export const ProxySectionSchema = z.object({
 const CustomTaxonomyEntry = z.record(z.string(), z.unknown());
 
 /**
- * A car brought over from another game (Assetto Corsa for now): where it came
+ * A car brought over from another game (Assetto Corsa, or any game an importer extension reads): where it came
  * from and the text of its data files (car.ini, engine.ini, power.lut,
  * ui_car.json, ext_config.ini…), kept so later tools can build from them.
  */
 export const ReferenceCarSchema = z.object({
-  kind: z.literal('assettocorsa'),
+  /** Assetto Corsa (the built-in importer), or another game an extension brought the car from. */
+  kind: z.enum(['assettocorsa', 'game']),
+  /** The game's name, for kind "game". */
+  game: z.string().max(120).optional(),
+  /** Spec sheet an importer read (label → value), for kind "game". */
+  specs: z.record(z.string().max(80), z.string().max(400)).optional(),
   /** Folder name, e.g. "ks_mazda_mx5_cup". */
   carId: z.string(),
   folder: z.string(),

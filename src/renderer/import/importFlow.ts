@@ -25,6 +25,7 @@ import { applySplits, splitsForSource } from './applySplits';
 import type { ImportedMesh } from './normalize';
 import { EMPTY_ARR } from '@shared/empty';
 import { offerAutoClassify } from '@renderer/parts/commands';
+import { acOption } from './kn5';
 
 const logger = rlog('import');
 
@@ -148,7 +149,7 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
     // Parts cut from the game's own vehicles use the game's materials: reference them by name.
     if (opts.gameMaterials) seed = { ...seed, materials: seed.materials.map((m) => ({ ...m, gameMaterial: m.name })) };
     // Assetto Corsa effect meshes (blurred rims, damage glass…) come in ignored.
-    const helpers = staged.format === 'kn5' ? acHelperKeys(done.meshes) : [];
+    const helpers = staged.format === 'kn5' && acOption('acIgnoreHelpers') ? acHelperKeys(done.meshes) : [];
     useSceneStore.getState().setHidden(helpers, true);
     projectStore.getState().execute({
       label: `Import ${staged.fileName}`,
@@ -245,7 +246,7 @@ async function loadFromDisk(source: Source, quiet = false): Promise<void> {
     applyPlacement(done.meshes, IDENTITY_PLACEMENT, source.placement);
     store({ ...base, status: 'ready', placement: source.placement, raw: done.meshes, ...deriveMeshes(source.id, done.meshes), textures: done.textures, error: null, stats: { triangles: staged.triangles, totalMs: done.totalMs } });
     seedMaterials(source.id, done.meshes); // projects from before materials existed
-    if (source.format === 'kn5') useSceneStore.getState().setHidden(acHelperKeys(done.meshes), true);
+    if (source.format === 'kn5' && acOption('acIgnoreHelpers')) useSceneStore.getState().setHidden(acHelperKeys(done.meshes), true);
   } catch (err) {
     store({ ...base, status: 'error', error: errorText(err) });
   } finally {

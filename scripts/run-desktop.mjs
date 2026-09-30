@@ -12,9 +12,10 @@
 import { _electron } from 'playwright-core';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createWriteStream, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { deflateSync } from 'node:zlib';
+import yazl from 'yazl';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
@@ -1868,6 +1869,129 @@ const scenarios = [
     },
   },
   {
+    id: 'beamng-importer',
+    name: 'example extension: BeamNG vehicle importer · zip → models, default configuration’s structure, declaration, reference files',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // A small vehicle zip: a main part with a hood slot (two hoods, the .pc picks one), a tuning variable, a model.
+      const work = mkdtempSync(join(tmpdir(), 'jbf-bng-'));
+      const dae = readFileSync(join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae'), 'utf8').replace(/fixture_body/g, 'fakecar_body').replace(/fixture_wheel_FL/g, 'fakecar_hood');
+      const jbeam = {
+        fakecar_body: {
+          information: { name: 'Body', authors: 'Tester' },
+          slotType: 'main',
+          slots: [['type', 'default', 'description'], ['fakecar_hood', 'fakecar_hood_alt', 'Hood'], ['fakecar_spoiler', '', 'Spoiler']],
+          flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fakecar_body', ['fakecar_body']]],
+          variables: [['name', 'type', 'unit', 'category', 'default', 'min', 'max', 'title', 'description'], ['$spring', 'range', 'N/m', 'Body', 501000, 1000, 900000, 'Spring', 'Body spring']],
+          nodes: [['id', 'posX', 'posY', 'posZ'], { nodeWeight: 10 }, { collision: true }, ['b1', 0, -1, 0.5], ['b2', 1, -1, 0.5], ['b3', 0, 0, 0.5], ['b4', 0, -1, 1.2, { nodeWeight: 5 }]],
+          beams: [['id1:', 'id2:'], { beamSpring: '$spring', beamDamp: 150 }, ['b1', 'b2'], ['b2', 'b3'], ['b1', 'b3'], ['b1', 'b4'], ['b2', 'b4'], ['b3', 'b4']],
+          triangles: [['id1:', 'id2:', 'id3:'], ['b1', 'b2', 'b3']],
+        },
+        fakecar_hood: { information: { name: 'Hood' }, slotType: 'fakecar_hood', flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fakecar_hood', ['fakecar_hood']]], nodes: [['id', 'posX', 'posY', 'posZ'], ['h1', 0, -1.5, 0.9], ['h2', 0.5, -1.5, 0.9]], beams: [['id1:', 'id2:'], ['h1', 'h2'], ['h1', 'b1']] },
+        fakecar_hood_alt: { information: { name: 'Other hood' }, slotType: 'fakecar_hood', nodes: [['id', 'posX', 'posY', 'posZ'], ['h1', 5, 5, 5]] },
+      };
+      const zipPath = join(work, 'fakecar.zip');
+      await new Promise((resolve, reject) => {
+        const zip = new yazl.ZipFile();
+        zip.addBuffer(Buffer.from(JSON.stringify({ Name: 'Fake Car', Brand: 'Forge', Author: 'Tester', 'Body Style': 'Coupe', default_pc: 'default' })), 'vehicles/fakecar/info.json');
+        zip.addBuffer(Buffer.from(JSON.stringify({ format: 2, model: 'fakecar', parts: { fakecar_hood: 'fakecar_hood' } })), 'vehicles/fakecar/default.pc');
+        zip.addBuffer(Buffer.from(JSON.stringify(jbeam, null, 1)), 'vehicles/fakecar/fakecar.jbeam');
+        zip.addBuffer(Buffer.from(dae), 'vehicles/fakecar/fakecar.dae');
+        zip.addBuffer(Buffer.from('{}'), 'levels/not_a_car/info.json');
+        zip.end();
+        zip.outputStream.pipe(createWriteStream(zipPath)).on('close', resolve).on('error', reject);
+      });
+      await page.getByTestId('home-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByRole('button', { name: 'Extensions' }).first().click();
+      await page.getByTestId('extension-example-beamng-importer').click();
+      await page.getByTestId('extension-list').getByText(/BeamNG vehicle importer/).first().waitFor();
+      await page.getByTestId('extension-list').getByText(/Running: 1 command/).first().waitFor({ timeout: 15_000 });
+      await page.keyboard.press('Escape');
+      await hook(page, 'queueDialog', [zipPath]);
+      // Importers make a new mod, so their commands are on the home screen too.
+      await page.getByTestId('home-extensions').waitFor();
+      await shot(page, 'home-extension-commands');
+      await page.getByTestId('home-ext-beamng-importer-import-vehicle').click();
+      // The porting declaration is the user's to make.
+      await page.getByTestId('confirm-yes').waitFor({ timeout: 30_000 });
+      await shot(page, 'beamng-importer-declaration');
+      await page.getByTestId('confirm-yes').click();
+      await page.getByTestId('status-bar').getByText(/Fake Car: \d+ meshes, 6 nodes, 8 beams, 1 triangles/).waitFor({ timeout: 60_000 });
+      const doc = await hook(page, 'projectDoc');
+      assert(doc.meta.name === 'Fake Car (edit)' && doc.meta.slug === 'fakecar_edit', `new mod named after the car (${doc.meta.name}, ${doc.meta.slug})`);
+      assert(doc.meta.portedFrom?.game === 'BeamNG.drive' && doc.meta.portedFrom.owned && doc.meta.portedFrom.free, 'porting declaration recorded');
+      const h1 = doc.nodes.find((n) => n.id === 'h1');
+      assert(h1 && h1.pos[0] === 0 && h1.pos[1] === -1.5 && h1.manual, `the .pc's hood, not the slot default (${JSON.stringify(h1)})`);
+      const b4 = doc.nodes.find((n) => n.id === 'b4');
+      assert(b4.weight === 5 && doc.nodes.find((n) => n.id === 'b1').weight === 10 && b4.options?.collision === true, `node weights and options (${JSON.stringify(b4)})`);
+      assert(doc.beams.every((b) => b.options?.beamSpring === 501000 || b.id1 === 'h1'), 'tuning variable resolved to its default');
+      assert(doc.tris.length === 1, 'collision triangle');
+      assert(doc.reference?.kind === 'game' && doc.reference.files['fakecar.jbeam'] && doc.reference.files['default.pc'], 'jbeam and configuration kept for reference');
+      const ignored = doc.ignoredMeshes.length;
+      assert(ignored >= 3, `meshes no chosen part draws are set aside (${ignored})`);
+      // The export carries the imported values and the credit.
+      const jb = await hook(page, 'preparedJbeams');
+      assert(!jb.errors.some((e) => e.code === 'PORTED'), `declaration complete (${JSON.stringify(jb.errors)})`);
+      assert(jb.files.some((f) => /"beamSpring"\s*:\s*501000/.test(f.text)), 'beam values written');
+      const out = await hook(page, 'finalExport');
+      assert(out.files.some((f) => f.path.endsWith('/ported_from.txt')), 'ported_from.txt in the mod');
+      await page.getByTestId('toggle-reference').click();
+      await page.getByTestId('reference-panel').getByText('From BeamNG.drive').waitFor();
+      await shot(page, 'beamng-importer-reference');
+      await page.getByTestId('toggle-reference').click();
+      rmSync(work, { recursive: true, force: true });
+    },
+  },
+  {
+    id: 'cms2021-importer',
+    name: 'example extension: CMS 2021 importer (proof of concept) · exported models in centimetres → metres, parts, specs',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // An "AssetStudio export": a body 450 units long (centimetres) and a wheel, plus the car's config.
+      const work = mkdtempSync(join(tmpdir(), 'jbf-cms-'));
+      const car = join(work, 'car_old_coupe');
+      mkdirSync(join(car, 'Mesh'), { recursive: true });
+      const box = (name, [sx, sy, sz], [ox, oy, oz]) => {
+        const v = [];
+        for (const x of [0, 1]) for (const y of [0, 1]) for (const z of [0, 1]) v.push(`v ${ox + x * sx} ${oy + y * sy} ${oz + z * sz}`);
+        const f = ['1 2 4 3', '5 7 8 6', '1 5 6 2', '3 4 8 7', '1 3 7 5', '2 6 8 4'].map((q) => `f ${q}`);
+        return `o ${name}\n${v.join('\n')}\n${f.join('\n')}\n`;
+      };
+      writeFileSync(join(car, 'Mesh', 'body.obj'), box('body', [180, 130, 450], [-90, 20, -225]));
+      writeFileSync(join(car, 'Mesh', 'wheel_fl.obj'), box('wheel_fl', [20, 60, 60], [70, 0, 110]));
+      writeFileSync(join(car, 'config.txt'), 'name = Old Coupe\nmass = 1180\nengine = I4 1.6\nirrelevant = yes\n');
+      await page.getByTestId('home-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByRole('button', { name: 'Extensions' }).first().click();
+      await page.getByTestId('extension-example-cms2021-importer').click();
+      await page.getByTestId('extension-list').getByText(/Running: 1 command/).first().waitFor({ timeout: 15_000 });
+      await page.keyboard.press('Escape');
+      await hook(page, 'queueDialog', [car]);
+      await page.getByTestId('home-ext-cms2021-importer-import-car').click();
+      await page.getByTestId('confirm-yes').waitFor({ timeout: 30_000 });
+      await page.getByTestId('confirm-yes').click();
+      await page.getByTestId('status-bar').getByText(/Old Coupe: 2 models/).waitFor({ timeout: 60_000 });
+      const doc = await hook(page, 'projectDoc');
+      assert(doc.meta.name === 'Old Coupe' && doc.meta.portedFrom?.game === 'Car Mechanic Simulator 2021', `named from the config, port declared (${doc.meta.name})`);
+      assert(doc.sources.length === 2 && doc.sources.every((s) => s.placement.scale === 0.01), `centimetres scaled to metres (${doc.sources.map((s) => s.placement.scale)})`);
+      assert(doc.reference?.specs?.mass === '1180' && !('irrelevant' in doc.reference.specs) && doc.reference.files['config.txt'], `specs read (${JSON.stringify(doc.reference?.specs)})`);
+      await page.waitForTimeout(500);
+      await shot(page, 'cms2021-importer');
+      rmSync(work, { recursive: true, force: true });
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,
@@ -2065,6 +2189,10 @@ const scenarios = [
       await page.getByTestId('ac-import-dialog').waitFor({ timeout: 60_000 });
       await shot(page, 'ac-import-dialog');
       const started = Date.now();
+      // The port declaration: owns the game, mod is free (Import stays off until both are ticked).
+      assert(await page.getByTestId('ac-import-confirm').isDisabled(), 'import waits for the declaration');
+      await page.getByTestId('ac-import-declare').getByText('I own Assetto Corsa').click();
+      await page.getByTestId('ac-import-declare').getByText('The mod will be free', { exact: false }).click();
       await page.getByTestId('ac-import-confirm').click();
       let st;
       for (let i = 0; i < 3000; i++) {

@@ -515,6 +515,14 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Toggle checked={d.autoReimportAsk} onChange={(autoReimportAsk) => set({ autoReimportAsk })} label="Ask before reloading" />
               <p className={styles.help}>Each mod can turn this on or off in the Inspector (with nothing picked).</p>
             </FieldGroup>
+            <FieldGroup title="Assetto Corsa cars (kn5)">
+              <Toggle checked={d.acIgnoreHelpers} onChange={(acIgnoreHelpers) => set({ acIgnoreHelpers })} label="Ignore the game’s effect meshes (blurred rims, damage glass, windscreen reflection)" />
+              <Toggle checked={d.acSkipHidden} onChange={(acSkipHidden) => set({ acSkipHidden })} label="Leave out objects the car file marks hidden" />
+              <Toggle checked={d.acBakePaint} onChange={(acBakePaint) => set({ acBakePaint })} label="Bake paint detail and gloss into the textures (as the game shows them)" />
+              <Toggle checked={d.acClassify} onChange={(acClassify) => set({ acClassify })} label="Sort the meshes into parts straight away" />
+              <Toggle checked={d.acUseDetails} onChange={(acUseDetails) => set({ acUseDetails })} label="Use the car’s name, brand and description for the mod" />
+              <p className={styles.help}>These are the starting choices of the Import dialog. A ported car must credit the game and be free: the export checks the declaration.</p>
+            </FieldGroup>
           </section>
 
           <section data-section="units">

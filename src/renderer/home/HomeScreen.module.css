@@ -206,3 +206,14 @@
   gap: var(--space-1);
   margin-top: var(--space-2);
 }
+
+.extensions {
+  display: flex;
+  flex-direction: column;
+}
+
+.extensionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

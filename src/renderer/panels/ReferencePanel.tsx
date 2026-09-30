@@ -7,6 +7,7 @@ import { EmptyState } from '@renderer/ui/components/EmptyState';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Select } from '@renderer/ui/components/Select';
 import { Tabs } from '@renderer/ui/components/Tabs';
+import type { ReferenceCar } from '@shared/project/schema';
 import styles from './ReferencePanel.module.css';
 
 const fmt = (v: number | null | undefined, unit: string, digits = 0) => (v === null || v === undefined ? '—' : `${v.toLocaleString(undefined, { maximumFractionDigits: digits })} ${unit}`.trim());
@@ -80,11 +81,12 @@ export function ReferencePanel() {
   const sources = useProjectStore((s) => s.doc?.sources);
   const [tab, setTab] = useState('specs');
   const [file, setFile] = useState<string | null>(null);
-  const summary = useMemo(() => (reference ? summarizeAcCar(reference.files) : null), [reference]);
+  const summary = useMemo(() => (reference?.kind === 'assettocorsa' ? summarizeAcCar(reference.files) : null), [reference]);
   const fileNames = useMemo(() => Object.keys(reference?.files ?? {}).sort(), [reference]);
 
+  if (reference?.kind === 'game') return <GameReference reference={reference} fileNames={fileNames} />;
   if (!reference || !summary) {
-    return <EmptyState icon={CarFront} message="No reference car. Bring one over from Assetto Corsa to keep its specs and data files with the project." action={{ label: 'Import Assetto Corsa car', icon: FileInput, onClick: () => void startAcImport() }} />;
+    return <EmptyState icon={CarFront} message="No reference car. Bring one over from Assetto Corsa (or another game, with an importer extension) to keep its specs and data files with the project." action={{ label: 'Import Assetto Corsa car', icon: FileInput, onClick: () => void startAcImport() }} />;
   }
   const model = sources?.find((s) => s.format === 'kn5' && s.absolutePath.toLowerCase().startsWith(reference.folder.toLowerCase()));
   const skins = [...new Set([reference.skin, ...(model?.textureDirs ?? []).map((d) => d.split(/[\\/]/).pop() ?? '')].filter((x): x is string => !!x))];
@@ -120,6 +122,57 @@ export function ReferencePanel() {
         <ScrollArea className={styles.scroll}>
           <AcSpecs s={summary} />
           {summary.description && <p className={styles.description}>{summary.description}</p>}
+        </ScrollArea>
+      ) : (
+        <div className={styles.files}>
+          <Select value={shown ?? ''} onChange={setFile} options={fileNames.map((f) => ({ value: f, label: f }))} aria-label="Data file" />
+          <ScrollArea className={styles.scroll}>
+            <pre className={styles.code} data-testid="reference-file">
+              {shown ? reference.files[shown] : ''}
+            </pre>
+          </ScrollArea>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A car an importer extension brought over from another game: the specs it read and the files it kept. */
+function GameReference({ reference, fileNames }: { reference: ReferenceCar; fileNames: string[] }) {
+  const [tab, setTab] = useState('specs');
+  const [file, setFile] = useState<string | null>(null);
+  const specs = Object.entries(reference.specs ?? {});
+  const shown = file && reference.files[file] !== undefined ? file : fileNames[0];
+  return (
+    <div className={styles.panel} data-testid="reference-panel">
+      <header className={styles.head}>
+        <div>
+          <div className={styles.title}>{reference.carId}</div>
+          <div className={styles.sub}>From {reference.game ?? 'another game'}</div>
+        </div>
+      </header>
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'specs', label: 'Specs' },
+          { value: 'files', label: `Files (${fileNames.length})` },
+        ]}
+      />
+      {tab === 'specs' ? (
+        <ScrollArea className={styles.scroll}>
+          {specs.length ? (
+            <dl className={styles.rows}>
+              {specs.map(([k, v]) => (
+                <div key={k}>
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className={styles.description}>The importer kept no specs; see the files.</p>
+          )}
         </ScrollArea>
       ) : (
         <div className={styles.files}>

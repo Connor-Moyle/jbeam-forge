@@ -53,6 +53,9 @@ export function registerExtensionHandlers(ext: ExtensionService, files: Extensio
   registerInvoke('extfs:forget', async ({ id }) => void (await files.revoke(id)), z.object({ id: extId }));
   registerInvoke('extfs:list', ({ id, path: p }) => files.list(id, p), z.object({ id: extId, path }));
   registerInvoke('extfs:read', ({ id, path: p, maxBytes }) => files.read(id, p, maxBytes), z.object({ id: extId, path, maxBytes: z.number().int().positive().optional() }));
+  registerInvoke('extfs:zipList', ({ id, path: p }) => files.zipList(id, p), z.object({ id: extId, path }));
+  registerInvoke('extfs:zipRead', ({ id, path: p, entry }) => files.zipRead(id, p, entry), z.object({ id: extId, path, entry: z.string().min(1).max(1024) }));
+  registerInvoke('extfs:zipExtract', ({ id, path: p, prefixes }) => files.zipExtract(id, p, prefixes), z.object({ id: extId, path, prefixes: z.array(z.string().max(1024)).max(100) }));
   registerInvoke(
     'extfs:writeModel',
     async ({ id, name, files: list }) => {

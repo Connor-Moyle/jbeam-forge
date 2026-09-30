@@ -1,0 +1,9 @@
+{
+  "id": "cms2021-importer",
+  "name": "Car Mechanic Simulator 2021 importer (proof of concept)",
+  "version": "0.1.0",
+  "description": "Bring a Car Mechanic Simulator 2021 car into a new mod from a folder of its models exported with AssetStudio or AssetRipper: every model at the right size, sorted into parts, with the car's text data kept for reference. Only for cars from a copy of the game you own; the mod must be free and say where it came from.",
+  "author": "JBeam Forge",
+  "main": "main.js",
+  "permissions": ["files", "import"]
+}

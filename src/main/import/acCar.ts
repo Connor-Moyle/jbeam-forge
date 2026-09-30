@@ -52,6 +52,27 @@ async function mainKn5(folder: string, lodsIni: string | undefined): Promise<str
   return best?.path ?? null;
 }
 
+/** What a model file is, from its name: "Detailed (LOD A)", "Far (LOD C)", "Collider", "Driver". */
+export function modelLabel(name: string): string {
+  const stem = basename(name, extname(name));
+  if (/collider/i.test(stem)) return 'Collider (the game’s collision shape)';
+  if (/driver/i.test(stem)) return 'Driver';
+  const lod = stem.match(/_lod_([a-z])$/i)?.[1]?.toUpperCase();
+  if (!lod || lod === 'A') return `Detailed (${stem})`;
+  return `${lod === 'B' ? 'Medium' : 'Far'} detail, LOD ${lod} (${stem})`;
+}
+
+async function listModels(folder: string, main: string | null): Promise<AcCarInfo['models']> {
+  const out: AcCarInfo['models'] = [];
+  for (const name of await readdir(folder)) {
+    if (extname(name).toLowerCase() !== '.kn5') continue;
+    const path = join(folder, name);
+    out.push({ path, label: modelLabel(name), bytes: (await stat(path)).size });
+  }
+  const rank = (m: AcCarInfo['models'][number]) => (m.path === main ? 0 : /collider|driver/i.test(basename(m.path)) ? 2 : 1);
+  return out.sort((a, b) => rank(a) - rank(b) || a.path.localeCompare(b.path));
+}
+
 export async function readAcCar(folder: string): Promise<AcCarInfo> {
   const carId = basename(folder);
   const files: Record<string, string> = {};
@@ -102,5 +123,5 @@ export async function readAcCar(folder: string): Promise<AcCarInfo> {
         .map((e) => e.name)
         .sort((a, b) => a.localeCompare(b))
     : [];
-  return { folder, carId, kn5, skins, files, warnings };
+  return { folder, carId, kn5, models: await listModels(folder, kn5), skins, files, warnings };
 }

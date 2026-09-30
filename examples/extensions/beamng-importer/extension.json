@@ -1,0 +1,9 @@
+{
+  "id": "beamng-importer",
+  "name": "BeamNG vehicle importer",
+  "version": "1.0.0",
+  "description": "Bring a BeamNG.drive vehicle (a zip from content/vehicles or mods, or an unpacked folder) into a new mod to change: its meshes, its nodes, beams and triangles with their values, and every jbeam and configuration file for reference.",
+  "author": "JBeam Forge",
+  "main": "main.js",
+  "permissions": ["files", "import"]
+}

@@ -57,6 +57,8 @@ export interface AcCarInfo {
   carId: string;
   /** The main (LOD 0) model, or null when the folder has none. */
   kn5: string | null;
+  /** Every model in the folder, main first (far LODs, the collider and the driver too). */
+  models: { path: string; label: string; bytes: number }[];
   skins: string[];
   /** Relative path → file text (data/*.ini, data/*.lut, ui/ui_car.json, extension/…). */
   files: Record<string, string>;
@@ -248,6 +250,9 @@ export interface InvokeContract {
   'extfs:forget': { req: { id: string }; res: undefined };
   'extfs:list': { req: { id: string; path: string }; res: { name: string; path: string; dir: boolean; size: number }[] };
   'extfs:read': { req: { id: string; path: string; maxBytes?: number }; res: Uint8Array };
+  'extfs:zipList': { req: { id: string; path: string }; res: { name: string; size: number }[] };
+  'extfs:zipRead': { req: { id: string; path: string; entry: string }; res: Uint8Array };
+  'extfs:zipExtract': { req: { id: string; path: string; prefixes: string[] }; res: string };
   /** A model an extension built, written as OBJ (+ MTL, textures); its path, ready to import. */
   'extfs:writeModel': { req: { id: string; name: string; files: { name: string; text?: string; bytes?: Uint8Array; from?: string }[] }; res: string };
   /** A model file in the extension's folders, made importable. */
@@ -405,6 +410,9 @@ export const INVOKE_CHANNELS = [
   'extfs:forget',
   'extfs:list',
   'extfs:read',
+  'extfs:zipList',
+  'extfs:zipRead',
+  'extfs:zipExtract',
   'extfs:writeModel',
   'extfs:importable',
   'materials:pickTexture',

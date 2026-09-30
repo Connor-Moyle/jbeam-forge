@@ -95,7 +95,7 @@ export function Toolbar() {
           <IconButton icon={ListTree} label="Configurations: versions of the car and their parts (.pc)" onClick={() => togglePanel('configs')} data-testid="toggle-configs" />
           <IconButton icon={Gauge} label="Engine and gearbox from the game's cars" onClick={() => togglePanel('powertrain')} data-testid="toggle-powertrain" />
           <IconButton icon={Wrench} label="Suspension: axles, and suspensions from the game's cars" onClick={() => togglePanel('suspension')} data-testid="toggle-suspension" />
-          <IconButton icon={CarFront} label="Reference car: specs and data files of a car brought over from Assetto Corsa" onClick={() => togglePanel('reference')} data-testid="toggle-reference" />
+          <IconButton icon={CarFront} label="Reference car: specs and data files of a car brought over from another game" onClick={() => togglePanel('reference')} data-testid="toggle-reference" />
           <span className={styles.divider} aria-hidden />
           <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!hasParts} data-testid="toolbar-export">
             Export

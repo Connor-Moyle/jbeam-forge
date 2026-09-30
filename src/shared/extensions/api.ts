@@ -129,7 +129,28 @@ export function extensionTemplate(extensionId: string, raw: unknown): ScriptTemp
   return { ...t, id: `ext_${extensionId.replace(/-/g, '_')}_${t.id}`, category: t.category as ScriptTemplate['category'], actions: t.actions.map((a) => ({ ...a, desc: a.desc })) };
 }
 
-export const EXTENSION_METHODS = ['project.get', 'project.update', 'project.create', 'settings.get', 'files.pickFolder', 'files.pickFile', 'files.folders', 'files.list', 'files.read', 'files.readText', 'import.model', 'import.file'] as const;
+export const EXTENSION_METHODS = [
+  'project.get',
+  'project.update',
+  'project.create',
+  'project.declarePort',
+  'project.setReference',
+  'settings.get',
+  'jbeam.parse',
+  'parts.autoClassify',
+  'parts.create',
+  'files.pickFolder',
+  'files.pickFile',
+  'files.folders',
+  'files.list',
+  'files.read',
+  'files.readText',
+  'files.zipList',
+  'files.zipRead',
+  'files.zipExtract',
+  'import.model',
+  'import.file',
+] as const;
 export type ExtensionMethod = (typeof EXTENSION_METHODS)[number];
 
 /** Which permission each method needs (none: every extension may). */
@@ -140,9 +161,16 @@ export const METHOD_PERMISSION: Partial<Record<ExtensionMethod, 'files' | 'impor
   'files.list': 'files',
   'files.read': 'files',
   'files.readText': 'files',
+  'files.zipList': 'files',
+  'files.zipRead': 'files',
+  'files.zipExtract': 'files',
   'import.model': 'import',
   'import.file': 'import',
   'project.create': 'import',
+  'project.declarePort': 'import',
+  'project.setReference': 'import',
+  'parts.autoClassify': 'import',
+  'parts.create': 'import',
 };
 
 /**
@@ -283,6 +311,8 @@ export const EXTENSION_BOOTSTRAP = `"use strict";
       get: function () { return request("project.get", []); },
       update: function (label, ops) { return request("project.update", [String(label || "Extension edit"), ops]); },
       create: function (meta) { return request("project.create", [meta]); },
+      declarePort: function (info) { return request("project.declarePort", [info]); },
+      setReference: function (ref) { return request("project.setReference", [ref]); },
     }),
     files: Object.freeze({
       pickFolder: function (title) { return request("files.pickFolder", [String(title || "")]); },
@@ -291,12 +321,21 @@ export const EXTENSION_BOOTSTRAP = `"use strict";
       list: function (path) { return request("files.list", [String(path)]); },
       read: function (path) { return request("files.read", [String(path)]); },
       readText: function (path) { return request("files.readText", [String(path)]); },
+      zipList: function (path) { return request("files.zipList", [String(path)]); },
+      zipRead: function (path, entry) { return request("files.zipRead", [String(path), String(entry)]); },
+      zipReadText: function (path, entry) { return request("files.zipRead", [String(path), String(entry)]).then(function (b) { return new TextDecoder().decode(b); }); },
+      zipExtract: function (path, folders) { return request("files.zipExtract", [String(path), folders || []]); },
     }),
     import: Object.freeze({
       model: function (model) { return request("import.model", [model]); },
       file: function (path, options) { return request("import.file", [String(path), options || {}]); },
     }),
     settings: Object.freeze({ get: function () { return request("settings.get", []); } }),
+    parts: Object.freeze({
+      autoClassify: function () { return request("parts.autoClassify", []); },
+      create: function (kind, meshKeys, position) { return request("parts.create", [String(kind), meshKeys || [], position || null]); },
+    }),
+    jbeam: Object.freeze({ parse: function (text) { return request("jbeam.parse", [String(text)]); } }),
     ui: Object.freeze({ notify: function (message, tone) { post({ type: "notify", message: String(message), tone: tone }); } }),
     on: function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
     log: function () { post({ type: "log", level: "info", message: Array.prototype.map.call(arguments, String).join(" ") }); },

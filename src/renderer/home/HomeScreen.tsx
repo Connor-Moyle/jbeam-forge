@@ -1,6 +1,8 @@
 import { startTutorial } from '@renderer/help/tutorial';
-import { useCallback, useEffect, useState } from 'react';
-import { Car, CircleHelp, Compass, Clock, CloudDownload, FolderOpen, Settings, FolderSearch, ImageOff, Plus, Trash2, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Car, CircleHelp, Compass, Clock, CloudDownload, FolderOpen, Puzzle, Settings, FolderSearch, ImageOff, Plus, Trash2, X } from 'lucide-react';
+import { runExtensionCommand, useExtensions } from '@renderer/extensions/host';
+import { Button } from '@renderer/ui/components/Button';
 import type { RecentProject } from '@shared/ipc-contract';
 import { relativeTime } from '@shared/text';
 import { call } from '@renderer/diagnostics/ipc';
@@ -21,6 +23,8 @@ let triedLastProject = false;
 export function HomeScreen() {
   const [recent, setRecent] = useState<RecentProject[] | null>(null);
   const setNewModOpen = useDialogStore((s) => s.setNewModOpen);
+  const extensions = useExtensions((s) => s.list);
+  const extensionCommands = useMemo(() => extensions.filter((e) => e.running).flatMap((e) => e.commands.map((c) => ({ ...c, ext: e.id, extName: e.name }))), [extensions]);
 
   const refresh = useCallback(() => {
     call('recent:list')
@@ -74,6 +78,21 @@ export function HomeScreen() {
               <span className={styles.cardText}>A five-minute tour with a practice car, and guides for your first mod.</span>
             </button>
           </div>
+
+          {extensionCommands.length > 0 && (
+            <section className={styles.extensions} aria-labelledby="ext-heading" data-testid="home-extensions">
+              <h2 id="ext-heading" className={styles.sectionTitle}>
+                From your extensions
+              </h2>
+              <div className={styles.extensionRow}>
+                {extensionCommands.map((c) => (
+                  <Button key={`${c.ext}:${c.id}`} icon={Puzzle} onClick={() => runExtensionCommand(c.ext, c.id)} title={c.extName} data-testid={`home-ext-${c.ext}-${c.id}`}>
+                    {c.label}
+                  </Button>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className={styles.recent} aria-labelledby="recent-heading">
             <h2 id="recent-heading" className={styles.sectionTitle}>

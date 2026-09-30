@@ -41,8 +41,15 @@ export function skinDir(car: Pick<AcCarInfo, 'folder'>, skin: string): string {
 export interface AcImportChoices {
   skin: string | null;
   importModel: boolean;
+  /** Which of the folder's models (defaults to the main one). */
+  model?: string;
+  /** Offer to sort the meshes into parts after importing. */
+  classify?: boolean;
   /** Use the car's name, brand and description for the mod. */
   useDetails: boolean;
+  /** The modder's declaration: owns Assetto Corsa, and the mod is free. */
+  owned: boolean;
+  free: boolean;
 }
 
 export async function confirmAcImport(car: AcCarInfo, choices: AcImportChoices): Promise<void> {
@@ -52,6 +59,8 @@ export async function confirmAcImport(car: AcCarInfo, choices: AcImportChoices):
     label: `Bring over ${summary.name ?? car.carId}`,
     apply: (d) => {
       d.reference = { kind: 'assettocorsa', carId: car.carId, folder: car.folder, skin: choices.skin, files: car.files, importedAt: new Date().toISOString() };
+      // A car brought over from Assetto Corsa is a port: record where it came from and the declaration.
+      if (choices.importModel) d.meta.portedFrom = { game: 'Assetto Corsa', credit: summary.author ?? d.meta.portedFrom?.credit, owned: choices.owned, free: choices.free };
       if (choices.useDetails) {
         if (summary.name) d.meta.name = summary.name;
         if (summary.brand) d.meta.brand = summary.brand;
@@ -59,15 +68,16 @@ export async function confirmAcImport(car: AcCarInfo, choices: AcImportChoices):
       }
     },
   });
-  if (!choices.importModel || !car.kn5) {
+  const model = choices.model ?? car.kn5;
+  if (!choices.importModel || !model) {
     useUiStore.getState().pushStatus(`Kept ${Object.keys(car.files).length} data files from ${summary.name ?? car.carId}`, 'success');
     return;
   }
   const ui = useImportUi.getState();
   try {
-    ui.setBusy(`Reading ${car.kn5.split(/[\\/]/).pop() ?? 'the model'}…`);
-    const staged = await stageImport(car.kn5, 'kn5');
-    await confirmImport(staged, defaultSettings('kn5'), { textureDirs: choices.skin ? [skinDir(car, choices.skin)] : [] });
+    ui.setBusy(`Reading ${model.split(/[\\/]/).pop() ?? 'the model'}…`);
+    const staged = await stageImport(model, 'kn5');
+    await confirmImport(staged, defaultSettings('kn5'), { textureDirs: choices.skin ? [skinDir(car, choices.skin)] : [], classify: choices.classify ?? true });
   } catch (err) {
     ui.setBusy(null);
     void useDialogStore.getState().showAlert('Could not import the car model', errorText(err));

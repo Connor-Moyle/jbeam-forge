@@ -6,6 +6,7 @@ import { rlog } from '@renderer/diagnostics/logger';
 import { loadIntoLoaderSpace } from './loaders';
 import { bakeMeshes, boundsOf, toBeamng, triangleCount, type BakedMesh, type ImportedMesh, type ImportSettings } from './normalize';
 import { bakeAcDetail } from './acBake';
+import { acOption } from './kn5';
 import { applyTextures, ALL_CAPS, type GpuTextureCaps, type TextureReport } from './textures';
 
 /**
@@ -92,7 +93,7 @@ export async function finishImport(
     },
     caps,
   );
-  if (staged.format === 'kn5') await bakeAcDetail(staged.baked, staged.path);
+  if (staged.format === 'kn5' && acOption('acBakePaint')) await bakeAcDetail(staged.baked, staged.path);
   const meshes = toBeamng(staged.baked, sourceId, settings);
   const totalMs = Math.round(staged.parseMs + performance.now() - started);
   logger.info(
@@ -111,7 +112,7 @@ export async function loadTextured(path: string, format: SourceFormat): Promise<
     resolve: (refs) => call('import:resolveTextures', { sourcePath: path, refs, textureDirs: [] }),
     read: (p) => call('import:readFile', { path: p }),
   });
-  if (format === 'kn5') await bakeAcDetail(staged.baked, path);
+  if (format === 'kn5' && acOption('acBakePaint')) await bakeAcDetail(staged.baked, path);
   return staged.baked;
 }
 

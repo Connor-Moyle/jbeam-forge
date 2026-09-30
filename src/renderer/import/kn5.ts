@@ -1,5 +1,14 @@
 import { BufferAttribute, BufferGeometry, Color, DoubleSide, Group, Mesh, MeshStandardMaterial, TextureLoader, type LoadingManager, type Object3D, type Texture } from 'three';
 import { parseKn5, type Kn5Material, type Kn5Node } from '@shared/kn5/parse';
+import { useSettingsStore } from '@renderer/app/stores/settings';
+import { DEFAULT_SETTINGS } from '@shared/settings-schema';
+
+type AcOption = 'acIgnoreHelpers' | 'acSkipHidden' | 'acBakePaint' | 'acClassify' | 'acUseDetails';
+
+/** An Assetto Corsa import choice from Settings → Files. */
+export function acOption(key: AcOption): boolean {
+  return useSettingsStore.getState().settings?.[key] ?? DEFAULT_SETTINGS[key];
+}
 
 /**
  * Assetto Corsa kn5 → loader space. Textures come in as placeholders named
@@ -85,6 +94,7 @@ export function loadKn5(bytes: Uint8Array, manager: LoadingManager): Object3D {
   const materials = kn5.materials.map((m) => buildMaterial(m, loader));
   const fallback = new MeshStandardMaterial({ name: 'kn5_default', roughness: 0.6 });
 
+  const skipHidden = acOption('acSkipHidden');
   const build = (node: Kn5Node): Object3D => {
     let obj: Object3D;
     if (node.kind === 'group') {
@@ -96,7 +106,7 @@ export function loadKn5(bytes: Uint8Array, manager: LoadingManager): Object3D {
       obj.visible = node.visible;
     }
     obj.name = node.name;
-    for (const child of node.children) obj.add(build(child));
+    for (const child of node.children) if (!(skipHidden && child.kind === 'mesh' && !child.visible)) obj.add(build(child));
     return obj;
   };
   return build(kn5.root);

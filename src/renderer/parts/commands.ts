@@ -197,6 +197,29 @@ export const useClassifyUi = create<ClassifyUiState>()((set) => ({
 }));
 
 /** After an import: classify the new, unassigned meshes and ask before applying. */
+function proposeFor(meshes: readonly Pick<ImportedMesh, 'key' | 'name'>[]): Proposal {
+  const { centers, origin } = meshCenters(meshes.map((m) => m.key));
+  return proposeParts(
+    meshes.map((m) => {
+      const c = centers[m.key];
+      return { key: m.key, name: m.name, center: c ? ([c[0] - origin[0], c[1] - origin[1], c[2] - origin[2]] as [number, number, number]) : undefined };
+    }),
+    currentTaxonomy().classifier,
+  );
+}
+
+/** Sort the meshes not in a part yet into parts, without asking (extensions, scripted imports). Returns how many were placed. */
+export function autoClassifyNow(label = 'Auto-classify'): { parts: number; assigned: number; unassigned: number } {
+  const doc = projectStore.getState().doc;
+  if (!doc) return { parts: 0, assigned: 0, unassigned: 0 };
+  const fresh = [...meshIndex().values()].filter((m) => !doc.assignments[m.key] && !doc.ignoredMeshes.includes(m.key));
+  if (!fresh.length) return { parts: 0, assigned: 0, unassigned: 0 };
+  const proposal = proposeFor(fresh);
+  const assigned = Object.keys(proposal.assignments).length;
+  if (assigned) projectStore.getState().execute({ label, apply: (d) => void ops.applyProposal(d, currentTaxonomy(), proposal) });
+  return { parts: proposal.parts.length, assigned, unassigned: proposal.unassigned.length };
+}
+
 export function offerAutoClassify(fileName: string, meshes: readonly Pick<ImportedMesh, 'key' | 'name'>[]): void {
   const doc = projectStore.getState().doc;
   if (!doc) return;
@@ -205,14 +228,7 @@ export function offerAutoClassify(fileName: string, meshes: readonly Pick<Import
     if (fileName === 'the model') useUiStore.getState().pushStatus('Every mesh is already in a part (or ignored).', 'info');
     return;
   }
-  const { centers, origin } = meshCenters(fresh.map((m) => m.key));
-  const proposal = proposeParts(
-    fresh.map((m) => {
-      const c = centers[m.key];
-      return { key: m.key, name: m.name, center: c ? ([c[0] - origin[0], c[1] - origin[1], c[2] - origin[2]] as [number, number, number]) : undefined };
-    }),
-    currentTaxonomy().classifier,
-  );
+  const proposal = proposeFor(fresh);
   if (proposal.parts.length === 0) {
     useUiStore.getState().pushStatus(`No part names recognised in ${fileName}. Split or assign its meshes from the Scene tree.`, 'info', 8000);
     return;

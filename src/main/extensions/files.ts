@@ -1,6 +1,7 @@
 import { mkdir, readdir, readFile, realpath, stat, writeFile, copyFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve, sep } from 'node:path';
 import type { Logger } from '@shared/logger';
+import { withZip } from '../beamng/zip';
 
 /**
  * Extension file access (fork). An extension that asks for "files" in its
@@ -99,6 +100,37 @@ export class ExtensionFiles {
     if (!s.isFile()) throw new Error(`Not a file: ${path}`);
     if (s.size > Math.min(maxBytes, MAX_READ)) throw new Error(`${basename(path)} is bigger than ${Math.round(Math.min(maxBytes, MAX_READ) / 1e6)} MB`);
     return new Uint8Array(await readFile(real));
+  }
+
+  /** A zip's files (in the extension's folders), without unpacking it. */
+  async zipList(extId: string, zipPath: string): Promise<{ name: string; size: number }[]> {
+    const real = await this.check(extId, zipPath);
+    return withZip(real, async (z) => (await z.entries()).map((e) => ({ name: e.name, size: e.size })));
+  }
+
+  async zipRead(extId: string, zipPath: string, entry: string, maxBytes = MAX_READ): Promise<Uint8Array> {
+    const real = await this.check(extId, zipPath);
+    return new Uint8Array(await withZip(real, (z) => z.readBuffer(entry, Math.min(maxBytes, MAX_READ))));
+  }
+
+  /**
+   * Unpack a zip's files under the given folders (all when empty) to
+   * userData/extension-models/<ext>/<zip name>/, which the extension may
+   * then read and import from. Returns that folder.
+   */
+  async zipExtract(extId: string, zipPath: string, prefixes: readonly string[]): Promise<string> {
+    const real = await this.check(extId, zipPath);
+    const safe = (s: string) => s.replace(/[^A-Za-z0-9_.-]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'zip';
+    const out = join(this.modelsDir, safe(extId), safe(basename(real, extname(real))));
+    await mkdir(out, { recursive: true });
+    const wanted = (name: string) => !prefixes.length || prefixes.some((p) => name.startsWith(p));
+    await withZip(real, async (z) => {
+      const total = (await z.entries()).filter((e) => wanted(e.name)).reduce((n, e) => n + e.size, 0);
+      if (total > 4 * MAX_READ) throw new Error(`That would unpack ${Math.round(total / 1e6)} MB; pick fewer folders`);
+      await z.extract(wanted, out);
+    });
+    await this.grant(extId, out);
+    return realpath(out);
   }
 
   /**

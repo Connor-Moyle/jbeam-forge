@@ -28,6 +28,7 @@ import { exportableProps } from '@shared/props/props';
 import { withPaintedFaces } from '@renderer/paint/facePaint';
 import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson, type TextureCopy } from './materials';
 import { textureToDds, toBase64 } from './textureConvert';
+import { portedIssues, portedText } from '@shared/export/ported';
 import { commonRoot, engineModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
@@ -245,6 +246,9 @@ export function prepareExport(): PreparedExport | null {
       if (first) report.errors.push({ code: 'SCRIPT', message: `${sc.label} (${sc.name}.lua) line ${first.line}: ${first.message} (Settings → Scripts: warnings stop the export)` });
     }
   }
+  // Ported from another game: the declaration must be complete, and the credit ships with the mod.
+  for (const message of portedIssues(doc.meta.portedFrom)) report.errors.push({ code: 'PORTED', message });
+  if (doc.meta.portedFrom && kind === 'vehicle') files.push({ path: `${root}/ported_from.txt`, text: portedText(doc.meta.portedFrom, doc.meta.name, author) });
   if (kind !== 'vehicle') return partModExport(doc, kind, { author, files, copies: mats.copies, dae, meshCount: exported.length, meshNames: daeMeshes.map((m) => m.name) });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {
@@ -325,6 +329,8 @@ function partModExport(doc: Project, kind: Exclude<ModKind, 'vehicle'>, v: { aut
     ];
     copies = v.meshCount ? v.copies.map((c) => ({ ...c, to: toCommon(c.to, slug) })) : [];
   }
+  for (const message of portedIssues(doc.meta.portedFrom)) errors.push({ code: 'PORTED', message });
+  if (doc.meta.portedFrom && kind !== 'engine') files.push({ path: `${commonRoot(slug)}/ported_from.txt`, text: portedText(doc.meta.portedFrom, doc.meta.name, v.author) });
   return {
     bundle: { slug, projectName: doc.meta.name, files, copies },
     report: { errors, warnings },

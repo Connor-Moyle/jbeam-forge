@@ -6,6 +6,7 @@ import { Button } from '@renderer/ui/components/Button';
 import { FieldGroup } from '@renderer/ui/components/Field';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import type { ProjectMeta } from '@shared/project/schema';
+import { PortedFromFields } from './PortedFromFields';
 import styles from './InspectorPanel.module.css';
 
 /**
@@ -37,6 +38,7 @@ export function ModSettings() {
           Reload the model{sources === 1 ? '' : 's'} now
         </Button>
       )}
+      <PortedFromFields value={meta.portedFrom} />
     </FieldGroup>
   );
 }

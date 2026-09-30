@@ -112,7 +112,7 @@ export function DialogHost() {
               <Button variant="ghost" onClick={() => useDialogStore.getState().answerConfirm(false)}>
                 Cancel
               </Button>
-              <Button variant="danger" onClick={() => useDialogStore.getState().answerConfirm(true)} data-testid="confirm-yes">
+              <Button variant={confirm.tone} onClick={() => useDialogStore.getState().answerConfirm(true)} data-testid="confirm-yes">
                 {confirm.confirm}
               </Button>
             </>

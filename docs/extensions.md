@@ -44,6 +44,7 @@ Each extension runs in a worker of its own. It has no access to your files, the 
 | `await forge.project.get()` | The open project (the same data as a `.jbforge` file), or `null`. |
 | `await forge.project.update(label, ops)` | Changes the project with [JSON Patch](https://datatracker.ietf.org/doc/html/rfc6902) operations (`add`, `remove`, `replace`), as one undoable step named `label`. Refused, with the reason, if the result isn't a valid project. |
 | `await forge.settings.get()` | The app's settings (read only). |
+| `await forge.jbeam.parse(text)` | Reads jbeam text (comments, missing and trailing commas allowed) into plain objects. |
 | `forge.ui.notify(message, tone)` | A message in the status bar; `tone` is `info`, `success`, `warning` or `danger`. |
 | `forge.on('projectChanged' \| 'projectOpened', fn)` | Called when the project changes (at most twice a second) or another opens. |
 | `forge.log(...)` | Writes to the app's log (Help → Open log folder). |
@@ -53,19 +54,26 @@ With `"files"`:
 | | |
 |---|---|
 | `await forge.files.pickFolder(title)` | Asks the user for a folder; returns its path (or `null`). The extension may read inside it from then on. |
-| `await forge.files.pickFile(title, ['scx', 'pc'])` | Asks for one file (its folder becomes readable); returns its path or `null`. |
+| `await forge.files.pickFile(title, ['zip', 'json'])` | Asks for one file (its folder becomes readable); returns its path or `null`. |
 | `await forge.files.folders()` | The folders it was given before. |
 | `await forge.files.list(path)` | `[{ name, path, dir, size }]`, folders first. |
 | `await forge.files.read(path)` | The file's bytes (`Uint8Array`, up to 512 MB). |
 | `await forge.files.readText(path)` | The file as text (UTF-8). |
+| `await forge.files.zipList(zip)` | The files in a zip, `[{ name, size }]`, without unpacking it (game content often comes zipped). |
+| `await forge.files.zipRead(zip, entry)` / `zipReadText(zip, entry)` | One file from a zip, as bytes or text. |
+| `await forge.files.zipExtract(zip, ['vehicles/car/'])` | Unpacks the files under those folders (all, with `[]`) into the app's own folder for this extension, and returns that folder, which it may then read and import from. |
 
 With `"import"`:
 
 | | |
 |---|---|
 | `await forge.project.create({ name, slug?, brand?, description? })` | Starts a new mod (asking to save the open one first). `true` when it was made. |
-| `await forge.import.file(path, { scale?, upAxis?, forwardAxis? })` | Imports a model file from its folders (DAE, FBX, OBJ, glTF, GLB, STL, KN5) into the open mod. Returns `{ sourceId, meshes: [{ key, name }] }`. |
+| `await forge.project.declarePort({ game, credit? })` | For content from another game: asks **the user** to declare they own `game` and that the mod will be free, and records it (the mod's description and a `ported_from.txt` credit the game). Throws if they decline: stop there. |
+| `await forge.project.setReference({ game, carId, folder?, files, specs })` | Keeps the original's text files (`{ 'car.jbeam': text, … }`, 32 MB at most) and a spec sheet (`{ Weight: '1180 kg', … }`) with the project, shown in the Reference car panel. |
+| `await forge.import.file(path, { scale?, upAxis?, forwardAxis? })` | Imports a model file from its folders (DAE, FBX, OBJ, glTF, GLB, STL, KN5) into the open mod. Returns `{ sourceId, meshes: [{ key, name }], bounds: { min, max, size } }` (metres, BeamNG space: check the size to catch centimetre files). |
 | `await forge.import.model(model)` | Imports a model the extension built (from a game's own format, say). Returns the same as `import.file`. |
+| `await forge.parts.autoClassify()` | Sorts the meshes not in a part yet into parts by their names and places (as the app offers after an import), without asking. Returns `{ parts, assigned, unassigned }`. |
+| `await forge.parts.create(kind, meshKeys, position?)` | Adds a part of a kind (`'body'`, `'hood'`, `'door'`…, as in Parts → Add part) holding those meshes. Returns `{ id, name }`. |
 
 `model` is:
 
@@ -142,8 +150,9 @@ When something goes wrong, the error shows under the extension in Settings, and 
 Settings → Extensions → *Examples that come with JBeam Forge* installs them; their code is in `examples/extensions/` of the source, and in the extensions folder once installed:
 
 - **Forge toolbox**: import every model in a folder; a weight report by part. A short read that uses `files`, `import` and the project.
-- **BeamNG vehicle importer**: brings a car from the game (or a mod) into a mod you can change: its models, parts, nodes, beams and triangles with their values, and configurations.
-- **Street Legal Racing importer**: reads a car from Street Legal Racing: Redline (its `.scx` models and textures, and the car's weight and physics numbers) into a new mod.
-- **Car Mechanic Simulator 2021 importer** (proof of concept): exported models from the game (see its readme).
+- **BeamNG vehicle importer**: brings a car from the game (its zip in `content/vehicles`, a mod's zip, or an unpacked folder) into a new mod to change. It picks the parts of the default configuration, imports the models 1:1, and adds every node, beam and collision triangle with its values (weights, springs, damping, collision; tuning variables at their defaults), tied to the mod's parts through the meshes each jbeam part draws. All the `.jbeam`, `.pc` and info files are kept with the project for what it can't bring over as structure (hydros, slidenodes, powertrain, controllers). The best read for `zipExtract`, `jbeam.parse`, `parts.autoClassify` and bulk structure edits.
+- **Car Mechanic Simulator 2021 importer** (proof of concept): the game's cars live in Unity bundles, which the app doesn't read, so export the car first with AssetStudio or AssetRipper; the extension imports every exported model, scales it to metres (Unity exports come in metres or centimetres), sorts it into parts and keeps any text data (with a spec sheet) for reference. CMS cars have no soft-body physics: generate the structure afterwards.
 
-Game importers are for games you own. A mod made from another game's content must say where it came from, and must not be sold.
+Not included yet: importers for **Street Legal Racing: Redline** (`.scx` models) and **Project CARS 1 and 2** (packed, encrypted game files). Their formats need real game files to get right one to one; `forge.files.read` and `forge.import.model` are all an importer needs once the format is known.
+
+Game importers are for games you own. A mod made from another game's content must say where it came from, and must not be sold: importers call `forge.project.declarePort`, and the export stops until the declaration (Inspector with nothing picked → *Ported from*) is complete. The built-in Assetto Corsa importer asks the same.
