@@ -386,7 +386,7 @@ const scenarios = [
     name: 'layout presets',
     async run({ page }) {
       const expected = {
-        materials: ['inspector', 'materials', 'paints', 'scene', 'viewport'],
+        materials: ['inspector', 'materials', 'paints', 'scene', 'skins', 'viewport'],
         testing: ['scene', 'test-results', 'viewport'],
         modelling: ['inspector', 'scene', 'viewport'],
       };
