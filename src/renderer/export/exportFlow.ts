@@ -28,6 +28,7 @@ import { exportableProps } from '@shared/props/props';
 import { withPaintedFaces } from '@renderer/paint/facePaint';
 import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson, type TextureCopy } from './materials';
 import { textureToDds, toBase64 } from './textureConvert';
+import { commonRoot, engineModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
 
@@ -84,7 +85,10 @@ export function prepareExport(): PreparedExport | null {
   const sources = Object.values(useSceneStore.getState().sources);
   const formatOf = new Map(doc.sources.map((s) => [s.id, s.format]));
   const allMeshes = withMeshNames(doc, sources.flatMap((s) => s.meshes));
-  const meshNames = exportMeshNames(doc, allMeshes);
+  const kind = doc.meta.modKind ?? 'vehicle';
+  // A tyre or wheel mod's meshes are its flexbodies: every mesh goes, parts or not.
+  const wheelish = kind === 'tyres' || kind === 'wheels';
+  const meshNames = exportMeshNames(wheelish ? { ...doc, assignments: { ...Object.fromEntries(allMeshes.map((m) => [m.key, 'mesh'])), ...doc.assignments } } : doc, allMeshes);
   const exported = allMeshes.filter((m) => meshNames.has(m.key));
 
   // Project materials first; a mesh without any (shouldn't happen after import) keeps its imported one.
@@ -241,6 +245,7 @@ export function prepareExport(): PreparedExport | null {
       if (first) report.errors.push({ code: 'SCRIPT', message: `${sc.label} (${sc.name}.lua) line ${first.line}: ${first.message} (Settings → Scripts: warnings stop the export)` });
     }
   }
+  if (kind !== 'vehicle') return partModExport(doc, kind, { author, files, copies: mats.copies, dae, meshCount: exported.length, meshNames: daeMeshes.map((m) => m.name) });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {
     bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies },
@@ -290,6 +295,41 @@ export function refreshExport(): void {
   } catch (err) {
     ui.set({ error: errorText(err) });
   }
+}
+
+/**
+ * An engine, tyre or wheel mod: its own files instead of a vehicle's. Tyres
+ * and wheels keep their mesh and materials under vehicles/common/<slug>/;
+ * an engine is only jbeam, beside each car it fits.
+ */
+function partModExport(doc: Project, kind: Exclude<ModKind, 'vehicle'>, v: { author: string; files: ExportBundle['files']; copies: TextureCopy[]; dae: string; meshCount: number; meshNames: string[] }): PreparedExport {
+  const slug = doc.meta.slug;
+  const errors: { code: string; message: string }[] = [];
+  const warnings: { code: string; message: string }[] = [];
+  let files: ExportBundle['files'] = [];
+  let copies: TextureCopy[] = [];
+  if (kind === 'engine') {
+    const r = engineModFiles(doc, v.author, useSetData.getState().data);
+    files = r.files;
+    for (const message of r.errors) errors.push({ code: 'ENGINE', message });
+  } else {
+    const spec = kind === 'tyres' ? doc.tyre : doc.rim;
+    if (!spec) errors.push({ code: 'SPEC', message: kind === 'tyres' ? 'Set up the tyre in the Tyre builder first.' : 'Set up the wheel in the Wheel builder first.' });
+    if (!v.meshCount) warnings.push({ code: 'NO_MESH', message: `No mesh: the ${kind === 'tyres' ? 'tyre' : 'wheel'} works but is invisible. Import its model (centred on the origin, turning about X).` });
+    const jbeam = !spec ? [] : kind === 'tyres' ? tyreModFiles(slug, v.author, doc.tyre!, v.meshNames) : rimModFiles(slug, v.author, doc.rim!, v.meshNames);
+    const mine = new RegExp(`/vehicles/${slug}/`, 'g');
+    files = [
+      ...(v.meshCount ? [{ path: `${commonRoot(slug)}/${slug}.dae`, text: v.dae }] : []),
+      ...jbeam,
+      ...v.files.filter((f) => f.path.endsWith('main.materials.json') && v.meshCount).map((f) => ({ path: toCommon(f.path, slug), text: (f.text ?? '').replace(mine, `/${commonRoot(slug)}/`) })),
+    ];
+    copies = v.meshCount ? v.copies.map((c) => ({ ...c, to: toCommon(c.to, slug) })) : [];
+  }
+  return {
+    bundle: { slug, projectName: doc.meta.name, files, copies },
+    report: { errors, warnings },
+    summary: { parts: files.filter((f) => f.path.endsWith('.jbeam')).length, meshes: v.meshCount, nodes: 0, beams: 0, textures: copies.length, daeBytes: v.dae.length },
+  };
 }
 
 /** This mod's textures go into the export as DDS (the mod's own choice, else Settings → Export). */

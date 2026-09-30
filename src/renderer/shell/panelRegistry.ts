@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, DoorOpen, MousePointerClick, type LucideIcon } from 'lucide-react';
+import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, DoorOpen, MousePointerClick, CircleDot, Disc3, type LucideIcon } from 'lucide-react';
 import { ScenePanel } from '@renderer/panels/ScenePanel';
 import { InspectorPanel } from '@renderer/panels/InspectorPanel';
 import { MaterialsPanel } from '@renderer/panels/MaterialsPanel';
@@ -11,6 +11,7 @@ import { JbeamTablesPanel } from '@renderer/jbeam/JbeamTablesPanel';
 import { JbeamPropertiesPanel } from '@renderer/jbeam/JbeamPropertiesPanel';
 import { MovingPartPanel, MovingPartsPanel } from '@renderer/moving/MovingPartsPanel';
 import { TriggerPanel, TriggersPanel } from '@renderer/triggers/TriggersPanel';
+import { TyreBuilderPanel, WheelBuilderPanel } from '@renderer/wheels/WheelBuilders';
 import { ObjectsPanel } from '@renderer/panels/ObjectsPanel';
 import { ReferencePanel } from '@renderer/panels/ReferencePanel';
 import { SuspensionPanel } from '@renderer/suspension/SuspensionPanel';
@@ -43,6 +44,8 @@ export const PANELS = {
   'moving-part': { title: 'Settings', icon: SlidersHorizontal, component: MovingPartPanel },
   triggers: { title: 'Triggers', icon: MousePointerClick, component: TriggersPanel },
   trigger: { title: 'Trigger', icon: SlidersHorizontal, component: TriggerPanel },
+  'tyre-builder': { title: 'Tyre builder', icon: CircleDot, component: TyreBuilderPanel },
+  'wheel-builder': { title: 'Wheel builder', icon: Disc3, component: WheelBuilderPanel },
   objects: { title: 'Objects', icon: Package, component: ObjectsPanel },
   reference: { title: 'Reference car', icon: CarFront, component: ReferencePanel },
   suspension: { title: 'Suspension', icon: Wrench, component: SuspensionPanel },

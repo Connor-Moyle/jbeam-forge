@@ -1788,6 +1788,48 @@ const scenarios = [
     },
   },
   {
+    id: 'part-mods',
+    name: 'part mods: a tyre mod and a wheel mod from the wizard · their builders · universal export',
+    async run({ page }) {
+      const home = async () => {
+        await page.waitForSelector('[data-testid=app-ready]');
+        if (await page.locator('[data-view=editor]').count()) {
+          await hook(page, 'runCommand', 'close');
+          if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+        }
+        await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      };
+      await home();
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-kind-tyres').click();
+      await page.getByTestId('newmod-name').fill('Forge Grip');
+      await page.getByText("Import the tyre's 3D model right after creating").click();
+      await shot(page, 'newmod-kinds');
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('tyre-builder').waitFor();
+      const tabs = (await page.getByRole('tablist', { name: 'Workspaces' }).getByRole('tab').allTextContents()).join(',');
+      assert(tabs === 'Tyre builder,Materials', `a tyre mod has its own workspaces (${tabs})`);
+      await page.getByTestId('tyre-add-size').click();
+      await page.getByTestId('tyre-tread').click();
+      await page.getByRole('option', { name: 'Slick', exact: true }).click();
+      await shot(page, 'tyre-builder');
+      let out = await hook(page, 'finalExport');
+      const tyres = out.files.find((f) => f.path === 'vehicles/common/forge_grip/forge_grip_tyres.jbeam');
+      assert(tyres, `tyres written for every car (${out.files.map((f) => f.path).join(', ')})`);
+      const doc = await hook(page, 'projectDoc');
+      assert(doc.tyre.sizes.length === 2 && doc.tyre.tread === 'slick' && doc.tyre.treadCoef === 0, 'sizes and tread set');
+      await home();
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-kind-wheels').click();
+      await page.getByTestId('newmod-name').fill('Forge Five');
+      await page.getByText("Import the wheel's 3D model right after creating").click();
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('wheel-builder').waitFor();
+      out = await hook(page, 'finalExport');
+      assert(out.files.some((f) => f.path === 'vehicles/common/forge_five/forge_five_wheels.jbeam'), 'wheels written for every car');
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,

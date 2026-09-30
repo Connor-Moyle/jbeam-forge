@@ -1,5 +1,4 @@
 import { CircleHelp, BadgePlus, Box, CloudDownload, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wand2, Wrench } from 'lucide-react';
-import { PRESET_IDS } from '@shared/layout-schema';
 import { keyFor } from '@renderer/app/keys';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -15,13 +14,14 @@ import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { Select } from '@renderer/ui/components/Select';
 import { useShell } from './ShellContext';
-import { PRESET_LABELS } from './presets';
+import { PRESET_LABELS, workspacesFor } from './presets';
 import { CHANNELS, type Channel } from '@renderer/panels/viewport/channels';
 import styles from './Toolbar.module.css';
 
 
 export function Toolbar() {
   const channel = useUiStore((s) => s.channel);
+  const modKind = useProjectStore((s) => s.doc?.meta.modKind);
   const setChannel = useUiStore((s) => s.setChannel);
   const { preset, applyPreset, togglePanel, showPanel, devMode } = useShell();
   const testing = useSim((s) => s.active);
@@ -107,7 +107,7 @@ export function Toolbar() {
         </div>
       </header>
       <nav className={styles.workspaces} aria-label="Workspaces" role="tablist" data-tour="workspaces">
-        {PRESET_IDS.map((id) => (
+        {workspacesFor(modKind).map((id) => (
           <button key={id} type="button" role="tab" aria-selected={preset === id} className={preset === id ? styles.workspaceOn : styles.workspace} onClick={() => applyPreset(id)} data-testid={`workspace-${id}`}>
             {PRESET_LABELS[id]}
           </button>

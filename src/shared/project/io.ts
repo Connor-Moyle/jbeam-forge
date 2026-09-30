@@ -1,3 +1,4 @@
+import { defaultRim, defaultTyre } from '../wheels/schema';
 import type { z } from 'zod';
 import {
   CURRENT_PROJECT_VERSION,
@@ -109,6 +110,7 @@ export interface NewProjectMeta {
   autoReimport?: boolean;
   /** Export textures as DDS (unset: the app setting). */
   ddsConvert?: boolean;
+  modKind?: 'vehicle' | 'engine' | 'tyres' | 'wheels';
 }
 
 export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now: Date = new Date()): Project {
@@ -124,8 +126,12 @@ export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now
     modifiedAt: stamp,
     ...(meta.autoReimport !== undefined ? { autoReimport: meta.autoReimport } : {}),
     ...(meta.ddsConvert !== undefined ? { ddsConvert: meta.ddsConvert } : {}),
+    ...(meta.modKind && meta.modKind !== 'vehicle' ? { modKind: meta.modKind } : {}),
   };
+  const kind = meta.modKind ?? 'vehicle';
   return ProjectSchema.parse({
+    ...(kind === 'tyres' ? { tyre: defaultTyre(meta.name) } : {}),
+    ...(kind === 'wheels' ? { rim: defaultRim(meta.name) } : {}),
     format: PROJECT_FORMAT,
     formatVersion: CURRENT_PROJECT_VERSION,
     appVersion,

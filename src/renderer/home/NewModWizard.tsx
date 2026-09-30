@@ -12,6 +12,8 @@ import { call } from '@renderer/diagnostics/ipc';
 import { newProject } from '@renderer/project/actions';
 import { Checkbox } from '@renderer/ui/components/Checkbox';
 import { startImport } from '@renderer/import/importFlow';
+import { CarFront, CircleDot, Disc3, Gauge, type LucideIcon } from 'lucide-react';
+import styles from './NewModWizard.module.css';
 
 /** info.json "Type" values seen in official vehicles (docs/beamng-vehicle-layout.md). */
 const VEHICLE_TYPES = [
@@ -21,6 +23,16 @@ const VEHICLE_TYPES = [
   { value: 'Prop', label: 'Prop' },
 ] as const;
 type VehicleType = (typeof VEHICLE_TYPES)[number]['value'];
+
+type ModKind = 'vehicle' | 'engine' | 'tyres' | 'wheels';
+
+/** What a mod can be (fork): each opens on its own workspace. */
+const KINDS: { value: ModKind; label: string; icon: LucideIcon; text: string; name: string }[] = [
+  { value: 'vehicle', label: 'Vehicle', icon: CarFront, text: 'A whole car, truck or trailer from a 3D model: parts, structure, engine, everything.', name: 'e.g. Hirochi Sunburst Test' },
+  { value: 'engine', label: 'Engine', icon: Gauge, text: 'A new engine for cars already in the game: start from one of theirs and change power, revs, sound, turbo…', name: 'e.g. Big Turbo V8' },
+  { value: 'tyres', label: 'Tyres', icon: CircleDot, text: 'Universal tyres in any sizes, with your own grip and pressure: every car with rims that fit can use them.', name: 'e.g. Forge Sport 2' },
+  { value: 'wheels', label: 'Wheels', icon: Disc3, text: 'Universal rims: pick diameter, width and lugs; they fit every car with the right hubs and take the matching tyres.', name: 'e.g. Forge 5-spoke' },
+];
 
 export function slugProblem(slug: string): string | null {
   if (!slug) return 'Required.';
@@ -42,6 +54,8 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState('');
   const [brand, setBrand] = useState('');
   const [type, setType] = useState<VehicleType>('Car');
+  const [kind, setKind] = useState<ModKind>('vehicle');
+  const k = KINDS.find((x) => x.value === kind)!;
   const [showErrors, setShowErrors] = useState(false);
   const [importNow, setImportNow] = useState(true);
   const [autoReimport, setAutoReimport] = useState<boolean | null>(null);
@@ -62,11 +76,11 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
     setBusy(true);
     const trimmedAuthor = author.trim();
     if (authorDraft !== null && trimmedAuthor !== savedAuthor) call('settings:update', { author: trimmedAuthor || null }).catch(() => undefined);
-    void newProject({ name: name.trim(), slug: effectiveSlug, author: trimmedAuthor, description: description.trim(), brand: brand.trim(), type, autoReimport: autoReimport ?? defaults?.autoReimport ?? true, ddsConvert: ddsConvert ?? defaults?.ddsConvert ?? false }).then((ok) => {
+    void newProject({ name: name.trim(), slug: effectiveSlug, author: trimmedAuthor, description: description.trim(), brand: brand.trim(), type, modKind: kind, autoReimport: autoReimport ?? defaults?.autoReimport ?? true, ddsConvert: ddsConvert ?? defaults?.ddsConvert ?? false }).then((ok) => {
       setBusy(false);
       if (!ok) return;
       onClose();
-      if (importNow) void startImport();
+      if (importNow && kind !== 'engine') void startImport();
     });
   };
 
@@ -77,7 +91,8 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
         if (!o) onClose();
       }}
       title="New mod"
-      description="Describe the vehicle. Everything here can be changed later; the slug becomes the in-game folder name."
+      size="lg"
+      description="What are you making? Everything here can be changed later; the slug becomes the in-game folder name."
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
@@ -94,9 +109,18 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
           create();
         }}
       >
-        <FieldGroup title="Vehicle">
+        <div className={styles.kinds} role="radiogroup" aria-label="What are you making?">
+          {KINDS.map((x) => (
+            <button key={x.value} type="button" role="radio" aria-checked={kind === x.value} className={kind === x.value ? styles.kindOn : styles.kind} onClick={() => setKind(x.value)} data-testid={`newmod-kind-${x.value}`}>
+              <x.icon aria-hidden />
+              <span className={styles.kindLabel}>{x.label}</span>
+              <span className={styles.kindText}>{x.text}</span>
+            </button>
+          ))}
+        </div>
+        <FieldGroup title={k.label}>
           <Field label="Display name" htmlFor={ids.name} hint={showErrors && nameProblem ? nameProblem : 'Shown in the vehicle selector.'}>
-            <Input id={ids.name} autoFocus value={name} onChange={(e) => setName(e.target.value)} invalid={showErrors && !!nameProblem} placeholder="e.g. Hirochi Sunburst Test" data-testid="newmod-name" />
+            <Input id={ids.name} autoFocus value={name} onChange={(e) => setName(e.target.value)} invalid={showErrors && !!nameProblem} placeholder={k.name} data-testid="newmod-name" />
           </Field>
           <Field label="Slug" htmlFor={ids.slug} hint={(showErrors || slugTouched) && slugError ? slugError : `vehicles/${effectiveSlug || '…'}/ inside the mod.`}>
             <Input
@@ -114,9 +138,11 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
           <Field label="Brand" htmlFor={ids.brand}>
             <Input id={ids.brand} value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="e.g. Hirochi" />
           </Field>
-          <Field label="Type">
-            <Select aria-label="Vehicle type" value={type} onChange={setType} options={VEHICLE_TYPES} />
-          </Field>
+          {kind === 'vehicle' && (
+            <Field label="Type">
+              <Select aria-label="Vehicle type" value={type} onChange={setType} options={VEHICLE_TYPES} />
+            </Field>
+          )}
           <Field label="Description" htmlFor={ids.desc}>
             <Textarea id={ids.desc} value={description} onChange={(e) => setDescription(e.target.value)} />
           </Field>
@@ -126,7 +152,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
             <Input id={ids.author} value={author} onChange={(e) => setAuthorDraft(e.target.value)} placeholder="e.g. Fatkiwi" data-testid="newmod-author" />
           </Field>
         </FieldGroup>
-        <Checkbox checked={importNow} onChange={setImportNow} label="Import a 3D model right after creating" />
+        {kind !== 'engine' && <Checkbox checked={importNow} onChange={setImportNow} label={kind === 'vehicle' ? 'Import a 3D model right after creating' : `Import the ${kind === 'tyres' ? 'tyre' : 'wheel'}'s 3D model right after creating`} />}
         <Checkbox checked={autoReimport ?? defaults?.autoReimport ?? true} onChange={setAutoReimport} label="Reload the model when its file changes (fix it in Blender, save, and it updates here with your work kept)" data-testid="newmod-autoreimport" />
         <Checkbox checked={ddsConvert ?? defaults?.ddsConvert ?? false} onChange={setDdsConvert} label="Convert textures to DDS when exporting (the game’s own format: smaller and faster to load)" data-testid="newmod-dds" />
         <button type="submit" hidden />

@@ -11,6 +11,9 @@ export const PRESET_LABELS: Record<PresetId, string> = {
   jbeam: 'JBeam',
   moving: 'Moving parts',
   triggers: 'Triggers',
+  engine: 'Engine',
+  tyres: 'Tyre builder',
+  wheels: 'Wheel builder',
   testing: 'Testing',
   scripts: 'Scripts',
 };
@@ -58,6 +61,21 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'triggers', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
     { id: 'trigger', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
   ],
+  // Part mods (fork): the builder beside the model.
+  engine: [
+    { id: 'viewport' },
+    { id: 'powertrain', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+  ],
+  tyres: [
+    { id: 'viewport' },
+    { id: 'tyre-builder', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+  ],
+  wheels: [
+    { id: 'viewport' },
+    { id: 'wheel-builder', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+  ],
   testing: [
     { id: 'viewport' },
     { id: 'test-results', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
@@ -73,6 +91,20 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'script-test', relativeTo: 'viewport', direction: 'below' },
   ],
 };
+
+/** The workspace tabs a kind of mod has (a tyre mod has no nodes to edit). */
+export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | undefined): readonly PresetId[] {
+  switch (kind) {
+    case 'engine':
+      return ['engine'];
+    case 'tyres':
+      return ['tyres', 'materials'];
+    case 'wheels':
+      return ['wheels', 'materials'];
+    default:
+      return ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing'];
+  }
+}
 
 export function applyPreset(api: DockviewApi, preset: PresetId): void {
   api.clear();

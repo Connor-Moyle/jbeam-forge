@@ -1,3 +1,4 @@
+import { workspacesFor } from '@renderer/shell/presets';
 import { useTriggerUi } from '@renderer/triggers/commands';
 import { useMovingUi } from '@renderer/moving/MovingPartsPanel';
 import { useAutoReimport } from '@renderer/import/autoReimport';
@@ -322,7 +323,6 @@ function AppEffects() {
 }
 
 function Editor() {
-  const { ready } = useShell();
   useSourceSync();
   useAutoReimport();
   // Another project: nothing picked in edit mode, triggers or moving parts carries over.
@@ -332,6 +332,17 @@ function Editor() {
     useTriggerUi.getState().select(null);
     useMovingUi.getState().pick(null);
   }, [projectKey]);
+  // A tyre, wheel or engine mod opens on its builder; a vehicle never on a part mod's workspace.
+  const modKind = useProjectStore((s) => s.doc?.meta.modKind);
+  const { ready, preset: current, applyPreset: apply } = useShell();
+  useEffect(() => {
+    if (!ready) return;
+    const tabs = workspacesFor(modKind);
+    if (tabs.includes(current)) return;
+    // After the dock has laid itself out, so the panels get their widths.
+    const t = setTimeout(() => apply(tabs[0]!), 50);
+    return () => clearTimeout(t);
+  }, [ready, projectKey, modKind, current, apply]);
   return (
     <div className={styles.app} data-testid={ready ? 'app-ready' : 'app-loading'} data-view="editor">
       <Toolbar />

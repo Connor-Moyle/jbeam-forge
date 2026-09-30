@@ -1,0 +1,48 @@
+.kinds {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.kind,
+.kindOn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kind:hover {
+  background: var(--bg-3);
+}
+
+.kindOn {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  color: var(--text-0);
+}
+
+.kind svg,
+.kindOn svg {
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+  color: var(--accent);
+}
+
+.kindLabel {
+  color: var(--text-0);
+  font-weight: var(--weight-semibold);
+}
+
+.kindText {
+  color: var(--text-2);
+  font-size: var(--text-label);
+  line-height: var(--line-normal);
+}

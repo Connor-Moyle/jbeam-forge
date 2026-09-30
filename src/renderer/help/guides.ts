@@ -149,6 +149,29 @@ export const GUIDES: Guide[] = [
     actions: ['shortcuts', 'settings'],
   },
   {
+    id: 'mod-kinds',
+    group: 'Start here',
+    title: 'Engines, tyres and wheels',
+    summary: 'Mods that add parts to the game’s cars instead of a whole vehicle.',
+    sections: [
+      { text: 'New mod asks what you are making. Besides a whole vehicle there are three kinds of part mod, each with its own workspace.' },
+      {
+        heading: 'Engine',
+        steps: ['Pick an engine from one of the game’s cars in the engine builder, then change power, revs, torque curve, turbo or sound.', 'Add more engines (from other cars) to make the same idea for them too.', 'Export writes each as a new part in that car’s engine slot, beside the car, so it shows in its parts menu. Game files are never replaced.'],
+      },
+      {
+        heading: 'Tyres',
+        steps: ['Add the sizes you want (width, profile, rim). Each becomes a part for every car whose rims take that size.', 'Pick a kind of tread, then fine-tune grip, sliding grip, tread depth and pressure; Advanced has the construction values.', 'Import the tyre’s model centred on the origin, turning about X. The mod goes in vehicles/common so every car can use it.'],
+      },
+      {
+        heading: 'Wheels',
+        steps: ['Set diameter, width, lug count and offset. The wheel fits every car with hubs for that many lugs, and takes the game’s tyres of its size.', 'Import the rim’s model the same way as a tyre’s.'],
+      },
+      { tip: 'Part mods follow the layout of the game’s own common wheels and engines; try a new one in the game before you share it.' },
+    ],
+    actions: ['newMod'],
+  },
+  {
     id: 'parts',
     group: 'Building a car',
     title: 'Parts and slots',

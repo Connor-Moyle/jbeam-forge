@@ -39,6 +39,15 @@ describe('checkBundle', () => {
     expect(() => checkBundle(bundle(), () => false)).toThrow(/outside every folder/);
     expect(() => checkBundle(bundle({ slug: 'Bad Name' }), () => true)).toThrow(/Invalid mod name/);
   });
+
+  it('lets part mods use vehicles/common/<slug>/ and name their own jbeam beside a car', () => {
+    expect(() => checkBundle(bundle({ files: [{ path: 'vehicles/common/test/test_tyres.jbeam', text: '{}' }], copies: [] }), () => true)).not.toThrow();
+    expect(() => checkBundle(bundle({ files: [{ path: 'vehicles/etk800/test_engine.jbeam', text: '{}' }], copies: [] }), () => true)).not.toThrow();
+    // Never a game file's name, and never outside jbeam.
+    expect(() => checkBundle(bundle({ files: [{ path: 'vehicles/etk800/etk800_engine.jbeam', text: '{}' }], copies: [] }), () => true)).toThrow(/outside/);
+    expect(() => checkBundle(bundle({ files: [{ path: 'vehicles/etk800/test_engine.lua', text: '' }], copies: [] }), () => true)).toThrow(/outside/);
+    expect(() => checkBundle(bundle({ files: [{ path: 'vehicles/common/other/x.jbeam', text: '' }], copies: [] }), () => true)).toThrow(/outside/);
+  });
 });
 
 describe('installUnpacked', () => {

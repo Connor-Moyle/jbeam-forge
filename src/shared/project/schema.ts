@@ -5,6 +5,7 @@ import { CameraSchema } from '../cameras/cameras';
 import { MaterialDefSchema } from '../materials/schema';
 import { HingeSchema } from '../hinges/schema';
 import { TriggerSchema } from '../triggers/schema';
+import { RimSpecSchema, TyreSpecSchema } from '../wheels/schema';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -39,6 +40,8 @@ export const ProjectMetaSchema = z.object({
   autoReimport: z.boolean().optional(),
   /** Export textures as DDS (fork); unset = Settings → Export. */
   ddsConvert: z.boolean().optional(),
+  /** What the mod is (fork): a whole vehicle (unset), an engine for game cars, universal tyres or wheels. */
+  modKind: z.enum(['vehicle', 'engine', 'tyres', 'wheels']).optional(),
 });
 
 const placeholderList = z.array(z.unknown());
@@ -548,6 +551,10 @@ export const ProjectV18Schema = z.object({
   cameras: z.array(CameraSchema).optional(),
   /** Vehicle scripts (fork): Lua controllers that ship with the car. */
   scripts: z.array(VehicleScriptSchema).optional(),
+  /** Tyre mod (fork): sizes, tread and grip. */
+  tyre: TyreSpecSchema.optional(),
+  /** Wheel (rim) mod (fork): size, lugs and hub. */
+  rim: RimSpecSchema.optional(),
   /** Clickable triggers (fork): handles, switches and buttons that run input actions. */
   triggers: z.array(TriggerSchema).optional(),
   /** Engine and gearbox (v12, Phase 11). */

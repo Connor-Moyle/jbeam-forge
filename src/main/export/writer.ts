@@ -52,10 +52,15 @@ export function checkBundle(bundle: ModBundle, canReadSource: (path: string) => 
   const root = `vehicles/${bundle.slug}/`;
   // Vehicle scripts (controllers) live in the game's Lua folder, in a folder of this mod's own.
   const luaRoot = `lua/vehicle/controller/jbf_${bundle.slug}/`;
+  // Part mods (fork): tyres and wheels share vehicles/common/<slug>/; an engine's jbeam goes beside the
+  // car it fits, always under a name of this mod's own, so no game file is ever replaced.
+  const commonRoot = `vehicles/common/${bundle.slug}/`;
+  const besideCar = new RegExp(`^vehicles/[a-z0-9_]+/${bundle.slug}_[A-Za-z0-9_]+\\.jbeam$`);
   const check = (p: string) => {
     const norm = posix.normalize(p.replace(/\\/g, '/'));
     const inLua = norm.startsWith(luaRoot) && norm.endsWith('.lua');
-    if (norm !== p || !(norm.startsWith(root) || inLua) || norm.includes('..') || posix.isAbsolute(norm)) throw new ExportError(`Refusing to write outside ${root}: ${p}`);
+    const allowed = norm.startsWith(root) || norm.startsWith(commonRoot) || besideCar.test(norm) || inLua;
+    if (norm !== p || !allowed || norm.includes('..') || posix.isAbsolute(norm)) throw new ExportError(`Refusing to write outside ${root}: ${p}`);
   };
   for (const f of bundle.files) check(f.path);
   for (const c of bundle.copies) {
