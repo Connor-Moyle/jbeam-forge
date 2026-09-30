@@ -7,6 +7,7 @@ import { HingeSchema } from '../hinges/schema';
 import { TriggerSchema } from '../triggers/schema';
 import { RimSpecSchema, TyreSpecSchema } from '../wheels/schema';
 import { PortedFromSchema } from '../export/ported';
+import { SkinLayoutSchema } from '../uv/skinUnwrap';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -261,9 +262,11 @@ export const MeshEditSchema = z.object({
     /**
      * Fresh texture coordinates projected from the shape (fork): 'box' picks
      * each triangle's facing side, 'x'/'y'/'z' project along one axis. `size`
-     * is metres per texture repeat. Absent = the model's own UVs.
+     * is metres per texture repeat. 'skin' lays the whole car out as a skin
+     * template (src/shared/uv/skinUnwrap.ts), every included mesh sharing
+     * `layout`. Absent = the model's own UVs.
      */
-    project: z.object({ kind: z.enum(['box', 'x', 'y', 'z']), size: z.number().positive() }).optional(),
+    project: z.object({ kind: z.enum(['box', 'x', 'y', 'z', 'skin']), size: z.number().positive(), layout: SkinLayoutSchema.optional() }).optional(),
   }),
 });
 

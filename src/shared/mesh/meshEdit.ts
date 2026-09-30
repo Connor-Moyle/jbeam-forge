@@ -1,4 +1,5 @@
 import type { MeshEdit } from '../project/schema';
+import { skinUvs } from '../uv/skinUnwrap';
 
 /**
  * Per-mesh edits (move/turn/resize about the mesh's centre, texture mapping)
@@ -32,6 +33,10 @@ const AXIS = { x: 0, y: 1, z: 2 } as const;
  * text and weaves never read backwards.
  */
 export function projectUvs(pos: ArrayLike<number>, p: UvProjection): Float32Array {
+  if (p.kind === 'skin') {
+    if (p.layout) return skinUvs(pos, p.layout).uv;
+    p = { kind: 'box', size: p.size };
+  }
   const verts = Math.floor(pos.length / 3);
   const out = new Float32Array(verts * 2);
   const k = 1 / p.size;
@@ -44,7 +49,7 @@ export function projectUvs(pos: ArrayLike<number>, p: UvProjection): Float32Arra
     if (p.kind === 'box') {
       const ax = Math.abs(n[0]!), ay = Math.abs(n[1]!), az = Math.abs(n[2]!);
       axis = ax >= ay && ax >= az ? 0 : ay >= az ? 1 : 2;
-    } else axis = AXIS[p.kind];
+    } else axis = AXIS[p.kind as keyof typeof AXIS];
     // The other two axes, in an order that reads the right way round from the positive side.
     const [ua, va] = axis === 0 ? [1, 2] : axis === 1 ? [0, 2] : [0, 1];
     const flip = (axis === 1 ? -1 : 1) * (n[axis]! < 0 ? -1 : 1);

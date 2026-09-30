@@ -1,6 +1,7 @@
 import { workspacesFor } from '@renderer/shell/presets';
 import { useTriggerUi } from '@renderer/triggers/commands';
 import { useMovingUi } from '@renderer/moving/MovingPartsPanel';
+import { useSkinUi } from '@renderer/skins/commands';
 import { useAutoReimport } from '@renderer/import/autoReimport';
 import { useEffect } from 'react';
 import { TooltipProvider } from '@renderer/ui/components/Tooltip';
@@ -331,6 +332,7 @@ function Editor() {
     useEditStore.getState().setActive(false);
     useTriggerUi.getState().select(null);
     useMovingUi.getState().pick(null);
+    useSkinUi.getState().set({ include: null, optsTouched: false, preview: null });
   }, [projectKey]);
   // A tyre, wheel or engine mod opens on its builder; a vehicle never on a part mod's workspace.
   const modKind = useProjectStore((s) => s.doc?.meta.modKind);

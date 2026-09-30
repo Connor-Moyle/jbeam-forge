@@ -37,8 +37,9 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'viewport' },
     { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
     // Both visible: the material being edited on top, the selected part's details below.
-    // Paints (and painting on the car) share the materials tab strip; Materials, added last, is the tab shown.
+    // Paints (and painting on the car) and the Skin studio share the materials tab strip; Materials, added last, is the tab shown.
     { id: 'paints', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'skins', relativeTo: 'paints', direction: 'within' },
     { id: 'materials', relativeTo: 'paints', direction: 'within' },
     { id: 'inspector', relativeTo: 'materials', direction: 'below' },
   ],

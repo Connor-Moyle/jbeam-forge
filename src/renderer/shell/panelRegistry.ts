@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, DoorOpen, MousePointerClick, CircleDot, Disc3, type LucideIcon } from 'lucide-react';
+import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, DoorOpen, MousePointerClick, CircleDot, Disc3, LayoutTemplate, type LucideIcon } from 'lucide-react';
 import { ScenePanel } from '@renderer/panels/ScenePanel';
 import { InspectorPanel } from '@renderer/panels/InspectorPanel';
 import { MaterialsPanel } from '@renderer/panels/MaterialsPanel';
@@ -22,6 +22,7 @@ import { PaintsPanel } from '@renderer/paint/PaintsPanel';
 import { ScriptsPanel } from '@renderer/scripts/ScriptsPanel';
 import { ScriptPanel } from '@renderer/scripts/ScriptPanel';
 import { ScriptTestPanel } from '@renderer/scripts/ScriptTestPanel';
+import { SkinStudioPanel } from '@renderer/skins/SkinStudioPanel';
 
 export interface PanelDef {
   title: string;
@@ -53,6 +54,7 @@ export const PANELS = {
   configs: { title: 'Configurations', icon: ListTree, component: ConfigsPanel },
   features: { title: 'Extras', icon: BadgePlus, component: FeaturesPanel },
   paints: { title: 'Paints', icon: PaintRoller, component: PaintsPanel },
+  skins: { title: 'Skin studio', icon: LayoutTemplate, component: SkinStudioPanel },
   scripts: { title: 'Scripts', icon: ScrollText, component: ScriptsPanel },
   script: { title: 'Script', icon: Code2, component: ScriptPanel },
   'script-test': { title: 'Script test', icon: FlaskRound, component: ScriptTestPanel },

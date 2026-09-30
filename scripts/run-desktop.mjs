@@ -1881,6 +1881,79 @@ const scenarios = [
     },
   },
   {
+    id: 'skins',
+    name: 'Skin studio: practice car laid out for skins · stretch view · template PNG and SVG · on the car · skin from a painted template · export',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // The practice car (the tour's model): a body, hood, trunk, doors, bumpers, mirrors, wheels, glass.
+      const demo = await page.evaluate(() => window.forge.invoke('tutorial:demoModel'));
+      assert(demo.ok, `practice car model written (${JSON.stringify(demo).slice(0, 200)})`);
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Skin Test');
+      await hook(page, 'queueDialog', [demo.value.path]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').click();
+      await page.getByTestId('classify-apply').click({ timeout: 30_000 });
+      await hook(page, 'applyPreset', 'materials');
+      await page.locator('.dv-tab', { hasText: 'Skin studio' }).click();
+      await page.getByTestId('skin-studio').waitFor();
+      await page.getByTestId('skin-stats').waitFor({ timeout: 15_000 });
+      const picked = await page.getByTestId('skin-parts').locator('[role=checkbox][data-state=checked]').count();
+      assert(picked >= 5, `body panels picked by default (${picked} parts)`);
+      await page.waitForTimeout(400);
+      await shot(page, 'skin-studio-plan');
+      await page.getByTestId('skin-apply').click();
+      let doc = await hook(page, 'projectDoc');
+      const laid = Object.entries(doc.meshEdits).filter(([, e]) => e.uv.project?.kind === 'skin');
+      assert(laid.length >= 5 && laid.every(([, e]) => e.uv.project.layout.scale > 0), `panels laid out for skins (${laid.length})`);
+      const glass = Object.keys(doc.meshEdits).filter((k) => /glass|window|wheel|tyre|seat/i.test(k) && doc.meshEdits[k].uv.project?.kind === 'skin');
+      assert(!glass.length, `glass, wheels and seats left alone (${glass.join(', ')})`);
+      await page.getByTestId('skin-studio').getByRole('tab', { name: 'Stretch' }).click();
+      await page.waitForTimeout(400);
+      await shot(page, 'skin-studio-stretch');
+      await page.getByTestId('skin-studio').getByRole('tab', { name: 'Parts', exact: true }).click();
+      // The template, as PNG (4096 square) and layered SVG.
+      const work = mkdtempSync(join(tmpdir(), 'jbf-skin-'));
+      const png = join(work, 'skin_test_skin_template.png');
+      await hook(page, 'queueDialog', [png]);
+      await page.getByTestId('skin-save-png').click();
+      await page.getByTestId('status-bar').getByText(/Template saved/).waitFor({ timeout: 30_000 });
+      const head = readFileSync(png);
+      assert(head.readUInt32BE(16) === 4096 && head.readUInt32BE(20) === 4096, `template is 4096 × 4096 (${head.readUInt32BE(16)} × ${head.readUInt32BE(20)})`);
+      const svgPath = join(work, 'skin_test_skin_template.svg');
+      await hook(page, 'queueDialog', [svgPath]);
+      await page.getByTestId('skin-save-svg').click();
+      await page.getByTestId('status-bar').getByText(/Template saved: .*\.svg/).waitFor({ timeout: 30_000 });
+      const svg = readFileSync(svgPath, 'utf8');
+      assert(svg.includes('inkscape:groupmode="layer"') && svg.includes('Left side') && /data-part="[^"]*(Door|door)/.test(svg), 'SVG has layers, view titles and part names');
+      // The template on the car.
+      await page.getByText('Show the template on the car').click();
+      await page.waitForTimeout(800);
+      await shot(page, 'skin-template-on-car');
+      await page.getByText('Show the template on the car').click();
+      // A skin from the painted template (here: the template itself).
+      await hook(page, 'queueDialog', [png]);
+      await page.getByTestId('skin-new').click();
+      // Shared trim was split when laying out, so the skin never lands outside the layout.
+      await page.getByTestId('status-bar').getByText(/Skin ".*" made from/).waitFor({ timeout: 15_000 });
+      doc = await hook(page, 'projectDoc');
+      const skin = doc.features.skins[0];
+      assert(skin && Object.values(skin.overrides).every((o) => o.baseColorMap === png), `skin made with the image on the laid-out materials (${JSON.stringify(skin).slice(0, 300)})`);
+      await page.waitForTimeout(800);
+      await shot(page, 'skin-on-car');
+      cpSync(png, join(outDir, 'skin-template.png'));
+      cpSync(svgPath, join(outDir, 'skin-template.svg'));
+      const out = await hook(page, 'finalExport');
+      assert(/\.skin\.|skin/.test(out.materials) && out.copies.some((c) => c.endsWith('.png') || c.endsWith('.dds')), 'the skin exports as game materials with its texture');
+      rmSync(work, { recursive: true, force: true });
+    },
+  },
+  {
     id: 'extension-toolbox',
     name: 'example extension: install from Settings · pick a folder · import every model in it',
     async run({ page }) {

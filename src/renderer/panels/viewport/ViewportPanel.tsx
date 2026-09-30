@@ -1,4 +1,6 @@
 import { placeTrigger, useTriggerUi } from '@renderer/triggers/commands';
+import { useSkinUi } from '@renderer/skins/commands';
+import { previewDefs } from '@renderer/skins/preview';
 import { triggerCorners } from '@shared/triggers/schema';
 import { addTriangleFromSelection, selectBeamsOfSelection, selectTrianglesOfSelection } from '@renderer/jbeam/commands';
 import { triKey } from '@shared/jbeam/workbench';
@@ -158,11 +160,14 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
         meshes = allMeshes(s.sources);
       }
       const doc = projectStore.getState().doc;
-      const inputs = [meshes, doc?.materials, doc?.materialSlots, useTextureVersion.getState().version];
+      const skinPreview = useSkinUi.getState().preview;
+      const inputs = [meshes, doc?.materials, doc?.materialSlots, useTextureVersion.getState().version, skinPreview, skinPreview && doc?.features.skins, skinPreview && doc?.meshEdits];
       if (inputs.some((x, i) => x !== materialInputs[i])) {
         materialInputs = inputs;
-        materials = doc ? projectMaterials(doc, meshes) : undefined;
-        backMaterials = doc ? projectBackMaterials(doc, meshes) : undefined;
+        // A skin (or the skin template) being looked at stands in for the materials it covers.
+        const defs = doc ? previewDefs(doc, skinPreview) : null;
+        materials = doc && defs ? projectMaterials(doc, defs, meshes) : undefined;
+        backMaterials = doc && defs ? projectBackMaterials(doc, defs, meshes) : undefined;
       }
       const view: ViewState = { meshes, hidden: s.hidden, selection: s.selection, hover: s.hover, focus: s.focus?.meshKeys ?? null, materials, backMaterials };
       rt.sync(view);
@@ -241,6 +246,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       push();
     });
     const unsubscribeTextures = useTextureVersion.subscribe(push);
+    const unsubscribeSkin = useSkinUi.subscribe((st, prev) => st.preview !== prev.preview && push());
     const ghost = () => {
       const st = useSettingsStore.getState().settings ?? DEFAULT_SETTINGS;
       rt.setGhostOpacity(st.focusGhostOpacity);
@@ -443,6 +449,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeMoveScene();
       unsubscribeMoveEdit();
       unsubscribeTextures();
+      unsubscribeSkin();
       unsubscribeSim();
       unsubscribeLiveView();
       unsubscribeHinge();
@@ -622,8 +629,7 @@ function editKey(e: KeyboardEvent, rt: ViewportRuntime): boolean {
 }
 
 /** Two-sided materials: the back material of each mesh whose (first) material has one. */
-function projectBackMaterials(doc: { materials: readonly MaterialDef[]; materialSlots: Readonly<Record<string, readonly string[]>> }, meshes: readonly ImportedMesh[]): Map<string, Material> {
-  const defs = new Map(doc.materials.map((d) => [d.id, d]));
+function projectBackMaterials(doc: { materialSlots: Readonly<Record<string, readonly string[]>> }, defs: ReadonlyMap<string, MaterialDef>, meshes: readonly ImportedMesh[]): Map<string, Material> {
   const out = new Map<string, Material>();
   for (const m of meshes) {
     const front = slotsOf(doc, m.key)?.map((id) => defs.get(id)).find((d) => d?.backMaterialId);
@@ -634,8 +640,7 @@ function projectBackMaterials(doc: { materials: readonly MaterialDef[]; material
 }
 
 /** Each mesh's project materials (split pieces use their base mesh's). */
-function projectMaterials(doc: { materials: readonly MaterialDef[]; materialSlots: Readonly<Record<string, readonly string[]>> }, meshes: readonly ImportedMesh[]): Map<string, Material | Material[]> {
-  const defs = new Map(doc.materials.map((d) => [d.id, d]));
+function projectMaterials(doc: { materialSlots: Readonly<Record<string, readonly string[]>> }, defs: ReadonlyMap<string, MaterialDef>, meshes: readonly ImportedMesh[]): Map<string, Material | Material[]> {
   const out = new Map<string, Material | Material[]>();
   for (const m of meshes) {
     const ids = slotsOf(doc, m.key);

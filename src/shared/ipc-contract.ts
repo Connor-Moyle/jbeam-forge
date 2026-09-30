@@ -21,6 +21,7 @@ export const TEXT_FILE_KINDS = {
   jbscript: { label: 'JBeam Forge script (.jbscript)', ext: 'jbscript' },
   jbkeys: { label: 'JBeam Forge keymap (.jbkeys)', ext: 'jbkeys' },
   jbeam: { label: 'JBeam file (.jbeam)', ext: 'jbeam' },
+  svg: { label: 'Skin template, layered (.svg)', ext: 'svg' },
 } as const;
 export type TextFileKind = keyof typeof TEXT_FILE_KINDS;
 

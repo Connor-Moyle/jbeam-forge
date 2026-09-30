@@ -17,7 +17,7 @@ import { PropSection } from '@renderer/props/PropSection';
 import styles from './MeshSection.module.css';
 
 const AXES = ['X', 'Y', 'Z'] as const;
-type Projection = 'own' | 'box' | 'x' | 'y' | 'z';
+type Projection = 'own' | 'box' | 'x' | 'y' | 'z' | 'skin';
 const PROJECTIONS: { value: Projection; label: string }[] = [
   { value: 'own', label: 'The model’s own' },
   { value: 'box', label: 'Box (each side flat)' },
@@ -99,12 +99,13 @@ export function MeshSection({ keys }: { keys: readonly string[] }) {
         <Field label="Texture coordinates" hint="Project new ones when the model has none or they stretch: box suits most parts">
           <Select<Projection>
             value={edit.uv.project?.kind ?? 'own'}
-            onChange={(kind) => uv({ project: kind === 'own' ? undefined : { kind, size: edit.uv.project?.size ?? 1 } }, 'Project texture coordinates')}
-            options={PROJECTIONS}
+            onChange={(kind) => kind !== 'skin' && uv({ project: kind === 'own' ? undefined : { kind, size: edit.uv.project?.size ?? 1 } }, 'Project texture coordinates')}
+            options={edit.uv.project?.kind === 'skin' ? [...PROJECTIONS, { value: 'skin', label: 'Skin layout (the whole car)' }] : PROJECTIONS}
             aria-label="Texture coordinates"
           />
         </Field>
-        {edit.uv.project && (
+        {edit.uv.project?.kind === 'skin' && <p className={styles.note}>Laid out with the rest of the car for skins. Change the layout in the Skin studio (Materials workspace).</p>}
+        {edit.uv.project && edit.uv.project.kind !== 'skin' && (
           <Field label="One texture repeat covers">
             <NumberInput aria-label="Texture repeat size" value={edit.uv.project.size * 100} step={5} precision={1} min={1} max={10000} unit="cm" onChange={(v) => uv({ project: { ...edit.uv.project!, size: v / 100 } }, 'Project texture coordinates')} />
           </Field>

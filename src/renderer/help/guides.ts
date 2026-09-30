@@ -195,6 +195,36 @@ export const GUIDES: Guide[] = [
     ],
   },
   {
+    id: 'skins',
+    group: 'Building a car',
+    title: 'Skins: unwrap, template, paint',
+    summary: 'Lay the car out like a colouring sheet, paint it anywhere, bring it back.',
+    sections: [
+      {
+        text: 'A skin is an image painted over the car. For that, the body needs texture coordinates laid out sensibly: the Skin studio does it for you, the way skin templates are made. Every panel is seen from one side of the car (left, top, right, front, rear) and lands where it sits on the car, at one scale, so a stripe painted along the side view runs straight across the fender, both doors and the quarter panel.',
+      },
+      {
+        heading: 'Make a skin',
+        steps: [
+          'Materials workspace → Skin studio. The body panels are picked already (glass, lights, wheels and the interior are left out); tick or untick parts as you like.',
+          'Look at the preview. Parts shows each panel in its colour; Stretch shows surfaces that are steep to their view (red). Move “Curved panels lean to the side views” if rounded flanks break between the side and top views.',
+          'Lay out for skins. Materials the panels share with other parts are copied first, so the skin never shows where it shouldn’t.',
+          'Save PNG (or the layered SVG for Inkscape, Photoshop and GIMP) and paint over it in any image editor, keeping its size. The views are titled with the way the car faces.',
+          'Show the template on the car to check where things land, then New skin from a painted template… with your image. It shows on the car straight away and exports as a paint design players pick in the game.',
+        ],
+      },
+      {
+        heading: 'Good to know',
+        steps: [
+          'Each side is read from outside: writing on the right side reads correctly. “One design for both sides” paints both from one band instead (writing on the right then reads backwards).',
+          'The inside of a door or hood shares its outside’s spot, so paint carries through the way it does on a real car.',
+          'Undersides go small in the corner (rarely seen), or into a band of their own.',
+          'Other textures on the laid-out panels (a normal map, dirt) use the new layout too; the Remove button gives the panels their own texture coordinates back.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'structure',
     group: 'Building a car',
     title: 'Nodes, beams and triangles',
