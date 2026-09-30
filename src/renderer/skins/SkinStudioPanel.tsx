@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Eye, EyeOff, FileImage, FileCode2, ImagePlus, LayoutTemplate, Undo2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, EyeOff, FileImage, FileCode2, ImagePlus, LayoutTemplate, Undo2 } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -39,6 +39,7 @@ export function SkinStudioPanel() {
   const preview = useSkinUi((s) => s.preview);
   const shading = useSkinUi((s) => s.shading);
   const set = useSkinUi((s) => s.set);
+  const stepNow = useSkinUi((s) => s.step);
   const pushStatus = useUiStore((s) => s.pushStatus);
 
   // Meshes and their parts (positions read once per model load, not per render).
@@ -109,128 +110,186 @@ export function SkinStudioPanel() {
   };
   const stats = plan?.stats;
 
+  const step = stepNow;
+  const go = (n: 1 | 2 | 3) => set({ step: n });
+  const lay = () => {
+    if (applySkinLayout(keys, opts)) go(3);
+  };
+  const steps: { n: 1 | 2 | 3; label: string; done: boolean }[] = [
+    { n: 1, label: 'Choose panels', done: keys.size > 0 },
+    { n: 2, label: 'Lay out', done: applied && !stale },
+    { n: 3, label: 'Template & skins', done: doc.features.skins.length > 0 },
+  ];
+
+  const sheet = (
+    <>
+      <div className={styles.previewHead}>
+        <Tabs
+          value={view}
+          onChange={(v) => set({ view: v === 'stretch' ? 'stretch' : 'parts' })}
+          items={[
+            { value: 'parts', label: 'Parts' },
+            { value: 'stretch', label: 'Stretch' },
+          ]}
+        />
+        {stats && <span className={styles.stats} data-testid="skin-stats">{Math.round(stats.stretched * 100)} % stretched</span>}
+      </div>
+      <canvas ref={canvas} className={styles.sheet} data-testid="skin-sheet" aria-label="The skin layout" />
+      {view === 'stretch' && <p className={styles.note}>Green faces its view squarely; amber is slanted; red is stretched more than twice (a surface nearly edge-on to its view). A little red on tight curves is normal.</p>}
+    </>
+  );
+
   return (
     <ScrollArea className={styles.scroll}>
       <div className={styles.panel} data-testid="skin-studio">
-        <p className={styles.intro}>Lay the body out like a skin template: every panel where it sits on the car, at one scale, so a stripe runs straight across the doors. Then save the template, paint it, and bring it back as a skin.</p>
+        <p className={styles.intro}>Make a skin in three steps: choose the body panels, lay them out flat like a paint template (every panel where it sits on the car, so a stripe runs straight across the doors), then save the template, paint it in any image editor and bring it back.</p>
+        <ol className={styles.stepper} aria-label="Steps">
+          {steps.map((st) => (
+            <li key={st.n}>
+              <button type="button" className={st.n === step ? styles.stepOn : styles.stepBtn} onClick={() => go(st.n)} aria-current={st.n === step ? 'step' : undefined} data-testid={`skin-step-${st.n}`}>
+                <span className={st.done ? styles.stepDone : styles.stepNum}>{st.done ? '✓' : st.n}</span>
+                {st.label}
+              </button>
+            </li>
+          ))}
+        </ol>
 
-        <FieldGroup title="1 · Panels">
-          <div className={styles.row}>
-            <Button size="sm" onClick={() => set({ include: Object.fromEntries(meshes.map((m) => [m.key, isBodyPart(doc, m.partId)])) })}>
-              Body panels
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => pick(meshes.map((m) => m.key), true)}>
-              Everything
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => pick(meshes.map((m) => m.key), false)}>
-              None
-            </Button>
-            <Badge tone={keys.size ? 'accent' : 'warning'}>{keys.size} of {meshes.length} meshes</Badge>
-          </div>
-          <ul className={styles.parts} data-testid="skin-parts">
-            {groups.map((g) => {
-              const on = g.keys.filter((k) => keys.has(k)).length;
-              return (
-                <li key={g.partId ?? 'none'} className={styles.part}>
-                  <span className={styles.swatch} style={{ background: partColor(g.partId ? (partIndex.get(g.partId) ?? 0) : doc.parts.length) }} aria-hidden />
-                  <Checkbox checked={on === g.keys.length} onChange={(v) => pick(g.keys, v)} label={g.name} />
-                  <span className={styles.count}>{on < g.keys.length && on > 0 ? `${on}/` : ''}{g.keys.length}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </FieldGroup>
-
-        <FieldGroup title="2 · Layout">
-          <Toggle checked={opts.bothSides} onChange={(bothSides) => setOpt({ bothSides })} label="One design for both sides (the right side mirrored)" />
-          <Toggle checked={opts.bottom} onChange={(bottom) => setOpt({ bottom })} label="Give the underside a view of its own" />
-          <Field label="Curved panels lean to the side views" hint="Higher keeps rounded doors and flanks whole on the sides; lower sends more of them to the top view.">
-            <Slider value={opts.sideBias} onChange={(sideBias) => setOpt({ sideBias })} min={0.8} max={2.5} step={0.05} format={(v) => v.toFixed(2)} aria-label="Side bias" />
-          </Field>
-          <CollapsibleSection id="skin-advanced" title="More" defaultOpen={false}>
-            <Field label="…and to the top view">
-              <Slider value={opts.topBias} onChange={(topBias) => setOpt({ topBias })} min={0.8} max={2.5} step={0.05} format={(v) => v.toFixed(2)} aria-label="Top bias" />
-            </Field>
-            <Field label="Tidy-up passes" hint="Lone triangles take their neighbours' view, so panels don't break into specks.">
-              <Slider value={opts.smoothing} onChange={(smoothing) => setOpt({ smoothing })} min={0} max={8} step={1} format={(v) => String(v)} aria-label="Tidy-up passes" />
-            </Field>
-            <Field label="Space between views">
-              <Slider value={opts.padding} onChange={(padding) => setOpt({ padding })} min={0.005} max={0.06} step={0.005} format={(v) => `${Math.round(v * 1000) / 10} %`} aria-label="Space between views" />
-            </Field>
-            <Button size="sm" variant="ghost" onClick={() => set({ opts: DEFAULT_SKIN_OPTIONS, optsTouched: true })}>
-              Back to the defaults
-            </Button>
-          </CollapsibleSection>
-        </FieldGroup>
-
-        <div className={styles.previewHead}>
-          <Tabs
-            value={view}
-            onChange={(v) => set({ view: v === 'stretch' ? 'stretch' : 'parts' })}
-            items={[
-              { value: 'parts', label: 'Parts' },
-              { value: 'stretch', label: 'Stretch' },
-            ]}
-          />
-          {stats && <span className={styles.stats} data-testid="skin-stats">{Math.round(stats.stretched * 100)} % stretched</span>}
-        </div>
-        <canvas ref={canvas} className={styles.sheet} data-testid="skin-sheet" aria-label="The skin layout" />
-        {view === 'stretch' && <p className={styles.note}>Green faces its view squarely; amber is slanted; red is stretched more than twice (a surface nearly edge-on to its view). A little red on tight curves is normal.</p>}
-
-        <div className={styles.row}>
-          <Button variant="primary" icon={LayoutTemplate} disabled={!keys.size} onClick={() => applySkinLayout(keys, opts)} data-testid="skin-apply">
-            {applied ? 'Update the layout' : 'Lay out for skins'}
-          </Button>
-          {applied && (
-            <Button icon={Undo2} variant="ghost" onClick={clearSkinLayout}>
-              Remove
-            </Button>
-          )}
-        </div>
-        {applied && !stale && <Callout tone="success">{current.keys.length} meshes are laid out for skins. Their other textures now use this layout too.</Callout>}
-        {stale && <Callout tone="info">The picks or options changed: update the layout so the car and the template match.</Callout>}
-
-        <FieldGroup title="3 · Template">
-          <Field label="Size" hint="4096 suits most skins; 8192 for fine detail on large cars.">
-            <Select value={String(size)} onChange={(v) => set({ size: Number(v) as 2048 | 4096 | 8192 })} options={[2048, 4096, 8192].map((n) => ({ value: String(n), label: `${n} × ${n}` }))} aria-label="Template size" />
-          </Field>
-          <Toggle checked={shading} onChange={(on) => set({ shading: on })} label="Shade the panels (a light guide to their shape, on its own layer)" />
-          <div className={styles.row}>
-            <Button icon={FileImage} disabled={!applied || stale} onClick={() => void save('png')} data-testid="skin-save-png">
-              Save PNG
-            </Button>
-            <Button icon={FileCode2} disabled={!applied || stale} onClick={() => void save('svg')} data-testid="skin-save-svg">
-              Save layered SVG
-            </Button>
-          </div>
-          <Toggle
-            checked={preview === 'template'}
-            onChange={(on) => {
-              // The texture first: the viewport rebuilds its materials as soon as the preview changes.
-              if (on && plan) showTemplateOnCar(templateDrawing(plan, 2048));
-              set({ preview: on ? 'template' : null });
-            }}
-            label="Show the template on the car"
-            disabled={!applied}
-          />
-        </FieldGroup>
-
-        <FieldGroup title="4 · Skins">
-          <p className={styles.note}>Paint over the template in any image editor (keep its size), save it as PNG, then bring it in. Each skin is a paint design players pick in the game.</p>
-          <Button icon={ImagePlus} disabled={!applied || stale} onClick={() => void newSkinFromImage()} data-testid="skin-new">
-            New skin from a painted template…
-          </Button>
-          {doc.features.skins.length > 0 && (
-            <ul className={styles.skins}>
-              {doc.features.skins.map((s) => (
-                <li key={s.id} className={styles.skin}>
-                  <span>{s.name}</span>
-                  <IconButton icon={preview === s.id ? Eye : EyeOff} size="sm" label={preview === s.id ? 'Showing on the car' : 'Show on the car'} active={preview === s.id} onClick={() => set({ preview: preview === s.id ? null : s.id })} />
-                </li>
-              ))}
+        {step === 1 && (
+          <>
+            <p className={styles.note}>The body panels are picked for you. Glass, lights, wheels, the interior and parts from the game (fitted engines and suspensions, BeamNG materials) are left out: their textures aren&rsquo;t yours to repaint.</p>
+            <div className={styles.row}>
+              <Button size="sm" onClick={() => set({ include: Object.fromEntries(meshes.map((m) => [m.key, isBodyPart(doc, m.partId)])) })}>
+                Body panels
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => pick(meshes.map((m) => m.key), true)}>
+                Everything
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => pick(meshes.map((m) => m.key), false)}>
+                None
+              </Button>
+              <Badge tone={keys.size ? 'accent' : 'warning'}>{keys.size} of {meshes.length} meshes</Badge>
+            </div>
+            <ul className={styles.parts} data-testid="skin-parts">
+              {groups.map((g) => {
+                const on = g.keys.filter((k) => keys.has(k)).length;
+                return (
+                  <li key={g.partId ?? 'none'} className={styles.part}>
+                    <span className={styles.swatch} style={{ background: partColor(g.partId ? (partIndex.get(g.partId) ?? 0) : doc.parts.length) }} aria-hidden />
+                    <Checkbox checked={on === g.keys.length} onChange={(v) => pick(g.keys, v)} label={g.name} />
+                    <span className={styles.count}>{on < g.keys.length && on > 0 ? `${on}/` : ''}{g.keys.length}</span>
+                  </li>
+                );
+              })}
             </ul>
-          )}
-        </FieldGroup>
+            <div className={styles.footer}>
+              <Button variant="primary" icon={ArrowRight} disabled={!keys.size} onClick={() => go(2)} data-testid="skin-next">
+                Next: lay them out
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            {sheet}
+            <FieldGroup title="How it's laid out">
+              <Toggle checked={opts.bothSides} onChange={(bothSides) => setOpt({ bothSides })} label="One design for both sides (the right side mirrored)" />
+              <Toggle checked={opts.bottom} onChange={(bottom) => setOpt({ bottom })} label="Give the underside a view of its own" />
+              <Field label="Curved panels lean to the side views" hint="Higher keeps rounded doors and flanks whole on the sides; lower sends more of them to the top view.">
+                <Slider value={opts.sideBias} onChange={(sideBias) => setOpt({ sideBias })} min={0.8} max={2.5} step={0.05} format={(v) => v.toFixed(2)} aria-label="Side bias" />
+              </Field>
+              <CollapsibleSection id="skin-advanced" title="More" defaultOpen={false}>
+                <Field label="…and to the top view">
+                  <Slider value={opts.topBias} onChange={(topBias) => setOpt({ topBias })} min={0.8} max={2.5} step={0.05} format={(v) => v.toFixed(2)} aria-label="Top bias" />
+                </Field>
+                <Field label="Tidy-up passes" hint="Lone triangles take their neighbours' view, so panels don't break into specks.">
+                  <Slider value={opts.smoothing} onChange={(smoothing) => setOpt({ smoothing })} min={0} max={8} step={1} format={(v) => String(v)} aria-label="Tidy-up passes" />
+                </Field>
+                <Field label="Space between views">
+                  <Slider value={opts.padding} onChange={(padding) => setOpt({ padding })} min={0.005} max={0.06} step={0.005} format={(v) => `${Math.round(v * 1000) / 10} %`} aria-label="Space between views" />
+                </Field>
+                <Button size="sm" variant="ghost" onClick={() => set({ opts: DEFAULT_SKIN_OPTIONS, optsTouched: true })}>
+                  Back to the defaults
+                </Button>
+              </CollapsibleSection>
+            </FieldGroup>
+            {stale && <Callout tone="info">The picks or options changed: lay it out again so the car and the template match.</Callout>}
+            <div className={styles.footer}>
+              <Button variant="ghost" icon={ArrowLeft} onClick={() => go(1)}>
+                Back
+              </Button>
+              {applied && (
+                <Button icon={Undo2} variant="ghost" onClick={clearSkinLayout}>
+                  Remove the layout
+                </Button>
+              )}
+              <Button variant="primary" icon={LayoutTemplate} disabled={!keys.size} onClick={lay} data-testid="skin-apply">
+                {applied ? 'Lay out again' : 'Lay out for skins'}
+              </Button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            {!applied || stale ? (
+              <Callout tone="warning">
+                {applied ? 'The picks or options changed since the layout was made.' : 'Nothing is laid out yet.'}{' '}
+                <Button size="sm" onClick={() => go(2)}>
+                  Go to step 2
+                </Button>
+              </Callout>
+            ) : (
+              <Callout tone="success">{current.keys.length} meshes are laid out for skins. Their other textures now use this layout too.</Callout>
+            )}
+            {sheet}
+            <FieldGroup title="The template to paint on">
+              <Field label="Size" hint="4096 suits most skins; 8192 for fine detail on large cars.">
+                <Select value={String(size)} onChange={(v) => set({ size: Number(v) as 2048 | 4096 | 8192 })} options={[2048, 4096, 8192].map((n) => ({ value: String(n), label: `${n} × ${n}` }))} aria-label="Template size" />
+              </Field>
+              <Toggle checked={shading} onChange={(on) => set({ shading: on })} label="Shade the panels (a light guide to their shape, on its own layer)" />
+              <div className={styles.row}>
+                <Button icon={FileImage} disabled={!applied || stale} onClick={() => void save('png')} data-testid="skin-save-png">
+                  Save PNG
+                </Button>
+                <Button icon={FileCode2} disabled={!applied || stale} onClick={() => void save('svg')} data-testid="skin-save-svg">
+                  Save layered SVG
+                </Button>
+              </div>
+              <Toggle
+                checked={preview === 'template'}
+                onChange={(on) => {
+                  // The texture first: the viewport rebuilds its materials as soon as the preview changes.
+                  if (on && plan) showTemplateOnCar(templateDrawing(plan, 2048));
+                  set({ preview: on ? 'template' : null });
+                }}
+                label="Show the template on the car"
+                disabled={!applied}
+              />
+            </FieldGroup>
+            <FieldGroup title="Your skins">
+              <p className={styles.note}>Paint over the template (keep its size), save it as PNG, then bring it in here. Each skin becomes a paint design players pick in the game.</p>
+              <Button variant="primary" icon={ImagePlus} disabled={!applied || stale} onClick={() => void newSkinFromImage()} data-testid="skin-new">
+                New skin from a painted template…
+              </Button>
+              {doc.features.skins.length > 0 && (
+                <ul className={styles.skins}>
+                  {doc.features.skins.map((sk) => (
+                    <li key={sk.id} className={styles.skin}>
+                      <span>{sk.name}</span>
+                      <IconButton icon={preview === sk.id ? Eye : EyeOff} size="sm" label={preview === sk.id ? 'Showing on the car' : 'Show on the car'} active={preview === sk.id} onClick={() => set({ preview: preview === sk.id ? null : sk.id })} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </FieldGroup>
+            <div className={styles.footer}>
+              <Button variant="ghost" icon={ArrowLeft} onClick={() => go(2)}>
+                Back
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </ScrollArea>
   );

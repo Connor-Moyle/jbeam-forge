@@ -2047,8 +2047,12 @@ const scenarios = [
       await hook(page, 'applyPreset', 'materials');
       await page.locator('.dv-tab', { hasText: 'Skin studio' }).click();
       await page.getByTestId('skin-studio').waitFor();
-      await page.getByTestId('skin-stats').waitFor({ timeout: 15_000 });
+      await page.getByTestId('skin-step-1').click();
+      await page.getByTestId('skin-parts').waitFor();
       const picked = await page.getByTestId('skin-parts').locator('[role=checkbox][data-state=checked]').count();
+      await shot(page, 'skin-studio-step1');
+      await page.getByTestId('skin-next').click();
+      await page.getByTestId('skin-stats').waitFor({ timeout: 15_000 });
       assert(picked >= 5, `body panels picked by default (${picked} parts)`);
       await page.waitForTimeout(400);
       await shot(page, 'skin-studio-plan');

@@ -7,6 +7,7 @@ import { useUiStore } from '@renderer/app/stores/ui';
 import { call } from '@renderer/diagnostics/ipc';
 import { slotsOf } from '@renderer/materials/seed';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
+import { fittedSourceIds } from '@renderer/scene/placeFitted';
 import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MaterialDef } from '@shared/materials/schema';
 import type { Project, Skin } from '@shared/project/schema';
@@ -30,10 +31,12 @@ export interface SkinUi {
   shading: boolean;
   /** The skin shown on the car in the viewport, or 'template' for the template itself. */
   preview: string | null;
+  /** Which step of the studio is open: pick the panels, lay them out, make the template and skins. */
+  step: 1 | 2 | 3;
   set: (patch: Partial<Omit<SkinUi, 'set'>>) => void;
 }
 
-export const useSkinUi = create<SkinUi>()((set) => ({ include: null, opts: DEFAULT_SKIN_OPTIONS, optsTouched: false, size: 4096, view: 'parts', shading: true, preview: null, set: (patch) => set(patch) }));
+export const useSkinUi = create<SkinUi>()((set) => ({ include: null, opts: DEFAULT_SKIN_OPTIONS, optsTouched: false, size: 4096, view: 'parts', shading: true, preview: null, step: 1, set: (patch) => set(patch) }));
 
 /** Kinds of part that carry the paint: the shell, its panels, bumpers and aero, mirrors. */
 const BODY_KINDS = new Set(['body', 'roof']);
@@ -55,13 +58,33 @@ function positionsOf(g: BufferGeometry): Float32Array {
 }
 
 /** Every mesh that's in the mod (not ignored), with its part. */
+/**
+ * Meshes from the game itself: fitted engines, gearboxes and suspensions, a
+ * panel mod's stock guide, parts cut from the BeamNG install, and anything
+ * wearing only the game's own materials. Their textures are the game's: a
+ * skin layout must never touch them.
+ */
+export function gameMeshKeys(doc: Project): Set<string> {
+  const sources = new Set(fittedSourceIds(doc));
+  if (doc.panel?.guideSourceId) sources.add(doc.panel.guideSourceId);
+  const byId = new Map(doc.materials.map((m) => [m.id, m]));
+  const out = new Set<string>();
+  for (const m of allMeshes(useSceneStore.getState().sources)) {
+    const ids = slotsOf(doc, m.key) ?? [];
+    const allGame = ids.length > 0 && ids.every((id) => !!byId.get(id)?.gameMaterial);
+    if (sources.has(m.sourceId) || allGame) out.add(m.key);
+  }
+  return out;
+}
+
 export function skinMeshes(): SkinMesh[] {
   const doc = projectStore.getState().doc;
   if (!doc) return [];
   const ignored = new Set(doc.ignoredMeshes);
+  const game = gameMeshKeys(doc);
   const parts = new Map(doc.parts.map((p) => [p.id, p]));
   return allMeshes(useSceneStore.getState().sources)
-    .filter((m) => !ignored.has(m.key))
+    .filter((m) => !ignored.has(m.key) && !game.has(m.key))
     .map((m) => {
       const partId = doc.assignments[m.key] ?? null;
       return { key: m.key, name: m.name, partId, partName: (partId && parts.get(partId)?.displayName) || 'Not in a part', pos: positionsOf(m.geometry) };
@@ -155,8 +178,11 @@ export function stretchPieces(plan: SkinPlan): TemplatePiece[] {
 }
 
 /** Lay the chosen meshes out for skins (one undoable step); meshes no longer chosen get their own UVs back. */
-export function applySkinLayout(keys: ReadonlySet<string>, opts: SkinOptions): number {
+export function applySkinLayout(picked: ReadonlySet<string>, opts: SkinOptions): number {
   const meshes = skinMeshes();
+  // Only meshes the studio may lay out (never the game's own).
+  const allowed = new Set(meshes.map((m) => m.key));
+  const keys = new Set([...picked].filter((k) => allowed.has(k)));
   const plan = planSkin(meshes, keys, opts);
   if (!plan) return 0;
   const layout = plan.layout;
