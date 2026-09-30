@@ -108,6 +108,12 @@ function onMessage(e: MessageEvent<SimFrame>): void {
   }
 }
 
+// Test Mode belongs to the open project: closing it, or opening another, ends it.
+projectStore.subscribe((s, prev) => {
+  if (!useSim.getState().active) return;
+  if (!s.doc || (prev.doc && s.doc.meta.createdAt !== prev.doc.meta.createdAt)) stopTestMode();
+});
+
 /** Enter Test Mode: build the model from the document and start the worker (paused). */
 export function startTestMode(): boolean {
   const doc = projectStore.getState().doc;

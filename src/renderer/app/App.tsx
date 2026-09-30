@@ -189,6 +189,13 @@ function AppEffects() {
           };
         },
         viewFrom: (dir: [number, number, number]) => emitTestSignal({ type: 'view-from', dir }),
+        /** Hide (or show again) every mesh whose name matches (visual checks). */
+        hideMeshes: (pattern: string, hidden = true) => {
+          const re = new RegExp(pattern, 'i');
+          const keys = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes.filter((m) => re.test(m.name)).map((m) => m.key));
+          useSceneStore.getState().setHidden(keys, hidden);
+          return keys.length;
+        },
         setReferenceStructure: (ref: { nodes: { id: string; pos: [number, number, number] }[]; beams: [string, string][] } | null) =>
           emitTestSignal({ type: 'reference-structure', nodes: ref?.nodes ?? null, beams: ref?.beams ?? [] }),
         /** Keep only the given parts' base parts (by taxonomy id), dropping everything else (visual checks). */

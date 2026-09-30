@@ -2681,6 +2681,51 @@ const scenarios = [
     },
   },
   {
+    id: 'demo-car',
+    name: 'the practice car (E30-style saloon): every angle, and with its panels off',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      let st;
+      for (let i = 0; i < 300; i++) {
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 40 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.meshes >= 45, `practice car loaded (${st.meshes} meshes)`);
+      await hook(page, 'applyPreset', 'modelling');
+      await page.waitForTimeout(500);
+      const views = { 'front-left': [3.2, 1.3, 3.6], 'rear-right': [-3.4, 1.4, -3.4], side: [5, 0.6, 0], front: [0, 0.8, 5] };
+      for (const [name, dir] of Object.entries(views)) {
+        await hook(page, 'viewFrom', dir);
+        await page.waitForTimeout(500);
+        await shot(page, `demo-car-${name}`);
+      }
+      // Panels off: the bonnet (engine bay), the left doors and their glass (the cabin), the boot lid.
+      assert((await hook(page, 'hideMeshes', '^(hood|door_FL|door_RL|door_glass_FL|door_glass_RL|trunk|fender_FL)$')) === 7, 'seven panels hidden');
+      await hook(page, 'viewFrom', [3.2, 1.8, 3]);
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-panels-off');
+      await hook(page, 'viewFrom', [4.5, 2.2, -1]);
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-cabin');
+      await hook(page, 'hideMeshes', '.', false);
+      // Sorted into parts by name: every removable piece becomes its own part.
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      const parts = await hook(page, 'partNames');
+      assert(parts.length >= 30, `sorted into ${parts.length} parts`);
+      await shot(page, 'demo-car-parts');
+    },
+  },
+  {
     id: 'ac-car',
     name: 'local Assetto Corsa car import (--ac-car)',
     skip: () => !acCar,

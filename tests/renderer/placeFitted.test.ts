@@ -9,7 +9,7 @@ import { fittedSourceIds, startPlacing } from '../../src/renderer/scene/placeFit
 import type { ImportedMesh } from '../../src/renderer/import/normalize';
 
 const mesh = (key: string, sourceId: string): ImportedMesh => ({ key, sourceId, name: key, geometry: new BoxGeometry(1, 1, 1), material: new MeshBasicMaterial(), triangles: 12 });
-const source = (id: string) => ({ id, path: `${id}.dae`, absolutePath: `C:/${id}.dae`, format: 'dae' as const, import: { scale: 1, upAxis: 'z' as const, forwardAxis: '-y' as const }, textureDirs: [], placement: { position: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale: 1 }, addedAt: '2026-01-01T00:00:00.000Z' });
+const source = (id: string) => ({ id, path: `${id}.dae`, absolutePath: `C:/${id}.dae`, format: 'dae' as const, import: { scale: 1, upAxis: '+z' as const, forwardAxis: '-y' as const }, textureDirs: [], placement: { position: [0, 0, 0] as [number, number, number], rotation: [0, 0, 0] as [number, number, number], scale: 1 }, addedAt: '2026-01-01T00:00:00.000Z' });
 
 beforeEach(() => {
   const doc = createEmptyProject({ name: 'Test', slug: 'test' }, '0.1.0', new Date('2026-01-01T00:00:00Z'));

@@ -1,3 +1,5 @@
+import { endTutorial, useTour } from '@renderer/help/tutorial';
+import { pause as pauseSim, useSim } from '@renderer/sim/simSession';
 import { createEmptyProject, parseProject, ProjectLoadError, serializeProject, type NewProjectMeta } from '@shared/project/io';
 import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { rlog } from '@renderer/diagnostics/logger';
@@ -172,6 +174,10 @@ export async function saveProjectAs(): Promise<boolean> {
 }
 
 export async function closeProject(): Promise<boolean> {
+  // A running test keeps redrawing everything: pause it while the question is up.
+  if (useSim.getState().running) pauseSim();
+  // The tour belongs to the practice car: closing ends it (and its card can't cover the question).
+  if (useTour.getState().step !== null) endTutorial(false);
   if (!(await confirmDiscardOrSave())) return false;
   projectStore.getState().close();
   return true;
