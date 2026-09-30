@@ -1,0 +1,59 @@
+# Builds the Windows installer and portable exe on GitHub and publishes them
+# as a release when a version tag (v1.2.3) is pushed. Same result as
+# `npm run release` on a Windows machine. Never replaces an existing release.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: The tag matches package.json and has release notes
+        shell: bash
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          test "$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME but package.json says $version"; exit 1; }
+          test -f "docs/releases/$GITHUB_REF_NAME.md" || { echo "No docs/releases/$GITHUB_REF_NAME.md"; exit 1; }
+
+      - name: Refuse to replace an existing release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then echo "Release $GITHUB_REF_NAME already exists; leaving it alone."; exit 1; fi
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - name: Build the installer and portable exe
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          notes="docs/releases/$GITHUB_REF_NAME.md"
+          title="$(head -n 1 "$notes" | sed 's/^#[[:space:]]*//')"
+          tail -n +2 "$notes" > release/notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            "release/JBeam-Forge-Setup-$version.exe" \
+            "release/JBeam-Forge-$version-portable.exe" \
+            --title "$title" --notes-file release/notes.md --verify-tag --latest

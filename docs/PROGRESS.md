@@ -43,12 +43,13 @@ You asked to continue past the Phase 5 in-game gate. It stays open: every export
 
 ## Releases
 
-Every finished phase ships as a Windows installer and a portable exe on GitHub Releases (`npm run release`, notes in `docs/releases/`).
+Every finished phase ships as a Windows installer and a portable exe on GitHub Releases, notes in `docs/releases/`. Pushing a tag `v<version>` (matching package.json) builds and publishes it on GitHub (`.github/workflows/release.yml`); `npm run release` does the same from a Windows machine.
 
 | Version | Contents |
 |---|---|
 | 0.6.0 | Phases 1–6 plus the grouped scene tree |
-| 0.12.0 | Fork: engine and gearbox builders, driveline builder, more engines, engine sound with rev preview; paints, painting studio, vinyl editor, material brush, two-sided materials; UV tools, AO baking, channel views; hinge wizard and hinge/suspension sandbox tests; the game's part options; animated parts; interior cameras (format v19) |
+| 0.13.0 | Workspaces (Modelling, Materials, JBeam, Moving parts, Triggers, Scripts, Testing); JBeam tables and checks; triggers; first-run tour and help centre; Blender-style preferences and keymap; auto-reimport; DDS textures; engine, tyre, wheel and body panel mods; extensions with file access and importers (BeamNG car, CMS 2021); ported-mod declaration; Skin studio; undo one action at a time with a limit setting. Also carries 0.12.0, which was never published on its own. Built and published by `.github/workflows/release.yml` on a version tag |
+| 0.12.0 | (Not published on its own; shipped in 0.13.0.) Fork: engine and gearbox builders, driveline builder, more engines, engine sound with rev preview; paints, painting studio, vinyl editor, material brush, two-sided materials; UV tools, AO baking, channel views; hinge wizard and hinge/suspension sandbox tests; the game's part options; animated parts; interior cameras (format v19) |
 | 0.11.0 | Hinge preview; in-game tuning variables (format v13); lights glow via electrics; glass shatters; configurations panel with .pc export (format v14); repository package |
 | 0.10.0 | G/R/S gizmo; engine & gearbox workshop (Phase 11a, format v12) with jbeam transplant; own meshes on fitted suspensions; textures on game parts; Test Mode car mesh + isolate |
 | 0.9.0 | Suspension workshop (Phase 10a/b): axles (format v11), Type → Brand → Car picker over 145 sets cut from the install, fit complete sets, jbeam transplant on export, tuning page |
