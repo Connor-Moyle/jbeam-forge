@@ -1830,6 +1830,44 @@ const scenarios = [
     },
   },
   {
+    id: 'extension-toolbox',
+    name: 'example extension: install from Settings · pick a folder · import every model in it',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Toolbox Test');
+      await page.getByText('Import a 3D model right after creating').click();
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByRole('button', { name: 'Extensions' }).first().click();
+      await page.getByTestId('extension-example-forge-toolbox').click();
+      await page.getByTestId('extension-list').getByText('Forge toolbox').first().waitFor();
+      await page.getByTestId('extension-list').getByText(/Running: 2 commands/).first().waitFor({ timeout: 15_000 });
+      await page.getByTestId('extension-list').getByText(/read folders you pick for it/).waitFor();
+      await shot(page, 'extension-examples');
+      await page.keyboard.press('Escape');
+      await hook(page, 'queueDialog', [join(ROOT, 'tests', 'fixtures', 'models')]);
+      await hook(page, 'runCommand', 'palette');
+      await page.getByTestId('palette-input').fill('Import every model');
+      await page.getByTestId('palette-input').press('Enter');
+      let st;
+      for (let i = 0; i < 200; i++) {
+        st = await hook(page, 'sceneStats');
+        if (st.sources.length >= 3 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.sources.length === 3, `every model in the folder imported (${st.sources.length})`);
+      await page.getByTestId('status-bar').getByText(/Imported 3 models/).waitFor({ timeout: 5000 });
+    },
+  },
+  {
     id: 'user-project',
     name: 'local hand-assigned project: rename from parts · export model (--project)',
     skip: () => !userProject,

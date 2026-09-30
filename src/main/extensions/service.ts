@@ -15,7 +15,27 @@ export class ExtensionService {
   constructor(
     readonly dir: string,
     private readonly logger: Logger,
+    /** The example extensions shipped with the app. */
+    readonly examplesDir: string | null = null,
   ) {}
+
+  /** The examples that come with the app (installable copies). */
+  async examples(): Promise<ExtensionInfo[]> {
+    if (!this.examplesDir) return [];
+    try {
+      const names = (await readdir(this.examplesDir, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
+      const out: ExtensionInfo[] = [];
+      for (const n of names.sort()) out.push(await this.read(join(this.examplesDir, n)));
+      return out.filter((e) => e.manifest);
+    } catch {
+      return [];
+    }
+  }
+
+  async installExample(id: string): Promise<string> {
+    if (!this.examplesDir || !EXTENSION_ID.test(id)) throw new Error('No such example');
+    return this.install(join(this.examplesDir, id));
+  }
 
   async list(): Promise<ExtensionInfo[]> {
     let names: string[] = [];

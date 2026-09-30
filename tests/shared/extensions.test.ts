@@ -43,3 +43,24 @@ describe('extension templates', () => {
     expect(() => extensionTemplate('x', { id: 'ok', name: 'x', category: 'Body', description: '', name0: 'ok', params: [], outputs: [], actions: [{ id: 'a', label: 'A', key: '', call: 'os.exit()' }], lua: 'return {}' })).toThrow();
   });
 });
+
+describe('extension models and permissions', () => {
+  it('writes a model as OBJ and MTL, with its textures named', async () => {
+    const { modelToObj, ExtensionModelSchema, ExtensionManifestSchema, METHOD_PERMISSION } = await import('../../src/shared/extensions/api');
+    const m = ExtensionModelSchema.parse({
+      name: 'Box',
+      meshes: [{ name: 'body shell', positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2], uvs: [0, 0, 1, 0, 0, 1], material: 'paint' }],
+      materials: [{ name: 'paint', color: [1, 0, 0], texture: { path: '/game/cars/red.dds' } }],
+    });
+    const { obj, mtl, textures } = modelToObj(m);
+    expect(obj).toContain('o body_shell');
+    expect(obj).toContain('usemtl paint');
+    expect(obj).toMatch(/^f 1\/1 2\/2 3\/3$/m);
+    expect(mtl).toContain('map_Kd paint_red.dds');
+    expect(textures).toEqual([{ material: 'paint', file: 'paint_red.dds' }]);
+    expect(() => modelToObj({ ...m, meshes: [{ ...m.meshes[0]!, indices: [0, 1, 7] }] })).toThrow(/past its 3 vertices/);
+    expect(ExtensionManifestSchema.parse({ id: 'my-ext', name: 'x', version: '1' }).permissions).toEqual([]);
+    expect(METHOD_PERMISSION['files.read']).toBe('files');
+    expect(METHOD_PERMISSION['project.get']).toBeUndefined();
+  });
+});

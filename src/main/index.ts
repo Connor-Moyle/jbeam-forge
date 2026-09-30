@@ -15,6 +15,7 @@ import { ScriptLibrary } from './scripts/library';
 import { registerScriptHandlers } from './scripts/ipc';
 import { ExtensionService } from './extensions/service';
 import { registerExtensionHandlers } from './extensions/ipc';
+import { ExtensionFiles } from './extensions/files';
 import type { FetchFn } from './content/github';
 import { LayoutService } from './services/layout';
 import { RecentService } from './services/recent';
@@ -84,7 +85,7 @@ async function start(): Promise<void> {
   const updates = new UpdateService(join(userData, 'updates'), fetchFn, scoped('updates'));
   const contentCtx: ContentContext = { settings, updates, packs, logger: scoped('content'), getWindow: () => mainWindow, content: () => content!, where: () => where, portableDir };
   registerContentHandlers(contentCtx);
-  registerExtensionHandlers(new ExtensionService(join(userData, 'extensions'), scoped('extensions')));
+  registerExtensionHandlers(new ExtensionService(join(userData, 'extensions'), scoped('extensions'), app.isPackaged ? join(process.resourcesPath, 'example-extensions') : join(app.getAppPath(), 'examples', 'extensions')), new ExtensionFiles(join(userData, 'extension-grants.json'), join(userData, 'extension-models'), scoped('extensions')), projects);
   registerScriptHandlers(new ScriptLibrary(join(userData, 'scripts'), () => join(where.root, 'scripts'), scoped('scripts')));
   let contentDir = loaded.contentDir;
   let lastSettings = settings.get();

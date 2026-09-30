@@ -264,7 +264,7 @@ export const GUIDES: Guide[] = [
     summary: 'Add your own tools and importers to JBeam Forge.',
     sections: [
       { text: 'Extensions are small JavaScript add-ons in the extensions folder. They add commands to the palette, script templates, and model importers, and can change the project with checked, undoable steps. They only reach files in folders you pick for them.' },
-      { steps: ['Settings → Extensions → New sample makes a working example to copy.', 'Edit its main.js, then Reload.', 'docs/extensions.md in the source has the full API.'] },
+      { steps: ['Settings → Extensions → New extension makes a working one to start from; the examples there (a toolbox, game importers) install with one click.', 'Edit its main.js, then Reload. Commands appear in the Command Palette ({key:palette}).', 'An extension that reads files or imports models says so in extension.json ("permissions"); it can only read folders you pick for it.', 'docs/extensions.md has the full API and a step-by-step first extension.'] },
     ],
     actions: ['settings'],
   },

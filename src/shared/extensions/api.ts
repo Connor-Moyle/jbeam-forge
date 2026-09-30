@@ -21,6 +21,11 @@ export const ExtensionManifestSchema = z.object({
   author: z.string().max(120).optional(),
   /** The script to run, relative to the folder. */
   main: z.string().regex(/^[\w./-]{1,200}\.js$/).default('main.js'),
+  /**
+   * What more it may do (fork): "files" reads inside folders the user picks
+   * for it; "import" hands the app models and starts new mods.
+   */
+  permissions: z.array(z.enum(['files', 'import'])).default([]),
 });
 export type ExtensionManifest = z.infer<typeof ExtensionManifestSchema>;
 
@@ -124,13 +129,110 @@ export function extensionTemplate(extensionId: string, raw: unknown): ScriptTemp
   return { ...t, id: `ext_${extensionId.replace(/-/g, '_')}_${t.id}`, category: t.category as ScriptTemplate['category'], actions: t.actions.map((a) => ({ ...a, desc: a.desc })) };
 }
 
+export const EXTENSION_METHODS = ['project.get', 'project.update', 'project.create', 'settings.get', 'files.pickFolder', 'files.pickFile', 'files.folders', 'files.list', 'files.read', 'files.readText', 'import.model', 'import.file'] as const;
+export type ExtensionMethod = (typeof EXTENSION_METHODS)[number];
+
+/** Which permission each method needs (none: every extension may). */
+export const METHOD_PERMISSION: Partial<Record<ExtensionMethod, 'files' | 'import'>> = {
+  'files.pickFolder': 'files',
+  'files.pickFile': 'files',
+  'files.folders': 'files',
+  'files.list': 'files',
+  'files.read': 'files',
+  'files.readText': 'files',
+  'import.model': 'import',
+  'import.file': 'import',
+  'project.create': 'import',
+};
+
+/**
+ * A model an extension hands the app (forge.import.model): meshes in metres,
+ * with the app's usual up and forward axes (Y up, the car facing +Z; set
+ * `upAxis`/`forwardAxis` otherwise), and materials with their textures.
+ */
+export const ExtensionModelSchema = z.object({
+  name: z.string().min(1).max(120),
+  meshes: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(120),
+        /** x, y, z per vertex. */
+        positions: z.array(z.number()).min(9),
+        /** Three vertex indices per triangle (0-based). */
+        indices: z.array(z.number().int().nonnegative()).min(3),
+        uvs: z.array(z.number()).optional(),
+        normals: z.array(z.number()).optional(),
+        material: z.string().max(120).optional(),
+      }),
+    )
+    .min(1)
+    .max(5000),
+  materials: z
+    .array(
+      z.object({
+        name: z.string().min(1).max(120),
+        color: z.tuple([z.number(), z.number(), z.number()]).optional(),
+        opacity: z.number().min(0).max(1).optional(),
+        /** A texture file in the extension's folders, or its bytes with a file name. */
+        texture: z.union([z.object({ path: z.string() }), z.object({ name: z.string().regex(/^[\w.-]{1,120}\.(png|jpg|jpeg|tga|dds|bmp)$/i), bytes: z.instanceof(Uint8Array) })]).optional(),
+      }),
+    )
+    .max(2000)
+    .default([]),
+  scale: z.number().positive().max(1000).default(1),
+  upAxis: z.enum(['+x', '-x', '+y', '-y', '+z', '-z']).default('+y'),
+  forwardAxis: z.enum(['+x', '-x', '+y', '-y', '+z', '-z']).default('+z'),
+});
+export type ExtensionModel = z.infer<typeof ExtensionModelSchema>;
+
+/** An extension's model as OBJ + MTL text (textures referenced by file name). */
+export function modelToObj(m: ExtensionModel): { obj: string; mtl: string; textures: { material: string; file: string }[] } {
+  const lines = [`# ${m.name}, made by a JBeam Forge extension`, 'mtllib model.mtl'];
+  let base = 1;
+  const fmt = (v: number) => (Number.isFinite(v) ? Number(v.toFixed(6)) : 0);
+  for (const mesh of m.meshes) {
+    const n = Math.floor(mesh.positions.length / 3);
+    lines.push(`o ${mesh.name.replace(/\s+/g, '_')}`);
+    if (mesh.material) lines.push(`usemtl ${mesh.material.replace(/\s+/g, '_')}`);
+    for (let i = 0; i < n; i++) lines.push(`v ${fmt(mesh.positions[i * 3]!)} ${fmt(mesh.positions[i * 3 + 1]!)} ${fmt(mesh.positions[i * 3 + 2]!)}`);
+    const uv = mesh.uvs && mesh.uvs.length >= n * 2;
+    const nm = mesh.normals && mesh.normals.length >= n * 3;
+    if (uv) for (let i = 0; i < n; i++) lines.push(`vt ${fmt(mesh.uvs![i * 2]!)} ${fmt(mesh.uvs![i * 2 + 1]!)}`);
+    if (nm) for (let i = 0; i < n; i++) lines.push(`vn ${fmt(mesh.normals![i * 3]!)} ${fmt(mesh.normals![i * 3 + 1]!)} ${fmt(mesh.normals![i * 3 + 2]!)}`);
+    for (let t = 0; t + 2 < mesh.indices.length; t += 3) {
+      const ref = (k: number) => {
+        const idx = mesh.indices[t + k]!;
+        if (idx >= n) throw new Error(`${mesh.name}: index ${idx} past its ${n} vertices`);
+        const v = base + idx;
+        return uv && nm ? `${v}/${v}/${v}` : uv ? `${v}/${v}` : nm ? `${v}//${v}` : `${v}`;
+      };
+      lines.push(`f ${ref(0)} ${ref(1)} ${ref(2)}`);
+    }
+    base += n;
+  }
+  const textures: { material: string; file: string }[] = [];
+  const mtl = m.materials
+    .map((mat) => {
+      const name = mat.name.replace(/\s+/g, '_');
+      const out = [`newmtl ${name}`, `Kd ${(mat.color ?? [0.8, 0.8, 0.8]).map(fmt).join(' ')}`, `d ${fmt(mat.opacity ?? 1)}`];
+      if (mat.texture) {
+        const file = 'path' in mat.texture ? `${name}_${mat.texture.path.split(/[\\/]/).pop()!.replace(/[^\w.-]+/g, '_')}` : mat.texture.name;
+        textures.push({ material: mat.name, file });
+        out.push(`map_Kd ${file}`);
+      }
+      return out.join('\n');
+    })
+    .join('\n\n');
+  return { obj: `${lines.join('\n')}\n`, mtl: `${mtl}\n`, textures };
+}
+
 /** Messages from an extension's worker to the app. */
 export type FromExtension =
   | { type: 'command'; id: string; label: string }
   | { type: 'template'; template: unknown }
   | { type: 'notify'; message: string; tone?: 'info' | 'success' | 'warning' | 'danger' }
   | { type: 'log'; level: 'info' | 'warn' | 'error'; message: string }
-  | { type: 'request'; reqId: number; method: 'project.get' | 'project.update' | 'settings.get'; args: unknown[] }
+  | { type: 'request'; reqId: number; method: ExtensionMethod; args: unknown[] }
   | { type: 'ready' }
   | { type: 'error'; message: string };
 
@@ -180,6 +282,19 @@ export const EXTENSION_BOOTSTRAP = `"use strict";
     project: Object.freeze({
       get: function () { return request("project.get", []); },
       update: function (label, ops) { return request("project.update", [String(label || "Extension edit"), ops]); },
+      create: function (meta) { return request("project.create", [meta]); },
+    }),
+    files: Object.freeze({
+      pickFolder: function (title) { return request("files.pickFolder", [String(title || "")]); },
+      pickFile: function (title, extensions) { return request("files.pickFile", [String(title || ""), extensions || []]); },
+      folders: function () { return request("files.folders", []); },
+      list: function (path) { return request("files.list", [String(path)]); },
+      read: function (path) { return request("files.read", [String(path)]); },
+      readText: function (path) { return request("files.readText", [String(path)]); },
+    }),
+    import: Object.freeze({
+      model: function (model) { return request("import.model", [model]); },
+      file: function (path, options) { return request("import.file", [String(path), options || {}]); },
     }),
     settings: Object.freeze({ get: function () { return request("settings.get", []); } }),
     ui: Object.freeze({ notify: function (message, tone) { post({ type: "notify", message: String(message), tone: tone }); } }),

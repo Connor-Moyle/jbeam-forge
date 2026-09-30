@@ -238,6 +238,20 @@ export interface InvokeContract {
   /** Copy in an extension folder the user picks; its new folder, or null if cancelled. */
   'extensions:install': { req: undefined; res: string | null };
   'extensions:reveal': { req: undefined; res: undefined };
+  /** Example extensions shipped with the app, and installing one. */
+  'extensions:examples': { req: undefined; res: ExtensionInfo[] };
+  'extensions:installExample': { req: { id: string }; res: string };
+  /** Extension file access (fork): folders the user picks for an extension, and reads inside them. */
+  'extfs:pickFolder': { req: { id: string; title: string }; res: string | null };
+  'extfs:pickFile': { req: { id: string; title: string; extensions: string[] }; res: string | null };
+  'extfs:folders': { req: { id: string }; res: string[] };
+  'extfs:forget': { req: { id: string }; res: undefined };
+  'extfs:list': { req: { id: string; path: string }; res: { name: string; path: string; dir: boolean; size: number }[] };
+  'extfs:read': { req: { id: string; path: string; maxBytes?: number }; res: Uint8Array };
+  /** A model an extension built, written as OBJ (+ MTL, textures); its path, ready to import. */
+  'extfs:writeModel': { req: { id: string; name: string; files: { name: string; text?: string; bytes?: Uint8Array; from?: string }[] }; res: string };
+  /** A model file in the extension's folders, made importable. */
+  'extfs:importable': { req: { id: string; path: string }; res: { path: string; format: SourceFormat } };
   /** Show the user's script library folder. */
   'scripts:reveal': { req: undefined; res: undefined };
   /** Open text files of one kind the user picks (several when `multiple`). */
@@ -383,6 +397,16 @@ export const INVOKE_CHANNELS = [
   'extensions:create',
   'extensions:install',
   'extensions:reveal',
+  'extensions:examples',
+  'extensions:installExample',
+  'extfs:pickFolder',
+  'extfs:pickFile',
+  'extfs:folders',
+  'extfs:forget',
+  'extfs:list',
+  'extfs:read',
+  'extfs:writeModel',
+  'extfs:importable',
   'materials:pickTexture',
   'materials:library',
   'materials:pack',

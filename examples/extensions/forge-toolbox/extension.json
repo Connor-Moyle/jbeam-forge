@@ -1,0 +1,9 @@
+{
+  "id": "forge-toolbox",
+  "name": "Forge toolbox",
+  "version": "1.0.0",
+  "description": "Small helpers: import every model in a folder at once, and a weight report of the car by part.",
+  "author": "JBeam Forge",
+  "main": "main.js",
+  "permissions": ["files", "import"]
+}

@@ -346,3 +346,20 @@
 .themePreview[data-theme-preview='contrast'] span:last-child {
   background: var(--theme-contrast-panel);
 }
+
+.linkButton {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.examples {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}

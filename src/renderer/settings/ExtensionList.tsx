@@ -1,4 +1,6 @@
-import { FolderOpen, FolderPlus, Plus, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Download, FolderOpen, FolderPlus, Plus, RefreshCw } from 'lucide-react';
+import type { ExtensionInfo } from '@shared/extensions/api';
 import { call } from '@renderer/diagnostics/ipc';
 import { startExtensions, useExtensions } from '@renderer/extensions/host';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -51,11 +53,66 @@ export function ExtensionList({ disabled, onDisabled }: { disabled: readonly str
               <span className={styles.help}>
                 {e.running ? `Running: ${e.commands.length} command${e.commands.length === 1 ? '' : 's'}, ${e.templates.length} script template${e.templates.length === 1 ? '' : 's'}` : 'Off'}
               </span>
+              {e.permissions.length > 0 && (
+                <span className={styles.help}>
+                  May also: {e.permissions.map((p) => (p === 'files' ? 'read folders you pick for it' : 'import models and start mods')).join(' · ')}{' '}
+                  {e.permissions.includes('files') && (
+                    <button type="button" className={styles.linkButton} onClick={() => void call('extfs:forget', { id: e.id }).then(() => useUiStore.getState().pushStatus(`${e.name} forgets its folders`, 'success'))}>
+                      Forget its folders
+                    </button>
+                  )}
+                </span>
+              )}
               {e.error && <span className={styles.errorText}>{e.error}</span>}
             </div>
             {e.running && <Badge tone="success">On</Badge>}
           </li>
         ))}
+      </ul>
+      <Examples installed={list.map((e) => e.id)} onInstalled={reload} />
+    </div>
+  );
+}
+
+/** Example extensions shipped with the app: install one to use it, or read it to learn. */
+function Examples({ installed, onInstalled }: { installed: readonly string[]; onInstalled: () => void }) {
+  const [examples, setExamples] = useState<ExtensionInfo[]>([]);
+  useEffect(() => {
+    void call('extensions:examples').then(setExamples).catch(() => undefined);
+  }, []);
+  if (!examples.length) return null;
+  return (
+    <div className={styles.examples} data-testid="extension-examples">
+      <strong>Examples that come with JBeam Forge</strong>
+      <ul className={styles.extensionItems}>
+        {examples.map((e) => {
+          const m = e.manifest!;
+          const has = installed.includes(m.id);
+          return (
+            <li key={m.id} className={styles.extensionItem}>
+              <div className={styles.extensionText}>
+                <strong>
+                  {m.name} <span className={styles.help}>{m.version}</span>
+                </strong>
+                <span className={styles.help}>{m.description}</span>
+              </div>
+              <Button
+                size="sm"
+                icon={Download}
+                disabled={has}
+                onClick={() =>
+                  void call('extensions:installExample', { id: m.id }).then((folder) => {
+                    useUiStore.getState().pushStatus(`Installed ${m.name} in ${folder}`, 'success', 6000);
+                    onInstalled();
+                  })
+                }
+                data-testid={`extension-example-${m.id}`}
+              >
+                {has ? 'Installed' : 'Install'}
+              </Button>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

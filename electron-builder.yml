@@ -9,6 +9,10 @@ files:
   - package.json
   - '!**/*.map'
 asar: true
+# Example extensions, installable from Settings → Extensions.
+extraResources:
+  - from: examples/extensions
+    to: example-extensions
 # Textures and meshes are optional downloads from their own repositories (Downloads window;
 # npm run build-content-repos builds them), so the installer no longer carries the packs.
 win:
