@@ -427,7 +427,7 @@ export class ViewportRuntime {
           let objects = 0;
           this.scene.traverse(() => void objects++);
           const { memory, render, programs } = this.renderer.info;
-          return { fps: this.fps, geometries: memory.geometries, textures: memory.textures, programs: programs?.length ?? 0, calls: render.calls, triangles: render.triangles, objects };
+          return { fps: this.fps, geometries: memory.geometries, textures: memory.textures, programs: programs?.length ?? 0, calls: render.calls, triangles: render.triangles, objects, live: !!this.liveView, liveMeshes: this.liveMeshes.length, liveMeshesVisible: this.liveMeshRoot.visible, modelVisible: this.modelRoot.visible };
         },
       }),
     );
@@ -1019,7 +1019,8 @@ export class ViewportRuntime {
     this.structure.root.visible = (this.viewToggles.structure || !!this.edit) && !live;
     this.editOverlay.root.visible = !!this.edit && !live;
     this.live.root.visible = live;
-    this.liveMeshRoot.visible = live;
+    // The toolbar's mesh toggle (Alt+1) hides the car in Test Mode too.
+    this.liveMeshRoot.visible = live && this.viewToggles.mesh;
   }
 
   /**

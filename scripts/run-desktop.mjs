@@ -1227,15 +1227,13 @@ const scenarios = [
       const simulated = Number(statsText.match(/([\d.]+) s simulated/)?.[1] ?? 0);
       assert(simulated > 0.3, `live sim advanced (${statsText})`);
       await shot(page, 'test-mode-live');
-      // The car's meshes, bent by the physics; then just the selected part's.
-      await page.getByRole('switch', { name: 'Car mesh' }).click();
+      // The car's meshes, bent by the physics (shown from the start); then just the selected part's.
       await page.waitForTimeout(600);
       await shot(page, 'test-mode-car-mesh');
-      await page.getByRole('switch', { name: 'Only selected part' }).click();
+      await page.getByRole('switch', { name: 'Only the selected part' }).click();
       await page.waitForTimeout(400);
       await shot(page, 'test-mode-isolated');
-      await page.getByRole('switch', { name: 'Only selected part' }).click();
-      await page.getByRole('switch', { name: 'Car mesh' }).click();
+      await page.getByRole('switch', { name: 'Only the selected part' }).click();
       await page.getByTestId('sim-pause').click();
       await page.getByTestId('scenario-drop').click();
       await page.getByTestId('sim-result').waitFor({ timeout: 60_000 });
@@ -2607,6 +2605,48 @@ const scenarios = [
       await shot(page, 'probe-material-library');
       await page.keyboard.press('Escape');
       assert((await page.getByTestId('error-card').count()) === 0, 'no crashed panels');
+    },
+  },
+  {
+    id: 'testing-probe',
+    name: 'Testing on the practice car: the car shows, its switch and Alt+1 hide it, and it follows the physics',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 0); i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'testing');
+      await page.getByRole('button', { name: 'Enter Test Mode' }).click();
+      await page.getByTestId('test-panel').waitFor({ timeout: 20_000 });
+      await page.waitForTimeout(1000);
+      const before = await hook(page, 'glStats');
+      assert(before.liveMeshes > 0 && before.liveMeshesVisible, `the car shows in Test Mode straight away (${JSON.stringify(before)})`);
+      await shot(page, 'probe-testing-mesh-paused');
+      const meshSwitch = page.getByRole('switch', { name: "Show the car's mesh" });
+      await meshSwitch.click();
+      await page.waitForTimeout(500);
+      assert((await hook(page, 'glStats')).liveMeshes === 0, 'switched off, it goes');
+      await meshSwitch.click();
+      await page.waitForTimeout(500);
+      assert((await hook(page, 'glStats')).liveMeshes > 0, 'and back on');
+      await page.keyboard.press('Alt+1');
+      await page.waitForTimeout(300);
+      assert(!(await hook(page, 'glStats')).liveMeshesVisible, 'the toolbar mesh toggle (Alt+1) hides it too');
+      await page.keyboard.press('Alt+1');
+      await page.getByTestId('sim-run').click();
+      await page.waitForTimeout(2000);
+      const running = await hook(page, 'glStats');
+      await shot(page, 'probe-testing-mesh-running');
+      assert(running.liveMeshes > 0 && running.liveMeshesVisible, `and while it runs (${JSON.stringify(running)})`);
     },
   },
   {

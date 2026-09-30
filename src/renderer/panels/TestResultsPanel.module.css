@@ -15,6 +15,12 @@
   gap: var(--space-2);
 }
 
+.toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
 .speed {
   width: var(--size-number-input);
 }

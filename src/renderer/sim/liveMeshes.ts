@@ -10,7 +10,8 @@ import type { ImportedMesh } from '@renderer/import/normalize';
  * part's, to watch how one piece behaves.
  */
 export const useLiveView = create<{ showMesh: boolean; isolate: boolean; set: (p: Partial<{ showMesh: boolean; isolate: boolean }>) => void }>()((set) => ({
-  showMesh: false,
+  // The car shows by default: a bare structure is hard to read for anyone new.
+  showMesh: true,
   isolate: false,
   set: (p) => set(p),
 }));

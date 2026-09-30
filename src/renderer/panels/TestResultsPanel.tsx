@@ -98,13 +98,15 @@ function ActiveTest() {
           {running ? <IconButton icon={Pause} label="Pause" onClick={pause} data-testid="sim-pause" /> : <IconButton icon={Play} label="Run" onClick={run} data-testid="sim-run" />}
           <IconButton icon={RotateCcw} label="Reset to the authored structure" onClick={reset} data-testid="sim-reset" />
           <Select value={String(speed)} onChange={(v) => setSpeed(Number(v))} options={SPEEDS} className={styles.speed} />
-          <Toggle checked={gravity} onChange={setGravity} label="Gravity" />
-          <Toggle checked={showMesh} onChange={(v) => useLiveView.getState().set({ showMesh: v })} label="Car mesh" />
-          <Toggle checked={isolate} onChange={(v) => useLiveView.getState().set({ isolate: v, showMesh: v || showMesh })} label="Only selected part" />
           <span className={styles.spacer} />
           <Button size="sm" icon={Square} variant="ghost" onClick={stopTestMode} data-testid="sim-exit">
             Exit
           </Button>
+        </div>
+        <div className={styles.toggles}>
+          <Toggle checked={gravity} onChange={setGravity} label="Gravity" />
+          <Toggle checked={showMesh} onChange={(v) => useLiveView.getState().set({ showMesh: v, ...(v ? {} : { isolate: false }) })} label="Show the car's mesh" />
+          <Toggle checked={isolate} onChange={(v) => useLiveView.getState().set({ isolate: v, showMesh: v || showMesh })} label="Only the selected part" />
         </div>
         <div className={styles.stats} data-testid="sim-stats">
           <span>
