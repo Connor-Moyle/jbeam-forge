@@ -1,5 +1,6 @@
+import { startPlacing } from '@renderer/scene/placeFitted';
 import { useEffect, useMemo } from 'react';
-import { Plus, Trash2, Wrench } from 'lucide-react';
+import { Move, Plus, Trash2, Wrench } from 'lucide-react';
 import type { Axle } from '@shared/project/schema';
 import { EMPTY_ARR } from '@shared/empty';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -107,6 +108,9 @@ function AxleCard({ axle }: { axle: Axle }) {
               </Button>
               <Button size="sm" onClick={() => useSuspensionUi.getState().drive(axle.id)} data-testid="axle-driveline">
                 Differential
+              </Button>
+              <Button size="sm" icon={Move} onClick={() => startPlacing(axle.fitted!.sourceId, 'suspension')} title="Pick it up with the arrows: its physics moves with it" data-testid="axle-move">
+                Move
               </Button>
               <Button size="sm" onClick={() => useSuspensionUi.getState().pick(axle.id)}>
                 Change

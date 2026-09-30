@@ -1,3 +1,4 @@
+import { startPlacing } from '@renderer/scene/placeFitted';
 import type { SetChoices } from '@shared/suspension/options';
 import { emptyEdits } from '@shared/project/schema';
 import { Box3 } from 'three';
@@ -194,11 +195,12 @@ async function fitSuspensionSteps(axleId: string, set: SuspensionSet): Promise<v
       }
     },
   });
+  startPlacing(sourceId, 'suspension');
   const setTrack = all.max.x - all.min.x;
   useUiStore
     .getState()
     .pushStatus(
-      `Fitted the ${set.vehicleName} ${set.name} (${set.type}) to the ${axle.name.toLowerCase()}. It's ${(setTrack * 1000).toFixed(0)} mm wide against your ${(axle.track * 1000).toFixed(0)} mm track: fine-tune with the arrows (M).`,
+      `Fitted the ${set.vehicleName} ${set.name} (${set.type}) to the ${axle.name.toLowerCase()}. It's ${(setTrack * 1000).toFixed(0)} mm wide against your ${(axle.track * 1000).toFixed(0)} mm track. The arrows are on it: drag to fine-tune (its physics moves with it).`,
       'success',
       10000,
     );

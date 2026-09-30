@@ -7,6 +7,7 @@ import { copyKey } from '@renderer/import/meshEdits';
 import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MeshEdit } from '@shared/project/schema';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
+import { fittedSourceIds } from './placeFitted';
 
 /**
  * Per-mesh edits (move/turn/resize, texture mapping) and copies, as undoable
@@ -186,12 +187,20 @@ export function transformMeshes(keys: readonly string[], t: MeshGizmoTransform):
     return [deg(e.x), deg(e.y), deg(e.z)] as [number, number, number];
   };
   const kind = Math.abs(q.w) < 0.999999 ? 'Turn' : Math.abs(uniform - 1) > 1e-6 || Math.abs(s.x - s.y) > 1e-6 ? 'Resize' : 'Move';
+  // Game parts (engine, gearbox, suspension) only move: their nodes follow the position, not a turn or a resize.
+  const fitted = fittedSourceIds(doc);
+  if (kind !== 'Move' && whole.some((src) => fitted.has(src.id))) useUiStore.getState().pushStatus('Parts from the game can only be moved: turning or resizing them would leave their physics behind.', 'warning', 8000);
   projectStore.getState().execute({
     label: `${kind} ${keys.length === 1 ? 'mesh' : `${keys.length} meshes`}`,
     apply: (dd) => {
       for (const src of whole) {
         const cur = dd.sources.find((x) => x.id === src.id);
         if (!cur) continue;
+        if (fitted.has(src.id)) {
+          const [x, y, z] = cur.placement.position;
+          cur.placement = { ...cur.placement, position: [round(x + d.x), round(y + d.y), round(z + d.z)] };
+          continue;
+        }
         const at = new Vector3(...cur.placement.position).sub(p).multiplyScalar(uniform).applyQuaternion(q).add(p).add(d);
         cur.placement = { position: [round(at.x), round(at.y), round(at.z)], rotation: turned(cur.placement.rotation), scale: round(cur.placement.scale * uniform) };
       }

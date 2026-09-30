@@ -1,3 +1,4 @@
+import { startPlacing } from '@renderer/scene/placeFitted';
 import type { SetChoices } from '@shared/suspension/options';
 import { Box3 } from 'three';
 import { create } from 'zustand';
@@ -114,7 +115,8 @@ async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Pro
       d.powertrain[kind] = { setId: set.id, name: set.name, vehicle: set.vehicleName, type: set.type, sourceId, tuning: {}, edits: emptyEdits() };
     },
   });
-  useUiStore.getState().pushStatus(`Fitted the ${set.vehicleName} ${set.name}. Fine-tune where it sits with the gizmo (G / R / S).`, 'success', 8000);
+  // Straight into placing it: the arrows on the whole set.
+  startPlacing(sourceId, kind);
 }
 
 /** Adding another engine is one undo step, like fitting one. */

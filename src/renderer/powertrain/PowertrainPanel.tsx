@@ -1,5 +1,6 @@
+import { startPlacing } from '@renderer/scene/placeFitted';
 import { useEffect } from 'react';
-import { Cog, Gauge } from 'lucide-react';
+import { Cog, Gauge, Move, Wrench } from 'lucide-react';
 import type { SuspensionSet } from '@shared/ipc-contract';
 import type { FittedSet } from '@shared/project/schema';
 import type { EngineSpecs } from '@shared/powertrain/specs';
@@ -97,11 +98,14 @@ function Card({ kind, fitted }: { kind: PowertrainKind; fitted: FittedSet | null
             {Object.keys(fitted.edits.fields).length + (fitted.edits.torque ? 1 : 0) + (fitted.edits.gearRatios ? 1 : 0) > 0 && <span className={styles.spec}>Changed in the builder: the figures above are the game&rsquo;s.</span>}
           </div>
           <div className={styles.row}>
-            <Button size="sm" variant="primary" onClick={() => usePowertrainUi.getState().show({ kind, page: 'build' })} data-testid={`${kind}-build`}>
-              Build
+            <Button size="sm" variant="primary" icon={Wrench} onClick={() => usePowertrainUi.getState().show({ kind, page: 'build' })} title={kind === 'engine' ? 'Your own engine: power curve, revs, weight, turbo and every number' : 'Your own gear ratios'} data-testid={`${kind}-build`}>
+              {kind === 'engine' ? 'Build your own' : 'Set ratios'}
             </Button>
             <Button size="sm" onClick={() => usePowertrainUi.getState().show({ kind, page: 'tune' })} data-testid={`${kind}-tune`}>
               Tune
+            </Button>
+            <Button size="sm" icon={Move} onClick={() => startPlacing(fitted.sourceId, kind)} title="Pick it up with the arrows: its physics moves with it" data-testid={`${kind}-move`}>
+              Move
             </Button>
             <Button size="sm" onClick={() => usePowertrainUi.getState().show({ kind, page: 'pick' })}>
               Change
@@ -112,9 +116,18 @@ function Card({ kind, fitted }: { kind: PowertrainKind; fitted: FittedSet | null
           </div>
         </div>
       ) : (
-        <Button icon={Icon} variant="primary" size="sm" onClick={() => usePowertrainUi.getState().show({ kind, page: 'pick' })} data-testid={`${kind}-choose`}>
-          Choose {kind}
-        </Button>
+        <div className={styles.fitted}>
+          <p className={styles.note}>
+            {kind === 'engine'
+              ? 'Start from any engine in the game, then press Build to make it your own: draw its power curve, stretch the rev range, change the weight, turbo, limiter and every other number. It keeps the game’s proven physics underneath.'
+              : 'Start from any gearbox in the game, then press Build to set your own gear ratios (add or remove gears) and see the road speed in each.'}
+          </p>
+          <div className={styles.row}>
+            <Button icon={Icon} variant="primary" size="sm" onClick={() => usePowertrainUi.getState().show({ kind, page: 'pick' })} data-testid={`${kind}-choose`}>
+              {kind === 'engine' ? 'Choose a base engine' : 'Choose a base gearbox'}
+            </Button>
+          </div>
+        </div>
       )}
     </section>
   );
