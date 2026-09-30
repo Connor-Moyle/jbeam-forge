@@ -37,12 +37,12 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
   materials: [
     { id: 'viewport' },
     { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
-    // Both visible: the material being edited on top, the selected part's details below.
+    // The picked part's details under the Scene tree, so the material editor has the whole right column.
+    { id: 'inspector', relativeTo: 'scene', direction: 'below' },
     // Paints (and painting on the car) and the Skin studio share the materials tab strip; Materials, added last, is the tab shown.
     { id: 'paints', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
     { id: 'skins', relativeTo: 'paints', direction: 'within' },
     { id: 'materials', relativeTo: 'paints', direction: 'within' },
-    { id: 'inspector', relativeTo: 'materials', direction: 'below' },
   ],
   // Nodes, beams and triangles: the tables on the left, the picked ones' values on the right, the file under the car.
   jbeam: [

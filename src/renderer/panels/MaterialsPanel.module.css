@@ -198,8 +198,24 @@
 
 .previewSlot {
   flex: none;
-  padding: var(--space-2) var(--space-3) 0;
+  padding: var(--space-1) var(--space-3) var(--space-2);
   border-bottom: var(--border-width) solid var(--border-0);
+}
+
+.previewToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--text-1);
+  font-size: var(--text-control);
+  cursor: pointer;
+}
+
+.previewToggle:hover {
+  color: var(--text-0);
 }
 
 .slotRow {

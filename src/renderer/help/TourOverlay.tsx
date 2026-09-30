@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, ArrowRight, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, MousePointerClick, X } from 'lucide-react';
 import { useShell } from '@renderer/shell/ShellContext';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { Button } from '@renderer/ui/components/Button';
+import { iconSize } from '@renderer/ui/tokens';
 import { endTutorial, tourSteps, useTour, type TourContext } from './tutorial';
 import styles from './Tour.module.css';
 
@@ -118,7 +119,15 @@ export function TourOverlay() {
         </div>
         <h3 className={styles.title}>{current.title}</h3>
         <p className={styles.body}>{current.body}</p>
-        {current.action && <p className={styles.action}>{current.action}</p>}
+        {current.action && (
+          <p className={styles.action} data-testid="tour-action">
+            <MousePointerClick size={iconSize('size-icon-sm')} aria-hidden className={styles.actionIcon} />
+            <span>
+              <span className={styles.actionLabel}>Your turn: </span>
+              {current.action}
+            </span>
+          </p>
+        )}
         <div className={styles.buttons}>
           {step === 0 ? (
             <Button variant="ghost" onClick={() => endTutorial(true)} data-testid="tour-skip">

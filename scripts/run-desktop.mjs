@@ -2573,6 +2573,43 @@ const scenarios = [
     },
   },
   {
+    id: 'materials-probe',
+    name: 'materials workspace on the practice car: pick, edit, library, apply (screenshots)',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 0); i++) await page.waitForTimeout(100);
+      await page.getByTestId('workspace-materials').click();
+      await page.getByTestId('materials-panel').waitFor();
+      await page.waitForTimeout(800);
+      await shot(page, 'probe-materials-workspace');
+      const rows = page.getByTestId('material-row');
+      assert((await rows.count()) > 0, `materials listed (${await rows.count()})`);
+      await rows.first().click();
+      await page.waitForTimeout(500);
+      await shot(page, 'probe-material-picked');
+      assert((await page.getByTestId('error-card').count()) === 0, 'no crashed panels after picking a material');
+      // The material's settings are on screen, not squeezed away under the preview.
+      const nameBox = await page.getByTestId('material-name').boundingBox();
+      const panelBox = await page.getByTestId('materials-panel').boundingBox();
+      assert(nameBox && panelBox && nameBox.y + nameBox.height <= panelBox.y + panelBox.height, `material settings visible (${JSON.stringify(nameBox)} in ${JSON.stringify(panelBox)})`);
+      await page.getByTestId('material-library').click();
+      await page.getByTestId('library-items').waitFor();
+      await page.waitForTimeout(500);
+      await shot(page, 'probe-material-library');
+      await page.keyboard.press('Escape');
+      assert((await page.getByTestId('error-card').count()) === 0, 'no crashed panels');
+    },
+  },
+  {
     id: 'ac-car',
     name: 'local Assetto Corsa car import (--ac-car)',
     skip: () => !acCar,

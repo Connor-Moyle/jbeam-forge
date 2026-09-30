@@ -1,6 +1,6 @@
 import { confirmDelete } from '@renderer/app/confirm';
-import { useEffect, useMemo, useState } from 'react';
-import { BookmarkPlus, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { BookmarkPlus, ChevronDown, ChevronRight, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
 import { useMergeUi } from '@renderer/materials/MergeDialog';
 import { MaterialPreview, MaterialThumb } from '@renderer/materials/MaterialPreview';
 import { saveToLibrary, shareMaterial, useLibrary } from '@renderer/materials/LibraryDialog';
@@ -26,6 +26,7 @@ import { Slider } from '@renderer/ui/components/Slider';
 import { Textarea } from '@renderer/ui/components/Textarea';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { cx } from '@renderer/ui/cx';
+import { iconSize } from '@renderer/ui/tokens';
 import { setMaterialSlot } from '@renderer/paint/commands';
 import { Swatch } from '@renderer/paint/PaintsPanel';
 import { usePainter } from '@renderer/paint/painter';
@@ -46,6 +47,9 @@ const SLOT_LABELS: Record<TextureSlot, string> = {
   detailNormalMap: 'Detail normal',
 };
 
+/** Below this height the preview starts folded. */
+const SHORT_PANEL_PX = 560;
+
 const hex = (c: readonly number[]) => `#${c.slice(0, 3).map((v) => Math.round(v * 255).toString(16).padStart(2, '0')).join('')}`;
 const fromHex = (h: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255) as [number, number, number];
 const fileName = (p: string) => p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1);
@@ -58,6 +62,18 @@ export function MaterialsPanel() {
   const selected = mc.useMaterialUi((s) => s.selected);
   const select = mc.useMaterialUi((s) => s.select);
   const [query, setQuery] = useState('');
+  // The preview folds away in a short panel so the settings below it stay reachable (unless opened by hand).
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [short, setShort] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState<boolean | null>(null);
+  const previewShown = previewOpen ?? !short;
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setShort(el.clientHeight < SHORT_PANEL_PX));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   // Picking a mesh in the viewport or tree jumps to its material.
   useEffect(() => {
@@ -87,7 +103,7 @@ export function MaterialsPanel() {
   }
 
   return (
-    <div className={styles.panel} data-testid="materials-panel">
+    <div className={styles.panel} ref={panelRef} data-testid="materials-panel">
       <div className={styles.listHeader}>
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${materials.length} materials`} aria-label="Search materials" />
         <IconButton icon={Library} label="Material library" size="sm" onClick={() => useLibrary.getState().setOpen(true)} data-testid="material-library" />
@@ -121,10 +137,14 @@ export function MaterialsPanel() {
           ))}
         </ul>
       </ScrollArea>
-      {/* Pinned above the settings so it stays in view while you scroll and tweak. */}
+      {/* Pinned above the settings so it stays in view while you scroll and tweak; folds away when the panel is short. */}
       {current && (
         <div className={styles.previewSlot}>
-          <MaterialPreview def={current} />
+          <button type="button" className={styles.previewToggle} onClick={() => setPreviewOpen(!previewShown)} aria-expanded={previewShown} data-testid="material-preview-toggle">
+            {previewShown ? <ChevronDown size={iconSize('size-icon-sm')} aria-hidden /> : <ChevronRight size={iconSize('size-icon-sm')} aria-hidden />}
+            Preview
+          </button>
+          {previewShown && <MaterialPreview def={current} />}
         </div>
       )}
       <ScrollArea className={styles.editor}>{current ? <MaterialEditor key={current.id} def={current} used={usage.get(current.id) ?? 0} /> : <p className={styles.hint}>Select a material to edit it, or pick a mesh to jump to its material.</p>}</ScrollArea>
