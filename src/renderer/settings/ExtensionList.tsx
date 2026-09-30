@@ -78,7 +78,9 @@ export function ExtensionList({ disabled, onDisabled }: { disabled: readonly str
 function Examples({ installed, onInstalled }: { installed: readonly string[]; onInstalled: () => void }) {
   const [examples, setExamples] = useState<ExtensionInfo[]>([]);
   useEffect(() => {
-    void call('extensions:examples').then(setExamples).catch(() => undefined);
+    void call('extensions:examples')
+      .then((list) => setExamples(Array.isArray(list) ? list : []))
+      .catch(() => undefined);
   }, []);
   if (!examples.length) return null;
   return (
