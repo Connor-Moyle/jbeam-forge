@@ -3,7 +3,7 @@ import { app, clipboard } from 'electron';
 import type { DiagnosticInfo } from '@shared/ipc-contract';
 import { getLogFilePath, isDebugLogging, readRecentLogLines } from './log';
 
-const RECENT_LOG_LINES = 200;
+const RECENT_LOG_LINES = 400;
 
 export async function collectDiagnostics(): Promise<DiagnosticInfo> {
   const gpu: Record<string, string> = {};
@@ -37,6 +37,8 @@ export function formatDiagnostics(info: DiagnosticInfo, extra?: string): string 
     `Debug logging ${info.debugLogging ? 'on' : 'off'}`,
   ];
   if (extra) lines.push('', extra);
+  const perf = info.recentLog.filter((l) => l.includes('perf: ')).slice(-2);
+  if (perf.length) lines.push('', 'Performance (every 2 minutes):', ...perf.map((l) => `  ${l.replace(/^\[[^\]]*\]\s*/, '').slice(0, 240)}`));
   const problems = logProblems(info.recentLog);
   if (problems.length) lines.push('', `Last ${problems.length} warnings and errors in the log:`, ...problems);
   return lines.join('\n');

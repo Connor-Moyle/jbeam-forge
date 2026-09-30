@@ -86,8 +86,25 @@ export function createMainWindow(opts: WindowOptions): BrowserWindow {
     logger.error('renderer failed to load:', code, desc, url);
   });
 
+  // The same console error every frame (a broken mesh, a failing draw) must not flood the log:
+  // each distinct message is written once, then as a count at most every 30 s.
+  const repeats = new Map<string, { count: number; at: number }>();
   win.webContents.on('console-message', (event) => {
-    if (event.level === 'error') logger.error('renderer console:', event.message, `${event.sourceId}:${event.lineNumber}`);
+    if (event.level !== 'error') return;
+    const key = `${event.message}@${event.sourceId}:${event.lineNumber}`;
+    const now = Date.now();
+    const r = repeats.get(key);
+    if (!r) {
+      if (repeats.size > 500) repeats.clear();
+      repeats.set(key, { count: 0, at: now });
+      logger.error('renderer console:', event.message, `${event.sourceId}:${event.lineNumber}`);
+      return;
+    }
+    r.count++;
+    if (now - r.at < 30_000) return;
+    logger.error(`renderer console (repeated ${r.count} more times):`, event.message.slice(0, 300));
+    r.count = 0;
+    r.at = now;
   });
 
   if (opts.devServerUrl) void win.loadURL(opts.devServerUrl);

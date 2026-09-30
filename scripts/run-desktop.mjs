@@ -32,6 +32,8 @@ const userProject = process.argv.find((a) => a.startsWith('--project='))?.slice(
 const acCar = process.argv.find((a) => a.startsWith('--ac-car='))?.slice(9);
 // Optional real BeamNG install for the suspension-parts scenario, e.g. --beamng-install="I:/…/BeamNG.drive"
 const realInstall = process.argv.find((a) => a.startsWith('--beamng-install='))?.slice(17);
+/** --soak=<minutes>: leave the practice car open that long, moving the camera, and report how the app keeps up. */
+const soakMinutes = Number(process.argv.find((a) => a.startsWith('--soak='))?.slice(7) ?? 0);
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = join(ROOT, 'artifacts', 'run-desktop', stamp);
 const userData = mkdtempSync(join(tmpdir(), 'jbforge-harness-'));
@@ -2495,6 +2497,79 @@ const scenarios = [
       assert(/parts_E_[^"]*engine/.test(allText), 'the body carries the engine slot');
       partsReport.powertrain = { engine: eng.map((f) => f.path), gearbox: gbx.map((f) => f.path) };
       writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
+    },
+  },
+  {
+    id: 'soak',
+    name: 'soak: the practice car open for a while (--soak=<minutes>)',
+    skip: () => !soakMinutes,
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 0); i++) await page.waitForTimeout(100);
+      // What someone does on the practice car: sort it into parts and generate its structure (the tour stays open).
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      const workspaces = ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing'];
+      const canvas = () => page.locator('canvas:visible').first();
+      const sample = async (t) => {
+        const frameMs = await page.evaluate(
+          () =>
+            new Promise((done) => {
+              let n = 0;
+              const start = performance.now();
+              const step = () => (++n < 60 ? requestAnimationFrame(step) : done((performance.now() - start) / 60));
+              requestAnimationFrame(step);
+            }),
+        );
+        const heap = await page.evaluate(() => Math.round((performance.memory?.usedJSHeapSize ?? 0) / 1e6));
+        const dom = await page.evaluate(() => document.getElementsByTagName('*').length);
+        const gl = await hook(page, 'glStats').catch(() => null);
+        const log = statSync(join(userData, 'logs', 'main.log')).size;
+        return { t, frameMs: Math.round(frameMs * 10) / 10, heapMB: heap, dom, ...gl, logKB: Math.round(log / 1024) };
+      };
+      const rows = [await sample(0)];
+      const end = Date.now() + soakMinutes * 60_000;
+      let k = 0;
+      while (Date.now() < end) {
+        // A different workspace every few rounds, then orbit and hover like someone looking the car over.
+        if (k % 3 === 0) {
+          await hook(page, 'applyPreset', workspaces[(k / 3) % workspaces.length]);
+          await page.waitForTimeout(500);
+        }
+        const box = (await canvas().boundingBox().catch(() => null)) ?? { x: 400, y: 200, width: 400, height: 300 };
+        for (let i = 0; i < 20; i++) {
+          await page.mouse.move(box.x + box.width * (0.3 + 0.4 * Math.random()), box.y + box.height * (0.3 + 0.4 * Math.random()));
+          await page.waitForTimeout(50);
+        }
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await page.mouse.down({ button: 'right' }).catch(() => undefined);
+        await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 20, { steps: 10 });
+        await page.mouse.up({ button: 'right' }).catch(() => undefined);
+        if (++k % 10 === 0) {
+          await hook(page, 'applyPreset', 'modelling');
+          await page.waitForTimeout(300);
+          rows.push(await sample(Math.round((soakMinutes * 60_000 - (end - Date.now())) / 1000)));
+          console.log('      ', JSON.stringify(rows.at(-1)));
+        }
+      }
+      await hook(page, 'applyPreset', 'modelling');
+      await page.waitForTimeout(300);
+      rows.push(await sample(soakMinutes * 60));
+      writeFileSync(join(outDir, 'soak.json'), JSON.stringify(rows, null, 1));
+      const first = rows[1] ?? rows[0];
+      const last = rows.at(-1);
+      assert(last.frameMs < Math.max(40, first.frameMs * 2), `frames stay fast (${first.frameMs} → ${last.frameMs} ms)`);
+      assert(last.heapMB < first.heapMB * 2 + 50, `memory stays flat (${first.heapMB} → ${last.heapMB} MB)`);
+      assert(last.geometries <= first.geometries + 20 && last.textures <= first.textures + 10, `GL resources stay flat (${first.geometries}/${first.textures} → ${last.geometries}/${last.textures})`);
     },
   },
   {

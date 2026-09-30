@@ -1,3 +1,4 @@
+import { registerTestHooks } from '@renderer/app/testHooks';
 import {
   type Intersection,
   Box3,
@@ -62,6 +63,8 @@ Mesh.prototype.raycast = acceleratedRaycast;
 export type GlState = 'starting' | 'running' | 'lost' | 'unsupported';
 
 const MAX_CONSECUTIVE_FRAME_ERRORS = 3;
+/** How often the viewport writes its performance line to the log. */
+const PERF_LOG_MS = 120_000;
 const GRID_SIZE_M = 20;
 const GRID_DIVISIONS = 20;
 const FRAME_PADDING = 1.25;
@@ -371,7 +374,11 @@ export class ViewportRuntime {
 
     this.loop = new GuardedLoop(() => this.tick(), {
       maxConsecutiveErrors: MAX_CONSECUTIVE_FRAME_ERRORS,
-      onFrameError: (err, n) => logger.warn(`frame error ${n}/${MAX_CONSECUTIVE_FRAME_ERRORS}:`, err instanceof Error ? err.message : String(err)),
+      onFrameError: (err, n) => {
+        // Occasional frame errors: the first few in full, then one line per 500 so they can't flood the log.
+        this.frameErrors++;
+        if (this.frameErrors <= 3 || this.frameErrors % 500 === 0) logger.warn(`frame error ${n}/${MAX_CONSECUTIVE_FRAME_ERRORS} (${this.frameErrors} so far):`, err instanceof Error ? err.message : String(err));
+      },
       onFatal: (err) => {
         const error = err instanceof Error ? err : new Error(String(err));
         logger.error('render loop stopped after repeated frame errors:', error.message);
@@ -414,7 +421,21 @@ export class ViewportRuntime {
         }
       }),
     );
+    this.disposers.push(
+      registerTestHooks({
+        glStats: () => {
+          let objects = 0;
+          this.scene.traverse(() => void objects++);
+          const { memory, render, programs } = this.renderer.info;
+          return { fps: this.fps, geometries: memory.geometries, textures: memory.textures, programs: programs?.length ?? 0, calls: render.calls, triangles: render.triangles, objects };
+        },
+      }),
+    );
     this.disposers.push(registerViewport({ capture: (w, h) => this.capture(w, h), captureStudio: (o) => this.captureStudio(o), textureCaps: () => this.textureCaps() }));
+
+    // A performance line in the log every 2 minutes, so a slowdown shows what grew.
+    const heartbeat = setInterval(() => logger.info(`perf: ${this.perfLine()}`), PERF_LOG_MS);
+    this.disposers.push(() => clearInterval(heartbeat));
 
     this.loop.start();
     callbacks.onState('running');
@@ -680,6 +701,7 @@ export class ViewportRuntime {
   private maxFps = 0;
   private lastFrame = 0;
   private frames = 0;
+  private frameErrors = 0;
   private fpsWindow = performance.now();
   /** Frames drawn per second, measured over the last second. */
   fps = 0;
@@ -1641,6 +1663,15 @@ export class ViewportRuntime {
     this.stepGlide();
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+  }
+
+  /** fps, JS memory, GPU resources and scene size on one line. */
+  perfLine(): string {
+    let objects = 0;
+    this.scene.traverse(() => void objects++);
+    const { memory, render } = this.renderer.info;
+    const heap = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? 0;
+    return `${this.fps} fps, ${Math.round(heap / 1e6)} MB JS, ${memory.geometries} geometries, ${memory.textures} textures, ${objects} objects, ${render.calls} draw calls, ${render.triangles} triangles, ${this.frameErrors} frame errors`;
   }
 
   private tick(): void {
