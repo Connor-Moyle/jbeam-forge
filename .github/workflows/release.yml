@@ -39,6 +39,16 @@ jobs:
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then echo "Release $TAG already exists; leaving it alone."; exit 1; fi
 
+      - name: Each release is the next version number
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(gh release view --json tagName -q .tagName 2>/dev/null || echo v0.0.0)"
+          newest="$(printf '%s\n%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -n 1)"
+          if [ "$newest" != "${TAG#v}" ]; then echo "$TAG is not newer than the latest release $latest: bump package.json's version."; exit 1; fi
+          echo "Releasing $TAG after $latest"
+
       - run: npm ci
 
       - run: npm run typecheck
