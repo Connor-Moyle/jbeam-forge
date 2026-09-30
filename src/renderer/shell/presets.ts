@@ -6,7 +6,8 @@ import { PANELS, type PanelId } from './panelRegistry';
 export const DEFAULT_PRESET: PresetId = 'modelling';
 
 export const PRESET_LABELS: Record<PresetId, string> = {
-  modelling: 'Modelling',
+  modelling: 'Editing',
+  model: 'Modelling',
   materials: 'Materials',
   jbeam: 'JBeam',
   moving: 'Moving parts',
@@ -33,6 +34,12 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'viewport' },
     { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
     { id: 'inspector', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel' },
+  ],
+  // Reshaping one mesh, Blender-style: the Scene to pick it from, the tools and keys on the right.
+  model: [
+    { id: 'viewport' },
+    { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+    { id: 'modelling', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel' },
   ],
   materials: [
     { id: 'viewport' },
@@ -111,7 +118,7 @@ export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 
     case 'panel':
       return ['panel', 'materials'];
     default:
-      return ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing'];
+      return ['modelling', 'model', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing'];
   }
 }
 

@@ -26,6 +26,8 @@ import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
 import { registerTestHooks } from './testHooks';
+import { commitTransform, useModelUi } from '@renderer/modelling/commands';
+import { Matrix4 } from 'three';
 import { emitTestSignal } from './testBus';
 import { currentTaxonomy, loadUserTaxonomy } from '@renderer/parts/taxonomy';
 import { buildSimModel } from '@shared/sim/model';
@@ -263,6 +265,13 @@ function AppEffects() {
           return Object.fromEntries(Object.entries(d?.materialSlots ?? {}).map(([k, ids]) => [k, ids.map((id) => names.get(id) ?? id)]));
         },
         selectMeshes: (keys: string[]) => useSceneStore.getState().select(keys),
+        /** Modelling: what is being reshaped and picked. */
+        modelUi: () => {
+          const m = useModelUi.getState();
+          return { key: m.key, mode: m.mode, points: m.points.length, edges: m.edges.length, faces: m.faces.length, gizmo: m.gizmo };
+        },
+        /** Modelling: the gizmo dragged by `d` (BeamNG space) and let go. */
+        modelMove: (d: [number, number, number]) => commitTransform(new Matrix4().makeTranslation(d[0], d[1], d[2])),
         clearEdit: () => useEditStore.getState().clear(),
         /** The export as it would be written (DDS conversion included): paths, and the first bytes of each converted file. */
         finalExport: async () => {

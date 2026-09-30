@@ -6,6 +6,7 @@ import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { call } from '@renderer/diagnostics/ipc';
 import { EMPTY_ARR } from '@shared/empty';
 import { reloadSource } from './importFlow';
+import { modelledMeshes } from '@renderer/modelling/commands';
 
 /**
  * Auto-reimport (fork): while a mod is open, its model files are watched;
@@ -41,7 +42,8 @@ export function useAutoReimport(): void {
         const source = doc.sources.find((s) => norm(s.absolutePath) === norm(path));
         if (!source) return;
         const name = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
-        if (useSettingsStore.getState().settings?.autoReimportAsk) {
+        // Reshaped meshes: reloadSource asks which version to keep instead.
+        if (useSettingsStore.getState().settings?.autoReimportAsk && !(kind === 'model' && modelledMeshes(source.id).length)) {
           void useDialogStore
             .getState()
             .askConfirm(`${name} changed`, `${kind === 'texture' ? 'A texture next to it was saved again.' : 'It was saved again.'} Reload it now? Parts, materials and your other work stay.`, 'Reload')

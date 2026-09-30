@@ -55,6 +55,9 @@ import { useMeshMove } from '@renderer/scene/meshMove';
 import { transformMeshes } from '@renderer/scene/meshCommands';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
 import styles from './ViewportPanel.module.css';
+import { commitTransform, gizmoMatrix, modelKey, modelState, movedPoints, pickElement, selectedFaces, selectedPoints, useModelUi, type ModelState } from '@renderer/modelling/commands';
+import { edgesOf, livePoints } from '@shared/mesh/meshModel';
+import { ModelPill } from '@renderer/modelling/ModelPill';
 
 /** The viewport; anti-aliasing is fixed when the WebGL context is made, so changing it restarts the view. */
 export function ViewportPanel() {
@@ -67,6 +70,7 @@ export function ViewportPanel() {
 function ViewportCanvas({ antialias }: { antialias: boolean }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<ViewportRuntime | null>(null);
+  const pushModelRef = useRef<((shown?: Float32Array) => void) | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [glState, setGlState] = useState<GlState>(() => (webglAvailable() ? 'starting' : 'unsupported'));
   const [fatal, setFatal] = useState<Error | null>(null);
@@ -78,6 +82,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
     const host = hostRef.current;
     if (!canvas || !host || glState === 'unsupported') return;
     let runtime: ViewportRuntime | null = null;
+    let modelDrag: ModelState | null = null;
     const scene = useSceneStore;
     try {
       runtime = new ViewportRuntime(canvas, host, {
@@ -128,6 +133,27 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
           runtime?.previewMeshTransform(keys, null);
           const changed = Math.hypot(...t.translate) > 1e-6 || Math.abs(t.rotate[3]) < 0.999999 || t.scale.some((v) => Math.abs(v - 1) > 1e-6);
           if (changed) transformMeshes(keys, t);
+        },
+        onModelPick: (hit, mods) => pickElement(hit, mods),
+        onModelTransform: (t, done) => {
+          const key = useModelUi.getState().key;
+          if (!key || !runtime) return;
+          if (done) {
+            runtime.previewModel(key, null);
+            modelDrag = null;
+            const changed = Math.hypot(...t.translate) > 1e-6 || Math.abs(t.rotate[3]) < 0.999999 || t.scale.some((v) => Math.abs(v - 1) > 1e-6);
+            if (changed) commitTransform(gizmoMatrix(t));
+            else pushModelRef.current?.();
+            return;
+          }
+          modelDrag ??= modelState(key);
+          const st = modelDrag;
+          if (!st) return;
+          const moved = movedPoints({ ...st, matrix: null }, selectedPoints(st), gizmoMatrix(t));
+          const shown = new Float32Array(st.shown);
+          for (const [p, v] of moved) shown.set(v, p * 3);
+          runtime.previewModel(key, cornersOf(st, shown));
+          pushModelRef.current?.(shown);
         },
         onGizmoMove: (delta, done) => {
           if (!done) {
@@ -260,16 +286,60 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       rt.setChannel(s.channel);
     });
     const unsubscribeEdit = useEditStore.subscribe(pushStructure);
-    // Move gizmo on the selected meshes (Modelling), re-parked whenever they change.
+    // Move gizmo on the selected meshes (Editing), re-parked whenever they change.
     const pushMeshGizmo = () => {
       const move = useMeshMove.getState();
-      const on = move.on && !useEditStore.getState().active && !useSplitTool.getState().meshKey;
+      const on = move.on && !useEditStore.getState().active && !useSplitTool.getState().meshKey && !useModelUi.getState().key;
       rt.setMeshGizmo(on ? scene.getState().selection : null, move.mode);
     };
     pushMeshGizmo();
     const unsubscribeMove = useMeshMove.subscribe(pushMeshGizmo);
     const unsubscribeMoveScene = scene.subscribe(pushMeshGizmo);
     const unsubscribeMoveEdit = useEditStore.subscribe(pushMeshGizmo);
+    // Modelling: the mesh being reshaped, its wireframe and what is picked; `shown` overrides the points mid-drag.
+    let modelCache: { geometry: unknown; model: unknown; edges: Int32Array; live: Uint8Array } | null = null;
+    const pushModel = (shownOverride?: Float32Array) => {
+      const ui = useModelUi.getState();
+      const st = ui.key ? modelState(ui.key) : null;
+      if (!st) {
+        rt.setModelView(null, null);
+        return;
+      }
+      const geometry = scene.getState().sources[st.key.slice(0, st.key.indexOf(':'))]?.meshes.find((m) => m.key === st.key)?.geometry;
+      if (!modelCache || modelCache.geometry !== geometry || modelCache.model !== st.model) modelCache = { geometry, model: st.model, edges: edgesOf(st.shape), live: livePoints(st.shape) };
+      const shown = shownOverride ?? st.shown;
+      const pts = selectedPoints(st);
+      const pset = new Set(pts);
+      const faces = selectedFaces(st);
+      const selFaces = new Float32Array(faces.length * 9);
+      faces.forEach((t, i) => {
+        for (let k = 0; k < 3; k++) {
+          const p = st.shape.corners[t * 3 + k]!;
+          selFaces.set(shown.subarray(p * 3, p * 3 + 3), i * 9 + k * 3);
+        }
+      });
+      const selEdges: [number, number][] = [];
+      const e = modelCache.edges;
+      for (let i = 0; i < e.length; i += 2) if (pset.has(e[i]!) && pset.has(e[i + 1]!)) selEdges.push([e[i]!, e[i + 1]!]);
+      let pivot: [number, number, number] | null = null;
+      if (pts.length) {
+        pivot = [0, 0, 0];
+        for (const p of pts) for (let k = 0; k < 3; k++) pivot[k] = pivot[k]! + shown[p * 3 + k]! / pts.length;
+      }
+      rt.setModelView({ key: st.key, mode: ui.mode, shown, live: modelCache.live, edges: modelCache.edges, selPoints: pts, selEdges, selFaces }, pivot, ui.gizmo);
+    };
+    pushModelRef.current = pushModel;
+    pushModel();
+    const unsubscribeModelUi = useModelUi.subscribe(() => {
+      pushModel();
+      pushMeshGizmo();
+    });
+    let lastSources = scene.getState().sources;
+    const unsubscribeModelScene = scene.subscribe((st) => {
+      if (st.sources === lastSources) return;
+      lastSources = st.sources;
+      if (useModelUi.getState().key) pushModel();
+    });
     // Test Mode frames straight from the sim session (60 Hz, outside React).
     // Test Mode: the car's meshes bent by the physics (optionally just the selected part's).
     let latestFrame: LiveFrame | null = null;
@@ -377,6 +447,11 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const splitting = useSplitTool.getState().meshKey !== null;
       const edit = useEditStore.getState();
+      // Modelling: Blender's keys for the mesh being reshaped.
+      if (modelKey(e)) {
+        e.preventDefault();
+        return;
+      }
       // Vinyl layers: move, turn, resize, delete, duplicate and group the selection from the keyboard.
       if (vinylKey(e)) {
         e.preventDefault();
@@ -465,6 +540,9 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeMove();
       unsubscribeMoveScene();
       unsubscribeMoveEdit();
+      unsubscribeModelUi();
+      unsubscribeModelScene();
+      pushModelRef.current = null;
       unsubscribeTextures();
       unsubscribeSkin();
       unsubscribeSim();
@@ -504,6 +582,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       <EditToolbar />
       <FocusPill />
       <MovePill />
+      <ModelPill />
       <FpsCounter runtime={runtimeRef} />
       {toolShape && toolShape.length >= 4 && (
         <svg className={splitStyles.shape} aria-hidden>
@@ -550,21 +629,22 @@ function svgPoints(flat: readonly number[]): string {
   return out.join(' ');
 }
 
-/** Modelling: turn the move arrows on the selected meshes on and off (M). */
+/** Editing: turn the move arrows on the selected meshes on and off (M). */
 const GIZMO_TOOLS: { mode: GizmoMode; label: string; key: string; icon: typeof Move }[] = [
   { mode: 'translate', label: 'Move', key: 'G', icon: Move },
   { mode: 'rotate', label: 'Rotate', key: 'R', icon: Rotate3d },
   { mode: 'scale', label: 'Scale', key: 'S', icon: Scaling },
 ];
 
-/** Modelling: move / rotate / scale the selected meshes with a gizmo (G, R, S like Blender; Esc to put it away). */
+/** Editing: move / rotate / scale the selected meshes with a gizmo (G, R, S like Blender; Esc to put it away). */
 function MovePill() {
   const on = useMeshMove((s) => s.on);
   const mode = useMeshMove((s) => s.mode);
   const selected = useSceneStore((s) => s.selection.length);
   const editing = useEditStore((s) => s.active);
   const testing = useSim((s) => s.active);
-  if (editing || testing || (!selected && !on)) return null;
+  const modelling = useModelUi((s) => !!s.key);
+  if (editing || testing || modelling || (!selected && !on)) return null;
   return (
     <div className={styles.gizmoTools} role="toolbar" aria-label="Transform the selected meshes">
       {GIZMO_TOOLS.map((t) => (
@@ -671,5 +751,19 @@ function projectMaterials(doc: { materialSlots: Readonly<Record<string, readonly
     });
     out.set(m.key, mats.length === 1 ? mats[0]! : mats);
   }
+  return out;
+}
+
+/** Modelling: every corner of the mesh at these point positions (deleted triangles collapsed), for the drag preview. */
+function cornersOf(st: ModelState, shown: Float32Array): Float32Array {
+  const { shape } = st;
+  const out = new Float32Array(shape.triCount * 9);
+  for (let t = 0; t < shape.triCount; t++)
+    for (let k = 0; k < 3; k++) {
+      const p = shape.corners[t * 3 + (shape.removed[t] ? 0 : k)]!;
+      out[t * 9 + k * 3] = shown[p * 3]!;
+      out[t * 9 + k * 3 + 1] = shown[p * 3 + 1]!;
+      out[t * 9 + k * 3 + 2] = shown[p * 3 + 2]!;
+    }
   return out;
 }

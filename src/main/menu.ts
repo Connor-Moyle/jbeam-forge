@@ -10,7 +10,8 @@ import { effectiveKeymap, toAccelerator } from '@shared/keymap';
 const logger = scoped('menu');
 
 const PRESET_LABELS: Record<(typeof PRESET_IDS)[number], string> = {
-  modelling: 'Modelling',
+  modelling: 'Editing',
+  model: 'Modelling',
   jbeam: 'JBeam',
   moving: 'Moving Parts',
   triggers: 'Triggers',

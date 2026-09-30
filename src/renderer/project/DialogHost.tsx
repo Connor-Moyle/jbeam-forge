@@ -109,8 +109,8 @@ export function DialogHost() {
           title={confirm.title}
           footer={
             <>
-              <Button variant="ghost" onClick={() => useDialogStore.getState().answerConfirm(false)}>
-                Cancel
+              <Button variant="ghost" onClick={() => useDialogStore.getState().answerConfirm(false)} data-testid="confirm-no">
+                {confirm.cancel}
               </Button>
               <Button variant={confirm.tone} onClick={() => useDialogStore.getState().answerConfirm(true)} data-testid="confirm-yes">
                 {confirm.confirm}

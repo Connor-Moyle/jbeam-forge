@@ -1863,7 +1863,7 @@ const scenarios = [
         await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       }
       const narrow = [];
-      for (const preset of ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel']) {
+      for (const preset of ['modelling', 'model', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel']) {
         await hook(page, 'applyPreset', preset);
         await page.waitForTimeout(150);
         const groups = await page.evaluate(() => [...document.querySelectorAll('.dv-groupview')].map((g) => ({ w: Math.round(g.getBoundingClientRect().width), h: Math.round(g.getBoundingClientRect().height), tabs: [...g.querySelectorAll('.dv-tab')].map((x) => x.textContent.trim()).join('+') })));
@@ -2023,6 +2023,109 @@ const scenarios = [
       await page.getByTestId('wheel-builder').waitFor();
       out = await hook(page, 'finalExport');
       assert(out.files.some((f) => f.path === 'vehicles/common/forge_five/forge_five_wheels.jbeam'), 'wheels written for every car');
+    },
+  },
+  {
+    id: 'modelling',
+    name: 'Modelling: reshape the hood (points, faces, move, extrude, flip, delete, undo) · the file saved again asks which version to keep',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      const demo = await page.evaluate(() => window.forge.invoke('tutorial:demoModel'));
+      assert(demo.ok, 'practice car model written');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Model Test');
+      await hook(page, 'queueDialog', [demo.value.path]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').click();
+      await page.getByTestId('classify-apply').click({ timeout: 30_000 });
+      // The old Modelling tab is now Editing; Modelling is the new one next to it.
+      assert((await page.getByTestId('workspace-modelling').textContent()).includes('Editing'), 'first tab reads Editing');
+      await page.getByTestId('workspace-model').click();
+      await page.getByTestId('modelling-panel').waitFor();
+      const open = await openPanels(page);
+      assert(JSON.stringify(open) === JSON.stringify(['modelling', 'scene', 'viewport']), `Modelling panels ${open}`);
+      await shot(page, 'modelling-start');
+      // Pick the hood and reshape it.
+      let doc = await hook(page, 'projectDoc');
+      const hood = `${doc.sources[0].id}:hood`;
+      await hook(page, 'selectMeshes', [hood]);
+      await hook(page, 'frameMeshes', '^hood$');
+      await hook(page, 'viewFrom', [0.9, 1.1, 1.3]);
+      await hook(page, 'frameMeshes', '^hood$');
+      await page.waitForTimeout(500);
+      await page.getByTestId('model-start').click();
+      await page.getByTestId('model-toolbar').waitFor();
+      assert((await hook(page, 'modelUi')).key === hood, 'reshaping the hood');
+      // A click on the hood picks its nearest point.
+      const vp = await page.locator('[data-panel=viewport] canvas').boundingBox();
+      await page.mouse.click(vp.x + vp.width / 2, vp.y + vp.height / 2);
+      let ui = await hook(page, 'modelUi');
+      assert(ui.points === 1, `one point picked (${JSON.stringify(ui)})`);
+      // L picks everything joined on; move it all up 5 cm (one undo step).
+      await page.locator('[data-panel=viewport] canvas').focus();
+      await page.keyboard.press('l');
+      ui = await hook(page, 'modelUi');
+      assert(ui.points > 20, `linked points picked (${ui.points})`);
+      await page.waitForTimeout(300);
+      await shot(page, 'modelling-linked');
+      await page.keyboard.press('Escape');
+      await page.mouse.click(vp.x + vp.width / 2, vp.y + vp.height / 2);
+      await hook(page, 'modelMove', [0, 0, 0.05]);
+      doc = await hook(page, 'projectDoc');
+      assert(Object.keys(doc.meshModels?.[hood]?.moved ?? {}).length === 1, 'the point moved');
+      await page.waitForTimeout(300);
+      await shot(page, 'modelling-point-moved');
+      // Faces: pick one, extrude it out, flip it, delete it.
+      await page.keyboard.press('3');
+      await page.mouse.click(vp.x + vp.width / 2, vp.y + vp.height / 2);
+      ui = await hook(page, 'modelUi');
+      assert(ui.mode === 'face' && ui.faces === 1, `face mode, one face (${JSON.stringify(ui)})`);
+      await page.keyboard.press('e');
+      doc = await hook(page, 'projectDoc');
+      const m = doc.meshModels[hood];
+      assert(m.added.length === 6 && m.points.length === 3, `extruded: walls ${m.added.length}, points ${m.points.length}`);
+      await hook(page, 'modelMove', [0, 0, 0.12]);
+      await page.waitForTimeout(300);
+      await shot(page, 'modelling-extruded');
+      await page.keyboard.press('Alt+n');
+      doc = await hook(page, 'projectDoc');
+      assert(doc.meshModels[hood].flipped.length === 1, 'face flipped');
+      await page.keyboard.press('x');
+      doc = await hook(page, 'projectDoc');
+      assert(doc.meshModels[hood].removed.length === 1, 'face deleted');
+      // Undo takes them back one at a time.
+      await page.keyboard.press('Control+z');
+      doc = await hook(page, 'projectDoc');
+      assert(doc.meshModels[hood].removed.length === 0 && doc.meshModels[hood].flipped.length === 1, 'undo brings the face back');
+      await page.getByTestId('model-done').click();
+      assert((await hook(page, 'modelUi')).key === null, 'finished reshaping');
+      await shot(page, 'modelling-done');
+      // "Blender" saves the file again: asked which version to keep.
+      const obj = readFileSync(demo.value.path, 'utf8');
+      const nv = obj.split('\n').filter((l) => l.startsWith('v ')).length;
+      const tri = (name) => [`o ${name}`, 'usemtl demo_paint', 'v 0.7 1.0 -2.0', 'v -0.7 1.0 -2.0', 'v 0 1.1 -2.1', `f ${nv + 1} ${nv + 2} ${nv + 3}`].join('\n');
+      writeFileSync(demo.value.path, `${obj}${tri('spoiler')}\n`);
+      await page.getByTestId('confirm-no').waitFor({ timeout: 15_000 });
+      await shot(page, 'modelling-reimport-ask');
+      await page.getByTestId('confirm-no').click();
+      doc = await hook(page, 'projectDoc');
+      assert(doc.meshModels?.[hood], 'kept the reshaped version');
+      assert(!(await hook(page, 'sceneStats')).meshNames.includes('spoiler'), 'the file was not reloaded');
+      writeFileSync(demo.value.path, `${obj}${tri('spoiler')}\n\n`);
+      await page.getByTestId('confirm-yes').waitFor({ timeout: 15_000 });
+      await page.getByTestId('confirm-yes').click();
+      for (let i = 0; i < 100 && !(await hook(page, 'sceneStats')).meshNames.includes('spoiler'); i++) await page.waitForTimeout(100);
+      doc = await hook(page, 'projectDoc');
+      assert(!doc.meshModels?.[hood], 'the new file replaced the reshaped hood');
+      assert((await hook(page, 'sceneStats')).meshNames.includes('spoiler'), 'the new file was loaded');
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+      writeFileSync(demo.value.path, obj);
+      await hook(page, 'applyPreset', 'modelling');
     },
   },
   {

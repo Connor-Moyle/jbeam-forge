@@ -139,7 +139,7 @@ export const GUIDES: Guide[] = [
     title: 'Workspaces, panels and keys',
     summary: 'Finding your way around the window.',
     sections: [
-      { text: 'The tabs at the top are workspaces: each arranges the panels for one job (Modelling, Materials, JBeam, Moving parts, Triggers, Scripts, Testing). Change a layout by dragging panel tabs; View → Reset Layout puts it back.' },
+      { text: 'The tabs at the top are workspaces: each arranges the panels for one job (Editing, Modelling, Materials, JBeam, Moving parts, Triggers, Scripts, Testing). Change a layout by dragging panel tabs; View → Reset Layout puts it back.' },
       {
         heading: 'Keys worth knowing',
         steps: ['{key:palette}: the command palette, which finds any part, panel or action by name.', '{key:focus}: focus the selection. {key:frameAll}: frame everything.', '{key:editMode}: edit nodes and beams.', '{key:shortcuts}: every key. Change any of them in Settings → Keymap.'],

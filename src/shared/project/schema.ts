@@ -284,6 +284,30 @@ export const MeshEditSchema = z.object({
   }),
 });
 
+/**
+ * Modelling (fork): a mesh reshaped in the app, Blender-style. Points are the
+ * mesh's corners welded by position, numbered in the order they first appear
+ * (src/shared/mesh/meshModel.ts); triangles keep their numbers, so painted
+ * faces and materials stay put. Positions are in the mesh's own space, before
+ * its move/turn/resize (MeshEdit).
+ */
+export const MeshModelSchema = z.object({
+  /** The mesh as the file gave it: a different count means the file changed under the edits. */
+  base: z.object({ tris: z.number().int().min(0), points: z.number().int().min(0) }),
+  /** Point number → where it was moved to. */
+  moved: z.record(z.string(), V3),
+  /** New points (extrude, add), numbered after the file's own. */
+  points: z.array(V3),
+  /** Corner number (triangle × 3 + 0…2) → the point it uses now (extruded faces move onto new points). */
+  rewire: z.record(z.string(), z.number().int().min(0)),
+  /** Triangles deleted (they stay in the list, empty, so numbers never shift). */
+  removed: z.array(z.number().int().min(0)),
+  /** Triangles turned to face the other way. */
+  flipped: z.array(z.number().int().min(0)),
+  /** New triangles (fill, extrude sides), as three point numbers each, and the triangle whose material they take. */
+  added: z.array(z.object({ p: z.tuple([z.number().int().min(0), z.number().int().min(0), z.number().int().min(0)]), like: z.number().int().min(0) })),
+});
+
 /** A copy of a mesh (v10), e.g. a caliper mirrored to the other side. Its key is `copy:<id>`. */
 export const MeshCopySchema = z.object({
   id: z.string().min(1),
@@ -567,6 +591,8 @@ export const ProjectV18Schema = z.object({
   meshEdits: z.record(z.string(), MeshEditSchema),
   /** Copies of meshes (v10). */
   meshCopies: z.array(MeshCopySchema),
+  /** meshKey → the mesh reshaped in the Modelling workspace (fork). */
+  meshModels: z.record(z.string(), MeshModelSchema).optional(),
   /** Axles and their suspension (v11, Phase 10). */
   axles: z.array(AxleSchema),
   suspension: placeholderMap, // Phase 10
@@ -613,6 +639,7 @@ export type Split = z.infer<typeof SplitSchema>;
 export type Part = z.infer<typeof PartSchema>;
 export type ReferenceCar = z.infer<typeof ReferenceCarSchema>;
 export type MeshEdit = z.infer<typeof MeshEditSchema>;
+export type MeshModel = z.infer<typeof MeshModelSchema>;
 export type MeshCopy = z.infer<typeof MeshCopySchema>;
 export type Axle = z.infer<typeof AxleSchema>;
 export type FittedSet = z.infer<typeof FittedSetSchema>;

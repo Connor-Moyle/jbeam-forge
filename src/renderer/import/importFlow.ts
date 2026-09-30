@@ -3,6 +3,8 @@ import { IDENTITY_PLACEMENT } from '@shared/project/schema';
 import { samePlacement } from '@shared/placement';
 import { applyPlacement } from './placement';
 import { applyMeshEdits, editsKey } from './meshEdits';
+import { applyMeshModels } from '@renderer/modelling/build';
+import { dropModels, modelledMeshes } from '@renderer/modelling/commands';
 import { isAcHelperMesh } from '@shared/ac/helpers';
 import { planSeed, refreshTextures, seedMaterials } from '@renderer/materials/seed';
 import type { MaterialDef } from '@shared/materials/schema';
@@ -70,7 +72,8 @@ function storedPath(absolutePath: string): string {
 /** The source's meshes with the open document's splits applied (problems are logged and surfaced once). */
 /** What a source's derived meshes depend on (splits, per-mesh edits and copies). */
 function deriveKey(doc: Project | null, sourceId: string, meshKeys: ReadonlySet<string>): string {
-  return `${JSON.stringify(splitsForSource(doc?.splits ?? EMPTY_ARR, sourceId))}|${editsKey(meshKeys, doc?.meshEdits ?? {}, doc?.meshCopies ?? EMPTY_ARR)}`;
+  const models = doc?.meshModels ?? {};
+  return `${JSON.stringify(splitsForSource(doc?.splits ?? EMPTY_ARR, sourceId))}|${editsKey(meshKeys, doc?.meshEdits ?? {}, doc?.meshCopies ?? EMPTY_ARR)}|${JSON.stringify(Object.entries(models).filter(([k]) => meshKeys.has(k)))}`;
 }
 
 /** The meshes a source shows: its raw import with splits, then per-mesh edits and copies, applied. */
@@ -87,6 +90,12 @@ export function deriveMeshes(sourceId: string, raw: ImportedMesh[]): { meshes: I
     }
   }
   const keys = new Set(meshes.map((m) => m.key));
+  const stale: string[] = [];
+  meshes = applyMeshModels(meshes, doc?.meshModels ?? {}, stale);
+  if (stale.length) {
+    logger.warn(`reshaped meshes no longer match the file: ${stale.join(', ')}`);
+    useUiStore.getState().pushStatus(`${stale.length === 1 ? stale[0] : `${stale.length} meshes`} changed in the file since you reshaped ${stale.length === 1 ? 'it' : 'them'} in Modelling: showing the file's version`, 'warning', 10000);
+  }
   meshes = applyMeshEdits(meshes, doc?.meshEdits ?? {}, doc?.meshCopies ?? EMPTY_ARR);
   return { meshes, splitsKey: deriveKey(doc, sourceId, keys) };
 }
@@ -264,6 +273,24 @@ export async function reloadSource(sourceId: string, why: 'model' | 'texture' = 
   if (!source || inFlight.has(sourceId)) return;
   const before = new Set(useSceneStore.getState().sources[sourceId]?.meshes.map((m) => m.key) ?? []);
   const name = fileNameOf(source.absolutePath);
+  // Meshes reshaped here (Modelling): which version wins?
+  const modelled = why === 'model' ? modelledMeshes(sourceId) : [];
+  if (modelled.length) {
+    const useFile = await useDialogStore
+      .getState()
+      .askConfirm(
+        `${name} changed`,
+        `You reshaped ${modelled.length === 1 ? 'a mesh' : `${modelled.length} meshes`} from this file in the Modelling workspace, and the file was saved again. Which version do you want to keep? The new file replaces your in-app changes to ${modelled.length === 1 ? 'it' : 'them'} (Undo brings them back); keeping yours leaves the file unread for now.`,
+        'Use the new file',
+        'primary',
+        'Keep my version',
+      );
+    if (!useFile) {
+      useUiStore.getState().pushStatus(`Kept your reshaped version; ${name} was not reloaded`, 'info', 6000);
+      return;
+    }
+    dropModels(sourceId);
+  }
   useImportUi.getState().setBusy(`Reloading ${name}…`);
   try {
     await loadFromDisk(source, true);
@@ -336,6 +363,7 @@ export function useSourceSync(): void {
   const splits = useProjectStore((s) => s.doc?.splits ?? EMPTY_ARR);
   const meshEdits = useProjectStore((s) => s.doc?.meshEdits);
   const meshCopies = useProjectStore((s) => s.doc?.meshCopies);
+  const meshModels = useProjectStore((s) => s.doc?.meshModels);
   useEffect(() => {
     const scene = useSceneStore.getState();
     const doc = projectStore.getState().doc;
@@ -345,7 +373,7 @@ export function useSourceSync(): void {
       if (deriveKey(doc, src.sourceId, splitKeys) === src.splitsKey) continue;
       scene.setSource({ ...src, ...deriveMeshes(src.sourceId, src.raw) });
     }
-  }, [splits, meshEdits, meshCopies]);
+  }, [splits, meshEdits, meshCopies, meshModels]);
 
   // Leaving the editor (project closed) cancels loads and frees all geometry.
   useEffect(

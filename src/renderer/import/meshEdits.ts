@@ -75,13 +75,15 @@ function baked(g: BufferGeometry, matrix: number[] | null, uv: MeshEdit['uv'] | 
 
 function edited(m: ImportedMesh, e: MeshEdit | undefined): ImportedMesh {
   if (!e) return m;
-  const pivot = centre(m.geometry);
+  // Turned about the mesh's centre as it came in, so reshaping it (Modelling) doesn't shift it.
+  const base = m.geometry.userData.modelBase as BufferGeometry | undefined;
+  const pivot = centre(base ?? m.geometry);
   const matrix = isIdentityTransform(e) ? null : editMatrix(e, pivot);
   const uv = isIdentityUv(e) ? null : e.uv;
   if (!matrix && !uv) return m;
   const geometry = baked(m.geometry, matrix, uv);
-  // The centre the edit turns about, for the viewport gizmo's maths.
-  geometry.userData.editPivot = pivot;
+  // The centre the edit turns about, for the viewport gizmo's maths, and the matrix for Modelling's.
+  geometry.userData = { ...geometry.userData, editPivot: pivot, editMatrix: matrix };
   return { ...m, geometry };
 }
 

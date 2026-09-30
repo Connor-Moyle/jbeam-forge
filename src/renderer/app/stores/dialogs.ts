@@ -24,6 +24,8 @@ interface PendingConfirm {
   confirm: string;
   /** Destructive (red, the default) or an ordinary go-ahead. */
   tone: 'danger' | 'primary';
+  /** The other button's words (default Cancel). */
+  cancel: string;
   resolve: (yes: boolean) => void;
 }
 
@@ -40,7 +42,7 @@ interface DialogState {
   alert: PendingAlert | null;
   /** "Delete X?" and the like: resolves true for yes. */
   confirm: PendingConfirm | null;
-  askConfirm: (title: string, message: string, confirm?: string, tone?: 'danger' | 'primary') => Promise<boolean>;
+  askConfirm: (title: string, message: string, confirm?: string, tone?: 'danger' | 'primary', cancel?: string) => Promise<boolean>;
   answerConfirm: (yes: boolean) => void;
   newModOpen: boolean;
   askUnsaved: (projectName: string) => Promise<UnsavedChoice>;
@@ -81,10 +83,10 @@ export const useDialogStore = create<DialogState>()((set, get) => ({
   },
   newModOpen: false,
   confirm: null,
-  askConfirm: (title, message, confirm = 'Delete', tone = 'danger') =>
+  askConfirm: (title, message, confirm = 'Delete', tone = 'danger', cancel = 'Cancel') =>
     new Promise<boolean>((resolve) => {
       get().confirm?.resolve(false);
-      set({ confirm: { title, message, confirm, tone, resolve } });
+      set({ confirm: { title, message, confirm, tone, cancel, resolve } });
     }),
   answerConfirm: (yes) => {
     const pending = get().confirm;

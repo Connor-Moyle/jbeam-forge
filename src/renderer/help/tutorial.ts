@@ -112,10 +112,10 @@ export function tourSteps(): TourStep[] {
     },
     {
       id: 'modelling-tab',
-      title: 'Back to modelling',
+      title: 'Back to Editing',
       target: '[data-testid="workspace-modelling"]',
-      body: 'Now the physics.',
-      action: 'Click Modelling.',
+      body: 'Now the physics. (The Modelling tab next to it reshapes a mesh Blender-style: points, edges and faces.)',
+      action: 'Click the Editing tab at the top of the window.',
       done: (ctx) => ctx.preset === 'modelling',
     },
     {

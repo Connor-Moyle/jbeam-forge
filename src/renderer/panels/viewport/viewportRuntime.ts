@@ -54,6 +54,7 @@ import { LiveOverlay, StructureOverlay, selectionData, type StructureData } from
 import { deformVertices, type SkinBinding } from '@shared/sim/skin';
 import { beamKey } from '@shared/structure/edit';
 import { registerViewport } from './registry';
+import { ModelOverlay, type ModelView } from './modelOverlay';
 
 // three-mesh-bvh: BVH-accelerated raycasting for all point-picking (SPEC §2).
 BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
@@ -132,12 +133,16 @@ export interface ViewportCallbacks {
   onEditDouble?: (node: string | null) => void;
   /** Edit mode: the move gizmo was dragged by `delta` (BeamNG space); done = released. */
   onGizmoMove?: (delta: Vec3, done: boolean) => void;
-  /** Modelling: the gizmo on the selected meshes moved, turned or resized them about `pivot` (BeamNG space). */
+  /** Editing: the gizmo on the selected meshes moved, turned or resized them about `pivot` (BeamNG space). */
   onMeshTransform?: (t: MeshGizmoTransform, done: boolean) => void;
   /** Paint brush: the surface under the pointer while painting (null: off the car). */
   onBrush?: (hit: BrushHit | null, phase: 'start' | 'move' | 'end') => void;
   /** Place mode: a click on the car (point and outward normal, BeamNG space). */
   onPlace?: (hit: { point: Vec3; normal: Vec3 | null; meshKey: string }) => void;
+  /** Modelling: a click on the mesh being reshaped (the triangle and the point, BeamNG space; null = missed it). */
+  onModelPick?: (hit: { face: number; point: Vec3 } | null, mods: { shift: boolean; ctrl: boolean }) => void;
+  /** Modelling: the gizmo on the picked points moved, turned or resized them (BeamNG space); done = released. */
+  onModelTransform?: (t: MeshGizmoTransform, done: boolean) => void;
 }
 
 /** Where the paint brush touches a mesh: its key, the triangle, and the texture coordinate there. */
@@ -263,8 +268,14 @@ export class ViewportRuntime {
   private gizmoStartQ = new Quaternion();
   private gizmoStartS = new Vector3(1, 1, 1);
   private gizmoHot = false;
-  /** Modelling: meshes the move gizmo is on (outside edit mode). */
+  /** Editing: meshes the move gizmo is on (outside edit mode). */
   private meshGizmoKeys: readonly string[] | null = null;
+  /** Modelling: the mesh being reshaped, its overlay, and whether the gizmo is on its picked points. */
+  private modelKey: string | null = null;
+  private modelGizmo = false;
+  private readonly modelOverlay = new ModelOverlay();
+  /** Modelling: the mesh shown with a drag's preview (its own geometry put back after). */
+  private modelPreview: { mesh: Mesh; own: BufferGeometry } | null = null;
   /** Centre-of-gravity marker, drawn with the structure. */
   private readonly cog: Mesh;
   private injectedFrameErrors = 0;
@@ -319,7 +330,7 @@ export class ViewportRuntime {
     this.editOverlay.root.renderOrder = 6;
     this.editFrame.rotation.x = BEAMNG_TO_VIEW_ROTATION_X;
     this.editFrame.add(this.pivot);
-    this.scene.add(this.editOverlay.root, this.editFrame);
+    this.scene.add(this.editOverlay.root, this.editFrame, this.modelOverlay.root);
 
     const accent = new Color(resolveToken('accent') || undefined);
     this.selectMaterial = new MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
@@ -351,7 +362,8 @@ export class ViewportRuntime {
         this.gizmoStartQ = this.pivot.quaternion.clone();
         this.gizmoStartS = this.pivot.scale.clone();
       } else if (this.gizmoStart) {
-        if (this.meshGizmoKeys) this.callbacks.onMeshTransform?.(this.meshTransform(), true);
+        if (this.modelGizmo) this.callbacks.onModelTransform?.(this.meshTransform(), true);
+        else if (this.meshGizmoKeys) this.callbacks.onMeshTransform?.(this.meshTransform(), true);
         else {
           const d = this.pivot.position.clone().sub(this.gizmoStart);
           this.callbacks.onGizmoMove?.([d.x, d.y, d.z], true);
@@ -364,6 +376,10 @@ export class ViewportRuntime {
     });
     this.gizmo.addEventListener('objectChange', () => {
       if (!this.gizmoStart) return;
+      if (this.modelGizmo) {
+        this.callbacks.onModelTransform?.(this.meshTransform(), false);
+        return;
+      }
       if (this.meshGizmoKeys) {
         this.callbacks.onMeshTransform?.(this.meshTransform(), false);
         return;
@@ -585,7 +601,7 @@ export class ViewportRuntime {
         } else this.pendingPaint = { x: e.clientX, y: e.clientY, op: drag.op };
         return;
       }
-      if (!this.tool && !this.edit && !this.brush) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
+      if (!this.tool && !this.edit && !this.brush && !this.modelKey) this.pendingHover = { x: e.clientX, y: e.clientY }; // raycast once per frame, not per event
     });
     this.listen(canvas, 'pointerup', (e) => {
       if (!drag || e.button !== 0) return;
@@ -617,11 +633,16 @@ export class ViewportRuntime {
         return; // clicks never change the mesh selection while splitting
       }
       if (this.edit) return; // edit mode picks nodes instead (handled above)
+      if (this.modelKey) {
+        if (this.gizmoHot) return;
+        this.callbacks.onModelPick?.(this.modelHit(e.clientX, e.clientY), { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
+        return;
+      }
       if (this.meshGizmoKeys && this.gizmoHot) return; // a click on the move arrows, not the mesh behind them
       this.callbacks.onPick(this.pick(e.clientX, e.clientY), { shift: e.shiftKey, ctrl: e.ctrlKey || e.metaKey });
     });
     this.listen(canvas, 'dblclick', (e) => {
-      if (this.tool || this.brush) return;
+      if (this.tool || this.brush || this.modelKey) return;
       if (this.edit) {
         const r = canvas.getBoundingClientRect();
         this.callbacks.onEditDouble?.(this.pickEdit(e.clientX - r.left, e.clientY - r.top).node);
@@ -1129,7 +1150,7 @@ export class ViewportRuntime {
     }
     if (!view) {
       this.editOverlay.set(null, 0);
-      if (!this.meshGizmoKeys) this.gizmo.detach();
+      if (!this.meshGizmoKeys && !this.modelGizmo) this.gizmo.detach();
       return;
     }
     const pos = new Map(view.nodes.map((n) => [n.id, n.pos]));
@@ -1166,13 +1187,13 @@ export class ViewportRuntime {
   }
 
   /**
-   * Modelling: put the gizmo on these meshes (null = off), in move, rotate or
+   * Editing: put the gizmo on these meshes (null = off), in move, rotate or
    * scale mode. Drags come through onMeshTransform; previewMeshTransform shows them.
    */
   setMeshGizmo(keys: readonly string[] | null, mode: GizmoMode = 'translate'): void {
     this.meshGizmoKeys = keys && keys.length && !this.edit ? keys : null;
     if (!this.meshGizmoKeys) {
-      if (!this.edit) this.gizmo.detach();
+      if (!this.edit && !this.modelGizmo) this.gizmo.detach();
       return;
     }
     if (!this.gizmoStart) this.gizmo.setMode(mode);
@@ -1191,6 +1212,75 @@ export class ViewportRuntime {
       box.getCenter(this.pivot.position);
     }
     if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
+  }
+
+  /** Where a click lands on the mesh being reshaped. */
+  private modelHit(clientX: number, clientY: number): { face: number; point: Vec3 } | null {
+    const mesh = this.modelKey ? this.meshObjects.get(this.modelKey) : undefined;
+    const rect = this.canvas.getBoundingClientRect();
+    if (!mesh || rect.width === 0 || rect.height === 0) return null;
+    this.pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    if (!mesh.geometry.boundsTree) mesh.geometry.computeBoundsTree({ indirect: true });
+    const hit = this.raycaster.intersectObject(mesh, false)[0];
+    if (!hit || hit.faceIndex == null) return null;
+    this.modelRoot.updateMatrixWorld();
+    const p = this.modelRoot.worldToLocal(hit.point.clone());
+    return { face: hit.faceIndex, point: [p.x, p.y, p.z] };
+  }
+
+  /**
+   * Modelling: draw the mesh being reshaped (null = stop), with the gizmo on
+   * the picked points' centre `pivot` (null = no gizmo) in move, turn or resize mode.
+   */
+  setModelView(view: ModelView | null, pivot: Vec3 | null, mode: GizmoMode = 'translate'): void {
+    const was = this.modelKey;
+    this.modelKey = view?.key ?? null;
+    if (was !== this.modelKey) {
+      this.callbacks.onHover(null);
+      this.applyVisibility();
+    }
+    this.modelOverlay.set(view);
+    this.modelGizmo = !!view && !!pivot && !this.edit;
+    if (!this.modelGizmo) {
+      if (!this.edit && !this.meshGizmoKeys) this.gizmo.detach();
+      return;
+    }
+    if (!this.gizmoStart) {
+      this.gizmo.setMode(mode);
+      this.pivot.position.set(...pivot!);
+    }
+    if (this.gizmo.object !== this.pivot) this.gizmo.attach(this.pivot);
+  }
+
+  /** Modelling: show the mesh with these corner positions (xyz per corner, BeamNG space) while dragging; null puts it back. */
+  previewModel(key: string, corners: Float32Array | null): void {
+    if (!corners) {
+      const p = this.modelPreview;
+      this.modelPreview = null;
+      if (p) {
+        const temp = p.mesh.geometry;
+        p.mesh.geometry = p.own;
+        temp.dispose();
+      }
+      return;
+    }
+    const mesh = this.meshObjects.get(key);
+    if (!mesh) return;
+    if (!this.modelPreview || this.modelPreview.mesh !== mesh) {
+      this.previewModel(key, null);
+      const own = mesh.geometry;
+      // One corner per triangle point, like the positions handed in.
+      const temp = own.index ? own.toNonIndexed() : own.clone();
+      temp.boundsTree = undefined;
+      temp.setAttribute('position', new BufferAttribute(new Float32Array(own.getAttribute('position').count * 3), 3));
+      mesh.geometry = temp;
+      this.modelPreview = { mesh, own };
+    }
+    const pos = mesh.geometry.getAttribute('position') as BufferAttribute;
+    (pos.array as Float32Array).set(corners.subarray(0, pos.array.length));
+    pos.needsUpdate = true;
+    mesh.geometry.computeBoundingSphere();
   }
 
   /** Show meshes transformed (BeamNG space) while the gizmo drags; null puts them back. */
@@ -1716,6 +1806,8 @@ export class ViewportRuntime {
     this.gizmo.getHelper().removeFromParent();
     this.gizmo.dispose();
     this.editOverlay.dispose();
+    this.previewModel('', null);
+    this.modelOverlay.dispose();
     this.cog.geometry.dispose();
     (this.cog.material as MeshBasicMaterial).dispose();
     // Only what this viewport created: imported geometry/materials belong to the scene store

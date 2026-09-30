@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, DoorOpen, MousePointerClick, CircleDot, Disc3, LayoutTemplate, PanelTop, type LucideIcon } from 'lucide-react';
+import { Box, BadgePlus, PaintRoller, CarFront, FileCode, Gauge, ListTree, Wrench, Package, FlaskConical, FolderTree, LayoutGrid, Palette, SlidersHorizontal, ScrollText, Code2, FlaskRound, Table2, DoorOpen, MousePointerClick, CircleDot, Disc3, LayoutTemplate, PanelTop, Pentagon, type LucideIcon } from 'lucide-react';
 import { ScenePanel } from '@renderer/panels/ScenePanel';
 import { InspectorPanel } from '@renderer/panels/InspectorPanel';
 import { MaterialsPanel } from '@renderer/panels/MaterialsPanel';
@@ -24,6 +24,7 @@ import { ScriptPanel } from '@renderer/scripts/ScriptPanel';
 import { ScriptTestPanel } from '@renderer/scripts/ScriptTestPanel';
 import { SkinStudioPanel } from '@renderer/skins/SkinStudioPanel';
 import { PanelBuilderPanel } from '@renderer/panelmod/PanelBuilderPanel';
+import { ModellingPanel } from '@renderer/modelling/ModellingPanel';
 
 export interface PanelDef {
   title: string;
@@ -37,6 +38,7 @@ export const PANELS = {
   viewport: { title: 'Viewport', icon: Box, component: ViewportPanel },
   scene: { title: 'Scene', icon: FolderTree, component: ScenePanel },
   inspector: { title: 'Inspector', icon: SlidersHorizontal, component: InspectorPanel },
+  modelling: { title: 'Modelling', icon: Pentagon, component: ModellingPanel },
   materials: { title: 'Materials', icon: Palette, component: MaterialsPanel },
   'test-results': { title: 'Test Results', icon: FlaskConical, component: TestResultsPanel },
   'jbeam-preview': { title: 'jbeam', icon: FileCode, component: JbeamPreviewPanel },
