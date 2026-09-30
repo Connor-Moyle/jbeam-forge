@@ -13,7 +13,7 @@ import type { SuspensionSetData } from './jbeam';
  * vehicles/common/ for every car.
  */
 
-export type ModKind = 'vehicle' | 'engine' | 'tyres' | 'wheels';
+export type ModKind = 'vehicle' | 'engine' | 'tyres' | 'wheels' | 'panel';
 
 export interface ModFileOut {
   /** Path inside the mod. */
@@ -174,6 +174,41 @@ export function engineModFiles(doc: Pick<Project, 'meta' | 'powertrain'>, author
   }
   for (const [vehicle, parts] of byVehicle) files.push({ path: `vehicles/${vehicle}/${slug}_engine.jbeam`, text: serializeJbeam(parts) });
   return { files, errors };
+}
+
+/** A game part's flexbody node groups (every row's, once each). */
+function flexGroups(body: JbeamObject): string[] {
+  const out: string[] = [];
+  const table = Array.isArray(body.flexbodies) ? body.flexbodies : [];
+  for (const row of table.slice(1)) {
+    if (!Array.isArray(row)) continue;
+    const g = row[1];
+    for (const name of Array.isArray(g) ? g : typeof g === 'string' ? [g] : []) if (typeof name === 'string' && name && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
+/**
+ * A body panel for a car in the game: the stock part's jbeam (nodes, beams,
+ * triangles, slots: it attaches, bends and breaks the same) with the new
+ * model as its flexbodies, bound to the stock part's node groups, as a new
+ * part in the same slot. The model is placed as the car's (vehicle space).
+ */
+export function panelModFiles(slug: string, author: string, modName: string, panel: { vehicle: string; part: string }, data: SuspensionSetData | undefined, meshes: readonly string[]): EngineModResult {
+  const errors: string[] = [];
+  const stock = data?.parts[panel.part];
+  if (!stock || !isJbeamObject(stock)) return { files: [], errors: [`${panel.part}: its game data isn't loaded (is the BeamNG install still there? Rescan it in Settings → Library).`] };
+  if (!meshes.length) errors.push('Import your panel’s 3D model: the mod replaces the stock panel’s mesh with it.');
+  const groups = flexGroups(stock);
+  if (!groups.length) errors.push(`${panel.part} has no flexbody groups to bind the new mesh to.`);
+  const info = isJbeamObject(stock.information) ? stock.information : {};
+  const name = `${slug}_${panel.part}`;
+  const part: JbeamObject = {
+    ...stock,
+    information: { ...info, authors: author || 'JBeam Forge', name: modName },
+    flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ...meshes.map((m) => [m, groups, []])] as WritableValue as JbeamObject['flexbodies'],
+  };
+  return { files: [{ path: `vehicles/${panel.vehicle}/${slug}_${panel.part.replace(/[^A-Za-z0-9_]+/g, '_')}.jbeam`, text: serializeJbeam({ [name]: part }) }], errors };
 }
 
 /** Move a vehicle mod's shared files (mesh, materials, textures) to vehicles/common/<slug>/. */

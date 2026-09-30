@@ -14,6 +14,7 @@ export const PRESET_LABELS: Record<PresetId, string> = {
   engine: 'Engine',
   tyres: 'Tyre builder',
   wheels: 'Wheel builder',
+  panel: 'Panel builder',
   testing: 'Testing',
   scripts: 'Scripts',
 };
@@ -77,6 +78,11 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'wheel-builder', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
     { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
   ],
+  panel: [
+    { id: 'viewport' },
+    { id: 'panel-builder', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'scene', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
+  ],
   testing: [
     { id: 'viewport' },
     { id: 'test-results', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
@@ -94,7 +100,7 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
 };
 
 /** The workspace tabs a kind of mod has (a tyre mod has no nodes to edit). */
-export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | undefined): readonly PresetId[] {
+export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 'panel' | undefined): readonly PresetId[] {
   switch (kind) {
     case 'engine':
       return ['engine'];
@@ -102,6 +108,8 @@ export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 
       return ['tyres', 'materials'];
     case 'wheels':
       return ['wheels', 'materials'];
+    case 'panel':
+      return ['panel', 'materials'];
     default:
       return ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing'];
   }

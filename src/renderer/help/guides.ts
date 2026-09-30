@@ -151,10 +151,10 @@ export const GUIDES: Guide[] = [
   {
     id: 'mod-kinds',
     group: 'Start here',
-    title: 'Engines, tyres and wheels',
+    title: 'Engines, tyres, wheels and body panels',
     summary: 'Mods that add parts to the game’s cars instead of a whole vehicle.',
     sections: [
-      { text: 'New mod asks what you are making. Besides a whole vehicle there are three kinds of part mod, each with its own workspace.' },
+      { text: 'New mod asks what you are making. Besides a whole vehicle there are four kinds of part mod, each with its own workspace.' },
       {
         heading: 'Engine',
         steps: ['Pick an engine from one of the game’s cars in the engine builder, then change power, revs, torque curve, turbo or sound.', 'Add more engines (from other cars) to make the same idea for them too.', 'Export writes each as a new part in that car’s engine slot, beside the car, so it shows in its parts menu. Game files are never replaced.'],
@@ -166,6 +166,15 @@ export const GUIDES: Guide[] = [
       {
         heading: 'Wheels',
         steps: ['Set diameter, width, lug count and offset. The wheel fits every car with hubs for that many lugs, and takes the game’s tyres of its size.', 'Import the rim’s model the same way as a tyre’s.'],
+      },
+      {
+        heading: 'Body panel',
+        steps: [
+          'A new hood, bumper, door, fender, spoiler… for one of the game’s cars. The Panel builder lists every car in your install (Settings → Library reads them) and its panels.',
+          'Pick the car and the panel, then bring the stock panel in as a guide: it sits exactly where the part goes. It’s never exported.',
+          'Import your model in the car’s place, lined up with the guide. Materials, UVs and the Skin studio work as usual.',
+          'Export writes a new part in that panel’s slot, beside the car, so it shows in its parts menu next to the original. It uses the stock part’s nodes and beams, so it attaches, bends and breaks the same way.',
+        ],
       },
       { tip: 'Part mods follow the layout of the game’s own common wheels and engines; try a new one in the game before you share it.' },
     ],

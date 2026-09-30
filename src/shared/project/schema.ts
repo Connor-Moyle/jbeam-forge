@@ -43,7 +43,7 @@ export const ProjectMetaSchema = z.object({
   /** Export textures as DDS (fork); unset = Settings → Export. */
   ddsConvert: z.boolean().optional(),
   /** What the mod is (fork): a whole vehicle (unset), an engine for game cars, universal tyres or wheels. */
-  modKind: z.enum(['vehicle', 'engine', 'tyres', 'wheels']).optional(),
+  modKind: z.enum(['vehicle', 'engine', 'tyres', 'wheels', 'panel']).optional(),
   /** Ported from another game (fork): which, and the modder's declaration (owns it, mod is free). */
   portedFrom: PortedFromSchema.optional(),
 });
@@ -243,6 +243,20 @@ export const ReferenceCarSchema = z.object({
 
 const V3 = z.tuple([z.number(), z.number(), z.number()]);
 const V2 = z.tuple([z.number(), z.number()]);
+
+/** A body panel mod's stock part (fork): which car, which part, and the stock model imported as a guide. */
+export const PanelModSchema = z.object({
+  /** The set's id in the library ("<vehicle>/<part>"). */
+  setId: z.string().min(1),
+  vehicle: z.string().regex(/^[a-z0-9_]+$/i),
+  vehicleName: z.string(),
+  part: z.string().min(1),
+  slotType: z.string(),
+  name: z.string(),
+  category: z.string(),
+  /** The stock panel's model, imported to line the new one up against; never exported. */
+  guideSourceId: z.string().nullable().optional(),
+});
 
 /**
  * Changes to one mesh (v10): moved, turned and resized about its own centre,
@@ -564,6 +578,8 @@ export const ProjectV18Schema = z.object({
   scripts: z.array(VehicleScriptSchema).optional(),
   /** Tyre mod (fork): sizes, tread and grip. */
   tyre: TyreSpecSchema.optional(),
+  /** Body panel mod (fork): the game car's panel it replaces; its physics are the stock part's. */
+  panel: PanelModSchema.optional(),
   /** Wheel (rim) mod (fork): size, lugs and hub. */
   rim: RimSpecSchema.optional(),
   /** Clickable triggers (fork): handles, switches and buttons that run input actions. */

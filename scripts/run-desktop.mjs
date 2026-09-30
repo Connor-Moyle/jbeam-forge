@@ -1826,7 +1826,7 @@ const scenarios = [
         await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       }
       const narrow = [];
-      for (const preset of ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels']) {
+      for (const preset of ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel']) {
         await hook(page, 'applyPreset', preset);
         await page.waitForTimeout(150);
         const groups = await page.evaluate(() => [...document.querySelectorAll('.dv-groupview')].map((g) => ({ w: Math.round(g.getBoundingClientRect().width), h: Math.round(g.getBoundingClientRect().height), tabs: [...g.querySelectorAll('.dv-tab')].map((x) => x.textContent.trim()).join('+') })));
@@ -1951,6 +1951,83 @@ const scenarios = [
       const out = await hook(page, 'finalExport');
       assert(/\.skin\.|skin/.test(out.materials) && out.copies.some((c) => c.endsWith('.png') || c.endsWith('.dds')), 'the skin exports as game materials with its texture');
       rmSync(work, { recursive: true, force: true });
+    },
+  },
+  {
+    id: 'panel-mod',
+    name: 'body panel mod: a car in the install · pick its hood · stock guide · own model · export on the stock physics',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // A car in the install: a body, a hood with its own nodes and beams, a front bumper.
+      const dae = readFileSync(join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae'));
+      const jbeam = {
+        fakecar_body: { information: { name: 'Body' }, slotType: 'main', slots: [['type', 'default', 'description'], ['fakecar_hood', 'fakecar_hood', 'Hood']], flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fixture_body', ['fakecar_body']]], nodes: [['id', 'posX', 'posY', 'posZ'], ['b1', 0, -1, 0.5]] },
+        fakecar_hood: { information: { name: 'Hood', value: 400 }, slotType: 'fakecar_hood', flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fixture_wheel_FL', ['fakecar_hood']]], nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'fakecar_hood' }, ['h1', 0, -1.5, 0.9], ['h2', 0.5, -1.5, 0.9]], beams: [['id1:', 'id2:'], ['h1', 'h2'], ['h1', 'b1']] },
+        fakecar_bumper_F: { information: { name: 'Front bumper' }, slotType: 'fakecar_bumper_F', flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fixture_mirror', ['fakecar_bumper_F']]] },
+      };
+      const zipPath = join(fakeInstall, 'content', 'vehicles', 'fakepanel.zip');
+      await new Promise((resolve, reject) => {
+        const zip = new yazl.ZipFile();
+        zip.addBuffer(Buffer.from(JSON.stringify(jbeam)), 'vehicles/fakepanel/fakepanel.jbeam');
+        zip.addBuffer(dae, 'vehicles/fakepanel/fakepanel.dae');
+        zip.addBuffer(Buffer.from(JSON.stringify({ Name: 'Panel Car', Brand: 'Forge' })), 'vehicles/fakepanel/info.json');
+        zip.end();
+        zip.outputStream.pipe(createWriteStream(zipPath)).on('close', resolve).on('error', reject);
+      });
+      try {
+        await page.evaluate((dir) => window.forge.invoke('settings:update', { beamngInstallDir: dir }), fakeInstall);
+        const scan = await page.evaluate(() => window.forge.invoke('library:rescan'));
+        assert(scan.ok, `library rescanned (${JSON.stringify(scan).slice(0, 200)})`);
+        await page.getByTestId('home-new').click();
+        await page.getByTestId('newmod-kind-panel').click();
+        await page.getByTestId('newmod-name').fill('Vented Hood');
+        await shot(page, 'panel-mod-wizard');
+        await page.getByTestId('newmod-create').click();
+        const tabs = (await page.getByRole('tablist', { name: 'Workspaces' }).getByRole('tab').allTextContents()).join(',');
+        assert(tabs === 'Panel builder,Materials', `a panel mod has its own workspaces (${tabs})`);
+        await page.getByTestId('panel-picker').waitFor({ timeout: 15_000 });
+        await page.getByTestId('panel-pick-fakecar_hood').click();
+        await page.getByTestId('panel-builder').waitFor();
+        const width = await page.evaluate(() => document.querySelector('[data-testid=panel-builder]').closest('.dv-groupview').getBoundingClientRect().width);
+        assert(width >= 300, `the panel builder gets its width (${Math.round(width)} px)`);
+        // The stock hood as a guide.
+        await page.getByTestId('panel-guide').click();
+        let st;
+        for (let i = 0; i < 200; i++) {
+          st = await hook(page, 'sceneStats');
+          if (st.sources.length === 1 && st.sources[0].status === 'ready') break;
+          await page.waitForTimeout(100);
+        }
+        assert(st.sources.length === 1 && st.meshes > 0, `stock hood in as a guide (${JSON.stringify(st.sources.map((s) => s.status))})`);
+        // Our model.
+        await hook(page, 'queueDialog', [join(ROOT, 'tests', 'fixtures', 'models', 'uv_box.obj')]);
+        await page.getByTestId('panel-import').click();
+        await page.getByTestId('import-confirm').click();
+        if (await page.getByTestId('classify-skip').isVisible({ timeout: 2000 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+        for (let i = 0; i < 200; i++) {
+          st = await hook(page, 'sceneStats');
+          if (st.sources.length === 2 && st.sources.every((s) => s.status === 'ready')) break;
+          await page.waitForTimeout(100);
+        }
+        await page.waitForTimeout(500);
+        await shot(page, 'panel-mod-builder');
+        const doc = await hook(page, 'projectDoc');
+        assert(doc.panel?.part === 'fakecar_hood' && doc.panel.guideSourceId, 'panel and guide recorded');
+        const out = await hook(page, 'finalExport');
+        const paths = out.files.map((f) => f.path);
+        assert(paths.includes('vehicles/fakepanel/vented_hood_fakecar_hood.jbeam') && paths.includes('vehicles/common/vented_hood/vented_hood.dae'), `panel written beside the car, mesh in common (${paths.join(', ')})`);
+        const jb = await hook(page, 'preparedJbeams');
+        const text = jb.files.find((f) => f.path.endsWith('vented_hood_fakecar_hood.jbeam')).text;
+        assert(/"slotType"\s*:\s*"fakecar_hood"/.test(text) && /"fakecar_hood"\s*\]/.test(text) && /"h1"/.test(text), 'the stock slot, node groups and nodes');
+        assert(!/fixture_wheel_FL/.test(text), 'the guide is not in the mod');
+      } finally {
+        rmSync(zipPath, { force: true });
+      }
     },
   },
   {

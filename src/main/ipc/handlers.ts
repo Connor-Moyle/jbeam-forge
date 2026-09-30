@@ -479,7 +479,8 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('materials:pack', async () => [...(await packs.materials()), ...services.userLibrary.items.materials]);
   registerInvoke('objects:list', async () => [...(await packs.objects()), ...services.userLibrary.items.objects]);
   registerInvoke('suspension:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'suspension'));
-  registerInvoke('powertrain:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind !== 'suspension'));
+  registerInvoke('powertrain:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'engine' || s.kind === 'gearbox'));
+  registerInvoke('panels:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'panel'));
   registerInvoke(
     'suspension:set',
     async ({ id }) => {

@@ -100,6 +100,8 @@ function SourceRow({ source }: { source: LoadedSource }) {
   const missing = source.textures?.missing.length ?? 0;
   const unsupported = source.textures?.unsupported.length ?? 0;
   const openPlacement = usePlacementUi((s) => s.open);
+  // A panel mod's stock panel: there to line up against, never exported.
+  const guide = useProjectStore((s) => s.doc?.panel?.guideSourceId === source.sourceId);
   const items: ContextMenuItem[] = [
     { label: 'Placement…', icon: Move3d, disabled: source.status !== 'ready', onSelect: () => openPlacement(source.sourceId) },
     { type: 'separator' },
@@ -114,6 +116,7 @@ function SourceRow({ source }: { source: LoadedSource }) {
           label={
             <span className={styles.sourceLabel}>
               {source.fileName}
+              {guide && <Badge title="The stock panel, to line your model up against: never exported">guide</Badge>}
               {source.status === 'loading' && <Badge>loading…</Badge>}
               {(source.status === 'error' || source.status === 'missing') && <Badge tone="danger">{source.status === 'missing' ? 'file missing' : 'failed'}</Badge>}
             </span>

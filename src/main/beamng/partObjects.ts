@@ -355,6 +355,27 @@ const NOT_SUSPENSION = /^wheel|^tire|tyre|hubcap|cladding|mudflap|fender|trim|sk
 
 const SET_CATEGORIES = new Set(['Front Suspension', 'Rear Suspension', 'Suspension']);
 
+const PANEL_KINDS: [RegExp, string][] = [
+  [/hood|bonnet/i, 'Hoods'],
+  [/trunk|tailgate|hatch|boot|liftgate/i, 'Trunks & tailgates'],
+  [/fender_?flare|flare/i, 'Fender flares'],
+  [/bumper/i, 'Bumpers'],
+  [/fender|wing_?F/i, 'Fenders'],
+  [/door/i, 'Doors'],
+  [/spoiler|wing/i, 'Spoilers & wings'],
+  [/skirt|sidestep|rocker|running_?board/i, 'Side skirts'],
+  [/mirror/i, 'Mirrors'],
+  [/grille/i, 'Grilles'],
+  [/lip|splitter|diffuser|valance/i, 'Lips & diffusers'],
+  [/roof|hardtop|softtop|sunroof/i, 'Roofs'],
+];
+
+/** Which kind of body panel a slot takes (null: not a body panel, e.g. glass, lights or trim inside). */
+export function panelCategory(slotType: string): string | null {
+  if (/glass|window|light|lamp|interior|dash|seat|trim_?in|handle|hinge|latch|strut|reinforce|support|bracket|mount|ecu|radiator|intercooler|licen[cs]e|plate/i.test(slotType)) return null;
+  return PANEL_KINDS.find(([re]) => re.test(slotType))?.[1] ?? null;
+}
+
 /** A suspension as the game fits it: the part plus the defaults of its slots, all the way down. */
 export function suspensionClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 40): string[] {
   // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension.
@@ -456,12 +477,14 @@ async function writeSets(
 
   // What goes in: suspensions from the car's own parts; engines and gearboxes (often shared, in
   // common) that fit a slot the car or its engines declare.
-  const roots: { kind: 'suspension' | 'engine' | 'gearbox'; part: string; parts: string[] }[] = [];
+  const roots: { kind: 'suspension' | 'engine' | 'gearbox' | 'panel'; part: string; parts: string[] }[] = [];
   for (const [partName, body] of own) {
     const slotType = typeof body.slotType === 'string' ? body.slotType : '';
     const category = categoryOf(slotType);
     // A set starts at the suspension itself (not a hub or subframe on its own).
     if (category && SET_CATEGORIES.has(category) && /suspension|axle/i.test(slotType)) roots.push({ kind: 'suspension', part: partName, parts: suspensionClosure(partName, find) });
+    // Body panels (fork): the stock part alone; its own slots (glass, handles) stay the game's.
+    else if (panelCategory(slotType) && flexMeshes(body).length) roots.push({ kind: 'panel', part: partName, parts: [partName] });
   }
   const pool = new Map([...commonParts, ...own]);
   const carSlots = declaredSlotTypes(own.values());
@@ -496,7 +519,7 @@ async function writeSets(
       if (s) s.names.push(mesh);
       else sources.push({ doc, names: [mesh] });
     }
-    const dae = sources.length ? subsetDae(sources, kind === 'suspension' ? '0.5 0.5 0.52' : '0.32 0.33 0.35', await textures.lookup(subsetMaterials(sources), materialIndex, zip)) : null;
+    const dae = sources.length ? subsetDae(sources, kind === 'suspension' ? '0.5 0.5 0.52' : kind === 'panel' ? '0.62 0.63 0.66' : '0.32 0.33 0.35', await textures.lookup(subsetMaterials(sources), materialIndex, zip)) : null;
     if (!dae) continue;
     const title = partTitle(body, partName);
     const closure = Object.fromEntries(parts.map((p) => [p, find(p)!]));
@@ -504,7 +527,7 @@ async function writeSets(
     const axle = kind !== 'suspension' ? 'any' : category === 'Front Suspension' ? 'front' : category === 'Rear Suspension' ? 'rear' : /_F(_|$)/.test(slotType) ? 'front' : /_R(_|$)/.test(slotType) ? 'rear' : 'any';
     const engine = kind === 'engine' ? engineSpecs(body, Object.values(closure), title) : undefined;
     const gearbox = kind === 'gearbox' ? gearboxSpecs(body) : undefined;
-    const type = kind === 'suspension' ? suspensionType(`${title} ${parts.join(' ')} ${meshes.join(' ')}`) : engine ? engine.layout : gearbox!.kind;
+    const type = kind === 'suspension' ? suspensionType(`${title} ${parts.join(' ')} ${meshes.join(' ')}`) : kind === 'panel' ? (panelCategory(slotType) ?? 'Panel') : engine ? engine.layout : gearbox!.kind;
     const dir = join(out, vehicle, safe(partName));
     mkdirSync(dir, { recursive: true });
     const meshFile = `${vehicle}_${safe(partName)}.dae`;
@@ -535,6 +558,15 @@ async function writeSets(
   }
 }
 
+async function readableZip(path: string): Promise<boolean> {
+  try {
+    await withZip(path, async (zip) => void (await zip.entries()));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Write every suspension-area part of every stock vehicle as an object
  * (<out>/BeamNG/<Category>/<Vehicle · Part>/object.json + <part>.dae).
@@ -561,6 +593,8 @@ export async function buildPartObjects(installDir: string, out: string, onVehicl
   try {
     for (const z of zips) {
       const vehicle = z.replace(/\.zip$/i, '');
+      // One unreadable zip (a broken download, a stray file) mustn't stop the rest from being read.
+      if (!(await readableZip(join(root, z)))) continue;
       await withZip(join(root, z), async (zip) => {
         const parts: PartObject[] = [];
         const name = await vehicleName(zip, vehicle, t);
@@ -572,13 +606,14 @@ export async function buildPartObjects(installDir: string, out: string, onVehicl
             // a jbeam the lenient parser can't read: skip it
           }
         }
-        if (!parts.length) return;
         onVehicle?.(name);
         const own = vehicle === 'common' ? common : await daesOf(zip);
         const locate = (mesh: string) => own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
         // The car's own materials first, then the shared ones.
         const materialIndex = new Map([...commonMaterials, ...(vehicle === 'common' ? [] : await materialTextures(zip))]);
+        // Sets first: a car with no suspension objects still has panels, engines and gearboxes.
         if (vehicle !== 'common') await writeSets(zip, vehicle, await vehicleInfo(zip, vehicle, t), commonParts, brandLogos, locate, join(out, 'sets'), textures, materialIndex);
+        if (!parts.length) return;
         const seen = new Set<string>();
         for (const p of parts) {
           const key = [...p.meshes].sort().join('|');

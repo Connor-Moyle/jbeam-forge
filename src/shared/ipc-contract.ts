@@ -28,7 +28,7 @@ export type TextFileKind = keyof typeof TEXT_FILE_KINDS;
 export interface SuspensionSet {
   /** "<vehicle>/<part>" */
   id: string;
-  kind: 'suspension' | 'engine' | 'gearbox';
+  kind: 'suspension' | 'engine' | 'gearbox' | 'panel';
   /** The root part's slot type (what it plugs into). */
   slotType: string;
   engine?: EngineSpecs;
@@ -208,6 +208,8 @@ export interface InvokeContract {
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
   /** Complete engines and gearboxes from the BeamNG install. */
   'powertrain:catalogue': { req: undefined; res: SuspensionSet[] };
+  /** Body panels of the game's cars (hoods, bumpers, doors…), for panel mods. */
+  'panels:catalogue': { req: undefined; res: SuspensionSet[] };
   /** Complete suspensions from the BeamNG install (empty until the install is set and read). */
   'suspension:catalogue': { req: undefined; res: SuspensionSet[] };
   /** A set's jbeam part definitions and the body nodes it attaches to (original positions). */
@@ -385,6 +387,7 @@ export const INVOKE_CHANNELS = [
   'ac:pickCar',
   'suspension:catalogue',
   'powertrain:catalogue',
+  'panels:catalogue',
   'suspension:set',
   'library:status',
   'library:rescan',

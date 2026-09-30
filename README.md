@@ -63,7 +63,7 @@ The short version:
 | **Configs** | Build multiple configurations with inheritance, live price/weight/power totals and auto-captured preview images. |
 | **Export & publish** | One click to a validated mod zip (textures as DDS if you like), plus a publish checklist for the repository. |
 | **JBeam workspace** | Tables of nodes, beams and triangles with exact values and every jbeam property, logical renaming, bulk edits and checks. |
-| **More mod kinds** | Engines for the game's cars, universal tyres and universal wheels, each with its own builder. |
+| **More mod kinds** | Engines for the game's cars, universal tyres and wheels, and new body panels (hoods, bumpers, doors, spoilers…) for the game's cars on their stock physics, each with its own builder. |
 | **Skins** | A Skin studio that unwraps the body like a skin template (every panel in place, one scale), saves PNG/SVG templates to paint, and turns the painted one into an in-game paint design. |
 | **Live model** | Save the model again in Blender and Forge reloads it, keeping your parts, materials and structure. |
 | **Help** | A first-run tour on a practice car, and a help centre with worked examples. |

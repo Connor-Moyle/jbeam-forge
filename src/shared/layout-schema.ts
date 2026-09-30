@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const LAYOUT_VERSION = 1;
 
-export const PRESET_IDS = ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels'] as const;
+export const PRESET_IDS = ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel'] as const;
 export const PresetIdSchema = z.enum(PRESET_IDS);
 export type PresetId = z.infer<typeof PresetIdSchema>;
 

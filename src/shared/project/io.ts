@@ -110,7 +110,7 @@ export interface NewProjectMeta {
   autoReimport?: boolean;
   /** Export textures as DDS (unset: the app setting). */
   ddsConvert?: boolean;
-  modKind?: 'vehicle' | 'engine' | 'tyres' | 'wheels';
+  modKind?: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 'panel';
 }
 
 export function createEmptyProject(meta: NewProjectMeta, appVersion: string, now: Date = new Date()): Project {

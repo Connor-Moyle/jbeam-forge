@@ -17,6 +17,7 @@ const PRESET_LABELS: Record<(typeof PRESET_IDS)[number], string> = {
   engine: 'Engine',
   tyres: 'Tyre Builder',
   wheels: 'Wheel Builder',
+  panel: 'Panel Builder',
   materials: 'Materials',
   testing: 'Testing',
   scripts: 'Scripts',

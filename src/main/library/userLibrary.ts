@@ -24,7 +24,7 @@ export interface FolderStatus {
 
 const MAX_FILES = 50_000;
 /** Bump when the BeamNG part cutting changes, so installs are cut again. */
-const BEAMNG_FORMAT = 8;
+const BEAMNG_FORMAT = 9;
 
 type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
 

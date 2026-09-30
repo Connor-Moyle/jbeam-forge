@@ -12,7 +12,7 @@ import { call } from '@renderer/diagnostics/ipc';
 import { newProject } from '@renderer/project/actions';
 import { Checkbox } from '@renderer/ui/components/Checkbox';
 import { startImport } from '@renderer/import/importFlow';
-import { CarFront, CircleDot, Disc3, Gauge, type LucideIcon } from 'lucide-react';
+import { CarFront, CircleDot, Disc3, Gauge, PanelTop, type LucideIcon } from 'lucide-react';
 import styles from './NewModWizard.module.css';
 
 /** info.json "Type" values seen in official vehicles (docs/beamng-vehicle-layout.md). */
@@ -24,7 +24,7 @@ const VEHICLE_TYPES = [
 ] as const;
 type VehicleType = (typeof VEHICLE_TYPES)[number]['value'];
 
-type ModKind = 'vehicle' | 'engine' | 'tyres' | 'wheels';
+type ModKind = 'vehicle' | 'engine' | 'tyres' | 'wheels' | 'panel';
 
 /** What a mod can be (fork): each opens on its own workspace. */
 const KINDS: { value: ModKind; label: string; icon: LucideIcon; text: string; name: string }[] = [
@@ -32,7 +32,22 @@ const KINDS: { value: ModKind; label: string; icon: LucideIcon; text: string; na
   { value: 'engine', label: 'Engine', icon: Gauge, text: 'A new engine for cars already in the game: start from one of theirs and change power, revs, sound, turbo…', name: 'e.g. Big Turbo V8' },
   { value: 'tyres', label: 'Tyres', icon: CircleDot, text: 'Universal tyres in any sizes, with your own grip and pressure: every car with rims that fit can use them.', name: 'e.g. Forge Sport 2' },
   { value: 'wheels', label: 'Wheels', icon: Disc3, text: 'Universal rims: pick diameter, width and lugs; they fit every car with the right hubs and take the matching tyres.', name: 'e.g. Forge 5-spoke' },
+  { value: 'panel', label: 'Body panel', icon: PanelTop, text: 'A new hood, bumper, door, spoiler… for a car in the game: your model on the stock part’s physics.', name: 'e.g. Vented Hood' },
 ];
+
+/** Where the slug shows up in the mod, for each kind. */
+function slugHint(kind: ModKind, slug: string): string {
+  switch (kind) {
+    case 'vehicle':
+      return `vehicles/${slug}/ inside the mod.`;
+    case 'engine':
+      return `The new engine part is ${slug}_…, beside each car it fits.`;
+    case 'panel':
+      return `The new panel is ${slug}_…, beside its car; its model goes in vehicles/common/${slug}/.`;
+    default:
+      return `vehicles/common/${slug}/ inside the mod, for every car.`;
+  }
+}
 
 export function slugProblem(slug: string): string | null {
   if (!slug) return 'Required.';
@@ -86,7 +101,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
       setBusy(false);
       if (!ok) return;
       onClose();
-      if (importNow && kind !== 'engine') void startImport();
+      if (importNow && kind !== 'engine' && kind !== 'panel') void startImport();
     });
   };
 
@@ -125,10 +140,10 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <FieldGroup title={k.label}>
-          <Field label="Display name" htmlFor={ids.name} hint={showErrors && nameProblem ? nameProblem : 'Shown in the vehicle selector.'}>
+          <Field label="Display name" htmlFor={ids.name} hint={showErrors && nameProblem ? nameProblem : kind === 'vehicle' ? 'Shown in the vehicle selector.' : 'Shown in the parts menu of the cars it fits.'}>
             <Input id={ids.name} ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} invalid={showErrors && !!nameProblem} placeholder={k.name} data-testid="newmod-name" />
           </Field>
-          <Field label="Slug" htmlFor={ids.slug} hint={(showErrors || slugTouched) && slugError ? slugError : `vehicles/${effectiveSlug || '…'}/ inside the mod.`}>
+          <Field label="Slug" htmlFor={ids.slug} hint={(showErrors || slugTouched) && slugError ? slugError : slugHint(kind, effectiveSlug || '…')}>
             <Input
               id={ids.slug}
               mono
@@ -158,7 +173,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
             <Input id={ids.author} value={author} onChange={(e) => setAuthorDraft(e.target.value)} placeholder="e.g. Fatkiwi" data-testid="newmod-author" />
           </Field>
         </FieldGroup>
-        {kind !== 'engine' && <Checkbox checked={importNow} onChange={setImportNow} label={kind === 'vehicle' ? 'Import a 3D model right after creating' : `Import the ${kind === 'tyres' ? 'tyre' : 'wheel'}'s 3D model right after creating`} />}
+        {kind !== 'engine' && kind !== 'panel' && <Checkbox checked={importNow} onChange={setImportNow} label={kind === 'vehicle' ? 'Import a 3D model right after creating' : `Import the ${kind === 'tyres' ? 'tyre' : 'wheel'}'s 3D model right after creating`} />}
         <Checkbox checked={autoReimport ?? defaults?.autoReimport ?? true} onChange={setAutoReimport} label="Reload the model when its file changes (fix it in Blender, save, and it updates here with your work kept)" data-testid="newmod-autoreimport" />
         <Checkbox checked={ddsConvert ?? defaults?.ddsConvert ?? false} onChange={setDdsConvert} label="Convert textures to DDS when exporting (the game’s own format: smaller and faster to load)" data-testid="newmod-dds" />
         <button type="submit" hidden />
