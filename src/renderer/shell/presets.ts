@@ -109,6 +109,9 @@ export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 
 export function applyPreset(api: DockviewApi, preset: PresetId): void {
   api.clear();
   for (const p of PRESETS[preset]) addPanel(api, p.id, p);
+  // Each side panel takes its width from whichever neighbour the dock picks as it's added, so a
+  // panel added later can squeeze one added before it: set the widths once everything is in.
+  for (const p of PRESETS[preset]) if (p.width) api.getPanel(p.id)?.group.api.setSize({ width: numericToken(p.width) });
   api.getPanel('viewport')?.api.setActive();
 }
 

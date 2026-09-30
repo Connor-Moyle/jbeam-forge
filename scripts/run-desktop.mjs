@@ -188,6 +188,15 @@ const scenarios = [
       await shot(page, 'home-empty');
       await page.getByTestId('home-new').click();
       await page.getByTestId('newmod-wizard').waitFor();
+      await page.waitForTimeout(200);
+      // Opens at the top: the kinds of mod in view, the name field focused.
+      const opened = await page.evaluate(() => {
+        const card = document.querySelector('[data-testid=newmod-kind-vehicle]').getBoundingClientRect();
+        const body = document.querySelector('[data-testid=newmod-wizard]').closest('[role=dialog]').getBoundingClientRect();
+        return { cardTop: card.top, bodyTop: body.top, focused: document.activeElement?.getAttribute('data-testid') };
+      });
+      assert(opened.cardTop > opened.bodyTop && opened.focused === 'newmod-name', `wizard opens at the top with the name focused (${JSON.stringify(opened)})`);
+      await shot(page, 'newmod-wizard-open');
       await page.getByTestId('newmod-name').fill('Harness Test Car');
       assert((await page.getByTestId('newmod-slug').inputValue()) === 'harness_test_car', 'slug derived from the name');
       await page.getByTestId('newmod-author').fill('Fatkiwi');
@@ -1806,6 +1815,28 @@ const scenarios = [
     },
   },
   {
+    id: 'workspace-widths',
+    name: 'every workspace lays out with usable panel widths',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (!(await page.locator('[data-view=editor]').count())) {
+        await page.getByTestId('home-new').click();
+        await page.getByTestId('newmod-name').fill('Widths');
+        await page.getByTestId('newmod-create').click();
+        await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      }
+      const narrow = [];
+      for (const preset of ['modelling', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels']) {
+        await hook(page, 'applyPreset', preset);
+        await page.waitForTimeout(150);
+        const groups = await page.evaluate(() => [...document.querySelectorAll('.dv-groupview')].map((g) => ({ w: Math.round(g.getBoundingClientRect().width), h: Math.round(g.getBoundingClientRect().height), tabs: [...g.querySelectorAll('.dv-tab')].map((x) => x.textContent.trim()).join('+') })));
+        for (const g of groups) if (g.w < 200 || g.h < 120) narrow.push(`${preset}: ${g.tabs} ${g.w}×${g.h}`);
+      }
+      await hook(page, 'applyPreset', 'modelling');
+      assert(!narrow.length, `no squeezed panels (${narrow.join('; ')})`);
+    },
+  },
+  {
     id: 'part-mods',
     name: 'part mods: a tyre mod and a wheel mod from the wizard · their builders · universal export',
     async run({ page }) {
@@ -1825,6 +1856,8 @@ const scenarios = [
       await shot(page, 'newmod-kinds');
       await page.getByTestId('newmod-create').click();
       await page.getByTestId('tyre-builder').waitFor();
+      const builderWidth = await page.evaluate(() => document.querySelector('[data-testid=tyre-builder]').closest('.dv-groupview').getBoundingClientRect().width);
+      assert(builderWidth >= 300, `the tyre builder gets its width (${Math.round(builderWidth)} px)`);
       const tabs = (await page.getByRole('tablist', { name: 'Workspaces' }).getByRole('tab').allTextContents()).join(',');
       assert(tabs === 'Tyre builder,Materials', `a tyre mod has its own workspaces (${tabs})`);
       await page.getByTestId('tyre-add-size').click();
