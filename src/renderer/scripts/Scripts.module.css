@@ -419,7 +419,28 @@
 
 .numberRow {
   display: grid;
-  grid-template-columns: 1fr auto;
+  /* Full width: shrunk to fit, the slider (no minimum width) would vanish. */
+  width: 100%;
+  grid-template-columns: minmax(var(--size-number-input), 1fr) auto;
   align-items: center;
   gap: var(--space-2);
+}
+
+.keyCapture {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.keyCode {
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.keyWarning {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--warning);
+  font-size: var(--text-label);
 }

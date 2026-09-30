@@ -31,7 +31,12 @@ local level = 0
 local homeLeft = 0
 local lastIgnition = nil
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outHome = jbeamData.out_home or (out .. "_home")
   doors = {}
@@ -103,7 +108,12 @@ local out, outColour, outHue = "jbf_ambient", "jbf_ambient_colour", "jbf_ambient
 local colours, breathe, onlyAtNight = 8, 4, false
 local mode, colour, t, level = 2, 0, 0, 0
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outColour = jbeamData.out_colour or (out .. "_colour")
   outHue = jbeamData.out_hue or (out .. "_hue")
@@ -172,7 +182,12 @@ local active = false
 local t = 0
 local hazardsSet = false
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outActive = jbeamData.out_active or (out .. "_active")
   decelLimit = jbeamData.decel or decelLimit
@@ -258,7 +273,12 @@ local checkIn = 0
 local source = nil
 local level = 0
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   openings = {}
   for name in string.gmatch(jbeamData.openings or "", "[^,%s]+") do openings[#openings + 1] = name end

@@ -1466,6 +1466,13 @@ const scenarios = [
       await page.getByTestId('script-results').waitFor({ timeout: 30_000 });
       assert((await page.getByTestId('script-results').textContent()).includes('jbf_mirrors'), 'the test recorded the mirrors value');
       await page.waitForTimeout(1500);
+      // Its key: click, then press the one you want.
+      await page.getByTestId('script-key').first().click();
+      await page.keyboard.press('Control+Shift+KeyM');
+      await page.waitForTimeout(200);
+      const keyed = (await hook(page, 'projectDoc')).scripts[0].actions?.find((a) => a.id === 'toggle')?.key;
+      assert(keyed === 'lctrl lshift m', `pressing a key sets it in BeamNG's naming (${keyed})`);
+      assert((await page.getByTestId('script-key').first().textContent()).includes('Ctrl + Shift + M'), 'and it reads as Ctrl + Shift + M');
       await shot(page, 'script-mirrors-test');
       await page.getByTestId('script-mode-code').click();
       await page.getByTestId('lua-editor').waitFor();

@@ -78,7 +78,12 @@ local out = "jbf_myscript"
 local value = 0
 
 -- Once, when the car spawns.
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   value = 0
 end

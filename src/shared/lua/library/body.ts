@@ -44,7 +44,12 @@ local function position(p)
   return 0.5 - 0.5 * math.cos(x * math.pi)
 end
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outMode = jbeamData.out_mode or (out .. "_mode")
   lowSeconds = jbeamData.lowSeconds or lowSeconds
@@ -126,7 +131,12 @@ local folded = 0 -- 0 out, 1 folded
 local target = 0
 local lastIgnition = nil
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   seconds = jbeamData.seconds or seconds
   if jbeamData.autoFold ~= nil then autoFold = jbeamData.autoFold end
@@ -202,7 +212,12 @@ local slide, recline = 0.5, 0.3
 local slideTarget, reclineTarget = 0.5, 0.3
 local saved = nil
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   outSlide = jbeamData.out_slide or outSlide
   outRecline = jbeamData.out_recline or outRecline
   speed = jbeamData.speed or speed
@@ -276,7 +291,12 @@ local seconds = 0.8
 local raised = 0
 local winking = 0
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   seconds = jbeamData.seconds or seconds
   raised, winking = 0, 0

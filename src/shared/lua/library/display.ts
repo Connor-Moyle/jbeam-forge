@@ -344,7 +344,12 @@ local APPS = 5
 local outApp, outPlay, outTrack, outOn = "jbf_headunit_app", "jbf_headunit_play", "jbf_headunit_track", "jbf_headunit_on"
 local app, playing, track = 0, 1, 0
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   outApp = jbeamData.out_app or outApp
   outPlay = jbeamData.out_play or outPlay
   outTrack = jbeamData.out_track or outTrack

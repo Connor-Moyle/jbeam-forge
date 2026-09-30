@@ -44,7 +44,12 @@ local function split(list)
   return t
 end
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   seconds = jbeamData.seconds or seconds
   if jbeamData.frameless ~= nil then frameless = jbeamData.frameless end
@@ -137,7 +142,12 @@ local tiltSeconds, slideSeconds = 0.8, 3
 local slide, tilt = 0, 0
 local wantOpen, wantTilt = false, false
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outTilt = jbeamData.out_tilt or (out .. "_tilt")
   tiltSeconds = jbeamData.tiltSeconds or tiltSeconds
@@ -214,7 +224,12 @@ local coverSeconds, foldSeconds, maxSpeed = 2.5, 9, 40
 local fold, cover = 0, 0
 local wantOpen = false
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outCover = jbeamData.out_cover or (out .. "_cover")
   outOpen = jbeamData.out_open or (out .. "_open")

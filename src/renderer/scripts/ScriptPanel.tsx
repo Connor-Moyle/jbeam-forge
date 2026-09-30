@@ -24,6 +24,7 @@ import { Toggle } from '@renderer/ui/components/Toggle';
 import { customiseCode, doorSignals, exportLua, removeScript, renameScript, resetCode, saveToLibrary, setScriptParam, shareScript, updateScript, useScriptUi } from './commands';
 import { LuaEditor, type LuaEditorHandle } from './LuaEditor';
 import { templateById } from './registry';
+import { KeyCapture } from './KeyCapture';
 import styles from './Scripts.module.css';
 
 const BODY = '__body__';
@@ -222,7 +223,7 @@ function Easy({ script, template }: { script: VehicleScript; template: ScriptTem
               Add a key
             </Button>
           )}
-          <p className={styles.note}>Keys are BeamNG control names (lctrl w, numpad5, f6…). Players can change them in Options → Controls → Vehicle specific.</p>
+          <p className={styles.note}>Click a key, then press the one you want. Players can change them in the game under Options → Controls → Vehicle specific; if a key does nothing in game, another control may already use it there.</p>
         </FieldGroup>
         {template && (
           <FieldGroup title="What it outputs">
@@ -249,7 +250,7 @@ function ActionRow({ script, template, action, index }: { script: VehicleScript;
   if (template) {
     return (
       <Field label={action.label}>
-        <Input mono value={action.key} onChange={(e) => setKey(e.target.value)} placeholder="No key" aria-label={`${action.label} key`} />
+        <KeyCapture value={action.key} onChange={setKey} label={action.label} />
       </Field>
     );
   }
@@ -257,7 +258,7 @@ function ActionRow({ script, template, action, index }: { script: VehicleScript;
   return (
     <div className={styles.actionRow}>
       <Input value={action.label} onChange={(e) => patch({ label: e.target.value || 'Action' })} aria-label="Key name" />
-      <Input mono value={action.key} onChange={(e) => patch({ key: e.target.value })} placeholder="Key" aria-label="Key" />
+      <KeyCapture value={action.key} onChange={(key) => patch({ key })} label={action.label} />
       <Input mono value={action.call} onChange={(e) => patch({ call: e.target.value })} invalid={!/^[A-Za-z_]\w*\(.*\)$/.test(action.call)} aria-label="Calls" />
       <IconButton icon={X} label="Remove key" onClick={() => updateScript(script.id, { actions: (script.actions ?? []).filter((_, i) => i !== index) }, 'Remove key')} />
     </div>

@@ -81,3 +81,15 @@ describe('script export', () => {
     expect(base64Of(new Uint8Array([1, 2, 3, 4]))).toBe('AQIDBA==');
   });
 });
+
+describe('script templates in the game', () => {
+  for (const t of BUILT_IN_TEMPLATES) {
+    it(`${t.name}: survives a vehicle reset without its jbeam data (Ctrl+R), keeping its settings`, async () => {
+      const { runSandbox } = await import('../../src/shared/lua/sandbox');
+      const data = controllerData(t, { name: t.name0, params: defaultParams(t) }, 'car');
+      const r = runSandbox({ code: t.lua, jbeamData: data, scenario: { seconds: 3, tracks: t.test.tracks, presses: [...(/M\.reset\s*=/.test(t.lua) ? [{ at: 1, call: 'reset()' }] : []), ...t.test.presses.filter((p) => p.at < 3).map((p) => ({ at: p.at + 1.2, call: t.actions.find((a) => a.id === p.action)!.call }))] } });
+      expect(r.error?.message ?? null).toBeNull();
+      expect(r.ok).toBe(true);
+    });
+  }
+});

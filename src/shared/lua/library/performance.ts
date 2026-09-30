@@ -39,7 +39,12 @@ local mode = 0
 local raised, angle = 0, 0
 local wantUp = false
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outAngle = jbeamData.out_angle or (out .. "_angle")
   outMode = jbeamData.out_mode or (out .. "_mode")
@@ -118,7 +123,12 @@ local armed, holding = false, false
 local engine = nil
 local normalLimiter = nil
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   launchRPM = jbeamData.rpm or launchRPM
   engineName = jbeamData.engine or engineName
@@ -206,7 +216,12 @@ local engineName = "mainEngine"
 local engine = nil
 local base = nil
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   strength = { 0, jbeamData.street or 0.6, jbeamData.race or 2.5 }
   engineName = jbeamData.engine or engineName
@@ -273,7 +288,12 @@ local out, outBar = "jbf_shiftlight", "jbf_shiftlight_bar"
 local from, shift, flash, rate = 4000, 6500, 6900, 8
 local t = 0
 
+local savedData = {}
+
 local function init(jbeamData)
+  -- Reset may come without the jbeam data: keep the settings from the first init.
+  jbeamData = jbeamData or savedData
+  savedData = jbeamData
   out = jbeamData.out or out
   outBar = jbeamData.out_bar or (out .. "_bar")
   from = jbeamData.from or from
