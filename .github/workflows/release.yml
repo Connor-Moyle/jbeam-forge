@@ -1,11 +1,14 @@
 # Builds the Windows installer and portable exe on GitHub and publishes them
-# as a release when a version tag (v1.2.3) is pushed. Same result as
-# `npm run release` on a Windows machine. Never replaces an existing release.
+# as a release, tagged v<package.json version>. Runs when that tag is pushed,
+# or by hand (Actions → Release → Run workflow), which tags the commit it
+# builds. Same result as `npm run release` on a Windows machine. Never
+# replaces an existing release.
 name: Release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -21,19 +24,20 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: The tag matches package.json and has release notes
+      - name: The version has release notes (and matches the tag, if one was pushed)
         shell: bash
         run: |
-          version="v$(node -p "require('./package.json').version")"
-          test "$version" = "$GITHUB_REF_NAME" || { echo "Tag $GITHUB_REF_NAME but package.json says $version"; exit 1; }
-          test -f "docs/releases/$GITHUB_REF_NAME.md" || { echo "No docs/releases/$GITHUB_REF_NAME.md"; exit 1; }
+          tag="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "$tag" != "$GITHUB_REF_NAME" ]; then echo "Tag $GITHUB_REF_NAME but package.json says $tag"; exit 1; fi
+          test -f "docs/releases/$tag.md" || { echo "No docs/releases/$tag.md"; exit 1; }
+          echo "TAG=$tag" >> "$GITHUB_ENV"
 
       - name: Refuse to replace an existing release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then echo "Release $GITHUB_REF_NAME already exists; leaving it alone."; exit 1; fi
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "Release $TAG already exists; leaving it alone."; exit 1; fi
 
       - run: npm ci
 
@@ -49,11 +53,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          notes="docs/releases/$GITHUB_REF_NAME.md"
+          version="${TAG#v}"
+          notes="docs/releases/$TAG.md"
           title="$(head -n 1 "$notes" | sed 's/^#[[:space:]]*//')"
           tail -n +2 "$notes" > release/notes.md
-          gh release create "$GITHUB_REF_NAME" \
+          # Creates the tag on the commit just built when it doesn't exist yet.
+          gh release create "$TAG" \
             "release/JBeam-Forge-Setup-$version.exe" \
             "release/JBeam-Forge-$version-portable.exe" \
-            --title "$title" --notes-file release/notes.md --verify-tag --latest
+            --target "$GITHUB_SHA" --title "$title" --notes-file release/notes.md --latest
