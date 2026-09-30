@@ -1,3 +1,4 @@
+import { MovePartSwitch } from '@renderer/moving/MovePartSwitch';
 import { useEffect } from 'react';
 import { DoorOpen, FlipHorizontal2, Trash2, WandSparkles } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -61,9 +62,10 @@ export function HingeSection({ part }: { part: Part }) {
   };
   return (
     <FieldGroup title="Hinge">
-      <Field label="Swing preview" hint="Shows it opening in the viewport (the see-through copy). Nothing is changed.">
+      <Field label="Swing preview" hint="Shows it opening in the viewport. Nothing is changed: it goes back when you're done.">
         <Slider value={swing} onChange={(v) => useHingeUi.getState().setSwing(v)} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * hinge.openAngle)}°`} aria-label="Swing preview" />
       </Field>
+      <MovePartSwitch />
       <Field label="Opens to">
         <Slider value={hinge.openAngle} onChange={(openAngle) => set({ openAngle }, 'Change opening angle')} min={5} max={180} step={1} format={(v) => `${v}°`} aria-label="Opening angle" />
       </Field>

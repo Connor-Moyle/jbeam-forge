@@ -1,3 +1,4 @@
+import { MovePartSwitch } from '@renderer/moving/MovePartSwitch';
 import { useEffect } from 'react';
 import { FlipHorizontal2, RotateCw, Trash2 } from 'lucide-react';
 import { EMPTY_ARR } from '@shared/empty';
@@ -50,9 +51,10 @@ export function PropSection({ meshKey }: { meshKey: string }) {
       <Field label="Driven by" hint="The game's electrics value: steering, rpmTacho, wheelspeed (m/s), fuel, watertemp, throttle, brake, clutch, parkingbrake…">
         <Input value={prop.func} onChange={(e) => e.target.value.trim() && updateProp(prop.id, { func: e.target.value.trim() })} mono aria-label="Electrics value" />
       </Field>
-      <Field label="Try it" hint={slides ? `Slides ${(amount * 100).toFixed(1)} cm` : `Turns ${amount.toFixed(0)}°: the see-through copy in the viewport`}>
+      <Field label="Try it" hint={slides ? `Slides ${(amount * 100).toFixed(1)} cm` : `Turns ${amount.toFixed(0)}° in the viewport`}>
         <Slider value={value} onChange={(v) => usePropUi.getState().setValue(v)} min={-range} max={range} step={range / 200 || 0.01} format={(v) => v.toFixed(Math.abs(range) < 10 ? 2 : 0)} aria-label="Test value" />
       </Field>
+      <MovePartSwitch />
       <Field label="Turns about" hint="Its pivot (where it turns) and axis, in BeamNG space">
         <div className={styles.triple}>
           {[0, 1, 2].map((i) => (

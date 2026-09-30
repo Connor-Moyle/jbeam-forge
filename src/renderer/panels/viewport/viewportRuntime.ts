@@ -427,7 +427,7 @@ export class ViewportRuntime {
           let objects = 0;
           this.scene.traverse(() => void objects++);
           const { memory, render, programs } = this.renderer.info;
-          return { fps: this.fps, geometries: memory.geometries, textures: memory.textures, programs: programs?.length ?? 0, calls: render.calls, triangles: render.triangles, objects, live: !!this.liveView, liveMeshes: this.liveMeshes.length, liveMeshesVisible: this.liveMeshRoot.visible, modelVisible: this.modelRoot.visible };
+          return { fps: this.fps, geometries: memory.geometries, textures: memory.textures, programs: programs?.length ?? 0, calls: render.calls, triangles: render.triangles, objects, live: !!this.liveView, liveMeshes: this.liveMeshes.length, liveMeshesVisible: this.liveMeshRoot.visible, modelVisible: this.modelRoot.visible, hingeMoved: this.hingeMoved.length, hingeGhosts: this.hingeRoot.children.length };
         },
       }),
     );
@@ -702,6 +702,8 @@ export class ViewportRuntime {
   private lastFrame = 0;
   private frames = 0;
   private frameErrors = 0;
+  /** Meshes the moving-parts preview turned for real (see setHingePreview). */
+  private hingeMoved: string[] = [];
   private fpsWindow = performance.now();
   /** Frames drawn per second, measured over the last second. */
   fps = 0;
@@ -1221,7 +1223,10 @@ export class ViewportRuntime {
    * markers, and a see-through copy of the part's meshes swung `angle`
    * degrees about the line. null clears it.
    */
-  setHingePreview(view: { axis: [Vec3, Vec3]; latch: Vec3 | null; handles: Vec3[]; meshKeys: readonly string[]; angle: number } | null): void {
+  setHingePreview(view: { axis: [Vec3, Vec3]; latch: Vec3 | null; handles: Vec3[]; meshKeys: readonly string[]; angle: number; real?: boolean } | null): void {
+    // Parts moved for real last time go back first.
+    if (this.hingeMoved.length) this.previewMeshTransform(this.hingeMoved, null);
+    this.hingeMoved = [];
     for (const child of [...this.hingeRoot.children]) {
       this.hingeRoot.remove(child);
       if (child instanceof Mesh && child.material !== this.hingeGhostMaterial) {
@@ -1255,6 +1260,14 @@ export class ViewportRuntime {
     for (const key of view.meshKeys) {
       const src = this.meshObjects.get(key);
       if (!src) continue;
+      if (view.real) {
+        // The part itself, turned about its hinge (put back when the preview changes or ends).
+        src.matrixAutoUpdate = false;
+        src.matrix.copy(turn);
+        src.matrixWorldNeedsUpdate = true;
+        this.hingeMoved.push(key);
+        continue;
+      }
       const ghost = new Mesh(src.geometry, this.hingeGhostMaterial);
       ghost.matrixAutoUpdate = false;
       ghost.matrix.copy(turn);

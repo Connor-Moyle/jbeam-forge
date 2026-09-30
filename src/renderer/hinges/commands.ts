@@ -14,6 +14,31 @@ import { hingeUp, nodePrefix, reattachPart } from '@shared/proxy/generate';
  */
 
 /** Which part's hinge the viewport shows, and the swing preview (0 = shut, 1 = fully open). */
+const REAL_KEY = 'jbforge.movePartItself';
+function readReal(): boolean {
+  try {
+    return localStorage.getItem(REAL_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * How moving parts are previewed: a see-through copy (the part stays put), or
+ * the part itself moved (put back when the preview ends). Remembered.
+ */
+export const usePreviewStyle = create<{ real: boolean; setReal: (real: boolean) => void }>()((set) => ({
+  real: readReal(),
+  setReal: (real) => {
+    try {
+      localStorage.setItem(REAL_KEY, real ? '1' : '0');
+    } catch {
+      // not remembered, still applied
+    }
+    set({ real });
+  },
+}));
+
 export const useHingeUi = create<{ partId: string | null; swing: number; show: (partId: string | null) => void; setSwing: (swing: number) => void }>()((set) => ({
   partId: null,
   swing: 0,

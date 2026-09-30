@@ -1,3 +1,4 @@
+import { MovePartSwitch } from './MovePartSwitch';
 import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
 import { DoorOpen, FileCode, Gauge, MoveHorizontal, WandSparkles, type LucideIcon } from 'lucide-react';
@@ -96,6 +97,7 @@ export function MovingPartsPanel() {
   return (
     <ScrollArea className={styles.scroll}>
       <div className={own.panel} data-testid="moving-parts">
+        <MovePartSwitch />
         <section>
           <header className={own.head}>
             <span className={own.title}>Opening panels</span>

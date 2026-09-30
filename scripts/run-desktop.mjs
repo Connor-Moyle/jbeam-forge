@@ -1768,6 +1768,21 @@ const scenarios = [
       assert(doc.hinges.length >= 5, `opening parts hinged (${doc.hinges.length})`);
       await page.getByTestId('moving-parts').getByText('Hood', { exact: true }).click();
       await page.getByTestId('moving-part').waitFor();
+      // Its swing: a see-through copy, or (switched on) the hood itself.
+      const swingThumb = page.getByTestId('moving-part').getByRole('slider', { name: 'Swing preview' });
+      await swingThumb.focus();
+      await page.keyboard.press('End');
+      await page.waitForTimeout(200);
+      let gl = await hook(page, 'glStats');
+      assert(gl.hingeMoved === 0 && gl.hingeGhosts > 3, `a see-through copy swings open (${JSON.stringify(gl)})`);
+      await page.getByRole('switch', { name: /Move the part itself/ }).first().click();
+      await page.waitForTimeout(200);
+      gl = await hook(page, 'glStats');
+      assert(gl.hingeMoved > 0, `switched on, the hood itself swings open (${JSON.stringify(gl)})`);
+      await shot(page, 'moving-part-itself');
+      await swingThumb.focus();
+      await page.keyboard.press('Home');
+      await page.getByRole('switch', { name: /Move the part itself/ }).first().click();
       await shot(page, 'moving-parts');
       // The steering wheel is suggested for animation.
       await page.getByTestId('moving-parts').getByText('Animate as steering wheel').click();

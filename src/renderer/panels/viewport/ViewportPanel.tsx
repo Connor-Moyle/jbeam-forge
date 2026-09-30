@@ -37,7 +37,7 @@ import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { structureData } from './structureOverlay';
 import { dragNode, onSimFrame, useSim, type LiveFrame } from '@renderer/sim/simSession';
 import { bindLiveMeshes, useLiveView } from '@renderer/sim/liveMeshes';
-import { useHingeUi } from '@renderer/hinges/commands';
+import { useHingeUi, usePreviewStyle } from '@renderer/hinges/commands';
 import { usePropUi } from '@renderer/props/commands';
 import { useScriptUi } from '@renderer/scripts/commands';
 import { posesAt } from '@renderer/scripts/poses';
@@ -326,16 +326,17 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       const prop = pu.propId ? doc?.props?.find((p) => p.id === pu.propId) : undefined;
       if (prop && Math.hypot(...prop.axis) > 1e-9) {
         const end: [number, number, number] = [prop.pivot[0] + prop.axis[0], prop.pivot[1] + prop.axis[1], prop.pivot[2] + prop.axis[2]];
-        return rt.setHingePreview({ axis: [prop.pivot, end], latch: null, handles: [], meshKeys: [prop.meshKey], angle: propAmount(prop, pu.value) });
+        return rt.setHingePreview({ axis: [prop.pivot, end], latch: null, handles: [], meshKeys: [prop.meshKey], angle: propAmount(prop, pu.value), real: usePreviewStyle.getState().real });
       }
       const h = partId ? doc?.hinges.find((x) => x.partId === partId) : undefined;
       if (!doc || !h) return rt.setHingePreview(null);
       const meshKeys = Object.keys(doc.assignments).filter((k) => doc.assignments[k] === partId);
-      rt.setHingePreview({ axis: h.axis, latch: h.latch, handles: h.handles.map((x) => x.pos), meshKeys, angle: swing * h.openAngle * h.direction });
+      rt.setHingePreview({ axis: h.axis, latch: h.latch, handles: h.handles.map((x) => x.pos), meshKeys, angle: swing * h.openAngle * h.direction, real: usePreviewStyle.getState().real });
     };
     pushHinge();
     const unsubscribeHinge = useHingeUi.subscribe(pushHinge);
     const unsubscribeProp = usePropUi.subscribe(pushHinge);
+    const unsubscribePreviewStyle = usePreviewStyle.subscribe(pushHinge);
     // Script test playback: the animations the test drove, on the real meshes.
     const pushPoses = () => {
       const { result, playT } = useScriptUi.getState();
@@ -470,6 +471,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeLiveView();
       unsubscribeRide();
       unsubscribeHinge();
+      unsubscribePreviewStyle();
       unsubscribeProp();
       unsubscribePoses();
       rt.setMeshPoses(null);
