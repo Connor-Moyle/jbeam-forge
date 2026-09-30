@@ -57,7 +57,7 @@ All file writes go through `atomicWrite`: temp file, fsync, rename. It retries o
 
 ## Layout presets
 
-Presets (`Modelling`, `Materials`, `Testing`) are data in `src/renderer/shell/presets.ts`. Panels are registered in `panelRegistry.ts`, and each is wrapped in `PanelFrame` (error boundary + harness crash probe).
+Presets (`Editing` (id `modelling`), `Modelling` (id `model`), `Materials`, `Testing`, …) are data in `src/renderer/shell/presets.ts`. Panels are registered in `panelRegistry.ts`, and each is wrapped in `PanelFrame` (error boundary + harness crash probe).
 
 ## Testing
 
