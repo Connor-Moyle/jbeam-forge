@@ -2809,7 +2809,7 @@ const scenarios = [
       assert(st.meshes >= 45, `practice car loaded (${st.meshes} meshes)`);
       await hook(page, 'applyPreset', 'modelling');
       await page.waitForTimeout(500);
-      const views = { 'front-left': [3.2, 1.3, 3.6], 'rear-right': [-3.4, 1.4, -3.4], side: [5, 0.6, 0], front: [0, 0.8, 5] };
+      const views = { 'front-left': [3.2, 1.3, 3.6], 'rear-right': [-3.4, 1.4, -3.4], side: [5, 0.6, 0], front: [0, 0.8, 5], 'rear-left-low': [2.6, 0.5, -3.2], rear: [0, 0.9, -5] };
       for (const [name, dir] of Object.entries(views)) {
         await hook(page, 'viewFrom', dir);
         await page.waitForTimeout(500);
@@ -2986,6 +2986,14 @@ try {
     try {
       await s.run(ctx);
       results.push({ id: s.id, name: s.name, ok: true, ms: Date.now() - started });
+      // JBFORGE_DUMP_DOCS=<folder>: keep each scenario's project as it ended (for save-file fixtures).
+      if (process.env.JBFORGE_DUMP_DOCS) {
+        const doc = await hook(ctx.page, 'projectDoc').catch(() => null);
+        if (doc) {
+          mkdirSync(process.env.JBFORGE_DUMP_DOCS, { recursive: true });
+          writeFileSync(join(process.env.JBFORGE_DUMP_DOCS, `${s.id}.json`), `${JSON.stringify(doc, null, 2)}\n`);
+        }
+      }
     } catch (err) {
       await shot(ctx.page, `FAILED-${s.id}`).catch(() => undefined);
       results.push({ id: s.id, name: s.name, ok: false, ms: Date.now() - started, error: err.message });
