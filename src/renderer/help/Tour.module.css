@@ -103,7 +103,7 @@
   gap: var(--space-2);
   margin: var(--space-2) 0 0;
   padding: var(--space-2);
-  border-left: 2px solid var(--accent);
+  border-left: var(--border-width-accent) solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--bg-2);
   color: var(--text-0);
@@ -113,7 +113,7 @@
 
 .actionIcon {
   flex: none;
-  margin-top: 1px;
+  margin-top: var(--border-width);
   color: var(--text-1);
 }
 
