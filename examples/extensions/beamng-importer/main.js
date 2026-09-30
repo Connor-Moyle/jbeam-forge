@@ -97,7 +97,9 @@ async function importVehicle() {
 
   // ---- the new mod, and the porting declaration
   const niceName = String(info.Name || carId);
-  await forge.project.create({ name: `${niceName} (edit)`, slug: `${slug(carId)}_edit`, brand: String(info.Brand || ''), description: `${niceName}, changed with JBeam Forge.` });
+  // false when the user kept the open mod (cancelled "Save changes?"): stop, never touch that one.
+  const made = await forge.project.create({ name: `${niceName} (edit)`, slug: `${slug(carId)}_edit`, brand: String(info.Brand || ''), description: `${niceName}, changed with JBeam Forge.` });
+  if (!made) return;
   await forge.project.declarePort({ game: 'BeamNG.drive', credit: String(info.Author || 'BeamNG') });
 
   // ---- models
@@ -121,9 +123,9 @@ async function importVehicle() {
   // A body part to fall back on.
   let body = doc.parts.find((p) => p.taxonomyId === 'body') || doc.parts.find((p) => !p.parentPartId);
   if (!body) {
-    const made = await forge.parts.create('body', meshes.filter((m) => !ignore.includes(m.key)).map((m) => m.key));
+    const bodyPart = await forge.parts.create('body', meshes.filter((m) => !ignore.includes(m.key)).map((m) => m.key));
     doc = await forge.project.get();
-    body = doc.parts.find((p) => p.id === made.id);
+    body = doc.parts.find((p) => p.id === bodyPart.id);
   }
 
   // jbeam part → mod part: the part most of its meshes went to, else its parent's, else the body.

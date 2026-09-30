@@ -61,7 +61,12 @@ The short version:
 | **Extras** | Cameras, animated props (steering wheel, pedals, gauge needles), lights with damage, breakable glass, aero, skins, a tow hitch and global tuning controls. |
 | **In-game tuning** | Mark any number as tunable and it turns up in BeamNG's Tuning menu. |
 | **Configs** | Build multiple configurations with inheritance, live price/weight/power totals and auto-captured preview images. |
-| **Export & publish** | One click to a validated mod zip, plus a publish checklist for the repository. |
+| **Export & publish** | One click to a validated mod zip (textures as DDS if you like), plus a publish checklist for the repository. |
+| **JBeam workspace** | Tables of nodes, beams and triangles with exact values and every jbeam property, logical renaming, bulk edits and checks. |
+| **More mod kinds** | Engines for the game's cars, universal tyres and universal wheels, each with its own builder. |
+| **Live model** | Save the model again in Blender and Forge reloads it, keeping your parts, materials and structure. |
+| **Help** | A first-run tour on a practice car, and a help centre with worked examples. |
+| **Extensions** | Add your own commands and importers (docs/extensions.md); a BeamNG vehicle importer and a CMS 2021 importer come as examples. Ported mods must credit the game and be free. |
 
 ---
 
@@ -89,7 +94,7 @@ You can change both later in **Settings**.
 
 ![Home screen](docs/images/home.png)
 
-After that you land on the home screen: **New Mod**, **Open Existing**, and your recent projects with thumbnails.
+After that you land on the home screen: **New Mod**, **Open Existing**, **Learn**, and your recent projects with thumbnails. The very first time, a short tour on a practice car shows you around; skip it whenever you like and replay it from **Learn**.
 
 ---
 

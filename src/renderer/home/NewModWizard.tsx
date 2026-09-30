@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { SLUG_PATTERN } from '@shared/project/schema';
 import { slugify } from '@shared/text';
 import { Button } from '@renderer/ui/components/Button';
@@ -46,6 +46,12 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
   const ids = { name: useId(), slug: useId(), author: useId(), desc: useId(), brand: useId() };
   const savedAuthor = useSettingsStore((s) => s.settings?.author ?? '');
   const [name, setName] = useState('');
+  // Focus the name without scrolling, so the kinds of mod above it stay in view.
+  const nameRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const t = setTimeout(() => nameRef.current?.focus({ preventScroll: true }), 0);
+    return () => clearTimeout(t);
+  }, []);
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
   // Like the slug: follow the saved author (which may load after mount) until the user types.
@@ -120,7 +126,7 @@ export function NewModWizard({ onClose }: { onClose: () => void }) {
         </div>
         <FieldGroup title={k.label}>
           <Field label="Display name" htmlFor={ids.name} hint={showErrors && nameProblem ? nameProblem : 'Shown in the vehicle selector.'}>
-            <Input id={ids.name} autoFocus value={name} onChange={(e) => setName(e.target.value)} invalid={showErrors && !!nameProblem} placeholder={k.name} data-testid="newmod-name" />
+            <Input id={ids.name} ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} invalid={showErrors && !!nameProblem} placeholder={k.name} data-testid="newmod-name" />
           </Field>
           <Field label="Slug" htmlFor={ids.slug} hint={(showErrors || slugTouched) && slugError ? slugError : `vehicles/${effectiveSlug || '…'}/ inside the mod.`}>
             <Input

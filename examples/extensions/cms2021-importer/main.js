@@ -50,7 +50,9 @@ async function importCar() {
   for (const [rel, text] of Object.entries(texts)) readSpecs(text, specs, rel);
   const carName = specs.Name || specs.name || prettify(basename(folder));
 
-  await forge.project.create({ name: carName, description: `${carName}, brought over from Car Mechanic Simulator 2021 with JBeam Forge.` });
+  // false when the user kept the open mod (cancelled "Save changes?"): stop, never touch that one.
+  const made = await forge.project.create({ name: carName, description: `${carName}, brought over from Car Mechanic Simulator 2021 with JBeam Forge.` });
+  if (!made) return;
   await forge.project.declarePort({ game: 'Car Mechanic Simulator 2021', credit: 'Red Dot Games' });
 
   // Models, each at scale 1 first; then one scale for all so the car is car-sized.

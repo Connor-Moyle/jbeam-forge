@@ -14,7 +14,7 @@ import { currentTaxonomy, saveUserEntry } from './taxonomy';
  * and the auto-classify flow shown after an import.
  */
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : /(s|x|z|ch|sh)$/.test(word) ? 'es' : 's'}`;
 
 export function assignToNewPart(meshKeys: readonly string[], spec: ops.NewPart): string | null {
   let id: string | null = null;
