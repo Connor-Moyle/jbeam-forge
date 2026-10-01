@@ -143,6 +143,8 @@ export interface ViewportCallbacks {
   onModelPick?: (hit: { face: number; point: Vec3 } | null, mods: { shift: boolean; ctrl: boolean }) => void;
   /** Modelling: the gizmo on the picked points moved, turned or resized them (BeamNG space); done = released. */
   onModelTransform?: (t: MeshGizmoTransform, done: boolean) => void;
+  /** Showcase orbit: the user took the camera, so the slow turn stopped. */
+  onShowcaseStop?: () => void;
 }
 
 /** Where the paint brush touches a mesh: its key, the triangle, and the texture coordinate there. */
@@ -247,6 +249,7 @@ export class ViewportRuntime {
   /** Test Mode: the car's visual meshes, bent by the physics. */
   private readonly liveMeshRoot = new Group();
   private liveMeshes: { mesh: Mesh; binding: SkinBinding }[] = [];
+  private liveMeshesDirty = false;
   /** Hinge wizard: the hinge line, latch, handles and a ghost of the part swung open. */
   private readonly hingeRoot = new Group();
   private readonly featureRoot = new Group();
@@ -349,6 +352,12 @@ export class ViewportRuntime {
     this.controls.dampingFactor = 0.12;
     this.controls.target.set(0, 0.6, 0);
     this.controls.update();
+    // Any drag, pan or zoom by the user ends the showcase's slow turn.
+    this.controls.addEventListener('start', () => {
+      if (!this.controls.autoRotate) return;
+      this.controls.autoRotate = false;
+      this.callbacks.onShowcaseStop?.();
+    });
 
     this.gizmo = new TransformControls(this.camera, canvas);
     this.gizmo.setSpace('local'); // the pivot's frame is BeamNG space
@@ -1045,6 +1054,7 @@ export class ViewportRuntime {
     this.live.root.visible = live;
     // The toolbar's mesh toggle (Alt+1) hides the car in Test Mode too.
     this.liveMeshRoot.visible = live && this.viewToggles.mesh;
+    if (this.liveMeshRoot.visible) this.liveMeshesDirty = true; // catch up on frames missed while hidden
   }
 
   /**
@@ -1087,7 +1097,8 @@ export class ViewportRuntime {
     const wasLive = !!this.liveView;
     this.liveView = view;
     this.live.update(view?.model ?? null, view?.positions ?? null, view?.stress ?? null, this.structureRadius(view?.positions));
-    if (view && this.liveMeshes.length) this.deformLiveMeshes(view.positions);
+    // The meshes follow once per drawn frame, however many physics frames arrive in between.
+    if (view && this.liveMeshes.length) this.liveMeshesDirty = true;
     this.live.setObstacles(view?.obstacles, 1.6);
     if (!!view !== wasLive) this.applyVisibility();
     if (view && this.liveFramedFor !== view.model) {
@@ -1656,6 +1667,20 @@ export class ViewportRuntime {
     this.frameBox(box, glide);
   }
 
+  /** Frame a box given in BeamNG space (somewhere with no mesh yet, like where an engine would go). */
+  frameModelBox(min: Vec3, max: Vec3, glide = true): void {
+    this.modelRoot.updateMatrixWorld(true);
+    const box = new Box3(new Vector3(...min), new Vector3(...max)).applyMatrix4(this.modelRoot.matrixWorld);
+    this.frameBox(box, glide);
+  }
+
+  /** Showcase: the camera turns slowly round its target until the user moves it (degrees per second). */
+  setShowcase(degreesPerSecond: number): void {
+    // OrbitControls' autoRotateSpeed 1 is one turn in 60 s at 60 fps: 6° a second.
+    this.controls.autoRotate = degreesPerSecond > 0;
+    this.controls.autoRotateSpeed = degreesPerSecond / 6;
+  }
+
   private frameBox(box: Box3, glide: boolean): void {
     if (box.isEmpty()) return;
     const sphere = box.getBoundingSphere(new Sphere());
@@ -1764,6 +1789,10 @@ export class ViewportRuntime {
       const { x, y } = this.pendingHover;
       this.pendingHover = null;
       this.callbacks.onHover(this.pick(x, y));
+    }
+    if (this.liveMeshesDirty && this.liveView) {
+      this.liveMeshesDirty = false;
+      if (this.liveMeshRoot.visible) this.deformLiveMeshes(this.liveView.positions);
     }
     this.stepGlide();
     this.controls.update();

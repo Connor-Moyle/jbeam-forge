@@ -46,12 +46,16 @@ export function bindVertices(vertices: ArrayLike<number>, nodePos: ArrayLike<num
       const n = candidates[i]!;
       d[i] = (nodePos[n * 3]! - x) ** 2 + (nodePos[n * 3 + 1]! - y) ** 2 + (nodePos[n * 3 + 2]! - z) ** 2;
     }
-    // The few nearest (partial selection is plenty for small candidate lists).
+    // The few nearest: one pass keeping a short sorted list (a big part has hundreds of nodes).
+    const k = Math.min(near, candidates.length);
     const order: number[] = [];
-    for (let k = 0; k < Math.min(near, candidates.length); k++) {
-      let best = -1;
-      for (let i = 0; i < candidates.length; i++) if (!order.includes(i) && (best < 0 || d[i]! < d[best]!)) best = i;
-      order.push(best);
+    for (let i = 0; i < candidates.length; i++) {
+      const di = d[i]!;
+      if (order.length === k && di >= d[order[k - 1]!]!) continue;
+      let at = order.length;
+      while (at > 0 && d[order[at - 1]!]! > di) at--;
+      order.splice(at, 0, i);
+      if (order.length > k) order.pop();
     }
     const a = candidates[order[0] ?? 0] ?? 0;
     let pick: [number, number] | null = null;
@@ -85,25 +89,87 @@ export function bindVertices(vertices: ArrayLike<number>, nodePos: ArrayLike<num
   return { nodes, local };
 }
 
-/** Vertex positions for the nodes' current positions. */
-export function deformVertices(b: SkinBinding, nodePos: ArrayLike<number>, out: Float32Array): void {
+/**
+ * Each binding's distinct node frames: most vertices share their three nodes
+ * with their neighbours, so a frame is worked out once per update, not once
+ * per vertex (a car has a few thousand frames and a few hundred thousand vertices).
+ */
+interface FramePlan {
+  /** Distinct (a, b, c) node triples. */
+  triples: Int32Array;
+  /** Per vertex: its triple, or -1 to follow node `nodes[v*3]` alone. */
+  which: Int32Array;
+  /** Per triple: origin and three axes (12 numbers), refilled each update. */
+  frames: Float64Array;
+  /** Per triple: 1 when its frame was usable this update. */
+  ok: Uint8Array;
+}
+
+const plans = new WeakMap<SkinBinding, FramePlan>();
+
+function planOf(b: SkinBinding): FramePlan {
+  let plan = plans.get(b);
+  if (plan) return plan;
   const count = b.local.length / 3;
+  const ids = new Map<string, number>();
+  const triples: number[] = [];
+  const which = new Int32Array(count);
   for (let v = 0; v < count; v++) {
     const a = b.nodes[v * 3]!;
     const bb = b.nodes[v * 3 + 1]!;
+    const c = b.nodes[v * 3 + 2]!;
+    if (bb < 0) {
+      which[v] = -1;
+      continue;
+    }
+    const key = `${a},${bb},${c}`;
+    let id = ids.get(key);
+    if (id === undefined) {
+      id = triples.length / 3;
+      ids.set(key, id);
+      triples.push(a, bb, c);
+    }
+    which[v] = id;
+  }
+  const n = triples.length / 3;
+  plan = { triples: Int32Array.from(triples), which, frames: new Float64Array(n * 12), ok: new Uint8Array(n) };
+  plans.set(b, plan);
+  return plan;
+}
+
+/** Vertex positions for the nodes' current positions. */
+export function deformVertices(b: SkinBinding, nodePos: ArrayLike<number>, out: Float32Array): void {
+  const plan = planOf(b);
+  const { triples, frames, ok, which } = plan;
+  for (let t = 0; t < ok.length; t++) {
+    const f = frame(nodePos, triples[t * 3]!, triples[t * 3 + 1]!, triples[t * 3 + 2]!);
+    if (!f) {
+      ok[t] = 0;
+      continue;
+    }
+    ok[t] = 1;
+    const [o, e1, e2, e3] = f;
+    frames.set(o, t * 12);
+    frames.set(e1, t * 12 + 3);
+    frames.set(e2, t * 12 + 6);
+    frames.set(e3, t * 12 + 9);
+  }
+  const count = b.local.length / 3;
+  for (let v = 0; v < count; v++) {
     const lx = b.local[v * 3]!;
     const ly = b.local[v * 3 + 1]!;
     const lz = b.local[v * 3 + 2]!;
-    const f = bb < 0 ? null : frame(nodePos, a, bb, b.nodes[v * 3 + 2]!);
-    if (!f) {
+    const t = which[v]!;
+    if (t < 0 || !ok[t]) {
+      const a = b.nodes[v * 3]!;
       out[v * 3] = nodePos[a * 3]! + lx;
       out[v * 3 + 1] = nodePos[a * 3 + 1]! + ly;
       out[v * 3 + 2] = nodePos[a * 3 + 2]! + lz;
       continue;
     }
-    const [o, e1, e2, e3] = f;
-    out[v * 3] = o[0] + e1[0] * lx + e2[0] * ly + e3[0] * lz;
-    out[v * 3 + 1] = o[1] + e1[1] * lx + e2[1] * ly + e3[1] * lz;
-    out[v * 3 + 2] = o[2] + e1[2] * lx + e2[2] * ly + e3[2] * lz;
+    const i = t * 12;
+    out[v * 3] = frames[i]! + frames[i + 3]! * lx + frames[i + 6]! * ly + frames[i + 9]! * lz;
+    out[v * 3 + 1] = frames[i + 1]! + frames[i + 4]! * lx + frames[i + 7]! * ly + frames[i + 10]! * lz;
+    out[v * 3 + 2] = frames[i + 2]! + frames[i + 5]! * lx + frames[i + 8]! * ly + frames[i + 11]! * lz;
   }
 }
