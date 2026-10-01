@@ -145,3 +145,72 @@ export function weldGraph(m: ProxyMesh, tolerance: number): ProxyMesh {
     ...(extra.length ? { extraEdges: extra.map(([a, b]) => [remap[a]!, remap[b]!] as [number, number]) } : {}),
   };
 }
+
+/**
+ * A very dense mesh brought down to about `maxTriangles` before proxy work:
+ * vertices merged on a grid anchored at the origin (so a car that is mirror
+ * symmetric about x = 0 stays so), each cell's vertices averaged, and
+ * triangles that collapse or repeat dropped. A part's structure has a few
+ * hundred nodes, so its shape survives; a million-triangle part generates in
+ * a fraction of the time. Meshes under the budget come back unchanged.
+ */
+export function reduceDense(m: ProxyMesh, maxTriangles = 20_000): ProxyMesh {
+  const tris = m.index.length / 3;
+  if (tris <= maxTriangles) return m;
+  const p = m.positions;
+  const lo = [Infinity, Infinity, Infinity];
+  const hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < p.length; i += 3)
+    for (let k = 0; k < 3; k++) {
+      lo[k] = Math.min(lo[k]!, p[i + k]!);
+      hi[k] = Math.max(hi[k]!, p[i + k]!);
+    }
+  // A surface mesh has about twice as many triangles as vertices: aim for maxTriangles/2 cells in use.
+  const area = (hi[0]! - lo[0]!) * (hi[1]! - lo[1]!) + (hi[1]! - lo[1]!) * (hi[2]! - lo[2]!) + (hi[0]! - lo[0]!) * (hi[2]! - lo[2]!);
+  let cell = Math.max(1e-4, Math.sqrt((2 * Math.max(area, 1e-6)) / (maxTriangles / 2)));
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const cells = new Map<number, number>();
+    // Cell coordinates relative to the lowest cell, packed into one number.
+    const ox = Math.floor(lo[0]! / cell), oy = Math.floor(lo[1]! / cell), oz = Math.floor(lo[2]! / cell);
+    const nx = Math.floor(hi[0]! / cell) - ox + 1, ny = Math.floor(hi[1]! / cell) - oy + 1;
+    const sums: number[] = [];
+    const counts: number[] = [];
+    const remap = new Int32Array(p.length / 3);
+    for (let v = 0; v < remap.length; v++) {
+      const x = p[v * 3]!, y = p[v * 3 + 1]!, z = p[v * 3 + 2]!;
+      const key = Math.floor(x / cell) - ox + nx * (Math.floor(y / cell) - oy + ny * (Math.floor(z / cell) - oz));
+      let id = cells.get(key);
+      if (id === undefined) {
+        id = counts.length;
+        cells.set(key, id);
+        sums.push(0, 0, 0);
+        counts.push(0);
+      }
+      sums[id * 3]! += x;
+      sums[id * 3 + 1]! += y;
+      sums[id * 3 + 2]! += z;
+      counts[id]!++;
+      remap[v] = id;
+    }
+    const seen = new Set<number>();
+    const index: number[] = [];
+    const n = counts.length;
+    for (let t = 0; t < m.index.length; t += 3) {
+      const a = remap[m.index[t]!]!, b = remap[m.index[t + 1]!]!, c = remap[m.index[t + 2]!]!;
+      if (a === b || b === c || a === c) continue;
+      const lo3 = Math.min(a, b, c), hi3 = Math.max(a, b, c), mid3 = a + b + c - lo3 - hi3;
+      const key = (lo3 * n + mid3) * n + hi3;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      index.push(a, b, c);
+    }
+    if (index.length / 3 > maxTriangles * 1.5 && attempt < 5) {
+      cell *= 1.4;
+      continue;
+    }
+    const positions = new Float32Array(counts.length * 3);
+    for (let i = 0; i < counts.length; i++) for (let k = 0; k < 3; k++) positions[i * 3 + k] = sums[i * 3 + k]! / counts[i]!;
+    return compact(positions, index);
+  }
+  return m;
+}

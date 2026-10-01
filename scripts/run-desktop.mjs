@@ -3068,6 +3068,114 @@ const scenarios = [
     },
   },
   {
+    id: 'high-poly',
+    name: 'a high-poly car (the practice car subdivided to about a million triangles): load, view, structure, Test Mode, materials',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // Every triangle split into four, twice: 16 times the practice car.
+      const dir = join(userData, 'highpoly');
+      mkdirSync(dir, { recursive: true });
+      const src = readFileSync(join(ROOT, 'assets', 'demo-car', 'demo_car.obj'), 'utf8').split('\n');
+      const verts = [];
+      const out = ['mtllib demo_car.mtl'];
+      let written = 0;
+      let tris = 0;
+      const emit = (p) => {
+        out.push(`v ${p[0].toFixed(4)} ${p[1].toFixed(4)} ${p[2].toFixed(4)}`);
+        return ++written;
+      };
+      const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
+      const split = (t, depth) => {
+        if (!depth) {
+          const ids = t.map(emit);
+          out.push(`f ${ids.join(' ')}`);
+          tris++;
+          return;
+        }
+        const [a, b, c] = t;
+        const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a);
+        for (const q of [[a, ab, ca], [ab, b, bc], [ca, bc, c], [ab, bc, ca]]) split(q, depth - 1);
+      };
+      for (const line of src) {
+        if (line.startsWith('v ')) verts.push(line.split(' ').slice(1, 4).map(Number));
+        else if (line.startsWith('o ') || line.startsWith('usemtl ')) out.push(line);
+        else if (line.startsWith('f ')) {
+          const ids = line.split(' ').slice(1).map((c) => Number(c.split('/')[0]) - 1);
+          for (let i = 1; i + 1 < ids.length; i++) split([verts[ids[0]], verts[ids[i]], verts[ids[i + 1]]], 2);
+        }
+      }
+      const objPath = join(dir, 'highpoly_car.obj');
+      writeFileSync(objPath, `${out.join('\n')}\n`);
+      writeFileSync(join(dir, 'demo_car.mtl'), readFileSync(join(ROOT, 'assets', 'demo-car', 'demo_car.mtl'), 'utf8').replace(/^map_Kd .*$/gm, ''));
+      const timings = { triangles: tris };
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('High poly');
+      await page.getByTestId('newmod-create').click();
+      await page.waitForSelector('[data-view=editor]');
+      let t = Date.now();
+      await hook(page, 'queueDialog', [objPath]);
+      await page.getByTestId('toolbar-import').click();
+      await page.getByTestId('import-confirm').click({ timeout: 120_000 });
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 3000 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+      let st;
+      for (let i = 0; i < 1200; i++) {
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 40 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      timings.loadMs = Date.now() - t;
+      assert(st.meshes > 40, `the high-poly car loaded (${st.meshes} meshes)`);
+      await page.waitForTimeout(2000);
+      const gl = await hook(page, 'glStats');
+      timings.viewTriangles = gl.triangles;
+      timings.fps = gl.fps;
+      assert(gl.triangles > 900_000, `about a million triangles drawn (${gl.triangles})`);
+      await shot(page, 'high-poly-loaded');
+      // Parts and structure.
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      t = Date.now();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 3000 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      timings.generateMs = Date.now() - t;
+      timings.generateReported = (await page.getByTestId('status-bar').textContent())?.match(/Generated \d+ parts? in (\d+) ms/)?.[1] ?? null;
+      const nodes = (await hook(page, 'projectDoc')).nodes.length;
+      assert(nodes > 50, `structure generated (${nodes} nodes)`);
+      await page.waitForTimeout(500);
+      await shot(page, 'high-poly-structure');
+      // Test Mode with the car's mesh following the physics: the window keeps answering.
+      await hook(page, 'applyPreset', 'testing');
+      t = Date.now();
+      await page.getByRole('button', { name: 'Enter Test Mode' }).click();
+      await page.getByTestId('test-panel').waitFor({ timeout: 120_000 });
+      timings.testModeMs = Date.now() - t;
+      await page.getByTestId('sim-run').click();
+      await page.waitForTimeout(3000);
+      t = Date.now();
+      await shot(page, 'high-poly-testing');
+      timings.testingShotMs = Date.now() - t;
+      timings.testingFps = (await hook(page, 'glStats')).fps;
+      await page.getByTestId('sim-exit').click();
+      // A material change on a million triangles.
+      await hook(page, 'applyPreset', 'materials');
+      await page.getByTestId('material-row').first().click();
+      t = Date.now();
+      const rough = page.getByLabel('Roughness value').first();
+      await rough.fill('0.3');
+      await rough.press('Enter');
+      await page.waitForTimeout(100);
+      await shot(page, 'high-poly-material');
+      timings.materialMs = Date.now() - t;
+      writeFileSync(join(outDir, 'high-poly-timings.json'), JSON.stringify(timings, null, 1));
+      console.log('high-poly timings', JSON.stringify(timings));
+    },
+  },
+  {
     id: 'demo-car',
     name: 'the practice car (E30-style saloon): every angle, and with its panels off',
     async run({ page }) {

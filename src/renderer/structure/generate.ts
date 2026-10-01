@@ -11,7 +11,7 @@ import type { PartProxy, Project } from '@shared/project/schema';
 import type { ProxyMesh } from '@shared/proxy/mesh';
 import { buildProxy } from '@shared/proxy/build';
 import { meshoptReady } from '@shared/proxy/shapes';
-import { edges } from '@shared/proxy/mesh';
+import { edges, reduceDense } from '@shared/proxy/mesh';
 import { defaultProxySettings, generateStructure, massNodeCap, partMass, partSettings, removePartStructure, type PartGeometry, type PartReport } from '@shared/proxy/generate';
 import { braces } from '@shared/proxy/derive';
 import { kindDefaults, targetVertices } from '@shared/proxy/presets';
@@ -45,26 +45,34 @@ export function partGeometry(partId: string): ProxyMesh {
   const keys = new Set(Object.keys(doc.assignments).filter((k) => doc.assignments[k] === partId));
   const meshes: ImportedMesh[] = [];
   for (const s of Object.values(useSceneStore.getState().sources)) for (const m of s.meshes) if (keys.has(m.key)) meshes.push(m);
-  const positions: number[] = [];
-  const index: number[] = [];
+  // Typed arrays sized up front: a dense part has millions of vertices.
+  let total = 0;
+  for (const m of meshes) total += m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count - (m.geometry.getAttribute('position').count % 3);
+  const positions = new Float32Array(total * 3);
+  const index = new Uint32Array(total);
+  let nv = 0;
+  let ni = 0;
   for (const m of meshes) {
     const pos = m.geometry.getAttribute('position');
     const idx = m.geometry.index;
     const count = idx ? idx.count : pos.count - (pos.count % 3);
     // Only the vertices this mesh actually uses (split results share their source's buffer).
-    const remap = new Map<number, number>();
+    const remap = idx ? new Map<number, number>() : null;
     for (let i = 0; i < count; i++) {
       const v = idx ? idx.getX(i) : i;
-      let out = remap.get(v);
+      let out = remap?.get(v);
       if (out === undefined) {
-        out = positions.length / 3;
-        remap.set(v, out);
-        positions.push(pos.getX(v), pos.getY(v), pos.getZ(v));
+        out = nv++;
+        remap?.set(v, out);
+        positions[out * 3] = pos.getX(v);
+        positions[out * 3 + 1] = pos.getY(v);
+        positions[out * 3 + 2] = pos.getZ(v);
       }
-      index.push(out);
+      index[ni++] = out;
     }
   }
-  return { positions: new Float32Array(positions), index: new Uint32Array(index) };
+  // A very dense part (a million-triangle model) is brought down first: its structure has a few hundred nodes.
+  return reduceDense({ positions: positions.slice(0, nv * 3), index });
 }
 
 function partsWithMeshes(): string[] {
