@@ -649,3 +649,39 @@ export async function buildPartObjects(installDir: string, out: string, onVehicl
   }
   return count;
 }
+
+/**
+ * Engines and gearboxes (and suspensions, panels) from a car mod outside the
+ * install: a car exported from Automation (Camso), or any car mod zip. The
+ * mod's vehicles are read the same way as the game's, with the install's
+ * common parts and meshes when the install is known (exports lean on them).
+ * Sets land in `<out>/sets/<vehicle>/…`; the vehicles found are returned.
+ */
+export async function importModSets(modZip: string, installDir: string | null, out: string, fallbackBrand = 'Automation'): Promise<string[]> {
+  const commonPath = installDir ? join(installDir, 'content', 'vehicles', 'common.zip') : null;
+  const hasCommon = !!commonPath && (await readableZip(commonPath));
+  const common = hasCommon ? await withZip(commonPath, daesOf) : [];
+  const commonParts = hasCommon ? await withZip(commonPath, allParts) : new Map<string, JbeamObject>();
+  const commonZip = hasCommon ? await ZipReader.open(commonPath) : null;
+  const t = installDir ? await translations(installDir) : (key: string) => key;
+  const textures = new TextureStore(out, commonZip);
+  const commonMaterials = commonZip ? await materialTextures(commonZip) : new Map<string, string>();
+  const found: string[] = [];
+  try {
+    await withZip(modZip, async (zip) => {
+      const vehicles = [...new Set((await zip.entries()).map((e) => /^vehicles\/([^/]+)\/.+\.jbeam$/i.exec(e.name)?.[1]).filter((v): v is string => !!v && v.toLowerCase() !== 'common'))];
+      if (!vehicles.length) throw new Error('No car in this file: an Automation export is a zip with a vehicles/<name>/ folder (in BeamNG’s mods folder).');
+      const own = await daesOf(zip);
+      const locate = (mesh: string) => own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));
+      const materialIndex = new Map([...commonMaterials, ...(await materialTextures(zip))]);
+      for (const vehicle of vehicles) {
+        const info = await vehicleInfo(zip, vehicle, t);
+        await writeSets(zip, vehicle, { name: info.name || vehicle, brand: info.brand && info.brand !== 'Other' ? info.brand : fallbackBrand }, commonParts, new Map(), locate, join(out, 'sets'), textures, materialIndex);
+        found.push(vehicle);
+      }
+    });
+  } finally {
+    commonZip?.close();
+  }
+  return found;
+}

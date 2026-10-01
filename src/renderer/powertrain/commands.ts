@@ -424,3 +424,35 @@ export function fitDesignedEngine(design: EngineDesign, set: SuspensionSet): Pro
     if (data && projectStore.getState().doc?.powertrain.engine?.setId === set.id) applyEngineDesign(design, designTarget(data.parts, data.root));
   });
 }
+
+/**
+ * Bring in the engine of a car exported from Automation: its engines and
+ * gearboxes join the catalogue (under its brand), and a lone engine is fitted
+ * straight away (several: the picker opens on them).
+ */
+export async function importAutomationEngine(): Promise<void> {
+  const ui = useUiStore.getState();
+  let got: Awaited<ReturnType<typeof call<'powertrain:importMod'>>>;
+  try {
+    got = await call('powertrain:importMod');
+  } catch (err) {
+    ui.pushStatus(`Couldn't read that car: ${err instanceof Error ? err.message : String(err)}`, 'danger', 9000);
+    return;
+  }
+  if (!got) return;
+  await usePowertrainCatalogue.getState().load(true);
+  const engines = got.sets.filter((s) => s.kind === 'engine');
+  const gearboxes = got.sets.filter((s) => s.kind === 'gearbox');
+  const file = got.file.split(/[\\/]/).pop() ?? got.file;
+  if (!engines.length) {
+    ui.pushStatus(`No engine found in ${file}. Export the car from Automation to BeamNG (it lands in BeamNG’s mods folder as a .zip), then pick that file.`, 'warning', 10000);
+    return;
+  }
+  if (engines.length === 1) {
+    await fitPowertrain('engine', engines[0]!);
+    ui.pushStatus(`Fitted the ${engines[0]!.vehicleName} ${engines[0]!.name} from ${file}.${gearboxes.length ? ' Its gearbox is in the gearbox list (Choose a base gearbox).' : ''} Move it into place with the arrows.`, 'success', 10000);
+    return;
+  }
+  usePowertrainUi.getState().show({ kind: 'engine', page: 'pick' });
+  ui.pushStatus(`${engines.length} engines from ${file} are in the list under ${engines[0]!.brand}.`, 'success', 9000);
+}

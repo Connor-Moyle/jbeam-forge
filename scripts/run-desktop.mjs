@@ -2938,6 +2938,39 @@ const scenarios = [
         assert(files.some((f) => f.text.includes(`"revLimiterRPM": ${limit[1]}`) || f.text.includes(`"revLimiterRPM":${limit[1]}`)), `the exported engine has the designed rev limit (${files.map((f) => f.path).join(', ')})`);
       }
       rmSync(engineZip, { force: true });
+      // An engine from a car exported from Automation (Camso parts, its own info.json), picked from a zip.
+      const automationZip = join(userData, 'automation-export.zip');
+      const camso = {
+        Camso_body_8f3a: { information: { name: 'Body' }, slotType: 'main', slots: [['type', 'default', 'description'], ['Camso_Engine', 'Camso_Engine_8f3a', 'Engine']], nodes: [['id', 'posX', 'posY', 'posZ'], ['b1', 0, 0, 0.5]] },
+        Camso_Engine_8f3a: {
+          information: { name: 'Forge Works 2.4L I4 DOHC (Automation)' },
+          slotType: 'Camso_Engine',
+          powertrain: [['type', 'name', 'inputName', 'inputIndex'], ['combustionEngine', 'mainEngine', 'dummy', 0]],
+          mainEngine: { torque: [['rpm', 'torque'], [0, 120], [2000, 210], [4500, 245], [6500, 220], [7500, 190]], idleRPM: 850, maxRPM: 7200, revLimiterRPM: 7100, inertia: 0.12, friction: 14, dynamicFriction: 0.024 },
+          flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fixture_body', ['Camso_engine']]],
+          nodes: [['id', 'posX', 'posY', 'posZ'], { nodeWeight: 35 }, ['ce1', 0, -1.2, 0.4], ['ce2', 0.2, -1.2, 0.4], ['ce3', 0, -1.5, 0.4], ['ce4', 0, -1.2, 0.7]],
+          beams: [['id1:', 'id2:'], ['ce1', 'ce2'], ['ce1', 'ce3'], ['ce1', 'ce4'], ['ce2', 'ce3'], ['ce2', 'ce4'], ['ce3', 'ce4']],
+        },
+      };
+      await new Promise((resolve, reject) => {
+        const zip = new yazl.ZipFile();
+        zip.addBuffer(Buffer.from(JSON.stringify(camso)), 'vehicles/forge_coupe_8f3a/forge_coupe_8f3a.jbeam');
+        zip.addBuffer(readFileSync(join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae')), 'vehicles/forge_coupe_8f3a/forge_coupe_8f3a.dae');
+        zip.addBuffer(Buffer.from(JSON.stringify({ Name: 'Forge Coupe', Brand: 'Automation' })), 'vehicles/forge_coupe_8f3a/info.json');
+        zip.end();
+        zip.outputStream.pipe(createWriteStream(automationZip)).on('close', resolve).on('error', reject);
+      });
+      await page.getByRole('button', { name: 'Back' }).first().click();
+      await hook(page, 'queueDialog', [automationZip]);
+      await page.getByTestId('engine-import-automation').click();
+      for (let i = 0; i < 600 && !/Forge Coupe/.test((await hook(page, 'projectDoc')).powertrain?.engine?.vehicle ?? ''); i++) await page.waitForTimeout(100);
+      const imported = (await hook(page, 'projectDoc')).powertrain.engine;
+      assert(/Forge Coupe/.test(imported?.vehicle ?? '') && /2\.4L I4/.test(imported?.name ?? ''), `the Automation engine is fitted (${imported?.vehicle} ${imported?.name})`);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(1200);
+      await shot(page, 'engine-from-automation');
+      const autoFiles = (await hook(page, 'preparedJbeams')).files;
+      assert(autoFiles.some((f) => /"revLimiterRPM"\s*:\s*7100/.test(f.text)), 'its own engine jbeam goes into the mod');
     },
   },
   {

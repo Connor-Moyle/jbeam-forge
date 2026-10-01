@@ -487,6 +487,15 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('objects:list', async () => [...(await packs.objects()), ...services.userLibrary.items.objects]);
   registerInvoke('suspension:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'suspension'));
   registerInvoke('powertrain:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'engine' || s.kind === 'gearbox'));
+  registerInvoke('powertrain:importMod', async (_req, event) => {
+    const settings = services.settings.get();
+    const mods = settings.beamngUserDir ? join(settings.beamngUserDir, 'mods') : undefined;
+    const file = await pickOpenFile(event.sender, { title: 'Choose a car exported from Automation (a .zip in BeamNG’s mods folder)', ...(mods ? { defaultPath: mods } : {}), filters: [{ name: 'Car mod', extensions: ['zip'] }], properties: ['openFile'] });
+    if (!file) return null;
+    const sets = await services.userLibrary.importMod(file, settings.beamngInstallDir);
+    for (const s of sets) projects.grantRoot(dirname(s.jbeam));
+    return { file, sets: sets.filter((s) => s.kind === 'engine' || s.kind === 'gearbox') };
+  });
   registerInvoke('panels:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'panel'));
   registerInvoke(
     'suspension:set',

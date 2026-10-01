@@ -127,6 +127,40 @@ export class UserLibrary {
     return this.running;
   }
 
+  /** Sets cut from car mods (Automation exports), kept under the cache's imports folder. */
+  private async importedSets(): Promise<SuspensionSet[]> {
+    const root = join(this.cacheRoot, 'imports');
+    let dirs: string[] = [];
+    try {
+      dirs = await readdir(root);
+    } catch {
+      return [];
+    }
+    const out: SuspensionSet[] = [];
+    for (const d of dirs) {
+      this.grant(join(root, d));
+      out.push(...(await loadSets(join(root, d, 'sets'))).map((s) => ({ ...s, id: `import:${d}/${s.id}` })));
+    }
+    return out;
+  }
+
+  /**
+   * Bring in the engines and gearboxes of a car mod zip (a car exported from
+   * Automation): cut like the game's cars, then listed in the catalogue.
+   * Returns the sets it added.
+   */
+  async importMod(zipPath: string, install: string | null): Promise<SuspensionSet[]> {
+    const key = createHash('sha1').update(zipPath.toLowerCase()).digest('hex').slice(0, 10);
+    const out = join(this.cacheRoot, 'imports', key);
+    this.logger.info('importing car mod', zipPath);
+    const r = await runWorker({ kind: 'mod', folder: zipPath, out, install, title: basename(zipPath) });
+    if (!r.ok) throw new Error(r.error);
+    const all = await this.importedSets();
+    const added = all.filter((s) => s.id.startsWith(`import:${key}/`));
+    this.sets = [...this.sets.filter((s) => !s.id.startsWith(`import:${key}/`)), ...added];
+    return added;
+  }
+
   private async scanAll(folders: Folders): Promise<void> {
     const materials: LibraryItem[] = [];
     const objects: ObjectItem[] = [];
@@ -155,6 +189,8 @@ export class UserLibrary {
         status.push({ kind: 'beamng', folder: install, count: 0, error: message });
       }
     }
+    // Car mods brought in (engines from Automation exports): already cut, just loaded.
+    sets.push(...(await this.importedSets()));
     for (const kind of ['materials', 'objects'] as const) {
       for (const folder of folders[kind]) {
         const key = createHash('sha1').update(folder.toLowerCase()).digest('hex').slice(0, 10);

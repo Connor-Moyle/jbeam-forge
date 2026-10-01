@@ -1,4 +1,4 @@
-import { Eye, Focus, Gauge, RotateCw, Wand2 } from 'lucide-react';
+import { Eye, FileDown, Focus, Gauge, RotateCw, Wand2 } from 'lucide-react';
 import { DEFAULT_SETTINGS } from '@shared/settings-schema';
 import { designEngine, designName } from '@shared/powertrain/design';
 import { useProjectStore } from '@renderer/app/stores/project';
@@ -7,7 +7,7 @@ import { call } from '@renderer/diagnostics/ipc';
 import { Button } from '@renderer/ui/components/Button';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { useUnits } from '@renderer/settings/useUnits';
-import { usePowertrainUi } from './commands';
+import { importAutomationEngine, usePowertrainUi } from './commands';
 import { showEngine, useEngineStage } from './engineStage';
 import styles from './EngineHero.module.css';
 
@@ -44,6 +44,9 @@ export function EngineHero() {
             Start from a game engine
           </Button>
         )}
+        <Button icon={FileDown} onClick={() => void importAutomationEngine()} title="An engine from a car you exported from Automation to BeamNG (the .zip in BeamNG’s mods folder)" data-testid="engine-import-automation">
+          Import from Automation…
+        </Button>
       </div>
       {active && (
         <div className={styles.view} data-testid="engine-view-options">

@@ -208,6 +208,8 @@ export interface InvokeContract {
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
   /** Complete engines and gearboxes from the BeamNG install. */
   'powertrain:catalogue': { req: undefined; res: SuspensionSet[] };
+  /** Pick a car mod zip (a car exported from Automation) and add its engines and gearboxes to the catalogue; null when cancelled. */
+  'powertrain:importMod': { req: undefined; res: { file: string; sets: SuspensionSet[] } | null };
   /** Body panels of the game's cars (hoods, bumpers, doors…), for panel mods. */
   'panels:catalogue': { req: undefined; res: SuspensionSet[] };
   /** Complete suspensions from the BeamNG install (empty until the install is set and read). */
@@ -387,6 +389,7 @@ export const INVOKE_CHANNELS = [
   'ac:pickCar',
   'suspension:catalogue',
   'powertrain:catalogue',
+  'powertrain:importMod',
   'panels:catalogue',
   'suspension:set',
   'library:status',
