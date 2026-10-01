@@ -524,7 +524,10 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('library:rescan', async () => {
     const s = settings.get();
     await services.userLibrary.scan({ materials: s.materialFolders, objects: s.objectFolders, beamngInstall: s.beamngInstallDir });
-    return libraryStatus();
+    // Tell the window, as a scan at startup does: the pickers reload the game's parts.
+    const status = libraryStatus();
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) sendEvent(w.webContents, 'library:changed', status);
+    return status;
   });
   registerInvoke('materials:saveToLibrary', ({ name, category, def }) => materialLibrary.add(name, category, def), LibraryEntry);
   registerInvoke('materials:removeFromLibrary', ({ id }) => materialLibrary.remove(id), z.object({ id: z.string().min(1).max(64) }));
