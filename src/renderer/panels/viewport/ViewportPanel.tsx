@@ -512,6 +512,14 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       e.preventDefault();
     };
     host.addEventListener('keydown', onKey);
+    // Keys go where the mouse is (as in Blender): over the viewport it takes the keyboard, unless you're typing
+    // in a field or a window is open.
+    const onEnter = () => {
+      const a = document.activeElement;
+      const typing = a instanceof HTMLElement && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+      if (!typing && !document.querySelector('[role=dialog]') && a !== host && !host.contains(a)) host.focus({ preventScroll: true });
+    };
+    host.addEventListener('pointerenter', onEnter);
 
     // Drop a material from the Materials panel onto a mesh (onto the whole selection if it's part of it).
     const onDragOver = (e: DragEvent) => {
@@ -568,6 +576,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeFeaturesDoc();
       unsubscribeLiveSel();
       host.removeEventListener('keydown', onKey);
+      host.removeEventListener('pointerenter', onEnter);
       host.removeEventListener('dragover', onDragOver);
       host.removeEventListener('drop', onDrop);
       rt.dispose();

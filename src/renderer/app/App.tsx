@@ -1,4 +1,7 @@
 import { workspacesFor } from '@renderer/shell/presets';
+import { useSuspensionCatalogue } from '@renderer/suspension/commands';
+import { usePowertrainCatalogue } from '@renderer/powertrain/commands';
+import { usePanelCatalogue } from '@renderer/panelmod/commands';
 import { useTriggerUi } from '@renderer/triggers/commands';
 import { useMovingUi } from '@renderer/moving/MovingPartsPanel';
 import { useSkinUi } from '@renderer/skins/commands';
@@ -65,6 +68,10 @@ function AppEffects() {
     () =>
       window.forge.on('library:changed', ({ folders }) => {
         void useObjects.getState().reload();
+        // The game's parts may have changed: the catalogues load afresh next time a picker opens (open ones reload themselves).
+        useSuspensionCatalogue.setState({ sets: null });
+        usePowertrainCatalogue.setState({ sets: null });
+        usePanelCatalogue.setState({ sets: null });
         void call('materials:pack').then((pack) => useLibrary.getState().setPack(pack));
         const count = (kind: string) => folders.filter((f) => f.kind === kind).reduce((n, f) => n + f.count, 0);
         const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
