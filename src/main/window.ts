@@ -91,6 +91,8 @@ export function createMainWindow(opts: WindowOptions): BrowserWindow {
   const repeats = new Map<string, { count: number; at: number }>();
   win.webContents.on('console-message', (event) => {
     if (event.level !== 'error') return;
+    // Chromium's note that a resize settled over two frames (a popover finding its size): not an error.
+    if (event.message.startsWith('ResizeObserver loop')) return;
     const key = `${event.message}@${event.sourceId}:${event.lineNumber}`;
     const now = Date.now();
     const r = repeats.get(key);

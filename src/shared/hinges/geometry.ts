@@ -95,6 +95,12 @@ export function guessHinge(kind: string, part: readonly Pt[], body: readonly Pt[
     const front = band(1, 'lo', 0.15).filter((p) => p[2] <= belt);
     const edge = front.length >= 2 ? front : band(1, 'lo', 0.15);
     axis = [argBy(edge, (p) => p[2]), argBy(edge, (p) => -p[2])];
+    // A coarse door (a hull has nodes only at its corners) may have nothing up the front edge below the belt:
+    // the two hinge points must still be well apart up the door, never across its thickness.
+    if (Math.abs(axis[0][2] - axis[1][2]) < size[2] * 0.25) {
+      const all = band(1, 'lo', 0.15);
+      axis = [argBy(all, (p) => p[2]), argBy(all, (p) => -p[2])];
+    }
     const rear = band(1, 'hi', 0.15);
     const latchZ = lo[2] + size[2] * 0.45;
     latch = rear.length ? argBy(rear, (p) => Math.abs(p[2] - latchZ)) : null;

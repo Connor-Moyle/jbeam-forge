@@ -28,6 +28,8 @@ export function installGlobalHandlers(target: Window = window): void {
   if (installed) return;
   installed = true;
   target.addEventListener('error', (event) => {
+    // The browser's note that a resize settled over two frames (a popover finding its size): not an error.
+    if (typeof event.message === 'string' && event.message.startsWith('ResizeObserver loop')) return;
     reportError('window.onerror', event.error ?? event.message, `${event.filename}:${event.lineno}:${event.colno}`);
   });
   target.addEventListener('unhandledrejection', (event) => {

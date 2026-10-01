@@ -208,6 +208,9 @@ export const ATTACH_SPAN = 0.35;
 const MAX_COVER_LENGTH = 0.6;
 /** Share of the part's length (along each main direction) its attachments must span. */
 const SPREAD = 0.7;
+/** At least this many parent nodes take a part's attachments (when that many are in reach), this far apart (m). */
+const MIN_ANCHORS = 4;
+const MIN_ANCHOR_SPACING = 0.05;
 
 /** Thinner than this (m) across its least direction, a part is flat. */
 const FLAT = 0.04;
@@ -337,6 +340,34 @@ export function attachToParent(child: readonly StructNode[], parent: readonly St
       seen.add(key);
       out.push({ id1: c.id, id2: p.id, partId, kind: 'attach' });
       if (out.length >= maxBeams) return out;
+    }
+  }
+  // The parent's side spread too: when every beam lands on the same one or two parent nodes the part
+  // pivots there like a ball joint (a mirror on a door). More anchors, as far apart as reach allows.
+  if (!far) {
+    const coverLimit = Math.max(MAX_COVER_LENGTH, gap * 1.5);
+    const held = [...chosen].map((i) => child[i]!);
+    const anchors = new Set(out.map((b) => b.id2));
+    const anchorNodes = () => parent.filter((p) => anchors.has(p.id));
+    const reachable = parent.filter((p) => !anchors.has(p.id) && held.some((c) => d(c, p) <= coverLimit && d(c, p) >= MIN_ATTACH_LENGTH));
+    while (anchors.size < MIN_ANCHORS && reachable.length && out.length < maxBeams) {
+      // The reachable parent node furthest from the anchors so far.
+      const used = anchorNodes();
+      let best = -1;
+      let bestD = -1;
+      reachable.forEach((p, k) => {
+        const m = used.length ? Math.min(...used.map((u) => d(u, p))) : Infinity;
+        if (m > bestD) [best, bestD] = [k, m];
+      });
+      if (best < 0 || bestD < MIN_ANCHOR_SPACING) break;
+      const p = reachable.splice(best, 1)[0]!;
+      anchors.add(p.id);
+      // Tied to the held nodes nearest it.
+      for (const c of [...held].sort((a, b) => d(a, p) - d(b, p)).slice(0, links)) {
+        if (d(c, p) > coverLimit || seen.has(`${c.id}|${p.id}`)) continue;
+        seen.add(`${c.id}|${p.id}`);
+        out.push({ id1: c.id, id2: p.id, partId, kind: 'attach' });
+      }
     }
   }
   return out;

@@ -3327,7 +3327,14 @@ const scenarios = [
       const vdir = join(outDir, 'practice-mod', 'vehicles', readdirSync(join(outDir, 'practice-mod', 'vehicles'))[0]);
       const check = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir], { encoding: 'utf8', env: { ...process.env, STEPS: '6000' } });
       writeFileSync(join(outDir, 'practice-stability.txt'), check.stdout + check.stderr);
+      // And in the app's physics on stands: every part holds (none hinging on one edge or dropping).
+      const sag = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'dev', 'simParts.mts'), join(outDir, 'practice-doc.json'), '4'], { encoding: 'utf8' });
+      writeFileSync(join(outDir, 'practice-sag.txt'), sag.stdout + sag.stderr);
+      const worstSag = Number(/^\s*(\d+) mm/m.exec(sag.stdout)?.[1] ?? NaN);
+      assert(worstSag < 100, `every part holds on its stands (worst ${worstSag} mm):\n${sag.stdout.split('\n').slice(0, 6).join('\n')}${sag.stderr.slice(0, 300)}`);
       assert(/RUN: \d+ steps .* stable/.test(check.stdout), `the exported car holds together at 2000 Hz:\n${check.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${check.stderr.slice(0, 400)}`);
+      // The export result stays open otherwise, over the next scenario's home screen.
+      for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
     },
   },
   {
@@ -3420,6 +3427,57 @@ const scenarios = [
       const after = await hook(page, 'partCentre', '^Front Left (wheel|tire)$');
       assert(near(after, [want[0], want[1] + 0.05, want[2] + 0.02]), `the wheel follows the suspension (${after.map((v) => v.toFixed(3))})`);
       await shot(page, 'suspension-wheels-moved');
+    },
+  },
+  {
+    id: 'generate-modes',
+    name: 'Generate options on the practice car: each proxy mode from the dropdown, its structure and how it holds up',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      const modes = { auto: 'Best for each part (recommended)', hull: 'Convex hull, body included', surface: 'Follow the surface', decimate: 'Simplified mesh' };
+      const counts = {};
+      for (const [mode, label] of Object.entries(modes)) {
+        await page.getByTestId('toolbar-generate-options').click();
+        await page.getByTestId('generate-menu').waitFor();
+        await page.getByTestId('generate-mode').click();
+        await page.getByRole('option', { name: label }).click();
+        await page.waitForTimeout(300);
+        if (mode === 'auto') await shot(page, 'generate-menu');
+        const before = (await hook(page, 'projectDoc')).beams.length;
+        await page.getByTestId('generate-go').click();
+        for (let i = 0; i < 1800; i++) {
+          const d = await hook(page, 'projectDoc');
+          if (d.nodes.length > 50 && d.beams.length !== before && !(await page.evaluate(() => document.querySelector('[data-testid=toolbar-generate]')?.hasAttribute('disabled')))) break;
+          await page.waitForTimeout(100);
+        }
+        await page.waitForTimeout(800);
+        const doc = await hook(page, 'projectDoc');
+        const body = doc.parts.find((p) => p.taxonomyId === 'body');
+        assert(mode === 'auto' || doc.proxy.parts[body.id]?.mode === mode, `the body was built as ${mode} (${doc.proxy.parts[body.id]?.mode})`);
+        counts[mode] = { nodes: doc.nodes.length, beams: doc.beams.length, tris: doc.tris.length };
+        writeFileSync(join(outDir, `modes-${mode}.json`), JSON.stringify(doc));
+        await page.keyboard.press('Alt+1');
+        await hook(page, 'viewFrom', [3.2, 1.3, 3.6]);
+        await page.waitForTimeout(600);
+        await shot(page, `generate-${mode}`);
+        await page.keyboard.press('Alt+1');
+      }
+      writeFileSync(join(outDir, 'modes-counts.json'), JSON.stringify(counts, null, 1));
+      // The choice is remembered.
+      const s = await page.evaluate(() => window.forge.invoke('settings:get'));
+      assert(s.value.generateMode === 'decimate', `remembered (${s.value.generateMode})`);
+      await page.evaluate(() => window.forge.invoke('settings:update', { generateMode: 'auto' }));
     },
   },
   {

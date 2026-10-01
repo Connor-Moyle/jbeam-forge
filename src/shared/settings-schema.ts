@@ -28,6 +28,10 @@ export const SettingsSchema = z.object({
   focusGhostOpacity: z.number().min(0).max(1),
   /** Engine workspace: the rest of the car turns see-through around the engine. */
   engineViewXray: z.boolean(),
+  /** Generate (toolbar): how every part's structure is built ('auto' = each part's own choice). */
+  generateMode: z.enum(['auto', 'hull', 'surface', 'decimate', 'box']),
+  /** Generate (toolbar): how many nodes, 0 (fewest) to 1 (most) within each kind of part's range. */
+  generateDetail: z.number().min(0).max(1),
   /** Engine workspace: the camera turns slowly round the engine until you move it. */
   engineViewOrbit: z.boolean(),
   /** Name meshes after the part they're assigned to (typed names are never touched). */
@@ -225,6 +229,8 @@ export const DEFAULT_SETTINGS: Settings = {
   author: null,
   focusGhostOpacity: 0.12,
   engineViewXray: true,
+  generateMode: 'auto',
+  generateDetail: 0.5,
   engineViewOrbit: true,
   autoRenameMeshes: true,
   autoRenameDisplayNames: true,

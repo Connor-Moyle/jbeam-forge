@@ -1,4 +1,4 @@
-import { CircleHelp, BadgePlus, Box, CloudDownload, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wand2, Wrench } from 'lucide-react';
+import { CircleHelp, BadgePlus, Box, CloudDownload, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wrench } from 'lucide-react';
 import { keyFor } from '@renderer/app/keys';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -6,7 +6,8 @@ import { useProjectStore } from '@renderer/app/stores/project';
 import { openProject, redo, saveProject, undo } from '@renderer/project/actions';
 import { startImport } from '@renderer/import/importFlow';
 import { useUiStore } from '@renderer/app/stores/ui';
-import { generateAll, useStructureUi } from '@renderer/structure/generate';
+import { useStructureUi } from '@renderer/structure/generate';
+import { GenerateMenu } from '@renderer/structure/GenerateMenu';
 import { useEditStore } from '@renderer/structure/editStore';
 import { openExport } from '@renderer/export/exportFlow';
 import { startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
@@ -56,7 +57,7 @@ export function Toolbar() {
         </div>
         <div className={styles.group} role="group" aria-label="Generate">
           <span className={styles.divider} aria-hidden />
-          <IconButton icon={Wand2} label={hasParts ? 'Generate structure for all parts' : 'Generate structure (assign meshes to parts first)'} disabled={!hasParts || generating} onClick={() => void generateAll()} data-testid="toolbar-generate" />
+          <GenerateMenu label={hasParts ? 'Generate structure for all parts' : 'Generate structure (assign meshes to parts first)'} disabled={!hasParts || generating} />
         </div>
         <div className={styles.group} role="group" aria-label="View">
           <span className={styles.divider} aria-hidden />

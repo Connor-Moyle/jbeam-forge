@@ -9,7 +9,7 @@ import { rlog } from '@renderer/diagnostics/logger';
 import type { ImportedMesh } from '@renderer/import/normalize';
 import type { PartProxy, Project } from '@shared/project/schema';
 import type { ProxyMesh } from '@shared/proxy/mesh';
-import { buildProxy } from '@shared/proxy/build';
+import { buildProxy, type ProxyMode } from '@shared/proxy/build';
 import { meshoptReady } from '@shared/proxy/shapes';
 import { edges, reduceDense } from '@shared/proxy/mesh';
 import { defaultProxySettings, generateStructure, massNodeCap, partMass, partSettings, removePartStructure, type PartGeometry, type PartReport } from '@shared/proxy/generate';
@@ -83,7 +83,7 @@ function partsWithMeshes(): string[] {
 }
 
 /** Generate (or regenerate) the given parts as one undoable step. */
-export async function generateParts(partIds: readonly string[], label?: string): Promise<PartReport[]> {
+export async function generateParts(partIds: readonly string[], label?: string, choice?: GenerateChoice): Promise<PartReport[]> {
   const ui = useStructureUi.getState();
   if (!partIds.length || ui.busy) return [];
   ui.setBusy(true);
@@ -96,7 +96,18 @@ export async function generateParts(partIds: readonly string[], label?: string):
     const base = projectStore.getState().doc;
     if (!base) return [];
     const work = { parts: base.parts, hinges: base.hinges, nodes: [...base.nodes], beams: [...base.beams], tris: [...base.tris], proxy: { parts: { ...base.proxy.parts }, refNodes: base.proxy.refNodes } };
-    const r = generateStructure(work, currentTaxonomy(), geometries);
+    const tax = currentTaxonomy();
+    if (choice) {
+      // The toolbar's choice goes onto each part (the Inspector shows it, and a part can still be changed on its own after).
+      for (const id of partIds) {
+        const part = base.parts.find((p) => p.id === id);
+        const entry = part && tax.entry(part.taxonomyId);
+        if (!part || !entry) continue;
+        const own = partSettings(work, part, entry);
+        work.proxy.parts[id] = { ...own, ...(choice.mode === 'auto' ? {} : { mode: choice.mode }), detail: choice.detail };
+      }
+    }
+    const r = generateStructure(work, tax, geometries);
     const genMs = Math.round(performance.now() - started);
     projectStore.getState().execute({
       label: label ?? (partIds.length === 1 ? 'Generate part' : `Generate ${partIds.length} parts`),
@@ -148,8 +159,14 @@ function keepRowOptions(from: Pick<Project, 'nodes' | 'beams' | 'tris'>, to: Pic
   });
 }
 
-export function generateAll(): Promise<PartReport[]> {
-  return generateParts(partsWithMeshes(), 'Generate all parts');
+/** How Generate builds every part: one proxy mode for all ('auto' keeps each part's own), and the detail. */
+export interface GenerateChoice {
+  mode: 'auto' | ProxyMode;
+  detail: number;
+}
+
+export function generateAll(choice?: GenerateChoice): Promise<PartReport[]> {
+  return generateParts(partsWithMeshes(), 'Generate all parts', choice);
 }
 
 /** Change a part's generation settings (undoable), without regenerating. */

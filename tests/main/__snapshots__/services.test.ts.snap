@@ -35,6 +35,8 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "author": null,
   "focusGhostOpacity": 0.12,
   "engineViewXray": true,
+  "generateMode": "auto",
+  "generateDetail": 0.5,
   "engineViewOrbit": true,
   "autoRenameMeshes": true,
   "autoRenameDisplayNames": true,
