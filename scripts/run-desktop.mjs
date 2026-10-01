@@ -1636,6 +1636,7 @@ const scenarios = [
       await page.getByTestId('tour-next').click();
       await step('classify');
       await shot(page, 'tour-classify');
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await step('classify-apply');
       await page.getByTestId('classify-apply').click();
@@ -1689,6 +1690,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes < 30; i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -1760,6 +1762,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && (await hook(page, 'sceneStats')).meshes < 30; i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -1830,6 +1833,7 @@ const scenarios = [
       const meshes = async () => (await hook(page, 'sceneStats')).meshes;
       for (let i = 0; i < 300 && (await meshes()) < 30; i++) await page.waitForTimeout(100);
       const before = await meshes();
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       const parts = (await hook(page, 'partNames')).length;
@@ -2701,6 +2705,7 @@ const scenarios = [
       await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 0); i++) await page.waitForTimeout(100);
       // What someone does on the practice car: sort it into parts and generate its structure (the tour stays open).
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -2771,6 +2776,7 @@ const scenarios = [
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');
       await page.getByTestId('home-tour').click();
       await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 0); i++) await page.waitForTimeout(100);
@@ -2809,6 +2815,7 @@ const scenarios = [
       await page.getByTestId('home-tour').click();
       await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 0); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -2884,6 +2891,14 @@ const scenarios = [
       rmSync(join(userData, 'library-scan', 'beamng', 'parts.fingerprint'), { force: true });
       const scan = await page.evaluate(() => window.forge.invoke('library:rescan'));
       assert(scan.ok, `library rescanned (${JSON.stringify(scan).slice(0, 200)})`);
+      // The scan finishes in the background: wait for the fake engine to be in the catalogue.
+      let engines = [];
+      for (let i = 0; i < 600 && !engines.some((x) => x.vehicle === 'fakeengine'); i++) {
+        const lib = await page.evaluate(() => window.forge.invoke('library:status'));
+        if (!lib.value?.scanning) engines = (await page.evaluate(() => window.forge.invoke('powertrain:catalogue'))).value ?? [];
+        await page.waitForTimeout(100);
+      }
+      assert(engines.some((x) => x.vehicle === 'fakeengine'), `the fake engine is in the catalogue (${engines.map((x) => x.id).join(', ')})`);
       await page.getByTestId('home-tour').click();
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
@@ -3041,6 +3056,7 @@ const scenarios = [
       await page.getByRole('button', { name: 'Stop the tutorial' }).click();
       // The workspaces' tutorials: offered the first time each opens; the cap buttons replay them (on a car with parts and nodes).
       await page.getByRole('tab', { name: 'Editing', exact: true }).click();
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -3137,6 +3153,7 @@ const scenarios = [
       assert(gl.triangles > 900_000, `about a million triangles drawn (${gl.triangles})`);
       await shot(page, 'high-poly-loaded');
       // Parts and structure.
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       t = Date.now();
@@ -3189,6 +3206,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -3308,6 +3326,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       await page.getByTestId('toolbar-generate').click();
@@ -3390,6 +3409,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       const wheelBefore = await hook(page, 'partCentre', '^Front Left (wheel|tire)$');
@@ -3443,6 +3463,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       const modes = { auto: 'Best for each part (recommended)', hull: 'Convex hull, body included', surface: 'Follow the surface', decimate: 'Simplified mesh' };
@@ -3537,6 +3558,7 @@ const scenarios = [
       await shot(page, 'demo-car-seats');
       await hook(page, 'hideMeshes', '.', false);
       // Sorted into parts by name: every removable piece becomes its own part.
+      await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();
       const parts = await hook(page, 'partNames');
