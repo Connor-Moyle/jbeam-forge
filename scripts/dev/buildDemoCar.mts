@@ -237,8 +237,8 @@ const MATERIALS: Record<string, string> = {
   HD_wheelrim: 'demo_rim',
 };
 
-/** Painted panels get two steps of smoothing; small and textured parts one. */
-const steps = (name: string) => (/^(body|hood|trunk|fender|door_F|bumper|skirt|spoiler)/.test(name) ? 2 : 1);
+/** The painted panels get two steps of smoothing, the other body parts one; wheels, calipers and the interior are detailed already. */
+const steps = (name: string) => (/^(body|hood|trunk|fender|door_F)/.test(name) ? 2 : /^(bumper|skirt|spoiler|mirror|grille)/.test(name) ? 1 : 0);
 
 const out: { name: string; mesh: Mesh }[] = [];
 for (const [name, tris] of parts) {

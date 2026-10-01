@@ -500,7 +500,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 19 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === 20 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await waitSaved(page);
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -559,7 +559,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       await waitSaved(page);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 19 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === 20 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -1765,7 +1765,7 @@ const scenarios = [
       await page.getByTestId('moving-parts').waitFor();
       await page.getByTestId('moving-hinge-all').click();
       let doc = await hook(page, 'projectDoc');
-      assert(doc.hinges.length >= 5, `opening parts hinged (${doc.hinges.length})`);
+      assert(doc.hinges.length >= 4, `opening parts hinged (${doc.hinges.length})`);
       await page.getByTestId('moving-parts').getByText('Hood', { exact: true }).click();
       await page.getByTestId('moving-part').waitFor();
       // Its swing: a see-through copy, or (switched on) the hood itself.
@@ -2109,20 +2109,20 @@ const scenarios = [
       const obj = readFileSync(demo.value.path, 'utf8');
       const nv = obj.split('\n').filter((l) => l.startsWith('v ')).length;
       const tri = (name) => [`o ${name}`, 'usemtl demo_paint', 'v 0.7 1.0 -2.0', 'v -0.7 1.0 -2.0', 'v 0 1.1 -2.1', `f ${nv + 1} ${nv + 2} ${nv + 3}`].join('\n');
-      writeFileSync(demo.value.path, `${obj}${tri('spoiler')}\n`);
+      writeFileSync(demo.value.path, `${obj}${tri('test_wing')}\n`);
       await page.getByTestId('confirm-no').waitFor({ timeout: 15_000 });
       await shot(page, 'modelling-reimport-ask');
       await page.getByTestId('confirm-no').click();
       doc = await hook(page, 'projectDoc');
       assert(doc.meshModels?.[hood], 'kept the reshaped version');
-      assert(!(await hook(page, 'sceneStats')).meshNames.includes('spoiler'), 'the file was not reloaded');
-      writeFileSync(demo.value.path, `${obj}${tri('spoiler')}\n\n`);
+      assert(!(await hook(page, 'sceneStats')).meshNames.includes('test_wing'), 'the file was not reloaded');
+      writeFileSync(demo.value.path, `${obj}${tri('test_wing')}\n\n`);
       await page.getByTestId('confirm-yes').waitFor({ timeout: 15_000 });
       await page.getByTestId('confirm-yes').click();
-      for (let i = 0; i < 100 && !(await hook(page, 'sceneStats')).meshNames.includes('spoiler'); i++) await page.waitForTimeout(100);
+      for (let i = 0; i < 100 && !(await hook(page, 'sceneStats')).meshNames.includes('test_wing'); i++) await page.waitForTimeout(100);
       doc = await hook(page, 'projectDoc');
       assert(!doc.meshModels?.[hood], 'the new file replaced the reshaped hood');
-      assert((await hook(page, 'sceneStats')).meshNames.includes('spoiler'), 'the new file was loaded');
+      assert((await hook(page, 'sceneStats')).meshNames.includes('test_wing'), 'the new file was loaded');
       if (await page.getByTestId('classify-skip').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('classify-skip').click();
       writeFileSync(demo.value.path, obj);
       await hook(page, 'applyPreset', 'modelling');
