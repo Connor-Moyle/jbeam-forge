@@ -110,6 +110,10 @@ export const SettingsSchema = z.object({
   jbeamFrameOnPick: z.boolean(),
   /** The first-run tour was taken or skipped (Help → Start the Tutorial runs it again). */
   tutorialSeen: z.boolean(),
+  /** Guided lessons already watched or skipped (script templates, triggers…): offered once each. */
+  lessonsSeen: z.array(z.string().max(80)).max(500),
+  /** Offer a guided lesson (Watch or Skip) the first time something new is used. */
+  offerLessons: z.boolean(),
 
   // Navigation
   /** Zoom toward the mouse pointer instead of the view's centre. */
@@ -270,6 +274,8 @@ export const DEFAULT_SETTINGS: Settings = {
   jbeamPageSize: 300,
   jbeamFrameOnPick: false,
   tutorialSeen: false,
+  lessonsSeen: [],
+  offerLessons: true,
   zoomToCursor: true,
   panSpeed: 1,
   smoothCamera: false,

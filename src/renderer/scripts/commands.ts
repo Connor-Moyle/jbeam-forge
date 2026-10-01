@@ -67,11 +67,13 @@ function add(script: VehicleScript, label: string): void {
   useScriptUi.getState().set({ selected: script.id, view: 'list', mode: script.templateId ? 'easy' : 'code', result: null, playT: null });
 }
 
-export function addFromTemplate(templateId: string): void {
+export function addFromTemplate(templateId: string): string | null {
   const t = templateById(templateId);
   const doc = projectStore.getState().doc;
-  if (!t || !doc) return;
-  add({ id: newId('script'), name: uniqueScriptName(t.name0, takenNames()), label: t.name, templateId: t.id, enabled: true, params: fitToCar(t, defaultParams(t), doc), code: null, partId: null }, `Add ${t.name.toLowerCase()}`);
+  if (!t || !doc) return null;
+  const id = newId('script');
+  add({ id, name: uniqueScriptName(t.name0, takenNames()), label: t.name, templateId: t.id, enabled: true, params: fitToCar(t, defaultParams(t), doc), code: null, partId: null }, `Add ${t.name.toLowerCase()}`);
+  return id;
 }
 
 export function addBlankScript(): void {

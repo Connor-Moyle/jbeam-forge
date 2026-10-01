@@ -26,6 +26,7 @@ import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
 import { useEngineStage } from '@renderer/powertrain/engineStage';
+import { GuideOverlay } from '@renderer/help/GuideOverlay';
 import { registerTestHooks } from './testHooks';
 import { commitTransform, useModelUi } from '@renderer/modelling/commands';
 import { Matrix4 } from 'three';
@@ -382,6 +383,7 @@ function Editor() {
       <CommandPalette />
       <ShortcutsModal />
       <TourOverlay />
+      <GuideOverlay />
     </div>
   );
 }

@@ -1,0 +1,110 @@
+.wide {
+  width: var(--size-guide-card-wide);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: var(--size-guide-code);
+  margin: var(--space-2) 0 0;
+  overflow-y: auto;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.6fr);
+  gap: var(--space-2);
+  font-size: var(--text-label);
+}
+
+.item dt {
+  color: var(--text-0);
+  font-weight: var(--weight-semibold);
+}
+
+.item dd {
+  margin: 0;
+  color: var(--text-1);
+}
+
+.code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: var(--size-guide-code);
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+  border-radius: var(--radius-md);
+  background: var(--bg-0);
+  list-style: none;
+}
+
+.line {
+  display: grid;
+  grid-template-columns: var(--space-5) minmax(0, 1fr);
+  column-gap: var(--space-2);
+}
+
+.lineNo {
+  grid-row: span 2;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  text-align: end;
+}
+
+.lineText {
+  overflow-x: auto;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  white-space: pre;
+}
+
+.lineNote {
+  color: var(--text-1);
+  font-size: var(--text-label);
+}
+
+.offer {
+  position: fixed;
+  right: var(--space-4);
+  bottom: var(--space-6);
+  z-index: var(--z-tour);
+  display: flex;
+  gap: var(--space-2);
+  width: var(--size-tour-card);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border-1);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+  box-shadow: var(--shadow-modal);
+  color: var(--text-0);
+}
+
+.offerIcon {
+  flex: none;
+  width: var(--size-icon-lg);
+  height: var(--size-icon-lg);
+  color: var(--accent);
+}
+
+.offerText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-control);
+}
+
+.offerText span {
+  color: var(--text-1);
+  font-size: var(--text-label);
+}
+
+.offerButtons {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}

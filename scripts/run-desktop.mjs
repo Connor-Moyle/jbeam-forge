@@ -1457,6 +1457,9 @@ const scenarios = [
       await page.getByTestId('template-gallery').waitFor();
       await page.getByRole('button', { name: 'Add Folding mirrors' }).click();
       await page.getByTestId('script-panel').waitFor();
+      // Its tutorial is offered the first time: not now.
+      await page.getByTestId('guide-skip').click({ timeout: 5000 });
+      assert(!(await page.getByTestId('guide-offer').isVisible()), 'Skip closes the offer');
       const boxKey = Object.keys((await hook(page, 'projectDoc')).assignments)[0];
       await hook(page, 'selectMeshes', [boxKey]);
       await page.getByTestId('script-use-selection').first().click();
@@ -2935,6 +2938,73 @@ const scenarios = [
         assert(files.some((f) => f.text.includes(`"revLimiterRPM": ${limit[1]}`) || f.text.includes(`"revLimiterRPM":${limit[1]}`)), `the exported engine has the designed rev limit (${files.map((f) => f.path).join(', ')})`);
       }
       rmSync(engineZip, { force: true });
+    },
+  },
+  {
+    id: 'script-tutorial',
+    name: 'script tutorials: offered once with Watch or Skip; setup steps, then the code line by line',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.evaluate(() => window.forge.invoke('settings:update', { lessonsSeen: [], offerLessons: true }));
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await page.getByRole('tab', { name: 'Scripts' }).click();
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').getByRole('button', { name: 'Add Windscreen wipers', exact: true }).click();
+      await page.getByTestId('guide-offer').waitFor();
+      await shot(page, 'script-tutorial-offer');
+      await page.getByTestId('guide-watch').click();
+      await page.getByTestId('guide-card').waitFor();
+      // Step through: settings (a list of every setting), picking the arms (skipped), keys, outputs, the test, then the code.
+      const seen = [];
+      const shotTaken = {};
+      for (let i = 0; i < 60; i++) {
+        const card = page.getByTestId('guide-card');
+        const id = await card.getAttribute('data-step');
+        seen.push(id);
+        if (id === 'settings') {
+          assert((await card.textContent()).includes('Low speed wipe'), 'the settings step names each setting');
+          await page.waitForTimeout(600);
+          await shot(page, 'script-tutorial-settings');
+        }
+        if (id === 'keys') assert(/lctrl w/.test(await card.textContent()), 'the keys step lists each key');
+        if (id.startsWith('code-') && (await card.locator('h3').textContent()).includes('updateGFX')) {
+          const code = await page.getByTestId('guide-code').textContent();
+          assert(/updateGFX/.test(code) && /Every frame/.test(code), `a code step shows its lines with what each does (${code.slice(0, 200)})`);
+          await page.waitForTimeout(600);
+          await shot(page, 'script-tutorial-code');
+          shotTaken.code = true;
+        }
+        if (id === 'done') break;
+        await page.getByTestId('guide-next').click();
+        await page.waitForTimeout(120);
+      }
+      assert(seen.includes('pick-arms') && seen.includes('test') && seen.filter((s) => s.startsWith('code-')).length >= 6, `the tutorial walks setup and code (${seen.join(', ')})`);
+      assert(shotTaken.code, 'the updateGFX step was shown');
+      await shot(page, 'script-tutorial-done');
+      await page.getByTestId('guide-finish').click();
+      // Seen: adding wipers again doesn't offer it; another template does, and Skip remembers it.
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').getByRole('button', { name: 'Add Windscreen wipers', exact: true }).click();
+      await page.waitForTimeout(600);
+      assert(!(await page.getByTestId('guide-offer').isVisible()), 'a watched tutorial is not offered again');
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').getByRole('button', { name: 'Add Sunroof', exact: true }).click();
+      await page.getByTestId('guide-skip').click({ timeout: 5000 });
+      await page.waitForTimeout(400);
+      const settings = await page.evaluate(async () => (await window.forge.invoke('settings:get')).value);
+      assert(settings.lessonsSeen.includes('script:wipers') && settings.lessonsSeen.includes('script:sunroof'), `watched and skipped tutorials remembered (${settings.lessonsSeen})`);
+      // The cap button next to the script's name replays it any time.
+      await page.getByTestId('script-tutorial').click();
+      await page.getByTestId('guide-card').waitFor();
+      await page.getByRole('button', { name: 'Stop the tutorial' }).click();
     },
   },
   {

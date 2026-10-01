@@ -187,6 +187,8 @@
   --size-viewport-pill: 32px;
   --size-preset-select: 120px;
   --size-tour-card: 340px;
+  --size-guide-card-wide: 600px; /* a guided lesson showing code */
+  --size-guide-code: 320px; /* the most code a lesson card shows before it scrolls */
   --size-help-nav: 220px;
 
   /* Layering */

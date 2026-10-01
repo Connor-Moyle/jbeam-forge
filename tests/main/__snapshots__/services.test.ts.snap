@@ -84,6 +84,8 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "jbeamPageSize": 300,
   "jbeamFrameOnPick": false,
   "tutorialSeen": false,
+  "lessonsSeen": [],
+  "offerLessons": true,
   "zoomToCursor": true,
   "panSpeed": 1,
   "smoothCamera": false,
