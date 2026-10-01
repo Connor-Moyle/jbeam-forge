@@ -4,7 +4,7 @@ import { triggerCorners, type Trigger } from '../triggers/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
 import type { JbeamObject, JbeamValue } from '../jbeam/parse';
 import { serializeJbeam, JbeamComment, type WritableObject, type WritableValue } from '../jbeam/serialize';
-import { writeTable, type WritableRecord } from '../jbeam/tables';
+import { readTable, writeTable, type WritableRecord } from '../jbeam/tables';
 import { materialDefaults, partPrice } from '../parts/materials';
 import { ATTACHMENT_VALUES, BEAM_PRESET_VALUES, type BeamPresetId, type BeamValues } from '../proxy/presets';
 import { partRole, partSettings } from '../proxy/generate';
@@ -21,6 +21,7 @@ import { camerasInternalSection } from '../cameras/cameras';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
+import { softenedValue, stabilise, type StabiliseBeam } from '../proxy/stability';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -52,6 +53,14 @@ export interface JbeamExportOptions {
   suspensions?: Readonly<Record<string, SuspensionSetData>>;
   /** Vehicle scripts' controller rows and sections, by carrier part id. */
   scripts?: ReadonlyMap<string, PartScripts>;
+  /** Told how the car was kept stable at the game's physics rate. */
+  onStability?: (r: { softened: number; addedKg: number; heavier: number }) => void;
+}
+
+/** How a beam's values were eased so the car holds together at 2000 Hz. */
+interface Softening {
+  beams: Map<StructBeam, { k: number; c: number }>;
+  weights: Map<string, number>;
 }
 
 export interface SuspensionSetData {
@@ -232,11 +241,11 @@ function variablesSection(part: Part, vars: readonly TuningVar[]): WritableValue
   ];
 }
 
-function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamPresetId, vars: PartVars = {}): WritableValue[] {
+function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamPresetId, vars: PartVars = {}, soft?: Softening): WritableValue[] {
   const p = BEAM_PRESET_VALUES[preset];
   const records: WritableRecord[] = [...nodes].sort(nodeOrder).map((n) => ({
     values: { id: n.id, posX: num(n.pos[0]), posY: num(n.pos[1]), posZ: num(n.pos[2]) },
-    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: scaled(n.weight, vars.mass), ...rowOptions(n.options, 'node') },
+    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: scaled(soft?.weights.get(n.id) ?? n.weight, vars.mass), ...rowOptions(n.options, 'node') },
     ...inline(n.options, 'node'),
   }));
   const table = writeTable(['id', 'posX', 'posY', 'posZ'], records, { resetValues: { group: '' } });
@@ -247,11 +256,13 @@ function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamP
 export const glassBreakGroup = (part: Pick<Part, 'name'>) => `${part.name}_break`;
 export const damagedMaterialName = (name: string) => `${name}_dmg`;
 
-function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}, glass = false): WritableValue[] {
+function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}, glass = false, soft?: Softening): WritableValue[] {
   const a = ATTACHMENT_VALUES[attachStyle];
   const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: DEFORM_LIMIT_EXPANSION };
   const order = { edge: 0, brace: 1, attach: 2, mount: 3, hinge: 4, limit: 5, support: 6, popopen: 7 } as const;
-  const sorted = [...beams].sort((x, y) => order[x.kind] - order[y.kind]);
+  // Eased beams sit together within their kind, so their values are written once.
+  const ease = (b: StructBeam) => soft?.beams.get(b)?.k ?? 1;
+  const sorted = [...beams].sort((x, y) => order[x.kind] - order[y.kind] || ease(y) - ease(x));
   const records: WritableRecord[] = sorted.map((b) => {
     const values = { 'id1:': b.id1, 'id2:': b.id2 };
     // The limiter's bound comes from the opening angle and where its two ends are.
@@ -270,7 +281,8 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
           breakGroupType: v.breakGroupType ?? 0,
         }
       : {};
-    const options: JbeamObject = { ...common, ...beamOptions(v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}), ...special };
+    const eased = soft?.beams.get(b);
+    const options: JbeamObject = { ...common, ...beamOptions(eased ? { ...v, beamSpring: softenedValue(v.beamSpring, eased.k), beamDamp: softenedValue(v.beamDamp, eased.c) } : v), ...(v.breakGroup ? { breakGroup: v.breakGroup } : {}), ...special };
     // The part's own structure (skin and bracing) follows its in-game stiffness and strength.
     if (glass && (b.kind === 'edge' || b.kind === 'brace')) {
       options.deformGroup = glassBreakGroup(part);
@@ -349,6 +361,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const setParts = new Set(fullDoc.parts.filter((p) => SET_KINDS.has(p.taxonomyId)).map((p) => p.id));
   const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
   const extraSlots: WritableValue[] = [];
+  // Parts not built from our structure (the game's sets, plates, the hitch): their beams load our nodes.
+  const foreign: JbeamObject[] = [];
   const data = (setId: string) => opts.suspensions?.[setId];
   const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>, edits?: PowertrainEdits, choices?: SetChoices, driveline?: PowertrainEdits) => {
     const found = opts.suspensions?.[setId];
@@ -363,6 +377,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     // Every engine shares the e_ node names (only one is fitted at a time), so the gearbox fits whichever is chosen.
     const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.startsWith('E') ? 'e' : tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites });
     for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
+    foreign.push(...Object.values(t.parts));
     return t;
   };
   const axleSets: { index: number; t: ReturnType<typeof transplantSuspension> }[] = [];
@@ -477,6 +492,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     hasEngine: !!pt?.engine && !!opts.suspensions?.[pt.engine.setId],
   });
   for (const [name, content] of Object.entries(fx.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
+  foreign.push(...(Object.values(fx.parts) as JbeamObject[]));
 
   const main: WritableObject = {
     [slug]: {
@@ -496,6 +512,9 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       .filter((k) => doc.assignments[k] === partId && !doc.ignoredMeshes.includes(k) && opts.meshNames.has(k) && !fromFitted(k) && !propKeys.has(k))
       .map((k) => opts.meshNames.get(k)!)
       .sort();
+
+  const softening = softenForGame(doc, tax, ownNodes, foreign);
+  opts.onStability?.({ softened: softening.softened, addedKg: softening.addedKg, heavier: softening.weights.size });
 
   for (const part of doc.parts) {
     const entry = tax.entry(part.taxonomyId);
@@ -547,10 +566,10 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const tuningVars = (fullDoc.variables ?? []).filter((v) => v.partId === part.id);
     const partVars: PartVars = Object.fromEntries(tuningVars.map((v) => [v.setting, variableName(part, v.setting)]));
     if (tuningVars.length && nodes.length) content.variables = variablesSection(part, tuningVars);
-    if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars);
+    if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars, softening);
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
     const posOf = (id: string) => doc.nodes.find((n) => n.id === id)?.pos;
-    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass);
+    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass, softening);
     const aero = AERO[part.taxonomyId];
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset, aero && { ...aero, pos: posOf, downforce: partVars.downforce });
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));
@@ -566,6 +585,73 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     files.push({ file: `${part.name}.jbeam`, part: part.name, text: serializeJbeam(doc1) });
   }
   return files;
+}
+
+/** Spring or damping set by hand on a beam (its row options): never eased. */
+const handSet = (b: StructBeam) => !!b.options && ('beamSpring' in b.options || 'beamDamp' in b.options);
+
+/** A foreign part's beams, as springs on their two nodes (numbers only: a $variable is left out). */
+function foreignBeams(part: JbeamObject): StabiliseBeam[] {
+  if (!part.beams) return [];
+  try {
+    return readTable(part.beams).records.flatMap((r) => {
+      const type = typeof r.options.beamType === 'string' ? r.options.beamType : '|NORMAL';
+      if (type.includes('BOUNDED') || type.includes('HYDRO') || type.includes('PRESSURED')) return [];
+      const spring = typeof r.options.beamSpring === 'number' ? r.options.beamSpring : r.options.beamSpring === undefined ? 4_300_000 : 0;
+      const damp = typeof r.options.beamDamp === 'number' ? r.options.beamDamp : r.options.beamDamp === undefined ? 580 : 0;
+      const id1 = r.values['id1:'];
+      const id2 = r.values['id2:'];
+      return typeof id1 === 'string' && typeof id2 === 'string' ? [{ id1, id2, spring, damp, fixed: true }] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Every exported beam and node together, eased so no node is past what the game's 2000 Hz step holds
+ * (see proxy/stability.ts). Our beams soften; the game's and hand-set ones stay, and their nodes get weight.
+ */
+function softenForGame(doc: Doc, tax: TaxonomyLookup, ownNodes: (part: Part) => StructNode[], foreign: readonly JbeamObject[]): Softening & { softened: number; addedKg: number } {
+  const weights = new Map<string, number>();
+  const ours: StructBeam[] = [];
+  const list: StabiliseBeam[] = [];
+  const pos = new Map<string, [number, number, number]>();
+  for (const part of doc.parts) {
+    const entry = tax.entry(part.taxonomyId);
+    const nodes = entry ? ownNodes(part) : [];
+    if (!entry || !nodes.length) continue;
+    // Variants share node names (one is fitted at a time): the lightest decides.
+    for (const n of nodes) {
+      weights.set(n.id, Math.min(weights.get(n.id) ?? Infinity, n.weight));
+      pos.set(n.id, n.pos);
+    }
+    const settings = partSettings(doc, part, entry);
+    const preset = materialDefaults(entry, part.constructionMaterial).beamPreset;
+    const hinge = doc.hinges.find((h) => h.partId === part.id);
+    for (const b of doc.beams) {
+      if (b.partId !== part.id) continue;
+      const p1 = pos.get(b.id1) ?? doc.nodes.find((n) => n.id === b.id1)?.pos;
+      const p2 = pos.get(b.id2) ?? doc.nodes.find((n) => n.id === b.id2)?.pos;
+      const bound = b.kind === 'limit' && hinge && p1 && p2 ? limiterBound(p1, p2, hinge.axis, hinge.openAngle * hinge.direction) : 1;
+      const v = beamPhysics(b.kind, preset, settings.attachment, part.name, hinge, bound);
+      if (v.beamType === 'BOUNDED') continue;
+      const own = b.options ?? {};
+      const spring = typeof own.beamSpring === 'number' ? own.beamSpring : v.beamSpring;
+      const damp = typeof own.beamDamp === 'number' ? own.beamDamp : v.beamDamp;
+      ours.push(b);
+      list.push({ id1: b.id1, id2: b.id2, spring, damp, fixed: handSet(b) });
+    }
+  }
+  const foreignList = foreign.flatMap(foreignBeams);
+  const r = stabilise(weights, [...list, ...foreignList]);
+  const beams = new Map<StructBeam, { k: number; c: number }>();
+  ours.forEach((b, i) => {
+    const k = r.springScale[i]!;
+    const c = r.dampScale[i]!;
+    if (k < 1 || c < 1) beams.set(b, { k, c });
+  });
+  return { beams, weights: r.weights, softened: r.softened, addedKg: r.addedKg };
 }
 
 /**

@@ -199,6 +199,9 @@ export function parentGap(child: readonly StructNode[], parent: readonly StructN
   return best;
 }
 
+/** Shortest attachment beam (m). */
+export const MIN_ATTACH_LENGTH = 0.02;
+
 /**
  * Attachment beams from a child part to its parent's nodes (SPEC §4.4):
  * child nodes near the parent get `links` beams each to their nearest parent
@@ -219,7 +222,8 @@ export function attachToParent(child: readonly StructNode[], parent: readonly St
   const out: StructBeam[] = [];
   const seen = new Set<string>();
   for (const { c } of chosen) {
-    const nearest = [...parent].sort((x, y) => d(c, x) - d(c, y)).slice(0, links);
+    // A beam of a few millimetres has no clear direction and shakes in the game: nodes that close are skipped.
+    const nearest = [...parent].filter((x) => d(c, x) >= MIN_ATTACH_LENGTH).sort((x, y) => d(c, x) - d(c, y)).slice(0, links);
     for (const p of nearest) {
       const key = `${c.id}|${p.id}`;
       if (seen.has(key)) continue;

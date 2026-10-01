@@ -6,6 +6,7 @@ import { beamPhysics } from '../proxy/beamValues';
 import { limiterBound } from '../hinges/geometry';
 import { STABILITY_DT, STABILITY_OK, STABILITY_UNSTABLE } from '../proxy/derive';
 import type { SimModel } from './solver';
+import { stabilise } from '../proxy/stability';
 
 /**
  * Project → sandbox model (SPEC §4.6). Simulates the *default configuration*
@@ -103,6 +104,15 @@ export function buildSimModel(doc: Doc, tax: TaxonomyLookup, parts: readonly Par
       model.breakGroup[k] = g;
     }
   });
+  // The same easing the exporter writes, so the car behaves here as it will in the game.
+  const easeable = beams.map((b, k) => ({ id1: b.id1, id2: b.id2, spring: model.beamType[k] === 2 ? 0 : model.spring[k]!, damp: model.beamType[k] === 2 ? 0 : model.damp[k]!, fixed: false }));
+  const eased = stabilise(new Map(nodes.map((x) => [x.id, x.weight])), easeable);
+  for (let k = 0; k < m; k++) {
+    if (model.beamType[k] === 2) continue;
+    model.spring[k]! *= eased.springScale[k]!;
+    model.damp[k]! *= eased.dampScale[k]!;
+  }
+  for (const [id, w] of eased.weights) mass[index.get(id)!] = w;
   return model;
 }
 
