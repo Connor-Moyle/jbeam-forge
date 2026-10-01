@@ -17,6 +17,28 @@ export interface SetWheel {
   centre: V3;
   /** Unit vector along the axle, outward. */
   axis: V3;
+  /** The node groups the game builds for this wheel: the rim's (spins) and the tyre's. */
+  hubGroup?: string;
+  tireGroup?: string;
+  /** The group of the node the wheel's arm is (the knuckle: steers, doesn't spin), if known. */
+  armGroup?: string;
+}
+
+/** Every node's group (the first, when a node lists several). */
+function nodeGroups(parts: Record<string, JbeamObject>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const p of Object.values(parts)) {
+    if (!Array.isArray(p.nodes)) continue;
+    try {
+      for (const r of readTable(p.nodes).records) {
+        const g = Array.isArray(r.options.group) ? r.options.group[0] : r.options.group;
+        if (typeof r.values.id === 'string' && typeof g === 'string' && g && !out.has(r.values.id)) out.set(r.values.id, g);
+      }
+    } catch {
+      // not a table
+    }
+  }
+  return out;
 }
 
 /** Every node the set's parts define. */
@@ -29,6 +51,7 @@ function setNodes(parts: Record<string, JbeamObject>): Map<string, V3> {
 /** The set's wheels, one per side (the first declared for each). */
 export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0, 0]): SetWheel[] {
   const nodes = setNodes(parts);
+  const groups = nodeGroups(parts);
   const found = new Map<Side, SetWheel>();
   for (const part of Object.values(parts)) {
     if (!Array.isArray(part.pressureWheels)) continue;
@@ -52,7 +75,17 @@ export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0
       const len = Math.hypot(...d) || 1;
       // Outward: toward this side (+X on the left).
       const s = (side === 'L' ? 1 : -1) * Math.sign(d[0] || 1);
-      found.set(side, { side, centre: [mid[0] + offset[0], mid[1] + offset[1], mid[2] + offset[2]], axis: [(d[0] / len) * s, (d[1] / len) * s, (d[2] / len) * s] });
+      const text = (k: string) => (typeof r.values[k] === 'string' ? (r.values[k]) : undefined);
+      const arm = text('nodeArm:');
+      const armGroup = arm ? groups.get(arm) : undefined;
+      found.set(side, {
+        side,
+        centre: [mid[0] + offset[0], mid[1] + offset[1], mid[2] + offset[2]],
+        axis: [(d[0] / len) * s, (d[1] / len) * s, (d[2] / len) * s],
+        ...(text('hubGroup') ? { hubGroup: text('hubGroup') } : {}),
+        ...(text('group') ? { tireGroup: text('group') } : {}),
+        ...(armGroup ? { armGroup } : {}),
+      });
     }
   }
   if (found.size) return [...found.values()];

@@ -230,6 +230,34 @@ describe('jbeam export', () => {
     expect(includedParts(doc, tax, noRear, sets).has('p_rear_set')).toBe(false);
   });
 
+  it('with a game suspension fitted, the axle’s own wheels, tyres and brakes ride on the game’s wheel', () => {
+    const { doc, meshes } = carProject();
+    const rim = createPart(doc, tax, { taxonomyId: 'wheel', position: 'FL', id: 'p_rim' });
+    const tyre = createPart(doc, tax, { taxonomyId: 'tire', position: 'FL', id: 'p_tyre' });
+    const caliper = createPart(doc, tax, { taxonomyId: 'brake_caliper', position: 'FL', id: 'p_caliper' });
+    const rearRim = createPart(doc, tax, { taxonomyId: 'wheel', position: 'RL', id: 'p_rim_r' });
+    assignMeshes(doc, ['w:rim'], rim.id);
+    assignMeshes(doc, ['w:tyre'], tyre.id);
+    assignMeshes(doc, ['w:caliper'], caliper.id);
+    assignMeshes(doc, ['w:rim_r'], rearRim.id);
+    const set = createPart(doc, tax, { taxonomyId: 'suspension_set', id: 'p_front_set' });
+    assignMeshes(doc, ['susp:arm_F'], set.id);
+    doc.axles = [{ id: 'a1', name: 'Front', y: -1.3, track: 1.5, steered: true, tuning: {}, ownMeshes: [], fitted: { setId: 'car/front', name: 'Strut', vehicle: 'Car', type: 'strut', sourceId: 'susp' } }];
+    doc.sources.push({ id: 'susp', placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 } } as never);
+    const hub = {
+      slotType: 'car_suspension_F',
+      nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'car_hub_FL' }, ['fh1l', 0.7, -1.3, 0.3], ['fw1l', 0.8, -1.3, 0.3], ['fw1ll', 0.7, -1.3, 0.3], { group: '' }],
+      pressureWheels: [['name', 'hubGroup', 'group', 'node1:', 'node2:', 'nodeS', 'nodeArm:', 'wheelDir'], ['FL', 'wheel_FL', 'tire_FL', 'fw1ll', 'fw1l', 9999, 'fh1l', 1]],
+    };
+    const names = new Map([...exportMeshNames(doc, meshes), ['w:rim', 'test_rim_FL'], ['w:tyre', 'test_tyre_FL'], ['w:caliper', 'test_caliper_FL'], ['w:rim_r', 'test_rim_RL']]);
+    const files = new Map(buildJbeamFiles(doc, tax, { meshNames: names, author: 'x', suspensions: { 'car/front': { root: 'car_suspension_F', anchors: {}, parts: { car_suspension_F: hub } } } }).map((f) => [f.part, parsePart(f.text)[1]]));
+    const groupsOf = (part: string) => readTable(files.get(part)!.flexbodies!).records[0]!.values['[group]:'];
+    expect(groupsOf(rim.name)).toEqual(['wheel_FL']); // spins with the hub
+    expect(groupsOf(tyre.name)).toEqual(['tire_FL']);
+    expect(groupsOf(caliper.name)).toEqual(['car_hub_FL']); // steers with the knuckle, doesn't spin
+    expect(groupsOf(rearRim.name)).not.toEqual(['wheel_RL']); // no suspension on that axle: unchanged
+  });
+
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {
     const { doc, meshes } = carProject();
     const names = exportMeshNames(doc, meshes);

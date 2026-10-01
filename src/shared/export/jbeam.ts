@@ -22,6 +22,7 @@ import { applyChoices, type SetChoices, type SetOptions } from '../suspension/op
 import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
 import { softenedValue, stabilise, type StabiliseBeam } from '../proxy/stability';
+import { setWheels } from '../suspension/wheels';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -476,6 +477,20 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const entry = tax.entry(part.taxonomyId);
     return entry && partRole(entry, partSettings(doc, part, entry)) === 'own' ? doc.nodes.filter((n) => n.partId === part.id) : [];
   };
+  // With a game suspension on an axle, that axle's own wheels, tyres and brakes ride on the game's wheel:
+  // the rim and disc spin with its hub, the tyre with its tyre, the caliper steers with the knuckle.
+  const wheelGroups = new Map<string, string[]>();
+  (fullDoc.axles ?? []).forEach((axle, i) => {
+    const set = axle.fitted ? opts.suspensions?.[axle.fitted.setId] : undefined;
+    if (!set || i > 1) return;
+    for (const w of setWheels(set.parts)) {
+      const corner = `${i === 0 ? 'F' : 'R'}${w.side}`;
+      for (const p of doc.parts.filter((x) => x.position === corner)) {
+        const g = p.taxonomyId === 'tire' ? w.tireGroup : p.taxonomyId === 'brake_caliper' ? w.armGroup : ['wheel', 'brake_disc', 'brake_drum', 'hub'].includes(p.taxonomyId) ? w.hubGroup : undefined;
+        if (g) wheelGroups.set(p.id, [g]);
+      }
+    }
+  });
   const groupOf = (part: Part) => (ownNodes(part).length ? slotTypeOf(doc.parts, part) : flexGroupOf(doc, part));
 
   // Plates, tow hitch, nitrous, paint designs, and the game's global slots.
@@ -529,6 +544,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const tris = own ? doc.tris.filter((t) => t.partId === part.id) : [];
     const slotType = slotTypeOf(doc.parts, part);
     const group = nodes.length ? slotType : flexGroupOf(doc, part);
+    const groups = !nodes.length ? wheelGroups.get(part.id) : undefined;
     const meshes = meshesOf(part.id);
 
     const content: Record<string, WritableValue> = {
@@ -550,12 +566,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       if (internal) content.camerasInternal = internal;
     }
     const glass = entry.beamPreset === 'glass_brittle' && nodes.length > 0;
-    if (meshes.length && group) {
+    if (meshes.length && (groups ?? group)) {
       const rows: WritableValue[] = [['mesh', '[group]:', 'nonFlexMaterials']];
       for (const m of meshes) {
         const mat = glass ? opts.meshMaterials?.get(m)?.[0] : undefined;
         if (mat) rows.push({ deformGroup: glassBreakGroup(part), deformMaterialBase: mat, deformMaterialDamaged: damagedMaterialName(mat) });
-        rows.push([m, [group]]);
+        rows.push([m, groups ?? [group!]]);
       }
       if (glass && rows.length > meshes.length + 1) rows.push({ deformGroup: '' });
       content.flexbodies = rows;
