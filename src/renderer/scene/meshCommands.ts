@@ -8,6 +8,7 @@ import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
 import type { MeshEdit } from '@shared/project/schema';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
 import { fittedSourceIds } from './placeFitted';
+import { followSetWheels } from '@renderer/suspension/commands';
 
 /**
  * Per-mesh edits (move/turn/resize, texture mapping) and copies, as undoable
@@ -212,4 +213,7 @@ export function transformMeshes(keys: readonly string[], t: MeshGizmoTransform):
       }
     },
   });
+  // A suspension moved: the car's wheels and brakes stay on its hubs.
+  const movedSets = new Set(whole.filter((src) => fitted.has(src.id)).map((src) => src.id));
+  if (movedSets.size && kind === 'Move') for (const a of doc.axles) if (a.fitted && movedSets.has(a.fitted.sourceId)) followSetWheels(a.id);
 }

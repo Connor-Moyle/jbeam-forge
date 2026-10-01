@@ -16,6 +16,8 @@ import { setPlacement } from '@renderer/import/PlacementDialog';
 import { defaultSettings, stageImport } from '@renderer/import/pipeline';
 import { cornerTargets } from '@renderer/objects/placeObject';
 import { assignToNewPart } from '@renderer/parts/commands';
+import { IDENTITY_EDIT } from '@shared/mesh/meshEdit';
+import { setWheels } from '@shared/suspension/wheels';
 
 /**
  * Suspension workshop (Phase 10): the car's axles, and complete suspensions
@@ -195,15 +197,77 @@ async function fitSuspensionSteps(axleId: string, set: SuspensionSet): Promise<v
       }
     },
   });
+  await useSetData.getState().ensure([set.id]);
+  const moved = followSetWheels(axleId);
   startPlacing(sourceId, 'suspension');
   const setTrack = all.max.x - all.min.x;
   useUiStore
     .getState()
     .pushStatus(
-      `Fitted the ${set.vehicleName} ${set.name} (${set.type}) to the ${axle.name.toLowerCase()}. It's ${(setTrack * 1000).toFixed(0)} mm wide against your ${(axle.track * 1000).toFixed(0)} mm track. The arrows are on it: drag to fine-tune (its physics moves with it).`,
+      `Fitted the ${set.vehicleName} ${set.name} (${set.type}) to the ${axle.name.toLowerCase()}. It's ${(setTrack * 1000).toFixed(0)} mm wide against your ${(axle.track * 1000).toFixed(0)} mm track.${moved ? ` Your ${moved === 1 ? 'wheel and its brakes' : 'wheels and brakes'} moved onto its hubs.` : ''} The arrows are on it: drag to fine-tune (its physics and the wheels move with it).`,
       'success',
       10000,
     );
+}
+
+/** The car's own parts at a wheel: they move with the wheel when a suspension holds it. */
+const CORNER_KINDS = ['wheel', 'tire', 'hub', 'brake_disc', 'brake_drum', 'brake_caliper'];
+
+function boxOfKeys(keys: ReadonlySet<string>): Box3 {
+  const box = new Box3();
+  for (const src of Object.values(useSceneStore.getState().sources)) {
+    for (const m of src.meshes) {
+      if (!keys.has(m.key)) continue;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      if (m.geometry.boundingBox) box.union(m.geometry.boundingBox);
+    }
+  }
+  return box;
+}
+
+/**
+ * Put the car's own wheels, tyres and brakes on the fitted suspension's hubs: each corner's meshes move
+ * together so the wheel's centre lands on the middle of the hub axle the game builds that wheel on.
+ * Returns how many corners moved.
+ */
+export function followSetWheels(axleId: string): number {
+  const doc = projectStore.getState().doc;
+  const axle = doc?.axles.find((a) => a.id === axleId);
+  const fitted = axle?.fitted;
+  const data = fitted && useSetData.getState().data[fitted.setId];
+  if (!doc || !axle || !fitted || !data) return 0;
+  const offset = doc.sources.find((x) => x.id === fitted.sourceId)?.placement.position ?? [0, 0, 0];
+  const axleTag = axleKind(doc.axles, axle) === 'front' ? 'F' : 'R';
+  const setPrefix = `${fitted.sourceId}:`;
+  const moves: { keys: string[]; d: [number, number, number] }[] = [];
+  for (const wheel of setWheels(data.parts, offset)) {
+    const corner = `${axleTag}${wheel.side}`;
+    const partKind = new Map(doc.parts.filter((p) => p.position === corner && CORNER_KINDS.includes(p.taxonomyId)).map((p) => [p.id, p.taxonomyId]));
+    const keysOf = (kinds: readonly string[]) => Object.keys(doc.assignments).filter((k) => !k.startsWith(setPrefix) && !doc.ignoredMeshes.includes(k) && kinds.includes(partKind.get(doc.assignments[k]!) ?? ''));
+    // The wheel (rim and tyre) says where the corner is; without one, the disc, drum or hub does.
+    let ref = keysOf(['wheel', 'tire']);
+    if (!ref.length) ref = keysOf(['brake_disc', 'brake_drum', 'hub']);
+    if (!ref.length) continue;
+    const box = boxOfKeys(new Set(ref));
+    if (box.isEmpty()) continue;
+    const c = box.getCenter(box.min.clone());
+    const d: [number, number, number] = [wheel.centre[0] - c.x, wheel.centre[1] - c.y, wheel.centre[2] - c.z];
+    if (Math.hypot(...d) < 0.003) continue;
+    moves.push({ keys: keysOf(CORNER_KINDS), d });
+  }
+  if (!moves.length) return 0;
+  const round = (v: number) => Math.round(v * 1e5) / 1e5;
+  projectStore.getState().execute({
+    label: 'Wheels onto the suspension',
+    apply: (dd) => {
+      for (const { keys, d } of moves)
+        for (const k of keys) {
+          const cur = dd.meshEdits[k] ?? structuredClone(IDENTITY_EDIT);
+          dd.meshEdits[k] = { ...cur, position: [round(cur.position[0] + d[0]), round(cur.position[1] + d[1]), round(cur.position[2] + d[2])] };
+        }
+    },
+  });
+  return moves.length;
 }
 
 /** A tuning value for the fitted suspension (null = back to the game's default). */

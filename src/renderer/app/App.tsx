@@ -29,7 +29,7 @@ import { useEngineStage } from '@renderer/powertrain/engineStage';
 import { GuideOverlay } from '@renderer/help/GuideOverlay';
 import { registerTestHooks } from './testHooks';
 import { commitTransform, useModelUi } from '@renderer/modelling/commands';
-import { Matrix4 } from 'three';
+import { Box3, Matrix4, Vector3 } from 'three';
 import { emitTestSignal } from './testBus';
 import { currentTaxonomy, loadUserTaxonomy } from '@renderer/parts/taxonomy';
 import { buildSimModel } from '@shared/sim/model';
@@ -295,6 +295,22 @@ function AppEffects() {
           const keys = Object.values(useSceneStore.getState().sources).flatMap((s) => s.meshes.filter((m) => re.test(m.name)).map((m) => m.key));
           useSceneStore.getState().requestFrame(keys);
           return keys.length;
+        },
+        /** Centre of the meshes of the parts whose name matches (as drawn), or null. */
+        partCentre: (pattern: string) => {
+          const d = projectStore.getState().doc;
+          const re = new RegExp(pattern, 'i');
+          const ids = new Set((d?.parts ?? []).filter((p) => re.test(p.displayName)).map((p) => p.id));
+          const box = new Box3();
+          for (const src of Object.values(useSceneStore.getState().sources))
+            for (const m of src.meshes) {
+              if (!ids.has(d?.assignments[m.key] ?? '')) continue;
+              if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+              if (m.geometry.boundingBox) box.union(m.geometry.boundingBox);
+            }
+          if (box.isEmpty()) return null;
+          const c = box.getCenter(new Vector3());
+          return [c.x, c.y, c.z];
         },
         materialCount: () => projectStore.getState().doc?.materials.length ?? 0,
         meshNameList: () => Object.values(projectStore.getState().doc?.meshNames ?? {}).map((e) => e.name),

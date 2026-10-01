@@ -514,6 +514,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       .sort();
 
   const softening = softenForGame(doc, tax, ownNodes, foreign);
+  const nodePos = new Map<string, [number, number, number]>();
+  for (const n of doc.nodes) if (!nodePos.has(n.id)) nodePos.set(n.id, n.pos);
   opts.onStability?.({ softened: softening.softened, addedKg: softening.addedKg, heavier: softening.weights.size });
 
   for (const part of doc.parts) {
@@ -560,7 +562,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     }
     const props = [...propFrames.values()].filter((x) => doc.assignments[x.prop.meshKey] === part.id && opts.meshNames.has(x.prop.meshKey));
     if (props.length) {
-      const posOf = (id: string) => doc.nodes.find((n) => n.id === id)!.pos;
+      const posOf = (id: string) => nodePos.get(id)!;
       content.props = [PROPS_HEADER, ...props.map((x) => propRow(x.prop, opts.meshNames.get(x.prop.meshKey)!, x.refs, posOf))];
     }
     const tuningVars = (fullDoc.variables ?? []).filter((v) => v.partId === part.id);
@@ -568,7 +570,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     if (tuningVars.length && nodes.length) content.variables = variablesSection(part, tuningVars);
     if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars, softening);
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
-    const posOf = (id: string) => doc.nodes.find((n) => n.id === id)?.pos;
+    const posOf = (id: string) => nodePos.get(id);
     if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass, softening);
     const aero = AERO[part.taxonomyId];
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset, aero && { ...aero, pos: posOf, downforce: partVars.downforce });
@@ -617,22 +619,25 @@ function softenForGame(doc: Doc, tax: TaxonomyLookup, ownNodes: (part: Part) => 
   const ours: StructBeam[] = [];
   const list: StabiliseBeam[] = [];
   const pos = new Map<string, [number, number, number]>();
+  for (const n of doc.nodes) if (!pos.has(n.id)) pos.set(n.id, n.pos);
+  const beamsOf = new Map<string, StructBeam[]>();
+  for (const b of doc.beams) {
+    const l = beamsOf.get(b.partId);
+    if (l) l.push(b);
+    else beamsOf.set(b.partId, [b]);
+  }
   for (const part of doc.parts) {
     const entry = tax.entry(part.taxonomyId);
     const nodes = entry ? ownNodes(part) : [];
     if (!entry || !nodes.length) continue;
     // Variants share node names (one is fitted at a time): the lightest decides.
-    for (const n of nodes) {
-      weights.set(n.id, Math.min(weights.get(n.id) ?? Infinity, n.weight));
-      pos.set(n.id, n.pos);
-    }
+    for (const n of nodes) weights.set(n.id, Math.min(weights.get(n.id) ?? Infinity, n.weight));
     const settings = partSettings(doc, part, entry);
     const preset = materialDefaults(entry, part.constructionMaterial).beamPreset;
     const hinge = doc.hinges.find((h) => h.partId === part.id);
-    for (const b of doc.beams) {
-      if (b.partId !== part.id) continue;
-      const p1 = pos.get(b.id1) ?? doc.nodes.find((n) => n.id === b.id1)?.pos;
-      const p2 = pos.get(b.id2) ?? doc.nodes.find((n) => n.id === b.id2)?.pos;
+    for (const b of beamsOf.get(part.id) ?? []) {
+      const p1 = pos.get(b.id1);
+      const p2 = pos.get(b.id2);
       const bound = b.kind === 'limit' && hinge && p1 && p2 ? limiterBound(p1, p2, hinge.axis, hinge.openAngle * hinge.direction) : 1;
       const v = beamPhysics(b.kind, preset, settings.attachment, part.name, hinge, bound);
       if (v.beamType === 'BOUNDED') continue;

@@ -10,7 +10,7 @@
  *        node scripts/run-desktop.mjs --only=crash,gl
  */
 import { _electron } from 'playwright-core';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createWriteStream, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -3173,6 +3173,251 @@ const scenarios = [
       timings.materialMs = Date.now() - t;
       writeFileSync(join(outDir, 'high-poly-timings.json'), JSON.stringify(timings, null, 1));
       console.log('high-poly timings', JSON.stringify(timings));
+    },
+  },
+  {
+    id: 'audit',
+    name: 'audit on the practice car: every workspace, every toolbar button and every key; nothing errors and the window keeps answering',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      const problems = [];
+      const closeAll = async () => {
+        for (let i = 0; i < 4 && (await page.locator('[role=dialog]').count()); i++) {
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(150);
+        }
+      };
+      const check = async (what) => {
+        const t0 = Date.now();
+        // The window answers: a round trip to the page.
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(1))));
+        const ms = Date.now() - t0;
+        if (ms > 3000) problems.push(`${what}: the window took ${ms} ms to answer`);
+        const cards = await page.locator('[data-testid=error-card]').count();
+        if (cards) problems.push(`${what}: ${cards} panel error card(s)`);
+        if (!(await page.locator('[data-testid=app-ready]').count())) problems.push(`${what}: the app is no longer ready`);
+      };
+      const workspaces = await page.locator('[data-testid^=workspace-]').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
+      assert(workspaces.length >= 9, `every workspace has a tab (${workspaces.join(', ')})`);
+      for (const ws of workspaces) {
+        await page.getByTestId(ws).click();
+        await page.waitForTimeout(700);
+        await closeAll();
+        await check(ws);
+        await shot(page, `audit-${ws}`);
+        // Every side panel toggle in this workspace, on and off again.
+        const toggles = await page.locator('[data-testid^=toggle-]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
+        for (const t of toggles) {
+          for (let k = 0; k < 2; k++) {
+            const b = page.getByTestId(t);
+            if (!(await b.isVisible()) || (await b.isDisabled())) continue;
+            await b.click();
+            await page.waitForTimeout(250);
+            await check(`${ws} ${t}`);
+          }
+        }
+      }
+      await page.getByTestId('workspace-model').click().catch(() => page.getByTestId(workspaces[0]).click());
+      await page.waitForTimeout(500);
+      // The toolbar's own buttons: the view toggles twice, the windows opened and shut.
+      for (const id of ['toolbar-view-mesh', 'toolbar-view-structure', 'toolbar-view-xray']) {
+        for (let k = 0; k < 2; k++) await page.getByTestId(id).click();
+        await check(id);
+      }
+      for (const id of ['open-settings', 'open-downloads', 'open-help', 'open-configs', 'toolbar-export']) {
+        await page.getByTestId(id).click();
+        await page.waitForTimeout(600);
+        const dialogs = await page.locator('[role=dialog]').count();
+        if (!dialogs) problems.push(`${id}: no window opened`);
+        await shot(page, `audit-${id}`);
+        await closeAll();
+        if (await page.locator('[role=dialog]').count()) problems.push(`${id}: Escape did not close it`);
+        await check(id);
+      }
+      // Every key that isn't a native-menu accelerator, in the editor and then in edit mode.
+      const keyed = async (key, what, expectDialog = false) => {
+        await page.locator('[data-testid=viewport]').hover();
+        await page.keyboard.press(key);
+        await page.waitForTimeout(350);
+        if (expectDialog && !(await page.locator('[role=dialog]').count())) problems.push(`${what} (${key}): nothing opened`);
+        await closeAll();
+        await check(`${what} (${key})`);
+      };
+      for (let n = 1; n <= 9; n++) {
+        await keyed(`Control+${n}`, `layout${n}`);
+      }
+      await page.getByTestId(workspaces[0]).click();
+      for (const [k, w] of [['Alt+1', 'viewMesh'], ['Alt+1', 'viewMesh'], ['Alt+2', 'viewStructure'], ['Alt+2', 'viewStructure'], ['Alt+3', 'viewXray'], ['Alt+3', 'viewXray'], ['Home', 'frameAll'], ['f', 'focus'], ['g', 'move'], ['r', 'rotate'], ['s', 'scale'], ['Escape', 'cancel']]) await keyed(k, w);
+      await keyed('Control+E', 'export', true);
+      await keyed('Control+Shift+C', 'configs', true);
+      // Menu accelerators belong to the native menu, which synthetic keys don't reach: their menu commands are run instead.
+      for (const [k, w] of [['Control+K', 'palette'], ['F1', 'shortcuts'], ['Shift+F1', 'help'], ['Control+,', 'settings'], ['Control+Shift+D', 'downloads']]) await keyed(k, w);
+      for (const cmd of ['palette', 'shortcuts', 'help', 'settings', 'downloads']) {
+        await hook(page, 'runCommand', cmd);
+        await page.waitForTimeout(400);
+        if (!(await page.locator('[role=dialog]').count())) problems.push(`menu ${cmd}: nothing opened`);
+        await closeAll();
+        await check(`menu ${cmd}`);
+      }
+      const nodes0 = (await hook(page, 'projectDoc')).nodes.length;
+      await keyed('Tab', 'editMode');
+      for (const [k, w] of [['Control+A', 'nodeSelectAll'], ['i', 'nodeInvert'], ['i', 'nodeInvert'], ['Shift+T', 'selectTris'], ['Shift+B', 'selectBeams'], ['l', 'nodeConnected'], ['Escape', 'cancel']]) await keyed(k, w);
+      // Escape may have left edit mode: back in, a node picked, then N adds one beside it.
+      if (!(await hook(page, 'editState')).active) await keyed('Tab', 'editMode');
+      const firstNode = (await hook(page, 'projectDoc')).nodes[0].id;
+      await hook(page, 'editSelect', [firstNode]);
+      await keyed('n', 'nodeAdd');
+      if ((await hook(page, 'projectDoc')).nodes.length !== nodes0 + 1) problems.push('nodeAdd (N): no node added');
+      await keyed('Control+A', 'nodeSelectAll');
+      for (const [k, w] of [['Shift+M', 'nodeMirror'], ['t', 'triAdd'], ['b', 'nodeConnect'], ['d', 'beamSplit'], ['m', 'nodeMerge'], ['Delete', 'nodeDelete']]) await keyed(k, w);
+      for (let i = 0; i < 20 && (await hook(page, 'projectDoc')).nodes.length !== nodes0; i++) {
+        await page.keyboard.press('Control+Z');
+        await page.waitForTimeout(200);
+      }
+      await keyed('Tab', 'editMode off');
+      const nodes1 = (await hook(page, 'projectDoc')).nodes.length;
+      await shot(page, 'audit-end');
+      assert(!problems.length, `no problems:\n  ${problems.join('\n  ')}`);
+      assert(nodes1 === nodes0, `undo puts the structure back (${nodes0} → ${nodes1})`);
+    },
+  },
+  {
+    id: 'practice-export',
+    name: 'the practice car exported as a beginner would: sort into parts, Generate, Export → Install',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      await page.waitForTimeout(1500);
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-dialog').waitFor();
+      await shot(page, 'practice-export-dialog');
+      await page.getByTestId('export-install').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 60_000 });
+      const unpacked = join(fakeUserDir, 'mods', 'unpacked');
+      const mod = readdirSync(unpacked)[0];
+      cpSync(join(unpacked, mod), join(outDir, 'practice-mod'), { recursive: true });
+      // Run it the way the game does (explicit steps at 2000 Hz, no sub-steps): it must hold together.
+      const vdir = join(outDir, 'practice-mod', 'vehicles', readdirSync(join(outDir, 'practice-mod', 'vehicles'))[0]);
+      const check = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir], { encoding: 'utf8', env: { ...process.env, STEPS: '6000' } });
+      writeFileSync(join(outDir, 'practice-stability.txt'), check.stdout + check.stderr);
+      assert(/RUN: \d+ steps .* stable/.test(check.stdout), `the exported car holds together at 2000 Hz:\n${check.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${check.stderr.slice(0, 400)}`);
+    },
+  },
+  {
+    id: 'suspension-wheels',
+    name: "fitting a game suspension to the practice car: its wheels and brakes land on the set's hubs, and follow it when it's moved",
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // A car in the game folder with a front suspension and its hubs (the wheels sit on fw1l/fw1ll and fw1r/fw1rr).
+      const suspJbeam = {
+        fakesusp_body: { information: { name: 'Body' }, slotType: 'main', slots: [['type', 'default', 'description'], ['fakesusp_suspension_F', 'fakesusp_suspension_F', 'Front Suspension']], nodes: [['id', 'posX', 'posY', 'posZ'], ['b1l', 0.5, -1.0, 0.7], ['b1r', -0.5, -1.0, 0.7], ['b2l', 0.4, -1.4, 0.4], ['b2r', -0.4, -1.4, 0.4]] },
+        fakesusp_suspension_F: {
+          information: { name: 'Front Struts' },
+          slotType: 'fakesusp_suspension_F',
+          slots: [['type', 'default', 'description'], ['fakesusp_hub_F', 'fakesusp_hub_F', 'Front Hubs']],
+          flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fixture_body', ['fakesusp_strut_F']]],
+          nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'fakesusp_strut_F', nodeWeight: 4 }, ['fs1l', 0.62, -1.0, 0.55], ['fs1r', -0.62, -1.0, 0.55], { group: '' }],
+          beams: [['id1:', 'id2:'], ['fs1l', 'b1l'], ['fs1r', 'b1r'], ['fs1l', 'b2l'], ['fs1r', 'b2r']],
+        },
+        fakesusp_hub_F: {
+          information: { name: 'Front Hubs' },
+          slotType: 'fakesusp_hub_F',
+          slots: [['type', 'default', 'description'], ['wheel_F_5', 'steelwheel_F', 'Front Wheels']],
+          nodes: [['id', 'posX', 'posY', 'posZ'], { nodeWeight: 5 }, ['fw1l', 0.8, -1.0, 0.3], ['fw1ll', 0.68, -1.0, 0.3], ['fw1r', -0.8, -1.0, 0.3], ['fw1rr', -0.68, -1.0, 0.3]],
+          beams: [['id1:', 'id2:'], ['fw1l', 'fw1ll'], ['fw1r', 'fw1rr'], ['fw1ll', 'fs1l'], ['fw1rr', 'fs1r']],
+          pressureWheels: [['name', 'hubGroup', 'group', 'node1:', 'node2:', 'nodeS', 'nodeArm:', 'wheelDir'], ['FR', 'wheel_FR', 'tire_FR', 'fw1rr', 'fw1r', 9999, 'fs1r', -1], ['FL', 'wheel_FL', 'tire_FL', 'fw1ll', 'fw1l', 9999, 'fs1l', 1]],
+        },
+      };
+      await new Promise((resolve, reject) => {
+        const zip = new yazl.ZipFile();
+        zip.addBuffer(Buffer.from(JSON.stringify(suspJbeam)), 'vehicles/fakesusp/fakesusp.jbeam');
+        zip.addBuffer(readFileSync(join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae')), 'vehicles/fakesusp/fakesusp.dae');
+        zip.addBuffer(Buffer.from(JSON.stringify({ Name: 'Strut Car', Brand: 'Forge' })), 'vehicles/fakesusp/info.json');
+        zip.end();
+        zip.outputStream.pipe(createWriteStream(join(fakeInstall, 'content', 'vehicles', 'fakesusp.zip'))).on('close', resolve).on('error', reject);
+      });
+      await page.evaluate((dir) => window.forge.invoke('settings:update', { beamngInstallDir: dir }), fakeInstall);
+      rmSync(join(userData, 'library-scan', 'beamng', 'parts.fingerprint'), { force: true });
+      const scan = await page.evaluate(() => window.forge.invoke('library:rescan'));
+      assert(scan.ok, `library rescanned (${JSON.stringify(scan).slice(0, 200)})`);
+      let sets = [];
+      for (let i = 0; i < 600 && !sets.some((x) => x.vehicle === 'fakesusp'); i++) {
+        const lib = await page.evaluate(() => window.forge.invoke('library:status'));
+        if (!lib.value?.scanning) sets = (await page.evaluate(() => window.forge.invoke('suspension:catalogue'))).value ?? [];
+        await page.waitForTimeout(100);
+      }
+      assert(sets.some((x) => x.vehicle === 'fakesusp'), `the fake suspension is in the catalogue (${sets.map((x) => x.id).join(', ')})`);
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      const wheelBefore = await hook(page, 'partCentre', '^Front Left (wheel|tire)$');
+      const caliperBefore = await hook(page, 'partCentre', '^Front Left brake');
+      assert(wheelBefore && caliperBefore, `the practice car has a front-left wheel and caliper (${JSON.stringify([wheelBefore, caliperBefore])})`);
+      await page.getByTestId('toggle-suspension').click();
+      await page.getByRole('button', { name: 'Set up axles' }).click();
+      await page.getByTestId('suspension-picker').waitFor();
+      await page.getByTestId('workshop-type').filter({ hasText: 'MacPherson strut' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'Forge' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('suspension-panel').waitFor({ timeout: 30_000 });
+      await page.waitForTimeout(1000);
+      const doc = await hook(page, 'projectDoc');
+      const axle = doc.axles[0];
+      const offset = doc.sources.find((s) => s.id === axle.fitted.sourceId).placement.position;
+      // The left wheel's centre: the middle of fw1ll–fw1l, moved with the set.
+      const want = [0.74 + offset[0], -1.0 + offset[1], 0.3 + offset[2]];
+      const near = (a, b, tol = 0.01) => a.every((v, i) => Math.abs(v - b[i]) < tol);
+      // The whole wheel (rim and tyre) is centred on the hub.
+      const wheel = await hook(page, 'partCentre', '^Front Left (wheel|tire)$');
+      assert(near(wheel, want), `the front-left wheel sits on the set's hub (${wheel.map((v) => v.toFixed(3))} vs ${want.map((v) => v.toFixed(3))})`);
+      const caliper = await hook(page, 'partCentre', '^Front Left brake');
+      const moved = wheel.map((v, i) => v - wheelBefore[i]);
+      assert(near(caliper, caliperBefore.map((v, i) => v + moved[i])), 'its brake moved with it');
+      const right = await hook(page, 'partCentre', '^Front Right (wheel|tire)$');
+      assert(near(right, [-0.74 + offset[0], want[1], want[2]]), `the front-right wheel too (${right.map((v) => v.toFixed(3))})`);
+      const rear = await hook(page, 'partCentre', '^Rear Left wheel$');
+      assert(rear && Math.abs(rear[1] - want[1]) > 0.5, 'the rear wheels stay where they were');
+      await shot(page, 'suspension-wheels-fitted');
+      // Dragging the suspension: the wheels and brakes follow.
+      await hook(page, 'gizmoTransform', { pivot: [0, 0, 0], translate: [0, 0.05, 0.02], rotate: [0, 0, 0, 1], scale: [1, 1, 1] });
+      await page.waitForTimeout(800);
+      const after = await hook(page, 'partCentre', '^Front Left (wheel|tire)$');
+      assert(near(after, [want[0], want[1] + 0.05, want[2] + 0.02]), `the wheel follows the suspension (${after.map((v) => v.toFixed(3))})`);
+      await shot(page, 'suspension-wheels-moved');
     },
   },
   {
