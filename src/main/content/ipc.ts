@@ -1,4 +1,4 @@
-import { copyFile, mkdir, stat } from 'node:fs/promises';
+import { copyFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, shell, type BrowserWindow } from 'electron';
 import { z } from 'zod';
@@ -100,9 +100,8 @@ export function registerContentHandlers(ctx: ContentContext): void {
   registerInvoke(
     'updates:run',
     async ({ asset }) => {
-      if (!/^JBeam-Forge-[A-Za-z0-9._-]+\.(exe|zip)$/.test(asset)) throw new Error(`Not a JBeam Forge download: ${asset}`);
-      const path = join(updates.downloads, asset);
-      await stat(path);
+      // Checked against the release right before it runs: size and SHA-256.
+      const path = await updates.verifyDownloaded(settings.get().appRepo, asset);
       const role = assetRole(asset);
       if (role === 'installer' && process.platform === 'win32') {
         const err = await shell.openPath(path);

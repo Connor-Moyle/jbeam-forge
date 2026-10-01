@@ -321,7 +321,7 @@ async function daesOf(zip: ZipReader): Promise<DaeDoc[]> {
   return docs;
 }
 
-const safe = (s: string) => s.replace(/[<>:"/\\|?*]+/g, '-').trim();
+const safe = (s: string) => s.replace(/[<>:"/\\|?*]+/g, '-').replace(/^\.+/, '_').trim();
 
 /** What kind of suspension a set is, from its part and mesh names. */
 export function suspensionType(text: string): string {
@@ -669,7 +669,8 @@ export async function importModSets(modZip: string, installDir: string | null, o
   const found: string[] = [];
   try {
     await withZip(modZip, async (zip) => {
-      const vehicles = [...new Set((await zip.entries()).map((e) => /^vehicles\/([^/]+)\/.+\.jbeam$/i.exec(e.name)?.[1]).filter((v): v is string => !!v && v.toLowerCase() !== 'common'))];
+      // Folder names become folders here: only plain names (a crafted zip can't climb out with "..").
+      const vehicles = [...new Set((await zip.entries()).map((e) => /^vehicles\/([^/]+)\/.+\.jbeam$/i.exec(e.name)?.[1]).filter((v): v is string => !!v && /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,80}$/.test(v) && !v.includes('..') && v.toLowerCase() !== 'common'))];
       if (!vehicles.length) throw new Error('No car in this file: an Automation export is a zip with a vehicles/<name>/ folder (in BeamNG’s mods folder).');
       const own = await daesOf(zip);
       const locate = (mesh: string) => own.find((d) => d.nodes.has(mesh)) ?? common.find((d) => d.nodes.has(mesh));

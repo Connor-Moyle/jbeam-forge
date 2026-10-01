@@ -116,6 +116,26 @@ export class UpdateService {
     }
   }
 
+  /**
+   * Before running (or showing) a download: it must still be exactly the file
+   * the release lists (size and GitHub's SHA-256), so a file swapped or damaged
+   * in the downloads folder afterwards never runs.
+   */
+  async verifyDownloaded(repo: string, assetName: string): Promise<string> {
+    if (!/^JBeam-Forge-[A-Za-z0-9._-]+\.(exe|zip)$/.test(assetName)) throw new GithubError(`Not a JBeam Forge download: ${assetName}`, 'BAD_INPUT');
+    const version = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(assetName)?.[1];
+    if (!version) throw new GithubError(`No version in ${assetName}`, 'BAD_INPUT');
+    const release = (await this.releases(repo, true)).find((r) => r.version === version);
+    const asset = release?.assets.find((a) => a.name === assetName);
+    if (!asset) throw new GithubError(`${assetName} isn't part of a release any more`, 'NOT_FOUND');
+    const path = join(this.downloads, assetName);
+    if (!(await intact(path, asset.size, asset.sha256))) {
+      await rm(path, { force: true });
+      throw new GithubError(`${assetName} doesn't match the release (it may have been damaged or changed): download it again`, 'MISMATCH');
+    }
+    return path;
+  }
+
   /** What's already downloaded (name and size). */
   async downloaded(): Promise<{ name: string; size: number }[]> {
     try {

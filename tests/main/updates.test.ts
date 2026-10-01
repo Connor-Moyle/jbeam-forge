@@ -79,6 +79,24 @@ describe('downloading a version', () => {
   });
 });
 
+describe('running a download', () => {
+  const body = Buffer.from('installer bytes');
+  const sha = createHash('sha256').update(body).digest('hex');
+  const fetchFn: FetchFn = (url) =>
+    Promise.resolve(url.includes('/releases') ? new Response(JSON.stringify([{ tag_name: 'v0.12.0', assets: [{ name: 'JBeam-Forge-Setup-0.12.0.exe', size: body.length, browser_download_url: 'http://fake.test/dl/setup.exe', digest: `sha256:${sha}` }] }]), { status: 200 }) : new Response(body, { status: 200 }));
+
+  it('only runs a file that still matches the release; a changed one is removed', async () => {
+    const svc = new UpdateService(join(dir, 'updates'), fetchFn, quiet, ENV);
+    const path = await svc.download('me/app', 'v0.12.0', 'JBeam-Forge-Setup-0.12.0.exe', () => undefined);
+    expect(await svc.verifyDownloaded('me/app', 'JBeam-Forge-Setup-0.12.0.exe')).toBe(path);
+    await writeFile(path, 'tampered bytes!');
+    await expect(svc.verifyDownloaded('me/app', 'JBeam-Forge-Setup-0.12.0.exe')).rejects.toThrow(/doesn't match the release/);
+    expect(await svc.downloaded()).toEqual([]);
+    await expect(svc.verifyDownloaded('me/app', '..\\evil.exe')).rejects.toThrow(/Not a JBeam Forge download/);
+    await expect(svc.verifyDownloaded('me/app', 'JBeam-Forge-Setup-0.9.0.exe')).rejects.toThrow(/isn't part of a release/);
+  });
+});
+
 describe('GitHub addresses', () => {
   it('builds raw URLs, refuses bad names, and only trusts GitHub hosts', () => {
     const e = endpoints({});
