@@ -2129,6 +2129,49 @@ const scenarios = [
     },
   },
   {
+    id: 'credits',
+    name: 'Help → Credits: the practice car’s author, licence and source, and the software',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      await page.getByTestId('open-help').first().click();
+      await page.getByTestId('guide-credits').click();
+      const credits = page.getByTestId('help-credits');
+      await credits.waitFor();
+      const text = await credits.textContent();
+      for (const want of ['1982 BMW 3 Series E30', 'zairiq-zairiq-123-pixar-cars-bfdi', 'Creative Commons Attribution', 'three.js']) assert(text.includes(want), `credits mention ${want}`);
+      assert((await credits.locator('a[href*="sketchfab.com/3d-models/1982-bmw-3-series-e30"]').count()) === 1, 'links to the model');
+      await shot(page, 'help-credits');
+      await page.keyboard.press('Escape');
+    },
+  },
+  {
+    id: 'reference-car',
+    name: 'a reference model (JBFORGE_REF_MODEL) from the practice car’s angles, for comparing shapes',
+    skip: () => !process.env.JBFORGE_REF_MODEL,
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-name').fill('Reference');
+      await hook(page, 'queueDialog', [process.env.JBFORGE_REF_MODEL]);
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').click({ timeout: 30_000 });
+      await page.getByRole('button', { name: 'Leave unassigned' }).click({ timeout: 30_000 });
+      await hook(page, 'applyPreset', 'modelling');
+      await page.waitForTimeout(800);
+      const views = { 'front-left': [3.2, 1.3, 3.6], side: [5, 0.6, 0], front: [0, 0.8, 5], 'rear-left-low': [2.6, 0.5, -3.2], 'front-right-low': [-3.4, 0.7, 3.4] };
+      for (const [name, dir] of Object.entries(views)) {
+        await hook(page, 'viewFrom', dir);
+        await page.waitForTimeout(500);
+        await shot(page, `reference-${name}`);
+      }
+    },
+  },
+  {
     id: 'skins',
     name: 'Skin studio: practice car laid out for skins · stretch view · template PNG and SVG · on the car · skin from a painted template · export',
     async run({ page }) {
@@ -2809,14 +2852,14 @@ const scenarios = [
       assert(st.meshes >= 45, `practice car loaded (${st.meshes} meshes)`);
       await hook(page, 'applyPreset', 'modelling');
       await page.waitForTimeout(500);
-      const views = { 'front-left': [3.2, 1.3, 3.6], 'rear-right': [-3.4, 1.4, -3.4], side: [5, 0.6, 0], front: [0, 0.8, 5], 'rear-left-low': [2.6, 0.5, -3.2], rear: [0, 0.9, -5] };
+      const views = { 'front-left': [3.2, 1.3, 3.6], 'rear-right': [-3.4, 1.4, -3.4], side: [5, 0.6, 0], front: [0, 0.8, 5], 'rear-left-low': [2.6, 0.5, -3.2], rear: [0, 0.9, -5], 'front-right-low': [-3.4, 0.7, 3.4] };
       for (const [name, dir] of Object.entries(views)) {
         await hook(page, 'viewFrom', dir);
         await page.waitForTimeout(500);
         await shot(page, `demo-car-${name}`);
       }
       // Panels off: the bonnet (engine bay), the left doors and their glass (the cabin), the boot lid.
-      assert((await hook(page, 'hideMeshes', '^(hood|door_FL|door_RL|door_glass_FL|door_glass_RL|trunk|fender_FL)$')) === 7, 'seven panels hidden');
+      assert((await hook(page, 'hideMeshes', '^(hood|door_FL|door_glass_FL|trunk|fender_FL|spoiler|bumper_F)$')) === 7, 'seven panels hidden');
       await hook(page, 'viewFrom', [3.2, 1.8, 3]);
       await page.waitForTimeout(500);
       await shot(page, 'demo-car-panels-off');

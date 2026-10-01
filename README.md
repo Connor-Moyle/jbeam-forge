@@ -533,3 +533,9 @@ BeamNG.drive is a trademark of BeamNG GmbH. This project isn't affiliated with o
 ---
 
 Made by **Fatkiwi**. If you make something cool with it, I'd love to see it.
+
+## Credits
+
+- The tutorial's practice car is based on "[1982 BMW 3 Series E30](https://sketchfab.com/3d-models/1982-bmw-3-series-e30-8d8b44242a52400aae216f7e05b92b36)" by [zairiq-zairiq-123-pixar-cars-bfdi](https://sketchfab.com/zairiq-zairiq-123-pixar-cars-bfdi), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: smoothed, split into parts, the driver removed, an engine bay and engine added (`scripts/dev/buildDemoCar.mts`). Mods made from it carry this credit in a `credits.txt`.
+- Built with Electron, three.js, three-mesh-bvh, React, Dockview, Zustand, Immer, Zod, Lucide and fflate (MIT / ISC licences).
+- Every credit is also in the app: Help → Credits.

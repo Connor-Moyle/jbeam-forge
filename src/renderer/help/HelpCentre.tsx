@@ -1,5 +1,5 @@
-import { Fragment, useMemo, useState } from 'react';
-import { BookOpen, Compass, FilePlus, FileInput, FolderOpen, Keyboard, Settings } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Award, BookOpen, Compass, FilePlus, FileInput, FolderOpen, Keyboard, Settings } from 'lucide-react';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSettingsStore } from '@renderer/app/stores/settings';
@@ -13,6 +13,8 @@ import { Modal } from '@renderer/ui/components/Modal';
 import { GUIDE_GROUPS, GUIDES, type Guide } from './guides';
 import { startTutorial } from './tutorial';
 import styles from './Help.module.css';
+import { ASSET_CREDITS, SOFTWARE_CREDITS, type Credit } from '@shared/credits';
+import { useObjects } from '@renderer/panels/ObjectsPanel';
 
 const KEY_IDS = new Set<string>(KEYMAP.map((a) => a.id));
 
@@ -41,7 +43,8 @@ function HelpBody() {
   const [query, setQuery] = useState('');
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const shown = GUIDES.filter((g) => words.every((w) => guideText(g).includes(w)));
-  const guide = shown.find((g) => g.id === id) ?? shown[0] ?? null;
+  const credits = id === 'credits';
+  const guide = credits ? null : (shown.find((g) => g.id === id) ?? shown[0] ?? null);
   const close = () => setOpen(false);
 
   const action = (a: NonNullable<Guide['actions']>[number]) => {
@@ -137,9 +140,15 @@ function HelpBody() {
             );
           })}
           {!shown.length && <p className={styles.none}>No guide mentions that.</p>}
+          <div className={styles.group}>About</div>
+          <button type="button" className={credits ? styles.itemOn : styles.item} onClick={() => setId('credits')} data-testid="guide-credits">
+            Credits
+          </button>
         </nav>
         <article className={styles.article} data-testid="help-article">
-          {guide ? (
+          {credits ? (
+            <CreditsArticle />
+          ) : guide ? (
             <>
               <h2 className={styles.title}>
                 <BookOpen aria-hidden />
@@ -170,3 +179,67 @@ function HelpBody() {
   );
 }
 
+
+function CreditLink({ href, children }: { href?: string; children: string }) {
+  return href ? (
+    <a href={href} target="_blank" rel="noreferrer">
+      {children}
+    </a>
+  ) : (
+    <>{children}</>
+  );
+}
+
+function CreditEntry({ c }: { c: Credit }) {
+  return (
+    <section className={styles.section}>
+      <h3 className={styles.heading}>{c.what}</h3>
+      <p>
+        <CreditLink href={c.source}>{`“${c.title}”`}</CreditLink> by <CreditLink href={c.authorUrl}>{c.author}</CreditLink>, licensed under <CreditLink href={c.licenceUrl}>{c.licence}</CreditLink>.
+      </p>
+      {c.changes && <p className={styles.tip}>Changes: {c.changes}</p>}
+    </section>
+  );
+}
+
+/** Help → Credits: the models, textures and software from other people, with their licences. */
+function CreditsArticle() {
+  const objects = useObjects((s) => s.items);
+  useEffect(() => {
+    void useObjects.getState().load().catch(() => undefined);
+  }, []);
+  const credited = (objects ?? []).filter((o) => o.credit);
+  return (
+    <div data-testid="help-credits">
+      <h2 className={styles.title}>
+        <Award aria-hidden />
+        Credits
+      </h2>
+      <p className={styles.summary}>Models, textures and software made by other people, used in JBeam Forge with thanks.</p>
+      <h3 className={styles.heading}>Models and textures</h3>
+      {ASSET_CREDITS.map((c) => (
+        <CreditEntry key={c.title} c={c} />
+      ))}
+      {credited.length > 0 && (
+        <section className={styles.section}>
+          <h3 className={styles.heading}>In your object library</h3>
+          <ul className={styles.steps}>
+            {credited.map((o) => (
+              <li key={o.id}>
+                {o.name} by {o.credit}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      <h3 className={styles.heading}>Software</h3>
+      <ul className={styles.steps}>
+        {SOFTWARE_CREDITS.map((c) => (
+          <li key={c.title}>
+            <CreditLink href={c.source}>{c.title}</CreditLink> ({c.what.toLowerCase()}) by {c.author}, {c.licence} licence
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

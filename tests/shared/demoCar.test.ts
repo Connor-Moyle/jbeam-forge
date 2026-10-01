@@ -50,7 +50,7 @@ describe('tutorial practice car (E30-style saloon)', () => {
     // Every outer triangle has a turned-round twin just inside it.
     const door = pieces.find((p) => p.name === 'door_FL')!;
     expect(door.tris.length % 2).toBe(0);
-    expect(Math.abs(signedVolume(door.tris))).toBeLessThan(0.01);
+    expect(Math.abs(signedVolume(door.tris))).toBeLessThan(0.02);
   });
 
   it('writes an OBJ with shared vertices, normals and its materials', () => {

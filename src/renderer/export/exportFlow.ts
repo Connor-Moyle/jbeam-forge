@@ -1,3 +1,4 @@
+import { creditsForSources, creditsText } from '@shared/credits';
 import { create } from 'zustand';
 import { withMeshNames } from '@shared/parts/meshNames';
 import { slotsOf } from '@renderer/materials/seed';
@@ -261,6 +262,9 @@ export function prepareExport(): PreparedExport | null {
   // Ported from another game: the declaration must be complete, and the credit ships with the mod.
   for (const message of portedIssues(doc.meta.portedFrom)) report.errors.push({ code: 'PORTED', message });
   if (doc.meta.portedFrom && kind === 'vehicle') files.push({ path: `${root}/ported_from.txt`, text: portedText(doc.meta.portedFrom, doc.meta.name, author) });
+  // Models made by others (the practice car): their credit ships with the mod.
+  const credits = creditsForSources(doc.sources.map((src) => src.absolutePath));
+  if (credits.length && kind === 'vehicle') files.push({ path: `${root}/credits.txt`, text: creditsText(credits, doc.meta.name) });
   if (kind !== 'vehicle') return partModExport(doc, kind, { author, files, copies: mats.copies, dae, meshCount: exported.length, meshNames: daeMeshes.map((m) => m.name) });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {

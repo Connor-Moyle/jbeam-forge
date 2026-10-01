@@ -13,6 +13,9 @@ asar: true
 extraResources:
   - from: examples/extensions
     to: example-extensions
+  # The tutorial's practice car (scripts/dev/buildDemoCar.mts builds it).
+  - from: assets/demo-car
+    to: demo-car
 # Textures and meshes are optional downloads from their own repositories (Downloads window;
 # npm run build-content-repos builds them), so the installer no longer carries the packs.
 win:

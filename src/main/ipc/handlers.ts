@@ -24,7 +24,7 @@ import { pickDirectory, pickOpenFile, pickOpenFiles, pickSaveFile, queueHarnessD
 import { getLogFolder, scoped } from '../log';
 import { assertReadable, formatFromPath, locateSource, MODEL_FILTERS, projectResourceFolders, type FolderTrust } from '../import/access';
 import { resolveTextureRefs } from '../import/textures';
-import { readFile, stat, writeFile, mkdir } from 'node:fs/promises';
+import { copyFile, readdir, readFile, stat, writeFile, mkdir } from 'node:fs/promises';
 import { basename, dirname, extname, join } from 'node:path';
 import { kn5TextureDir } from '../import/kn5Textures';
 import { readAcCar } from '../import/acCar';
@@ -410,10 +410,17 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('tutorial:demoModel', async () => {
     const dir = join(dirname(services.paintedTextures), 'tutorial');
     await mkdir(dir, { recursive: true });
-    const { obj, mtl } = demoCarObj();
+    // The practice car ships with the app (assets/demo-car): copied out so it can be edited and reloaded like any model.
+    const shipped = app.isPackaged ? join(process.resourcesPath, 'demo-car') : join(app.getAppPath(), 'assets', 'demo-car');
     const path = join(dir, 'demo_car.obj');
-    await writeFile(path, obj);
-    await writeFile(join(dir, 'demo_car.mtl'), mtl);
+    try {
+      for (const f of await readdir(shipped)) await copyFile(join(shipped, f), join(dir, f));
+    } catch {
+      // Not found (a broken install): the simple car made in code instead.
+      const { obj, mtl } = demoCarObj();
+      await writeFile(path, obj);
+      await writeFile(join(dir, 'demo_car.mtl'), mtl);
+    }
     projects.grantFile(path);
     return { path };
   });

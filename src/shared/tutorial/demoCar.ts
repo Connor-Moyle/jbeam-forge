@@ -46,35 +46,58 @@ interface Piece {
 }
 
 // ---------------------------------------------------------------- dimensions
+//
+// The shape follows measurements of a reference E30 (the owner's reference
+// model, read like a blueprint): the centre-line profile, the door section,
+// the flares over the wheels, the side window outline. Only these curves are
+// used; the surfaces, their topology and every part are built here.
 
-const W = 0.8225; // body half width
-const NOSE_Z = 2.065; // front face of the body (the bumper stands 0.1 m proud)
-const TAIL_Z = -2.07;
-const AXLE_F = 1.315;
-const AXLE_R = -1.255; // 2.57 m wheelbase
+/** Straight-line interpolation through (x, y) points sorted by x (either direction). */
+function table(pts: readonly (readonly [number, number])[]): (x: number) => number {
+  const sorted = [...pts].sort((p, q) => p[0] - q[0]);
+  return (x) => {
+    if (x <= sorted[0]![0]) return sorted[0]![1];
+    for (let i = 1; i < sorted.length; i++) {
+      const [x1, y1] = sorted[i]!;
+      if (x <= x1) {
+        const [x0, y0] = sorted[i - 1]!;
+        // Smoothstep between points: the curve is continuous and has no kinks at the points.
+        const t = (x - x0) / (x1 - x0);
+        return y0 + (y1 - y0) * (0.5 * t + 0.5 * t * t * (3 - 2 * t));
+      }
+    }
+    return sorted[sorted.length - 1]![1];
+  };
+}
+
+const NOSE_Z = 2.09; // front face of the body (the bumper stands proud of it)
+const TAIL_Z = -2.075;
+const AXLE_F = 1.42;
+const AXLE_R = -1.15; // 2.57 m wheelbase
 const TRACK_F = 0.7035;
 const TRACK_R = 0.7075;
-const WHEEL_R = 0.3; // 175/70 R14
-const WHEEL_Y = 0.3;
-const ARCH_R = 0.372;
-const ARCH_Y = 0.318;
-const SILL_Y = 0.2; // bottom of the sills
+const WHEEL_R = 0.312;
+const WHEEL_Y = 0.312;
+const ARCH_R = 0.35;
+const ARCH_Y = 0.325;
+const SILL_Y = 0.19; // bottom of the sills
 const DOOR_BOTTOM = 0.27;
-/** Where the lower sides (round the arches) meet the upper band with the crease. */
-const MID_Y = 0.74;
-const COWL_Z = 0.44; // bonnet's back edge, windscreen's foot
-const DECK_Z = -1.72; // boot lid's front edge, rear window's foot
-const RAIL_Y = 1.335; // roof side rails
-const ROOF_Y = 1.378; // roof centre
-const TUMBLE = 0.15; // how far the glasshouse leans in at the roof
+/** Where the lower sides (round the arches) meet the band above them. */
+const MID_Y = 0.69;
+const COWL_Z = 0.975; // bonnet's back edge, windscreen's foot
+const DECK_Z = -1.665; // boot lid's front edge, rear window's foot
+const BELT_Y = 0.88; // bottom of the side windows
+const RAIL_Y = 1.316; // roof side rails
 const GAP = 0.0025; // half a shut line
 
-/** The doors' edges along the car, below the windows. */
-const FRONT_DOOR: [number, number] = [0.445, -0.52];
-const REAR_DOOR_FRONT = -0.52;
+/** The doors' edges along the car, below the windows (four doors). */
+const FRONT_DOOR: [number, number] = [0.925, -0.15];
+const REAR_DOOR_FRONT = -0.15;
+/** The B-pillar, between the doors' window frames. */
+const B_PILLAR = -0.15;
 /** Where the arches' surrounds end (the lower sides are built as rings round them). */
-const ARCH_F: [number, number] = [AXLE_F + 0.43, AXLE_F - 0.43];
-const ARCH_B: [number, number] = [AXLE_R + 0.4, AXLE_R - 0.4];
+const ARCH_F: [number, number] = [AXLE_F + 0.4, AXLE_F - 0.4];
+const ARCH_B: [number, number] = [AXLE_R + 0.39, AXLE_R - 0.39];
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
@@ -84,90 +107,169 @@ const linspace = (a: number, b: number, n: number): number[] => Array.from({ len
 const easeTo = (a: number, b: number, n: number): number[] => Array.from({ length: n + 1 }, (_, i) => lerp(a, b, Math.sin(((i / n) * Math.PI) / 2)));
 const joinRuns = (...runs: number[][]): number[] => runs.flatMap((r, i) => (i ? r.slice(1) : r));
 
-/** Half width in plan: straight sides, the corners rounded off. */
-function halfW(z: number): number {
-  if (z > 1.93) return W - 0.045 * ((z - 1.93) / (NOSE_Z - 1.93)) ** 2;
-  if (z < -1.95) return W - 0.035 * ((-1.95 - z) / (-1.95 - TAIL_Z)) ** 2;
-  return W;
+/** The door's cross-section, half width by height: the rocker lip and notch, the rubbing-strip line, the flat skin. */
+const DOOR_SECTION = table([
+  [0.19, 0.721],
+  [0.215, 0.755],
+  [0.24, 0.746],
+  [0.29, 0.73],
+  [0.34, 0.738],
+  [0.39, 0.754],
+  [0.44, 0.761],
+  [0.465, 0.764],
+  [0.49, 0.752],
+  [0.54, 0.755],
+  [0.59, 0.76],
+  [0.64, 0.762],
+  [0.69, 0.764],
+  [0.74, 0.762],
+]);
+/** Above 0.74 m the shoulder rolls in to the window line: half width by the fraction of the way up. */
+const SHOULDER = table([
+  [0, 0.762],
+  [0.185, 0.756],
+  [0.37, 0.745],
+  [0.56, 0.733],
+  [0.74, 0.718],
+  [0.93, 0.692],
+  [1, 0.683],
+]);
+const W = 0.764; // the doors' half width
+/** How far the wheel-arch flares stand out from the doors, along the car. */
+const FLARE = table([
+  [2.05, 0],
+  [1.9, 0.006],
+  [1.8, 0.02],
+  [1.7, 0.036],
+  [1.3, 0.04],
+  [1.2, 0.039],
+  [1.1, 0.035],
+  [1.0, 0.025],
+  [0.9, 0.01],
+  [0.8, 0],
+  [-0.35, 0],
+  [-0.5, 0.01],
+  [-0.6, 0.019],
+  [-0.7, 0.028],
+  [-0.8, 0.036],
+  [-0.9, 0.041],
+  [-1.0, 0.046],
+  [-1.1, 0.051],
+  [-1.2, 0.053],
+  [-1.5, 0.053],
+  [-1.6, 0.047],
+  [-1.7, 0.036],
+  [-1.8, 0.022],
+  [-1.9, 0.006],
+  [-2.0, 0],
+]);
+/** The flares stand out between the sill and a crisp edge just under the shoulder. */
+const flareWeight = (y: number) => smooth(clamp01((y - 0.24) / 0.07)) * (1 - smooth(clamp01((y - 0.7) / 0.035)));
+/** In plan the corners round off over the last few centimetres. */
+function taper(z: number): number {
+  if (z > 1.85) return 1 - 0.085 * ((z - 1.85) / (NOSE_Z - 1.85)) ** 2;
+  if (z < -1.9) return 1 - 0.05 * ((-1.9 - z) / (-1.9 - TAIL_Z)) ** 2;
+  return 1;
 }
+const halfW = (z: number) => W * taper(z);
 
-/** The waist crease: from the top of the lamps at the front to the top of the tail lamps. */
-const creaseY = (z: number) => lerp(0.842, 0.858, (NOSE_Z - z) / (NOSE_Z - TAIL_Z));
-/** Bottom of the side windows. */
-const beltY = (z: number) => lerp(0.915, 0.945, clamp01((COWL_Z - z) / (COWL_Z - DECK_Z)));
-const HOOD_FRONT_Y = 0.872;
-const BOOT_Y = 0.975;
+/** The bonnet along its centre line, falling to the low nose. */
+const HOOD_CL = table([
+  [2.1, 0.752],
+  [2.0, 0.793],
+  [1.9, 0.818],
+  [1.8, 0.84],
+  [1.7, 0.855],
+  [1.6, 0.866],
+  [1.5, 0.877],
+  [1.4, 0.885],
+  [1.3, 0.894],
+  [1.2, 0.901],
+  [1.1, 0.909],
+  [0.97, 0.921],
+]);
+/** The roof along its centre line, a little higher towards the back. */
+const ROOF_CL = table([
+  [0.34, 1.35],
+  [0.3, 1.355],
+  [0.2, 1.369],
+  [0.1, 1.377],
+  [0, 1.381],
+  [-0.1, 1.386],
+  [-0.2, 1.388],
+  [-0.4, 1.391],
+  [-0.6, 1.388],
+  [-0.8, 1.381],
+  [-0.9, 1.375],
+  [-1.0, 1.366],
+  [-1.08, 1.346],
+]);
+const BOOT_Y = 0.94; // the boot lid's middle
+const HOOD_FRONT_Y = HOOD_CL(NOSE_Z);
 
-/** Where the lower side ends and the bonnet, windows or boot lid begin. */
+/** Where the lower side ends and the bonnet, windows or boot lid begin (the wing tops fall with the bonnet). */
 function topEdgeY(z: number): number {
-  if (z >= COWL_Z) return lerp(beltY(COWL_Z), HOOD_FRONT_Y, (z - COWL_Z) / (NOSE_Z - COWL_Z));
-  if (z >= DECK_Z) return beltY(z);
-  return lerp(beltY(DECK_Z), BOOT_Y, smooth(clamp01((DECK_Z - z) / 0.12)));
+  if (z >= COWL_Z) return HOOD_CL(z) - lerp(0.046, 0.024, clamp01((z - COWL_Z) / (NOSE_Z - COWL_Z)));
+  if (z >= DECK_Z) return BELT_Y;
+  return lerp(BELT_Y, BOOT_Y - 0.042, smooth(clamp01((DECK_Z - z) / 0.1)));
 }
-/** The shoulder's top edge sits this far in from the widest point. */
-const SHOULDER_IN = 0.039;
 
-/** The body side's half width at a height: tucked-under sill, flat door skin, the crease, the shoulder leaning in. */
+/** The body side's half width at a height: the door section, the flares over the wheels, the shoulder rolling in. */
 function sideX(y: number, z: number): number {
-  const hw = halfW(z);
-  const c = creaseY(z);
+  const k = taper(z);
   const top = topEdgeY(z);
-  if (y <= 0.34) {
-    const t = (0.34 - y) / (0.34 - SILL_Y);
-    return hw - 0.004 - 0.05 * t * t;
-  }
-  if (y <= c) {
-    const t = (y - 0.34) / (c - 0.34);
-    return hw - 0.004 + 0.007 * t ** 4;
-  }
-  const s = clamp01((y - c) / Math.max(0.01, top - c));
-  return hw + 0.003 - (SHOULDER_IN + 0.003) * (0.35 * s + 0.65 * s * s);
+  const from = Math.min(0.74, top - 0.05);
+  if (y <= from) return (DOOR_SECTION(y) + FLARE(z) * flareWeight(y)) * k;
+  const s = clamp01((y - from) / Math.max(0.01, top - from));
+  return (SHOULDER(s) + (DOOR_SECTION(from) - 0.762) * (1 - s)) * k;
 }
+const SHOULDER_IN = W - 0.683; // the shoulder's top edge sits this far in
 
-/** The glasshouse side: from the shoulder's top edge leaning in to the roof rail. */
+/** The glasshouse side: from the window line leaning in (straight) to the roof rail. */
+const TUMBLE = 0.156;
 const XR = W - SHOULDER_IN - TUMBLE; // roof rail half width
 function ghPoint(z: number, t: number): V3 {
-  const y = lerp(beltY(z), RAIL_Y, t);
-  const x = halfW(z) - SHOULDER_IN - TUMBLE * t ** 1.15;
+  const y = lerp(BELT_Y, RAIL_Y, t);
+  const x = (W - SHOULDER_IN) * taper(z) - TUMBLE * t;
   return [x, y, z];
 }
 
 /** The windscreen's side edge along the car (its rake), and the A-pillar's rear edge behind it. */
-const screenZ = (t: number) => lerp(COWL_Z - 0.02, -0.16, t);
-const aRear = (t: number) => screenZ(t) - 0.075;
+const screenZ = (t: number) => lerp(0.915, 0.3, t);
+const aRear = (t: number) => screenZ(t) - 0.065;
+/** The front side window's leading edge: upright by the mirror, then up the A-pillar and round into the roof. */
+const GLASS_FRONT = table([
+  [0.88, 0.556],
+  [0.98, 0.548],
+  [1.02, 0.54],
+  [1.06, 0.523],
+  [1.1, 0.477],
+  [1.18, 0.385],
+  [1.26, 0.293],
+  [1.3, 0.2],
+  [1.316, 0.12],
+]);
+const glassFront = (t: number) => Math.min(aRear(t) - 0.02, GLASS_FRONT(lerp(BELT_Y, RAIL_Y, t)));
 
-/** The rear side window's back edge: up from the belt, the Hofmeister kink, then forward up the C-pillar. */
-function cEdge(t: number): number {
-  const pts: [number, number][] = [
-    [0, -1.09],
-    [0.16, -1.155],
-    [0.3, -1.172],
-    [0.45, -1.15],
-    [0.7, -1.07],
-    [1, -0.99],
-  ];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const [t0, z0] = pts[i]!;
-    const [t1, z1] = pts[i + 1]!;
-    if (t <= t1) {
-      // Catmull-Rom through the neighbours for a smooth kink.
-      const zm = pts[Math.max(0, i - 1)]![1];
-      const zp = pts[Math.min(pts.length - 1, i + 2)]![1];
-      const s = (t - t0) / (t1 - t0);
-      const m0 = (z1 - zm) / 2;
-      const m1 = (zp - z0) / 2;
-      const s2 = s * s;
-      const s3 = s2 * s;
-      return (2 * s3 - 3 * s2 + 1) * z0 + (s3 - 2 * s2 + s) * m0 + (-2 * s3 + 3 * s2) * z1 + (s3 - s2) * m1;
-    }
-  }
-  return pts[pts.length - 1]![1];
-}
+/** The rear side window's back edge (the frame's outside): the Hofmeister kink at the belt, then forward up the C-pillar. */
+const GLASS_BACK = table([
+  [0.88, -1.236],
+  [0.94, -1.235],
+  [0.98, -1.224],
+  [1.02, -1.19],
+  [1.1, -1.123],
+  [1.18, -1.055],
+  [1.26, -0.985],
+  [1.3, -0.87],
+  [1.316, -0.82],
+]);
+const cEdge = (t: number) => GLASS_BACK(lerp(BELT_Y, RAIL_Y, t)) - 0.02;
 const REAR_DOOR_BACK = cEdge(0);
 /** Roof: the rear window's top corners and centre. */
-const ROOF_BACK_SIDE_Z = -1.13;
-const ROOF_BACK_Z = -1.22;
-const roofY = (u: number) => RAIL_Y + (ROOF_Y - RAIL_Y) * (1 - u ** 4);
+const ROOF_BACK_SIDE_Z = -0.98;
+const ROOF_BACK_Z = -1.08;
+/** Roof height across (u = -1…1) at a point along the car: its crown falls to the rails. */
+const roofAt = (z: number, u: number) => RAIL_Y + (ROOF_CL(z) - RAIL_Y) * (1 - Math.abs(u) ** 3.5);
 
 // ---------------------------------------------------------------- vector helpers
 
@@ -342,12 +444,9 @@ function sidePatch(stations: readonly number[], rows: (z: number) => number[], x
 /** Heights up the lower side (tucked sill, flat skin). */
 const LOWER_FRACTIONS = [0, 0.05, 0.12, 0.21, 0.32, 0.45, 0.6, 0.75, 0.88, 1];
 const lowerRows = (bottom: number) => () => LOWER_FRACTIONS.map((f) => lerp(bottom, MID_Y, f));
-/** Heights up the upper band: an edge loop on the crease, then the shoulder rolling in. */
-function upperRows(z: number): number[] {
-  const c = creaseY(z);
-  const top = topEdgeY(z);
-  return [MID_Y, lerp(MID_Y, c, 0.4), lerp(MID_Y, c, 0.75), c - 0.006, c, ...[0.25, 0.5, 0.75, 1].map((f) => lerp(c, top, f))];
-}
+/** Heights up the band above the arches: close rows at the flares' top edge, then the shoulder rolling in. */
+const UPPER_FRACTIONS = [0, 0.08, 0.16, 0.24, 0.32, 0.42, 0.52, 0.62, 0.72, 0.82, 0.91, 1];
+const upperRows = (z: number): number[] => UPPER_FRACTIONS.map((f) => lerp(MID_Y, topEdgeY(z), f));
 
 /**
  * The side round a wheel arch, as rings of quads following the arch: from
@@ -394,7 +493,7 @@ function archRing(axle: number, zFront: number, zBack: number, topZ: readonly nu
       const z = lerp(inner[0], outer[0], r);
       const y = lerp(inner[1], outer[1], r);
       // The arch lip: rolled in at the very edge, standing a little proud just outside it.
-      const lip = r === 0 ? -0.022 : r <= 0.02 ? 0.002 : r <= 0.06 ? 0.003 : 0;
+      const lip = r === 0 ? -0.014 : r <= 0.02 ? 0.001 : r <= 0.06 ? 0.0015 : 0;
       return [sideX(y, z) + lip, y, z];
     }),
   );
@@ -578,7 +677,7 @@ function sweep(path: readonly [number, number][], y: number, profile: readonly [
 // ---------------------------------------------------------------- the car
 
 const MATERIALS: Record<string, { kd: V3; d?: number; ns?: number; ks?: number }> = {
-  demo_paint: { kd: [0.62, 0.05, 0.04], ns: 250, ks: 0.6 },
+  demo_paint: { kd: [0.07, 0.09, 0.42], ns: 250, ks: 0.6 },
   demo_glass: { kd: [0.06, 0.08, 0.09], d: 0.4, ns: 400, ks: 0.8 },
   demo_tyre: { kd: [0.035, 0.035, 0.035], ns: 8, ks: 0.05 },
   demo_rim: { kd: [0.7, 0.71, 0.72], ns: 300, ks: 0.7 },
@@ -628,14 +727,14 @@ class Builder {
 
 /** Station lists along the car for each stretch of the sides (shared by the lower and upper bands so their edges meet). */
 const ST = {
-  fenderFront: joinRuns(linspace(ARCH_F[0], 1.93, 4), easeTo(1.93, NOSE_Z, 6)),
+  fenderFront: joinRuns(linspace(ARCH_F[0], 1.9, 2), easeTo(1.9, NOSE_Z, 6)),
   fenderArchTop: linspace(ARCH_F[0], ARCH_F[1], 16),
-  fenderBack: linspace(ARCH_F[1], FRONT_DOOR[0] + GAP, 9),
+  fenderBack: linspace(ARCH_F[1], FRONT_DOOR[0] + GAP, 3),
   doorF: linspace(FRONT_DOOR[0] - GAP, FRONT_DOOR[1] + GAP, 20),
   doorRLower: linspace(REAR_DOOR_FRONT - GAP, ARCH_B[0] + GAP, 8),
   // Over the rear arch: the rear door's upper band ends at the C-pillar's foot.
-  rearArchTop: joinRuns(linspace(ARCH_B[0], REAR_DOOR_BACK, 5), linspace(REAR_DOOR_BACK, ARCH_B[1], 11)),
-  quarterBack: joinRuns(linspace(ARCH_B[1], -1.95, 6), easeTo(-1.95, TAIL_Z, 6)),
+  rearArchTop: joinRuns(linspace(ARCH_B[0], REAR_DOOR_BACK, 10), linspace(REAR_DOOR_BACK, ARCH_B[1], 6)),
+  quarterBack: joinRuns(linspace(ARCH_B[1], -1.9, 7), easeTo(-1.9, TAIL_Z, 6)),
 };
 
 function bodySides(b: Builder): void {
@@ -664,7 +763,7 @@ function bodySides(b: Builder): void {
 
   // Rubbing strips along the sides at bumper height, broken at the arches and shut lines.
   const strip = (name: string, z0: number, z1: number) => {
-    const path: [number, number][] = linspace(z0, z1, Math.max(2, Math.round(Math.abs(z1 - z0) / 0.08))).map((z) => [sideX(0.47, z), z]);
+    const path: [number, number][] = linspace(z0, z1, Math.max(2, Math.round(Math.abs(z1 - z0) / 0.08))).map((z) => [sideX(0.465, z), z]);
     const prof: [number, number][] = [
       [-0.004, -0.017],
       [0.008, -0.015],
@@ -672,134 +771,141 @@ function bodySides(b: Builder): void {
       [0.008, 0.015],
       [-0.004, 0.017],
     ];
-    const m = sweep(path, 0.47, prof, () => 'demo_rubber');
+    const m = sweep(path, 0.465, prof, () => 'demo_rubber');
     b.add(name.replace('*', 'L'), 'demo_rubber', m.get('demo_rubber')!);
-    b.add(name.replace('*', 'R'), 'demo_rubber', m.get('demo_rubber')!.map((f) => flipFace(f.map(mirrorX))));
+    b.add(name.includes('*') ? name.replace('*', 'R') : name, 'demo_rubber', m.get('demo_rubber')!.map((f) => flipFace(f.map(mirrorX))));
   };
-  const archEdge = Math.sqrt(ARCH_R ** 2 - (0.47 - ARCH_Y) ** 2) + 0.025;
+  const archEdge = Math.sqrt(ARCH_R ** 2 - (0.465 - ARCH_Y) ** 2) + 0.025;
   strip('fender_F*', AXLE_F - archEdge, FRONT_DOOR[0] + 0.006);
   strip('door_F*', FRONT_DOOR[0] - 0.006, FRONT_DOOR[1] + 0.006);
   strip('door_R*', REAR_DOOR_FRONT - 0.006, ARCH_B[0] + 0.006);
-  strip('fender_F*', 1.79, AXLE_F + archEdge);
+  strip('fender_F*', AXLE_F + ARCH_R + 0.03, AXLE_F + archEdge);
+  strip('body', ARCH_B[0] - 0.006, AXLE_R + archEdge);
 
   // Door handles: black pulls on the shoulder near each door's back edge.
   for (const [door, z] of [
-    ['door_F', FRONT_DOOR[1] + 0.13],
-    ['door_R', -0.98],
+    ['door_F', FRONT_DOOR[1] + 0.14],
+    ['door_R', ARCH_B[0] - 0.06],
   ] as const) {
-    const y = 0.892;
+    const y = 0.83;
     const x = sideX(y, z) + 0.004;
     const h = rotate(roundedBox([x, y, z], [0.02, 0.028, 0.12], 0.008), [x, y, z], [0, 0, 1], 22);
     b.add(`${door}L`, 'demo_trim', h);
     b.add(`${door}R`, 'demo_trim', h.map((f) => flipFace(f.map(mirrorX))));
   }
   // Side repeaters on the front wings.
-  const rep = roundedBox([sideX(0.77, 1.83) + 0.004, 0.77, 1.83], [0.01, 0.026, 0.055], 0.006);
+  const rep = roundedBox([sideX(0.6, 1.9) + 0.004, 0.6, 1.9], [0.01, 0.026, 0.055], 0.006);
   b.add('indicator_FL', 'demo_indicator', rep);
   b.add('indicator_FR', 'demo_indicator', rep.map((f) => flipFace(f.map(mirrorX))));
 }
 
-/** The bonnet: a Coons patch between the wing tops, crowned, its front edge rolled down over the grille band (the shark nose). */
+/**
+ * The bonnet between the wing tops: its centre line follows the measured
+ * profile down to the low nose, crowned across, its front edge rolled down
+ * over the grille band.
+ */
 function bonnet(b: Builder): void {
-  const xs = (z: number) => halfW(z) - SHOULDER_IN - 0.004;
   const z0 = COWL_Z + GAP;
-  const z1 = NOSE_Z + 0.012;
-  const crown = 0.018;
-  const edge = (z: number): V3 => [xs(Math.min(z, NOSE_Z)), topEdgeY(Math.min(z, NOSE_Z)), z];
-  const f = coons(
-    (u) => [lerp(-1, 1, u) * xs(z0), topEdgeY(z0) + crown * (1 - lerp(-1, 1, u) ** 2), z0],
-    (u) => [lerp(-1, 1, u) * xs(NOSE_Z), HOOD_FRONT_Y + crown * 0.6 * (1 - lerp(-1, 1, u) ** 2), z1],
-    (v) => mirrorX(edge(lerp(z0, z1, v))),
-    (v) => edge(lerp(z0, z1, v)),
-  );
-  const us = linspace(0, 1, 26);
-  const vs = joinRuns(linspace(0, 0.9, 18), easeTo(0.9, 1, 3));
+  const z1 = NOSE_Z + 0.008;
+  const xs = (z: number) => sideX(topEdgeY(z), Math.min(z, NOSE_Z)) - 0.004;
+  const us = linspace(-1, 1, 26);
+  const vs = joinRuns(linspace(0, 0.85, 20), easeTo(0.85, 1, 4));
   const top = sample(us, vs, (u, v) => {
-    const p = f(u, v);
-    // A touch more crown through the middle of the bonnet's length.
-    return [p[0], p[1] + 0.006 * Math.sin(Math.PI * v) * (1 - lerp(-1, 1, u) ** 2), p[2]];
+    const z = lerp(z0, z1, v);
+    const zc = Math.min(z, NOSE_Z);
+    const edge = topEdgeY(zc);
+    const centre = HOOD_CL(z);
+    // Nearly flat across the middle, rounding down to the shut lines.
+    return [u * xs(zc), edge + (centre - edge) * (1 - Math.abs(u) ** 2.4), z];
   });
   // The front lip: two more rows rolling down to the top of the grille band.
   const front = top[top.length - 1]!;
-  top.push(front.map((p) => [p[0] * 0.998, p[1] - 0.012, p[2] + 0.009] as V3));
-  top.push(front.map((p) => [p[0] * 0.992, 0.842, p[2] + 0.011] as V3));
+  top.push(front.map((p) => [p[0] * 0.998, p[1] - 0.008, p[2] + 0.007] as V3));
+  top.push(front.map((p) => [p[0] * 0.992, Math.min(p[1] - 0.02, BAND_TOP + 0.004), p[2] + 0.009] as V3));
   b.add('hood', 'demo_paint', shell(top, [0, 1, 0]));
-  // The roundel on the lip, above the kidneys.
-  const badgeC: V3 = [0, 0.858, NOSE_Z + 0.024];
-  const badge = rotate(lathe([0, 0, 0], [[0, -0.004], [0.036, -0.004], [0.036, 0.004], [0.03, 0.006], [0, 0.006]], 24, 'z'), [0, 0, 0], [1, 0, 0], -35);
+  // The roundel at the front of the bonnet, above the kidneys.
+  const badgeC: V3 = [0, HOOD_CL(NOSE_Z - 0.03) + 0.004, NOSE_Z - 0.03];
+  const badge = rotate(lathe([0, 0, 0], [[0, -0.004], [0.036, -0.004], [0.036, 0.004], [0.03, 0.006], [0, 0.006]], 24, 'z'), [0, 0, 0], [1, 0, 0], -70);
   b.add('hood', 'demo_badge', moveBy(badge, badgeC));
 }
 
+/** Top of the black band under the bonnet's front edge, and its foot on the bumper. */
+const BAND_TOP = 0.742;
+const BAND_Y = 0.53;
+
 /** Windscreen, A-pillars, roof, rear window, C-pillars, the doors' window frames and glass. */
 function glasshouse(b: Builder): void {
-  const xE = (t: number) => lerp(halfW(COWL_Z) - SHOULDER_IN - 0.06, XR, t);
-  const yE = (t: number) => lerp(beltY(COWL_Z) + 0.008, RAIL_Y, t);
-  const E = (t: number): V3 => [xE(t), yE(t), screenZ(t)];
-  const screenBase = (u: number): V3 => [u * xE(0), yE(0) + 0.004 * (1 - u * u), COWL_Z - 0.02 + 0.02 * (1 - u * u)];
-  const screenTop = (u: number): V3 => [u * XR, roofY(u), screenZ(1) - 0.04 * (1 - u * u)];
   const us = linspace(0, 1, 24);
-  // Windscreen, bulging a little.
+  const uu = (u: number) => lerp(-1, 1, u);
+  // Windscreen: its centre line runs straight from the scuttle to the roof, the sides a little further back.
+  const SCREEN_BASE: V3 = [0, HOOD_CL(COWL_Z) + 0.012, COWL_Z - 0.01];
+  const SCREEN_TOP_Z = 0.34;
+  const xE = (t: number) => lerp((W - SHOULDER_IN) - 0.01, XR, t);
+  const E = (t: number): V3 => [xE(t), lerp(BELT_Y + 0.004, RAIL_Y, t), screenZ(t)];
+  const screenBase = (u: number): V3 => [u * xE(0), lerp(E(0)[1], SCREEN_BASE[1], 1 - u * u), lerp(E(0)[2], SCREEN_BASE[2], 1 - u * u)];
+  const screenTopZ = (u: number) => lerp(screenZ(1), SCREEN_TOP_Z, 1 - u * u);
+  const screenTop = (u: number): V3 => [u * XR, roofAt(screenTopZ(u), u), screenTopZ(u)];
   const ws = coons(
-    (u) => screenBase(lerp(-1, 1, u)),
-    (u) => screenTop(lerp(-1, 1, u)),
+    (u) => screenBase(uu(u)),
+    (u) => screenTop(uu(u)),
     (v) => mirrorX(E(v)),
     (v) => E(v),
   );
-  const up: V3 = norm([0, 0.55, 0.83]);
-  b.add('windshield', 'demo_glass', shell(sample(us, linspace(0, 1, 12), (u, v) => add(ws(u, v), scale(up, 0.012 * Math.sin(Math.PI * v) * (1 - lerp(-1, 1, u) ** 2)))), up, 0.005));
+  const up: V3 = norm([0, 0.83, 0.55]);
+  b.add('windshield', 'demo_glass', shell(sample(us, linspace(0, 1, 12), (u, v) => add(ws(u, v), scale(up, 0.01 * Math.sin(Math.PI * v) * (1 - uu(u) ** 2)))), up, 0.005));
   // A-pillars: from the windscreen's edge round to the side glass.
   const Ga = (t: number): V3 => ghPoint(aRear(t), t);
   const ap = coons(
-    (s) => lerp3(E(0), Ga(0), s),
-    (s) => lerp3(E(1), Ga(1), s),
+    (s2) => lerp3(E(0), Ga(0), s2),
+    (s2) => lerp3(E(1), Ga(1), s2),
     (t) => E(t),
     (t) => Ga(t),
   );
-  const apOut: V3 = norm([1, 0.4, 0.5]);
-  b.both('body', 'body', 'demo_paint', sample(linspace(0, 1, 4), linspace(0, 1, 12), (s, t) => add(ap(s, t), scale(apOut, 0.012 * Math.sin(Math.PI * s) * (0.3 + 0.7 * (1 - t))))), apOut);
-  // Roof.
-  const railAt = (z: number): V3 => [XR, RAIL_Y, z];
-  const rearTop = (u: number): V3 => [u * XR, roofY(u), lerp(ROOF_BACK_SIDE_Z, ROOF_BACK_Z, 1 - u * u)];
-  const roof = coons(
-    (u) => screenTop(lerp(-1, 1, u)),
-    (u) => rearTop(lerp(-1, 1, u)),
-    (w) => mirrorX(railAt(lerp(screenZ(1), ROOF_BACK_SIDE_Z, w))),
-    (w) => railAt(lerp(screenZ(1), ROOF_BACK_SIDE_Z, w)),
-  );
-  b.add('body', 'demo_paint', shell(sample(us, linspace(0, 1, 18), (u, w) => add(roof(u, w), [0, 0.006 * Math.sin(Math.PI * w) * (1 - lerp(-1, 1, u) ** 4), 0])), [0, 1, 0]));
-  // Rear window.
-  const RW_X = 0.7;
-  const RW_CORNER_Z = -1.64;
-  const rwSide = (v: number): V3 => lerp3([RW_X, 1.0, RW_CORNER_Z], [XR, RAIL_Y, ROOF_BACK_SIDE_Z], v);
-  const rwBottom = (u: number): V3 => [u * RW_X, 1.0 + 0.004 * (1 - u * u), lerp(RW_CORNER_Z, DECK_Z, 1 - u * u)];
+  const apOut: V3 = norm([1, 0.5, 0.5]);
+  b.both('body', 'body', 'demo_paint', sample(linspace(0, 1, 4), linspace(0, 1, 12), (s2, t) => add(ap(s2, t), scale(apOut, 0.008 * Math.sin(Math.PI * s2)))), apOut);
+  // Roof: the measured centre line, its crown falling to the rails.
+  const rearTopZ = (u: number) => lerp(ROOF_BACK_SIDE_Z, ROOF_BACK_Z, 1 - u * u);
+  const roof = sample(us, linspace(0, 1, 22), (u, w) => {
+    const x = uu(u);
+    const z = lerp(screenTopZ(x), rearTopZ(x), w);
+    return [x * XR, roofAt(z, x), z];
+  });
+  b.add('body', 'demo_paint', shell(roof, [0, 1, 0]));
+  // Rear window: from the roof down to the boot lid, wrapping a little at the corners.
+  const RW_X = 0.672;
+  const RW_Y = BOOT_Y + 0.002;
+  const RW_CORNER_Z = DECK_Z + 0.06;
+  const rwSide = (v: number): V3 => lerp3([RW_X, RW_Y - 0.005, RW_CORNER_Z], [XR, RAIL_Y, ROOF_BACK_SIDE_Z], v);
+  const rwBottom = (u: number): V3 => [u * RW_X, RW_Y - 0.005 * u * u, lerp(RW_CORNER_Z, DECK_Z, 1 - u * u)];
+  const rearTop = (u: number): V3 => [u * XR, roofAt(rearTopZ(u), u), rearTopZ(u)];
   const rw = coons(
-    (u) => rwBottom(lerp(-1, 1, u)),
-    (u) => rearTop(lerp(-1, 1, u)),
+    (u) => rwBottom(uu(u)),
+    (u) => rearTop(uu(u)),
     (v) => mirrorX(rwSide(v)),
     (v) => rwSide(v),
   );
-  const back: V3 = norm([0, 0.6, -0.8]);
-  b.add('rear_window', 'demo_glass', shell(sample(us, linspace(0, 1, 10), (u, v) => add(rw(u, v), scale(back, 0.01 * Math.sin(Math.PI * v) * (1 - lerp(-1, 1, u) ** 2)))), back, 0.005));
+  const back: V3 = norm([0, 0.75, -0.66]);
+  b.add('rear_window', 'demo_glass', shell(sample(us, linspace(0, 1, 10), (u, v) => add(rw(u, v), scale(back, 0.008 * Math.sin(Math.PI * v) * (1 - uu(u) ** 2)))), back, 0.005));
   // C-pillars: from the side window's kinked edge back round to the rear window, down to the shoulder.
   const Gc = (t: number): V3 => ghPoint(cEdge(t), t);
   const TW = 0.13;
-  const pillarFoot: V3 = [halfW(DECK_Z) - SHOULDER_IN, beltY(DECK_Z), DECK_Z];
-  const D = (t: number): V3 => (t <= TW ? lerp3(pillarFoot, [RW_X, 1.0, RW_CORNER_Z], t / TW) : rwSide((t - TW) / (1 - TW)));
+  const pillarFoot: V3 = [(W - SHOULDER_IN) * taper(DECK_Z), BELT_Y, DECK_Z];
+  const D = (t: number): V3 => (t <= TW ? lerp3(pillarFoot, [RW_X, RW_Y - 0.005, RW_CORNER_Z], t / TW) : rwSide((t - TW) / (1 - TW)));
   const cp = coons(
-    (s) => {
-      const z = lerp(cEdge(0), DECK_Z, s);
-      return [halfW(z) - SHOULDER_IN, beltY(z), z];
+    (s2) => {
+      const z = lerp(cEdge(0), DECK_Z, s2);
+      return [(W - SHOULDER_IN) * taper(z), BELT_Y, z];
     },
-    (s) => lerp3(Gc(1), D(1), s),
+    (s2) => lerp3(Gc(1), D(1), s2),
     (t) => Gc(t),
     (t) => D(t),
   );
-  const cOut: V3 = norm([1, 0.3, -0.6]);
-  b.both('body', 'body', 'demo_paint', sample(linspace(0, 1, 10), linspace(0, 1, 14), (s, t) => add(cp(s, t), scale(cOut, 0.006 * Math.sin(Math.PI * s) * Math.sin(Math.PI * t)))), cOut);
+  const cOut: V3 = norm([1, 0.4, -0.5]);
+  b.both('body', 'body', 'demo_paint', sample(linspace(0, 1, 10), linspace(0, 1, 14), (s2, t) => add(cp(s2, t), scale(cOut, 0.01 * Math.sin(Math.PI * s2) * Math.sin(Math.PI * t)))), cOut);
   // The shelf under the rear window's corners, down to the boot lid.
   const shelf = coons(
-    (u) => [lerp(-1, 1, u) * pillarFoot[0], pillarFoot[1], DECK_Z],
-    (u) => rwBottom(lerp(-1, 1, u)),
+    (u) => [uu(u) * pillarFoot[0], BELT_Y, DECK_Z],
+    (u) => rwBottom(uu(u)),
     (v) => mirrorX(D(v * TW)),
     (v) => D(v * TW),
   );
@@ -807,49 +913,49 @@ function glasshouse(b: Builder): void {
 
   // Side windows and their frames, per door. Rows run up from the belt (t), columns along the car.
   const L: V3 = [1, 0, 0];
-  const ts = (a: number, b2: number, n: number) => linspace(a, b2, n);
   const strip = (z0: (t: number) => number, z1: (t: number) => number, t0: number, t1: number, nz: number, nt: number, inset = 0): Grid =>
-    sample(linspace(0, 1, nz), ts(t0, t1, nt), (s, t) => {
-      const p = ghPoint(lerp(z0(t), z1(t), s), t);
+    sample(linspace(0, 1, nz), linspace(t0, t1, nt), (s2, t) => {
+      const p = ghPoint(lerp(z0(t), z1(t), s2), t);
       return [p[0] - inset, p[1], p[2]];
     });
-  const BOT = 0.035;
-  const TOP = 0.9;
-  const FR = 0.026;
+  const BOT = 0.03;
+  const TOP = 0.93;
   const frame = (name: string, zf: (t: number) => number, zr: (t: number) => number, glass: [(t: number) => number, (t: number) => number][]) => {
     const nameL = `${name}L`;
     const nameR = `${name}R`;
     b.both(nameL, nameR, 'demo_trim', strip(zf, zr, 0, BOT, 16, 1), L, 0.008);
     b.both(nameL, nameR, 'demo_trim', strip(zf, zr, TOP, 1, 16, 2), L, 0.008);
-    // Uprights: in front of, between and behind the panes.
+    // Uprights: in front of, between and behind the panes (the front one is the black sail the mirror sits on).
     const edges = [zf, ...glass.flat(), zr];
-    for (let i = 0; i < edges.length; i += 2) b.both(nameL, nameR, 'demo_trim', strip(edges[i]!, edges[i + 1]!, BOT, TOP, 2, 10), L, 0.008);
-    for (const [g0, g1] of glass) b.both(`${name.replace('door_', 'door_glass_')}L`, `${name.replace('door_', 'door_glass_')}R`, 'demo_glass', strip(g0, g1, BOT, TOP, 10, 10, 0.008), L, 0.005);
+    for (let k = 0; k < edges.length; k += 2) b.both(nameL, nameR, 'demo_trim', strip(edges[k]!, edges[k + 1]!, BOT, TOP, 3, 12), L, 0.008);
+    for (const [g0, g1] of glass) b.both(`${name.replace('door_', 'door_glass_')}L`, `${name.replace('door_', 'door_glass_')}R`, 'demo_glass', strip(g0, g1, BOT, TOP, 12, 12, 0.008), L, 0.005);
   };
-  frame('door_F', (t) => aRear(t) - GAP, () => -0.518, [[(t) => aRear(t) - FR, () => -0.47]]);
-  frame('door_R', () => -0.522, (t) => cEdge(t) + GAP, [
-    [() => -0.565, () => -0.925],
-    [() => -0.945, (t) => cEdge(t) + 0.022],
+  frame('door_F', (t) => aRear(t) - GAP, () => B_PILLAR + 0.002, [[(t) => glassFront(t), () => B_PILLAR + 0.04]]);
+  frame('door_R', () => B_PILLAR - 0.002, (t) => cEdge(t) + GAP, [
+    [() => B_PILLAR - 0.04, () => -0.93],
+    [() => -0.948, (t) => cEdge(t) + 0.02],
   ]);
   // The B-pillar behind the door frames, for when the doors are off.
-  b.both('body', 'body', 'demo_trim', sample(linspace(-0.505, -0.555, 2), linspace(0, 1, 6), (z, t) => {
+  b.both('body', 'body', 'demo_trim', sample(linspace(B_PILLAR + 0.015, B_PILLAR - 0.035, 2), linspace(0, 1, 6), (z, t) => {
     const p = ghPoint(z, t);
     return [p[0] - 0.03, p[1], p[2]];
   }), L);
-  b.both('body', 'body', 'demo_paint', sample(linspace(-0.505, -0.555, 2), linspace(SILL_Y, beltY(-0.53), 6), (z, y) => [sideX(y, z) - 0.03, y, z]), L);
+  b.both('body', 'body', 'demo_paint', sample(linspace(B_PILLAR + 0.015, B_PILLAR - 0.035, 2), linspace(SILL_Y, BELT_Y, 6), (z, y) => [sideX(y, z) - 0.03, y, z]), L);
 
   // Door cards: the trim inside each door.
   for (const [name, z0, z1] of [
     ['door_F', FRONT_DOOR[0] - 0.03, FRONT_DOOR[1] + 0.03],
     ['door_R', REAR_DOOR_FRONT - 0.03, ARCH_B[0] - 0.02],
   ] as const) {
-    const card = sample(linspace(z0, z1, 12), linspace(DOOR_BOTTOM + 0.03, beltY(z0) - 0.01, 8), (z, y) => [sideX(y, z) - 0.07 - 0.02 * clamp01((y - 0.8) / 0.12), y, z]);
+    const card = sample(linspace(z0, z1, 12), linspace(DOOR_BOTTOM + 0.03, BELT_Y - 0.01, 8), (z, y) => [sideX(y, z) - 0.07 - 0.02 * clamp01((y - 0.78) / 0.1), y, z]);
     b.both(`${name}L`, `${name}R`, 'demo_interior', card, [-1, 0, 0], 0.012);
   }
-  // Door mirrors on the front corner of the front door windows.
+  // Door mirrors on the black sail at the front of the front door windows.
+  const mz = 0.7;
+  const my = BELT_Y + 0.06;
   const mirror = [
-    ...rotate(roundedBox([W + 0.075, 1.0, 0.27], [0.13, 0.085, 0.09], 0.025), [W + 0.075, 1.0, 0.27], [0, 1, 0], -8),
-    ...roundedBox([W + 0.015, 0.985, 0.29], [0.05, 0.04, 0.05], 0.012),
+    ...rotate(roundedBox([W + 0.055, my, mz], [0.1, 0.075, 0.075], 0.022), [W + 0.055, my, mz], [0, 1, 0], -8),
+    ...roundedBox([W - 0.03, my - 0.02, mz + 0.02], [0.07, 0.04, 0.06], 0.012),
   ];
   b.add('mirror_L', 'demo_trim', mirror);
   b.add('mirror_R', 'demo_trim', mirror.map((f) => flipFace(f.map(mirrorX))));
@@ -857,25 +963,23 @@ function glasshouse(b: Builder): void {
 
 /** The boot lid (with the panel between the tail lamps) and the tail panel. */
 function boot(b: Builder): void {
-  const xs = (z: number) => halfW(z) - SHOULDER_IN - 0.004;
   const z0 = DECK_Z - 0.008;
   const z1 = TAIL_Z + 0.03;
-  const edge = (z: number): V3 => [xs(z), topEdgeY(z) + 0.002, z];
-  const f = coons(
-    (u) => [lerp(-1, 1, u) * xs(z0), topEdgeY(z0) + 0.002 + 0.01 * (1 - lerp(-1, 1, u) ** 2), z0],
-    (u) => [lerp(-1, 1, u) * xs(z1), BOOT_Y + 0.002 + 0.01 * (1 - lerp(-1, 1, u) ** 2), z1],
-    (v) => mirrorX(edge(lerp(z0, z1, v))),
-    (v) => edge(lerp(z0, z1, v)),
-  );
-  const top = sample(linspace(0, 1, 26), linspace(0, 1, 8), f);
+  const xs = (z: number) => sideX(topEdgeY(z), z) - 0.004;
+  const top = sample(linspace(-1, 1, 26), linspace(0, 1, 10), (u, v) => {
+    const z = lerp(z0, z1, v);
+    const edge = topEdgeY(z) + 0.002;
+    const centre = lerp(BOOT_Y, BOOT_Y - 0.005, v);
+    return [u * xs(z), edge + (centre - edge) * (1 - Math.abs(u) ** 2.4), z];
+  });
   const last = top[top.length - 1]!;
   // The rear edge rolls down onto the tail.
-  top.push(last.map((p) => [p[0] * 0.997, p[1] - 0.008, TAIL_Z + 0.012] as V3));
-  top.push(last.map((p) => [p[0] * 0.99, p[1] - 0.026, TAIL_Z - 0.002] as V3));
+  top.push(last.map((p) => [p[0] * 0.997, p[1] - 0.01, TAIL_Z + 0.012] as V3));
+  top.push(last.map((p) => [p[0] * 0.99, p[1] - 0.03, TAIL_Z - 0.002] as V3));
   b.add('trunk', 'demo_paint', shell(top, [0, 1, 0]));
   // The panel between the lamps, down to the bumper (the plate goes here).
   const PL = 0.36;
-  b.add('trunk', 'demo_paint', shell(sample(linspace(-PL, PL, 12), linspace(0.955, 0.64, 8), (x, y) => [x, y, TAIL_Z - 0.004 + 0.012 * ((y - 0.64) / 0.32) ** 2]), [0, 0, -1]));
+  b.add('trunk', 'demo_paint', shell(sample(linspace(-PL, PL, 12), linspace(BOOT_Y - 0.035, 0.56, 8), (x, y) => [x, y, TAIL_Z - 0.004 + 0.012 * ((y - 0.56) / (BOOT_Y - 0.595)) ** 2]), [0, 0, -1]));
   // The tail panel behind it all (lamps and boot lid off: still a car).
   const hw = halfW(TAIL_Z);
   b.add('body', 'demo_paint', shell(sample(linspace(-hw, hw, 24), linspace(0.26, BOOT_Y - 0.01, 10), (x, y) => [x, y, TAIL_Z + 0.006]), [0, 0, -1]));
@@ -884,13 +988,20 @@ function boot(b: Builder): void {
 /** The nose: the black band with the kidneys, the four lamps, the apron and the chin spoiler. */
 function nose(b: Builder): void {
   const hw = halfW(NOSE_Z);
-  const BAND_Y = 0.575;
-  const bandZ = (y: number) => NOSE_Z + 0.004 + 0.018 * clamp01((y - BAND_Y) / (0.838 - BAND_Y));
-  b.add('grille', 'demo_trim', shell(sample(linspace(-hw, hw, 28), linspace(BAND_Y, 0.838, 6), (x, y) => [x, y, bandZ(y) - 0.01 * (x / hw) ** 6]), [0, 0, 1], 0.01));
+  const bandZ = (y: number) => NOSE_Z + 0.004 + 0.014 * clamp01((y - BAND_Y) / (BAND_TOP - BAND_Y));
+  // The band's top follows the bonnet's front edge, which falls towards the corners.
+  const edgeAt = (x: number) => {
+    const e = topEdgeY(NOSE_Z);
+    return Math.min(BAND_TOP, e + (HOOD_FRONT_Y - e) * (1 - Math.abs(x / hw) ** 2.4) - 0.02);
+  };
+  b.add('grille', 'demo_trim', shell(sample(linspace(-hw, hw, 28), linspace(0, 1, 6), (x, f) => {
+    const y = lerp(BAND_Y, edgeAt(x), f);
+    return [x, y, bandZ(y) - 0.01 * (x / hw) ** 6];
+  }), [0, 0, 1], 0.01));
   // The kidneys: chrome surrounds with black slats, a touch narrower at the foot.
   for (const side of [1, -1]) {
     const cx = side * 0.064;
-    const cy = 0.705;
+    const cy = 0.64;
     const kidney = (s: number): [number, number] => {
       // A superellipse (rounded rectangle), 0.106 wide and 0.2 high.
       const a = s * Math.PI * 2;
@@ -898,7 +1009,7 @@ function nose(b: Builder): void {
       const sn = Math.sin(a);
       const e = 0.35;
       const x = Math.sign(c) * Math.abs(c) ** e * 0.053 * (sn < 0 ? 1 - 0.12 * -sn : 1);
-      const y = Math.sign(sn) * Math.abs(sn) ** e * 0.1;
+      const y = Math.sign(sn) * Math.abs(sn) ** e * 0.094;
       return [cx + x, cy + y];
     };
     const ring: V3[][] = [];
@@ -921,7 +1032,7 @@ function nose(b: Builder): void {
         if (f) surround.push(f);
       }
     b.add('grille', 'demo_chrome', outwards(surround));
-    for (let k = -3; k <= 3; k++) b.add('grille', 'demo_rubber', box([cx + k * 0.012, cy - 0.004, bandZ(cy) + 0.012], [0.004, 0.17, 0.012]));
+    for (let k = -3; k <= 3; k++) b.add('grille', 'demo_rubber', box([cx + k * 0.012, cy - 0.004, bandZ(cy) + 0.012], [0.004, 0.16, 0.012]));
   }
   // Four round lamps: chrome bezel, reflector, domed lens.
   for (const [side, tag] of [
@@ -929,69 +1040,72 @@ function nose(b: Builder): void {
     [-1, 'R'],
   ] as const) {
     for (const [x, r] of [
-      [0.255, 0.083],
-      [0.48, 0.093],
+      [0.255, 0.079],
+      [0.47, 0.088],
     ] as const) {
-      const c: V3 = [side * x, 0.702, bandZ(0.702) + 0.002];
+      const c: V3 = [side * x, 0.638, bandZ(0.638) + 0.002];
       b.add(`headlight_${tag}`, 'demo_chrome', lathe(c, [[r - 0.004, 0], [r + 0.012, 0], [r + 0.012, 0.016], [r + 0.004, 0.022], [r - 0.004, 0.018]], 32, 'z'));
       b.add(`headlight_${tag}`, 'demo_headlight', lathe(c, [[0, 0.002], [r, 0.002], [r, 0.014], [r * 0.7, 0.024], [0, 0.028]], 32, 'z'));
     }
   }
   // The apron under the band, behind the bumper, with the black chin spoiler below.
   b.add('body', 'demo_paint', shell(sample(linspace(-hw + 0.01, hw - 0.01, 24), linspace(0.24, BAND_Y, 6), (x, y) => [x, y, NOSE_Z - 0.004 - 0.02 * ((BAND_Y - y) / (BAND_Y - 0.24)) ** 2]), [0, 0, 1]));
-  const spoilerPath: [number, number][] = linspace(-1, 1, 20).map((t) => [t * (hw - 0.03), NOSE_Z - 0.02 - 0.05 * t ** 4]);
-  const spoiler = sweep(spoilerPath, 0.225, [[-0.03, -0.018], [0.03, -0.012], [0.035, 0.008], [-0.03, 0.02]], () => 'demo_trim');
+  const spoilerPath: [number, number][] = linspace(-1, 1, 20).map((t) => [t * (hw - 0.05), NOSE_Z + 0.03 - 0.04 * t ** 4]);
+  const spoiler = sweep(spoilerPath, 0.3, [[-0.03, -0.018], [0.03, -0.012], [0.035, 0.008], [-0.03, 0.02]], () => 'demo_trim');
   b.addMap('body', spoiler, 'demo_paint');
 }
 
 /**
- * Chrome bumpers with a rubber strip, black end caps wrapping round the
- * corners to the wheel arches, and the front indicators set into them.
+ * The facelift's plastic bumpers: deep and square, wrapping round the corners
+ * to the wheel arches, a rubbing strip along the middle, the front
+ * indicators set into them.
  */
 function bumpers(b: Builder): void {
+  // (outward, up) from the bumper's middle: a flat face rounding over at top and bottom, the strip standing proud.
   const prof: [number, number][] = [
-    [-0.05, -0.066],
-    [0, -0.066],
-    [0.012, -0.056],
-    [0.016, -0.032],
-    [0.03, -0.029],
-    [0.035, 0],
-    [0.03, 0.029],
-    [0.016, 0.032],
-    [0.014, 0.056],
-    [0, 0.067],
-    [-0.05, 0.067],
+    [-0.06, -0.125],
+    [0, -0.128],
+    [0.028, -0.118],
+    [0.042, -0.095],
+    [0.046, -0.03],
+    [0.05, -0.026],
+    [0.056, -0.02],
+    [0.056, 0.012],
+    [0.05, 0.018],
+    [0.046, 0.022],
+    [0.044, 0.1],
+    [0.032, 0.122],
+    [0, 0.13],
+    [-0.06, 0.13],
   ];
-  const rubber = new Set([3, 4, 5, 6]);
+  const strip = new Set([4, 5, 6, 7, 8]);
   const build = (name: string, face: number, sideEnd: number, y: number) => {
     const dir = Math.sign(face);
-    const R = 0.14;
-    const xw = W + 0.018;
-    const path: [number, number][] = [];
-    const sideSteps = 4;
-    const arcSteps = 8;
-    const frontSteps = 16;
+    const R = 0.09;
+    const xw = W + 0.012;
     const endL: [number, number][] = [];
+    const sideSteps = 5;
+    const arcSteps = 8;
+    const halfFront = 10;
     for (let i = 0; i <= sideSteps; i++) endL.push([xw, lerp(sideEnd, face - dir * R, i / sideSteps)]);
     for (let i = 1; i <= arcSteps; i++) {
       const a = ((i / arcSteps) * Math.PI) / 2;
       endL.push([xw - R + R * Math.cos(a), face - dir * R + dir * R * Math.sin(a)]);
     }
-    for (let i = 1; i <= frontSteps / 2; i++) endL.push([lerp(xw - R, 0, i / (frontSteps / 2)), face]);
-    path.push(...endL);
+    for (let i = 1; i <= halfFront; i++) endL.push([lerp(xw - R, 0, i / halfFront), face]);
+    const path = [...endL];
     for (let i = endL.length - 2; i >= 0; i--) path.push([-endL[i]![0], endL[i]![1]]);
-    const capSegs = sideSteps + 3; // the end caps: the side run and the start of the corner
-    const last = path.length - 1;
-    const m = sweep(path, y, prof, (seg, p) => (seg < capSegs || seg >= last - capSegs || p === -1 ? 'demo_rubber' : rubber.has(p) ? 'demo_rubber' : 'demo_chrome'));
-    b.addMap(name, m, 'demo_chrome');
+    const m = sweep(path, y, prof.map(([o, u]): [number, number] => [o, u * 0.82]), (_seg, p) => (strip.has(p) ? 'demo_rubber' : 'demo_trim'));
+    b.addMap(name, m, 'demo_trim');
   };
-  build('bumper_F', NOSE_Z + 0.085, 1.78, 0.49);
-  build('bumper_R', TAIL_Z - 0.085, -1.64, 0.47);
-  // Front indicators in the bumper's rubber, under the outer lamps.
+  build('bumper_F', NOSE_Z + 0.05, AXLE_F + ARCH_R + 0.02, 0.43);
+  build('bumper_R', TAIL_Z - 0.05, AXLE_R - ARCH_R - 0.02, 0.43);
+  // Front indicators in the bumper, under the outer lamps, and the air slot between them.
   for (const [side, tag] of [
     [1, 'L'],
     [-1, 'R'],
-  ] as const) b.add(`indicator_F${tag}`, 'demo_indicator', roundedBox([side * 0.56, 0.49, NOSE_Z + 0.123], [0.15, 0.04, 0.012], 0.006));
+  ] as const) b.add(`indicator_F${tag}`, 'demo_indicator', roundedBox([side * 0.5, 0.49, NOSE_Z + 0.098], [0.2, 0.04, 0.012], 0.006));
+  b.add('bumper_F', 'demo_rubber', roundedBox([0, 0.37, NOSE_Z + 0.09], [0.62, 0.045, 0.02], 0.01));
 }
 
 /** Wide tail lamps with ribbed lenses: red, an amber band, white reversing lamps by the plate. */
@@ -1002,8 +1116,8 @@ function tailLamps(b: Builder): void {
   ] as const) {
     const x0 = 0.37;
     const x1 = halfW(TAIL_Z) - 0.012;
-    const y0 = 0.665;
-    const y1 = 0.94;
+    const y0 = 0.6;
+    const y1 = BOOT_Y - 0.075;
     const name = `taillight_${tag}`;
     // The housing behind the lenses (black).
     b.add(name, 'demo_trim', box([side * (x0 + x1) / 2, (y0 + y1) / 2, TAIL_Z - 0.008], [x1 - x0, y1 - y0, 0.016]));
@@ -1035,18 +1149,18 @@ function wheels(b: Builder): void {
     const tread: [number, number][] = [];
     for (const t of [-0.07, -0.052, -0.048, -0.022, -0.018, 0.018, 0.022, 0.048, 0.052, 0.07]) {
       const groove = [-0.052, -0.048, -0.022, -0.018, 0.018, 0.022, 0.048, 0.052].includes(t);
-      tread.push([WHEEL_R - (groove && Math.abs(t) !== 0.052 && Math.abs(t) !== 0.022 && Math.abs(t) !== 0.018 && Math.abs(t) !== 0.048 ? 0 : 0) - (groove ? 0.004 : 0), t]);
+      tread.push([WHEEL_R - (groove ? 0.004 : 0), t]);
     }
     const tyre: [number, number][] = [
       [0.178, 0.076],
       [0.215, 0.083],
-      [0.255, 0.087],
-      [0.284, 0.082],
-      [0.296, 0.074],
+      [WHEEL_R - 0.052, 0.087],
+      [WHEEL_R - 0.024, 0.082],
+      [WHEEL_R - 0.009, 0.074],
       ...tread.slice().reverse(),
-      [0.296, -0.074],
-      [0.284, -0.082],
-      [0.255, -0.087],
+      [WHEEL_R - 0.009, -0.074],
+      [WHEEL_R - 0.024, -0.082],
+      [WHEEL_R - 0.052, -0.087],
       [0.215, -0.083],
       [0.178, -0.076],
     ];
@@ -1101,19 +1215,19 @@ function underbody(b: Builder): void {
       b.add('body', 'demo_trim', gridFaces(wall, [s, 0, 0]));
     }
   // Bulkhead between the engine bay and the cabin, and the parcel shelf behind the rear seat.
-  b.add('body', 'demo_trim', box([0, 0.6, COWL_Z - 0.04], [2 * W - 0.12, 0.76, 0.02]));
-  b.add('body', 'demo_interior', box([0, 1.0, DECK_Z + 0.12], [2 * XR, 0.015, 0.3]));
+  b.add('body', 'demo_trim', box([0, 0.55, COWL_Z - 0.05], [2 * W - 0.12, 0.64, 0.02]));
+  b.add('body', 'demo_interior', box([0, BELT_Y + 0.03, DECK_Z + 0.16], [2 * XR, 0.015, 0.3]));
 }
 
 function cabin(b: Builder): void {
-  b.add('carpet', 'demo_interior', box([0, SILL_Y + 0.04, -0.6], [2 * W - 0.2, 0.02, 2.0]));
+  b.add('carpet', 'demo_interior', box([0, SILL_Y + 0.04, -0.3], [2 * W - 0.18, 0.02, 2.4]));
   b.add('dashboard', 'demo_interior', [
-    ...roundedBox([0, 0.8, 0.28], [2 * W - 0.14, 0.22, 0.28], 0.05),
-    ...rotate(roundedBox([0, 0.9, 0.22], [2 * W - 0.18, 0.05, 0.24], 0.02), [0, 0.9, 0.34], [1, 0, 0], -12),
+    ...roundedBox([0, 0.78, COWL_Z - 0.18], [2 * W - 0.14, 0.22, 0.28], 0.05),
+    ...rotate(roundedBox([0, 0.88, COWL_Z - 0.24], [2 * W - 0.18, 0.05, 0.24], 0.02), [0, 0.88, COWL_Z - 0.12], [1, 0, 0], -12),
     // The instrument binnacle ahead of the driver.
-    ...roundedBox([0.37, 0.94, 0.18], [0.4, 0.08, 0.14], 0.03),
+    ...roundedBox([0.37, 0.92, COWL_Z - 0.28], [0.4, 0.08, 0.14], 0.03),
   ]);
-  b.add('center_console', 'demo_interior', [...roundedBox([0, 0.42, -0.12], [0.24, 0.36, 0.62], 0.04), ...cylinder([0, 0.64, -0.16], 0.012, 0.18, 10, 'y'), ...lathe([0, 0.74, -0.16], [[0, -0.02], [0.022, -0.012], [0.022, 0.012], [0, 0.02]], 12, 'y')]);
+  b.add('center_console', 'demo_interior', [...roundedBox([0, 0.42, 0.3], [0.24, 0.36, 0.62], 0.04), ...cylinder([0, 0.64, 0.2], 0.012, 0.18, 10, 'y'), ...lathe([0, 0.74, 0.2], [[0, -0.02], [0.022, -0.012], [0.022, 0.012], [0, 0.02]], 12, 'y')]);
   const steering: Face[] = [
     ...torus([0, 0, 0], 0.19, 0.016, 36, 8),
     ...roundedBox([0, 0, 0], [0.09, 0.09, 0.05], 0.02),
@@ -1123,30 +1237,30 @@ function cabin(b: Builder): void {
     ...cylinder([0, 0, 0.15], 0.022, 0.3, 10, 'z'),
   ];
   // Raked back like a real column, on the driver's side (left-hand drive).
-  b.add('steering_wheel', 'demo_trim', moveBy(rotate(steering, [0, 0, 0], [1, 0, 0], -24), [0.37, 0.9, 0.04]));
+  b.add('steering_wheel', 'demo_trim', moveBy(rotate(steering, [0, 0, 0], [1, 0, 0], -24), [0.37, 0.88, COWL_Z - 0.44]));
   const frontSeat = (x: number): Face[] => [
-    ...roundedBox([x, 0.42, -0.38], [0.5, 0.13, 0.52], 0.04),
-    ...rotate(roundedBox([x, 0.76, -0.62], [0.48, 0.62, 0.12], 0.05), [x, 0.48, -0.62], [1, 0, 0], -14),
-    ...rotate(roundedBox([x, 1.14, -0.66], [0.26, 0.16, 0.08], 0.03), [x, 0.48, -0.62], [1, 0, 0], -14),
-    ...box([x, 0.3, -0.38], [0.36, 0.12, 0.42]),
+    ...roundedBox([x, 0.42, 0.05], [0.5, 0.13, 0.52], 0.04),
+    ...rotate(roundedBox([x, 0.76, -0.19], [0.48, 0.62, 0.12], 0.05), [x, 0.48, -0.19], [1, 0, 0], -14),
+    ...rotate(roundedBox([x, 1.12, -0.23], [0.26, 0.16, 0.08], 0.03), [x, 0.48, -0.19], [1, 0, 0], -14),
+    ...box([x, 0.3, 0.05], [0.36, 0.12, 0.42]),
   ];
   b.add('seat_FL', 'demo_seat', frontSeat(0.37));
   b.add('seat_FR', 'demo_seat', frontSeat(-0.37));
-  b.add('rear_seat', 'demo_seat', [...roundedBox([0, 0.4, -1.2], [2 * W - 0.34, 0.14, 0.5], 0.05), ...rotate(roundedBox([0, 0.74, -1.46], [2 * W - 0.34, 0.58, 0.12], 0.05), [0, 0.47, -1.46], [1, 0, 0], -18)]);
+  b.add('rear_seat', 'demo_seat', [...roundedBox([0, 0.4, -0.88], [2 * W - 0.3, 0.14, 0.5], 0.05), ...rotate(roundedBox([0, 0.72, -1.2], [2 * W - 0.3, 0.56, 0.12], 0.05), [0, 0.47, -1.2], [1, 0, 0], -18)]);
 }
 
 function engineBay(b: Builder): void {
   // A slanted four-cylinder (block, head, cam cover, sump, pulleys, intake), the radiator and fan, the battery.
   b.add('engine', 'demo_engine', [
-    ...rotate([...box([0, 0.46, 1.28], [0.3, 0.3, 0.58]), ...box([0, 0.66, 1.28], [0.26, 0.12, 0.56]), ...roundedBox([0, 0.75, 1.28], [0.2, 0.07, 0.5], 0.025)], [0, 0.35, 1.28], [0, 0, 1], -30),
-    ...box([0, 0.3, 1.28], [0.26, 0.12, 0.48]),
-    ...cylinder([0.02, 0.4, 1.6], 0.07, 0.04, 20, 'z'),
-    ...cylinder([0.14, 0.52, 1.58], 0.045, 0.06, 16, 'z'),
-    ...box([-0.26, 0.64, 1.28], [0.12, 0.08, 0.42]),
-    ...cylinder([-0.36, 0.72, 1.43], 0.09, 0.12, 20, 'x'),
+    ...rotate([...box([0, 0.46, 1.5], [0.3, 0.3, 0.58]), ...box([0, 0.66, 1.5], [0.26, 0.12, 0.56]), ...roundedBox([0, 0.75, 1.5], [0.2, 0.07, 0.5], 0.025)], [0, 0.35, 1.5], [0, 0, 1], -30),
+    ...box([0, 0.3, 1.5], [0.26, 0.12, 0.48]),
+    ...cylinder([0.02, 0.4, 1.82], 0.07, 0.04, 20, 'z'),
+    ...cylinder([0.14, 0.52, 1.8], 0.045, 0.06, 16, 'z'),
+    ...box([-0.26, 0.62, 1.5], [0.12, 0.08, 0.42]),
+    ...cylinder([-0.36, 0.7, 1.62], 0.09, 0.12, 20, 'x'),
   ]);
-  b.add('radiator', 'demo_engine', [...box([0, 0.6, 1.93], [0.64, 0.36, 0.05]), ...cylinder([0, 0.6, 1.88], 0.15, 0.03, 20, 'z')]);
-  b.add('battery', 'demo_trim', box([-0.56, 0.62, 0.8], [0.18, 0.18, 0.26]));
+  b.add('radiator', 'demo_engine', [...box([0, 0.58, 1.98], [0.64, 0.32, 0.05]), ...cylinder([0, 0.58, 1.93], 0.14, 0.03, 20, 'z')]);
+  b.add('battery', 'demo_trim', box([-0.54, 0.62, 1.15], [0.18, 0.18, 0.26]));
   // The exhaust: down the underside, a silencer at the back, out under the rear right.
   b.add('exhaust', 'demo_trim', [...cylinder([-0.18, 0.17, -0.2], 0.03, 2.8, 12, 'z'), ...roundedBox([-0.3, 0.18, -1.75], [0.36, 0.12, 0.4], 0.04), ...cylinder([-0.48, 0.18, -2.06], 0.028, 0.22, 12, 'z')]);
 }
@@ -1251,4 +1365,43 @@ export function demoCarObj(): { obj: string; mtl: string } {
     .map(([name, m]) => [`newmtl ${name}`, `Kd ${m.kd.join(' ')}`, `Ks ${m.ks ?? 0.5} ${m.ks ?? 0.5} ${m.ks ?? 0.5}`, `Ns ${m.ns ?? 50}`, `d ${m.d ?? 1}`].join('\n'))
     .join('\n\n');
   return { obj: `${lines.join('\n')}\n`, mtl: `${mtl}\n` };
+}
+
+/**
+ * The engine bay and engine for the practice car built from the owner's
+ * reference model (scripts/dev/buildDemoCar.mts): body-coloured inner wings
+ * with strut towers, the firewall, an undertray and the radiator support,
+ * and the engine (block, head, cam cover, sump, pulleys, intake, exhaust
+ * manifold), radiator with its fan, and battery. Front axle at z = 1.426,
+ * the bonnet's back edge at z = 0.975.
+ */
+export function engineBayPieces(): Piece[] {
+  const b = new Builder();
+  const AF = 1.426;
+  const inner = 0.545;
+  // Inner wings: walls beside the engine with a strut tower over each wheel.
+  for (const s of [1, -1]) {
+    b.add('engine_bay', 'demo_paint', box([s * inner, 0.56, 1.5], [0.012, 0.44, 1.02]));
+    b.add('engine_bay', 'demo_paint', cylinder([s * (inner - 0.07), 0.7, AF], 0.085, 0.18, 20, 'y'));
+    b.add('engine_bay', 'demo_paint', box([s * (inner - 0.035), 0.785, AF], [0.07, 0.012, 0.2]));
+  }
+  // Firewall, undertray, radiator support.
+  b.add('engine_bay', 'demo_paint', box([0, 0.6, 0.99], [2 * inner, 0.56, 0.012]));
+  b.add('engine_bay', 'demo_trim', box([0, 0.2, 1.52], [2 * inner, 0.01, 1.05]));
+  b.add('engine_bay', 'demo_paint', box([0, 0.72, 2.02], [2 * inner - 0.1, 0.05, 0.05]));
+  b.add('engine_bay', 'demo_paint', box([0, 0.42, 2.02], [2 * inner - 0.1, 0.05, 0.05]));
+  // The engine: a four-cylinder leaning over, with its pulleys, intake and exhaust manifold.
+  const ez = 1.45;
+  b.add('engine', 'demo_engine', [
+    ...rotate([...box([0, 0.47, ez], [0.3, 0.3, 0.58]), ...box([0, 0.67, ez], [0.26, 0.12, 0.56]), ...roundedBox([0, 0.76, ez], [0.2, 0.07, 0.5], 0.025)], [0, 0.36, ez], [0, 0, 1], -30),
+    ...box([0, 0.3, ez], [0.26, 0.12, 0.48]),
+    ...cylinder([0.02, 0.41, ez + 0.32], 0.07, 0.04, 20, 'z'),
+    ...cylinder([0.14, 0.53, ez + 0.3], 0.045, 0.06, 16, 'z'),
+    ...box([-0.26, 0.63, ez], [0.12, 0.08, 0.42]),
+    ...cylinder([-0.36, 0.71, ez + 0.12], 0.09, 0.12, 20, 'x'),
+  ]);
+  for (let k = 0; k < 4; k++) b.add('engine', 'demo_chrome', bar([0.16, 0.52, ez - 0.2 + k * 0.13], [0.24, 0.36, ez - 0.2 + k * 0.13], 0.035, 0.035, [0, 0, 1]));
+  b.add('radiator', 'demo_engine', [...box([0, 0.57, 1.97], [0.62, 0.3, 0.05]), ...cylinder([0, 0.57, 1.92], 0.13, 0.03, 20, 'z')]);
+  b.add('battery', 'demo_trim', box([-0.42, 0.6, 1.12], [0.18, 0.18, 0.26]));
+  return b.done();
 }
