@@ -1457,9 +1457,8 @@ const scenarios = [
       await page.getByTestId('template-gallery').waitFor();
       await page.getByRole('button', { name: 'Add Folding mirrors' }).click();
       await page.getByTestId('script-panel').waitFor();
-      // Its tutorial is offered the first time: not now.
-      await page.getByTestId('guide-skip').click({ timeout: 5000 });
-      assert(!(await page.getByTestId('guide-offer').isVisible()), 'Skip closes the offer');
+      // Its tutorial may be offered (offers are off in the harness unless a scenario turns them on): not now.
+      if (await page.getByTestId('guide-offer').isVisible({ timeout: 1000 }).catch(() => false)) await page.getByTestId('guide-skip').click();
       const boxKey = Object.keys((await hook(page, 'projectDoc')).assignments)[0];
       await hook(page, 'selectMeshes', [boxKey]);
       await page.getByTestId('script-use-selection').first().click();
@@ -2881,6 +2880,8 @@ const scenarios = [
         zip.outputStream.pipe(createWriteStream(engineZip)).on('close', resolve).on('error', reject);
       });
       await page.evaluate((dir) => window.forge.invoke('settings:update', { beamngInstallDir: dir }), fakeInstall);
+      // The game's parts are cached per game build; the fake game's build doesn't change, so forget the cache.
+      rmSync(join(userData, 'library-scan', 'beamng', 'parts.fingerprint'), { force: true });
       const scan = await page.evaluate(() => window.forge.invoke('library:rescan'));
       assert(scan.ok, `library rescanned (${JSON.stringify(scan).slice(0, 200)})`);
       await page.getByTestId('home-tour').click();
