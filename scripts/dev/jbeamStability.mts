@@ -139,3 +139,59 @@ console.log(problems.length ? `${problems.length} problems:\n  ` + problems.slic
   }
   console.log(blew ? `RUN: blew up — ${blew}` : `RUN: ${steps} steps (${(steps * DT).toFixed(1)} s) stable`);
 }
+
+// Other things that stop a car spawning.
+{
+  const issues: string[] = [];
+  const seen = new Map<string, string>();
+  for (const name of chosen) {
+    const p = parts[name];
+    if (!p?.nodes) continue;
+    for (const r of readTable(p.nodes).records) {
+      const id = String(r.values.id);
+      const other = seen.get(id);
+      if (other && other !== name) issues.push(`node ${id} is defined by both ${other} and ${name}`);
+      seen.set(id, name);
+      for (const k of ['posX', 'posY', 'posZ']) if (!Number.isFinite(Number(r.values[k]))) issues.push(`node ${id} ${k} is ${String(r.values[k])}`);
+    }
+  }
+  let tris = 0;
+  for (const name of chosen) {
+    const p = parts[name];
+    if (!p?.triangles) continue;
+    for (const r of readTable(p.triangles).records) {
+      const ids = ['id1:', 'id2:', 'id3:'].map((k) => String(r.values[k]));
+      const ps = ids.map((id) => nodes.get(id)?.pos);
+      if (ps.some((x) => !x)) {
+        issues.push(`${name}: triangle ${ids.join(' ')} names a missing node`);
+        continue;
+      }
+      tris++;
+      const [a, b, c] = ps as [number, number, number][];
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const area = Math.hypot(u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!) / 2;
+      if (area < 1e-5) issues.push(`${name}: triangle ${ids.join(' ')} has no area (${area.toExponential(1)} m²)`);
+    }
+  }
+  for (const [name, p] of Object.entries(parts)) {
+    if (!chosen.has(name) || !p.refNodes) continue;
+    const row = readTable(p.refNodes).records[0];
+    if (!row) continue;
+    const get = (k: string) => nodes.get(String(row.values[k]))?.pos;
+    const [ref, back, left, up] = ['ref:', 'back:', 'left:', 'up:'].map(get);
+    if (!ref || !back || !left || !up) issues.push(`refNodes name a missing node (${JSON.stringify(row.values)})`);
+    else {
+      const sub = (a: number[], b: number[]) => a.map((x, i) => x - b[i]!);
+      const unit = (a: number[]) => a.map((x) => x / (Math.hypot(...a) || 1));
+      const yb = unit(sub(back, ref));
+      const xl = unit(sub(left, ref));
+      const zu = unit(sub(up, ref));
+      const dot = (a: number[], b: number[]) => a.reduce((s, x, i) => s + x * b[i]!, 0);
+      console.log(`refNodes: back ${yb.map((x) => x.toFixed(2))}, left ${xl.map((x) => x.toFixed(2))}, up ${zu.map((x) => x.toFixed(2))}`);
+      if (Math.abs(dot(yb, xl)) > 0.3 || Math.abs(dot(yb, zu)) > 0.3 || Math.abs(dot(xl, zu)) > 0.3) issues.push('refNodes are far from square');
+      if (yb[1]! < 0.7 || xl[0]! < 0.7 || zu[2]! < 0.7) issues.push('refNodes point the wrong way (back should be +Y, left +X, up +Z)');
+    }
+  }
+  console.log(`${tris} triangles; ${issues.length ? `${issues.length} spawn issues:\n  ${issues.slice(0, 30).join('\n  ')}` : 'no spawn issues'}`);
+}

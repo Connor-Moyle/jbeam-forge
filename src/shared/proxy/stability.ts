@@ -5,10 +5,11 @@
  * and runs away: "Instability detected" and the car never spawns.
  *
  * Per node the limit is √(Σk / m)·Δt ≤ SAFE_RATIO and Σc / m·Δt ≤ SAFE_DAMP
- * (the explicit-step bound with a margin). Beams we generated are softened
- * just enough to meet it; beams whose values are fixed (set by hand, or a
- * fitted game part's own) are never changed, so the nodes they hang on get
- * the weight they need instead.
+ * (the explicit-step bound with a margin). A light node first takes up to
+ * WEIGHT_ALLOWANCE times its weight, then the beams we generated are
+ * softened just enough to meet it; beams whose values are fixed (set by
+ * hand, or a fitted game part's own) are never changed, so the nodes they
+ * hang on get the weight they need instead.
  */
 
 export const PHYSICS_DT = 1 / 2000;
@@ -18,6 +19,8 @@ export const SAFE_RATIO = 1.25;
 export const SAFE_DAMP = 0.9;
 /** A beam is softened at most this far before its nodes get weight instead. */
 const MIN_SCALE = 0.15;
+/** A node may take up to this many times its weight before its beams are softened. */
+export const WEIGHT_ALLOWANCE = 1.6;
 
 export interface StabiliseBeam {
   id1: string;
@@ -78,8 +81,9 @@ export function stabilise(weights: ReadonlyMap<string, number>, beams: readonly 
     const fc = fixedC.get(id) ?? 0;
     const sk = softK.get(id) ?? 0;
     const sc = softC.get(id) ?? 0;
+    // Weight first, up to a limit (keeps parts stiff; generated nodes are often light), then softening.
     // Fixed beams can't soften, and ours soften only so far: whatever is left over needs weight.
-    const w = Math.max(w0, weightFor(fk + sk * MIN_SCALE, fc + sc * MIN_SCALE));
+    const w = Math.max(w0, Math.min(w0 * WEIGHT_ALLOWANCE, weightFor(fk + sk, fc + sc)), weightFor(fk + sk * MIN_SCALE, fc + sc * MIN_SCALE));
     if (w > w0 + 1e-9) {
       const rounded = Math.ceil(w * 1000) / 1000;
       weightsOut.set(id, rounded);

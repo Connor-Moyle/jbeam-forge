@@ -7,7 +7,7 @@ import { createPart } from '../../src/shared/parts/ops';
 import type { StructNode } from '../../src/shared/project/schema';
 import { meshoptReady } from '../../src/shared/proxy/shapes';
 import type { ProxyMesh } from '../../src/shared/proxy/mesh';
-import { attachToParent, braces, deriveStructure, nameNodes, placeRefNodes, positionTag, predictStability, STABILITY_OK } from '../../src/shared/proxy/derive';
+import { attachToParent, isFlat, braces, deriveStructure, nameNodes, placeRefNodes, positionTag, predictStability, STABILITY_OK } from '../../src/shared/proxy/derive';
 import { defaultProxySettings, generateStructure, removePartStructure, structureTotals, swapSafeParentNodes } from '../../src/shared/proxy/generate';
 import { kindDefaults, targetVertices } from '../../src/shared/proxy/presets';
 
@@ -91,6 +91,32 @@ describe('derivation', () => {
     // Far from the parent: only the 3 nearest child nodes attach.
     const far = child.map((c) => ({ ...c, pos: [c.pos[0], c.pos[1], c.pos[2] + 3] as [number, number, number] }));
     expect(new Set(attachToParent(far, parent, 'bolted', 'child').map((b) => b.id1)).size).toBe(3);
+  });
+
+  const node = (id: string, x: number, y: number, z: number): StructNode => ({ id, partId: 'x', pos: [x, y, z], weight: 1 });
+
+  it('holds a part all round, not only along the edge nearest its parent', () => {
+    // A grille 1 m wide and 0.3 m tall (a box 0.1 m deep, so not flat) above a parent whose nodes run along its bottom edge.
+    const parent = [0, 0.25, 0.5, 0.75, 1].map((x, i) => node(`p${i}`, x, 0, 0));
+    const grille = [0, 0.25, 0.5, 0.75, 1].flatMap((x, i) => [node(`b${i}`, x, 0, 0.05), node(`t${i}`, x, 0.1, 0.35)]);
+    const held = new Set(attachToParent(grille, parent, 'clipped', 'g').map((b) => b.id1));
+    expect([...held].some((id) => id.startsWith('t'))).toBe(true); // the top edge too
+    // Along its width as well: both ends held.
+    expect(held.has('b0') || held.has('t0')).toBe(true);
+    expect(held.has('b4') || held.has('t4')).toBe(true);
+  });
+
+  it('a flat part (glass) is held at every node it can reach', () => {
+    const frame = [node('f1', -0.6, 0, 0), node('f2', 0.6, 0, 0), node('f3', -0.6, 0, 0.5), node('f4', 0.6, 0, 0.5), node('f5', 0, 0, 0.55)];
+    const glass = [node('g1', -0.5, 0.01, 0.05), node('g2', 0.5, 0.01, 0.05), node('g3', -0.5, 0.01, 0.45), node('g4', 0.5, 0.01, 0.45), node('g5', 0, 0.01, 0.25), node('g6', 0, 0.01, 0.45)];
+    expect(isFlat(glass)).toBe(true);
+    expect(new Set(attachToParent(glass, frame, 'clipped', 'glass').map((b) => b.id1)).size).toBe(glass.length);
+  });
+
+  it('skips parent nodes a few millimetres away (a beam that short shakes)', () => {
+    const parent = [node('p1', 0, 0, 0.003), node('p2', 0.3, 0, 0), node('p3', 0, 0.3, 0)];
+    const child = [node('c1', 0, 0, 0), node('c2', 0.1, 0, 0), node('c3', 0, 0.1, 0)];
+    expect(attachToParent(child, parent, 'bolted', 'c').some((b) => b.id1 === 'c1' && b.id2 === 'p1')).toBe(false);
   });
 });
 

@@ -73,7 +73,7 @@ describe('suspension drop', () => {
 
   it('says which end sits low', () => {
     // Stiffer rear springs: the front sags more.
-    const r = suspensionDrop(car(), [axles[0]!, { ...axles[1]!, spring: 12000 }]);
+    const r = suspensionDrop(car(), [axles[0]!, { ...axles[1]!, spring: 30000 }]);
     expect(r.summary.join(' ')).toMatch(/nose down by [\d.]+°: the front carries more weight/);
   });
 

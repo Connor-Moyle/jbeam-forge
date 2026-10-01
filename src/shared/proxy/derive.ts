@@ -202,26 +202,133 @@ export function parentGap(child: readonly StructNode[], parent: readonly StructN
 /** Shortest attachment beam (m). */
 export const MIN_ATTACH_LENGTH = 0.02;
 
+/** How far (m) any node of a part may be from where it's attached, unless the part says otherwise. */
+export const ATTACH_SPAN = 0.35;
+/** Longest beam the coverage pass adds to reach the parent (m). */
+const MAX_COVER_LENGTH = 0.6;
+/** Share of the part's length (along each main direction) its attachments must span. */
+const SPREAD = 0.7;
+
+/** Thinner than this (m) across its least direction, a part is flat. */
+const FLAT = 0.04;
+
+export function isFlat(nodes: readonly StructNode[]): boolean {
+  if (nodes.length < 4) return false;
+  const least = principalAxes(nodes)[2]!;
+  const proj = nodes.map((c) => c.pos[0] * least[0] + c.pos[1] * least[1] + c.pos[2] * least[2]);
+  return Math.max(...proj) - Math.min(...proj) < FLAT;
+}
+
+/** The main directions of a set of nodes, longest first (power iteration on the covariance). */
+export function principalAxes(nodes: readonly StructNode[]): [number, number, number][] {
+  const n = nodes.length;
+  const c = [0, 0, 0];
+  for (const x of nodes) for (let k = 0; k < 3; k++) c[k]! += x.pos[k]! / n;
+  const m = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  for (const x of nodes) for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) m[i * 3 + j]! += (x.pos[i]! - c[i]!) * (x.pos[j]! - c[j]!);
+  const axes: [number, number, number][] = [];
+  for (let a = 0; a < 3; a++) {
+    let v: [number, number, number] = a === 0 ? [1, 0.3, 0.2] : a === 1 ? [0.2, 1, 0.3] : [0.3, 0.2, 1];
+    for (let it = 0; it < 40; it++) {
+      // Keep it away from the axes already found.
+      for (const u of axes) {
+        const dot = v[0] * u[0] + v[1] * u[1] + v[2] * u[2];
+        v = [v[0] - dot * u[0], v[1] - dot * u[1], v[2] - dot * u[2]];
+      }
+      const w: [number, number, number] = [m[0]! * v[0] + m[1]! * v[1] + m[2]! * v[2], m[3]! * v[0] + m[4]! * v[1] + m[5]! * v[2], m[6]! * v[0] + m[7]! * v[1] + m[8]! * v[2]];
+      for (const u of axes) {
+        const dot = w[0] * u[0] + w[1] * u[1] + w[2] * u[2];
+        w[0] -= dot * u[0];
+        w[1] -= dot * u[1];
+        w[2] -= dot * u[2];
+      }
+      const len = Math.hypot(...w);
+      if (len < 1e-12) break;
+      v = [w[0] / len, w[1] / len, w[2] / len];
+    }
+    const len = Math.hypot(...v) || 1;
+    axes.push([v[0] / len, v[1] / len, v[2] / len]);
+  }
+  return axes;
+}
+
+export interface AttachOptions {
+  /** Every node within this of an attached node (m): small for glass, held all round its frame. */
+  span?: number;
+  maxBeams?: number;
+}
+
 /**
  * Attachment beams from a child part to its parent's nodes (SPEC §4.4):
  * child nodes near the parent get `links` beams each to their nearest parent
- * nodes. Openable parts get none (their hinges attach them, Phase 9).
+ * nodes; then, so the part is held all round and can't pivot about one edge,
+ * the node furthest from any attachment is attached too, until every node is
+ * within `span` of one. Openable parts get none (their hinges attach them, Phase 9).
  */
-export function attachToParent(child: readonly StructNode[], parent: readonly StructNode[], style: AttachmentStyle, partId: string, maxBeams = 150): StructBeam[] {
+export function attachToParent(child: readonly StructNode[], parent: readonly StructNode[], style: AttachmentStyle, partId: string, options: AttachOptions = {}): StructBeam[] {
   if (!child.length || !parent.length) return [];
   const { links } = ATTACHMENT_VALUES[style];
+  // A flat part (its nodes in one plane) has no stiffness out of that plane: every node it can, it holds on by.
+  const span = isFlat(child) ? 0 : (options.span ?? ATTACH_SPAN);
+  const maxBeams = options.maxBeams ?? 150;
   const d = (a: StructNode, b: StructNode) => Math.hypot(a.pos[0] - b.pos[0], a.pos[1] - b.pos[1], a.pos[2] - b.pos[2]);
   const nearestDist = child.map((c) => Math.min(...parent.map((p) => d(c, p))));
   const sorted = [...nearestDist].sort((x, y) => x - y);
   // Nodes within reach of the parent (≤ 0.15 m, or 1.5× the closest gap when the part sits slightly off),
   // at least 3. A part far from its parent (> FAR_FROM_PARENT) only hangs on its 3 nearest nodes.
   const gap = sorted[0] ?? 0;
-  const reach = gap > FAR_FROM_PARENT ? -1 : Math.max(0.15, gap * 1.5);
-  let chosen = child.map((c, i) => ({ c, dist: nearestDist[i]! })).filter((x) => x.dist <= reach);
-  if (chosen.length < 3) chosen = child.map((c, i) => ({ c, dist: nearestDist[i]! })).sort((x, y) => x.dist - y.dist).slice(0, 3);
+  const far = gap > FAR_FROM_PARENT;
+  const reach = far ? -1 : Math.max(0.15, gap * 1.5);
+  const chosen = new Set<number>();
+  child.forEach((_, i) => {
+    if (nearestDist[i]! <= reach) chosen.add(i);
+  });
+  if (chosen.size < 3) for (const i of child.map((_, i) => i).sort((a, b) => nearestDist[a]! - nearestDist[b]!).slice(0, 3)) chosen.add(i);
+  // Cover the whole part: the node furthest from every attached one is attached next, while the parent is in reach.
+  if (!far) {
+    const coverLimit = Math.max(MAX_COVER_LENGTH, gap * 1.5);
+    const fromChosen = child.map((c) => Math.min(...[...chosen].map((j) => d(c, child[j]!))));
+    for (let guard = 0; guard < child.length; guard++) {
+      let pick = -1;
+      for (let i = 0; i < child.length; i++) if (!chosen.has(i) && fromChosen[i]! >= span && nearestDist[i]! <= coverLimit && (pick < 0 || fromChosen[i]! > fromChosen[pick]!)) pick = i;
+      if (pick < 0) break;
+      chosen.add(pick);
+      for (let i = 0; i < child.length; i++) fromChosen[i] = Math.min(fromChosen[i]!, d(child[i]!, child[pick]!));
+    }
+  }
+  // Spread: along the part's two main directions, the attachments must span most of the part, or it
+  // pivots about the line they make (a grille held only along its bottom row tips forward).
+  if (!far && child.length > 3) {
+    const coverLimit = Math.max(MAX_COVER_LENGTH, gap * 1.5);
+    for (const axis of principalAxes(child).slice(0, 2)) {
+      const proj = child.map((c) => c.pos[0] * axis[0] + c.pos[1] * axis[1] + c.pos[2] * axis[2]);
+      const lo = Math.min(...proj);
+      const hi = Math.max(...proj);
+      if (hi - lo < 0.08) continue;
+      for (let guard = 0; guard < child.length; guard++) {
+        const held = [...chosen].map((i) => proj[i]!);
+        const hlo = Math.min(...held);
+        const hhi = Math.max(...held);
+        if (hhi - hlo >= SPREAD * (hi - lo)) break;
+        // The node furthest outside the attached range, at the side with the most left uncovered.
+        const below = hlo - lo;
+        const above = hi - hhi;
+        let pick = -1;
+        for (let i = 0; i < child.length; i++) {
+          if (chosen.has(i) || nearestDist[i]! > coverLimit) continue;
+          const out = below >= above ? hlo - proj[i]! : proj[i]! - hhi;
+          if (out > 0 && (pick < 0 || out > (below >= above ? hlo - proj[pick]! : proj[pick]! - hhi))) pick = i;
+        }
+        if (pick < 0) break;
+        chosen.add(pick);
+      }
+    }
+  }
   const out: StructBeam[] = [];
   const seen = new Set<string>();
-  for (const { c } of chosen) {
+  // Nearest first, so a beam budget keeps the closest (strongest) ties.
+  for (const i of [...chosen].sort((a, b) => nearestDist[a]! - nearestDist[b]!)) {
+    const c = child[i]!;
     // A beam of a few millimetres has no clear direction and shakes in the game: nodes that close are skipped.
     const nearest = [...parent].filter((x) => d(c, x) >= MIN_ATTACH_LENGTH).sort((x, y) => d(c, x) - d(c, y)).slice(0, links);
     for (const p of nearest) {

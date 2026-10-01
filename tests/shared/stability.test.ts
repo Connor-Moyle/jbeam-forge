@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PHYSICS_DT, SAFE_RATIO, softenedValue, stabilise, stabilityLoad, type StabiliseBeam } from '@shared/proxy/stability';
+import { PHYSICS_DT, SAFE_RATIO, softenedValue, stabilise, stabilityLoad, WEIGHT_ALLOWANCE, type StabiliseBeam } from '@shared/proxy/stability';
 
 /** A light panel: a 5×5 grid of 0.3 kg nodes with skin and cross braces at 800 kN/m (the practice car's fenders). */
 function panel(): { weights: Map<string, number>; beams: StabiliseBeam[]; pos: Map<string, [number, number, number]> } {
@@ -68,14 +68,17 @@ describe('stability at the game physics rate', () => {
     expect(blowsUp(weights, beams, pos)).toBe(true);
     const r = stabilise(weights, beams);
     expect(r.softened).toBeGreaterThan(0);
-    expect(r.addedKg).toBe(0);
+    // Some weight first, never past the allowance.
+    expect(r.addedKg).toBeGreaterThan(0);
+    for (const [id, w] of r.weights) expect(w).toBeLessThanOrEqual(weights.get(id)! * WEIGHT_ALLOWANCE + 1e-3);
+    const after = new Map([...weights].map(([id, w]) => [id, r.weights.get(id) ?? w]));
     const eased = beams.map((b, i) => ({ ...b, spring: b.spring * r.springScale[i]!, damp: b.damp * r.dampScale[i]! }));
-    expect(blowsUp(weights, eased, pos)).toBe(false);
+    expect(blowsUp(after, eased, pos)).toBe(false);
     // Every node is now within its limit.
     for (const id of weights.keys()) {
       const k = eased.filter((b) => b.id1 === id || b.id2 === id).reduce((s, b) => s + b.spring, 0);
       const c = eased.filter((b) => b.id1 === id || b.id2 === id).reduce((s, b) => s + b.damp, 0);
-      expect(stabilityLoad(weights.get(id)!, k, c)).toBeLessThanOrEqual(1);
+      expect(stabilityLoad(after.get(id)!, k, c)).toBeLessThanOrEqual(1);
     }
   });
 

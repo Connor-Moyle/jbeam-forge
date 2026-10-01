@@ -156,7 +156,7 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     if (adopted.loose) warnings.push(`${adopted.loose} hand-moved node${adopted.loose === 1 ? ' is' : 's are'} too far from the new structure to reconnect; ${adopted.loose === 1 ? 'it was' : 'they were'} kept on ${adopted.loose === 1 ? 'its' : 'their'} own.`);
     const partNodes = [...derived.nodes, ...manual];
 
-    const attach = attachBeams(doc, part, entry, partNodes, settings.attachment);
+    const attach = attachBeams(doc, part, entry, partNodes, settings.attachment, tax);
     doc.beams.push(...attach.beams);
     // A hinged part swaps its temporary bolts for its hinge, limiter and latch.
     const hinged = hingeUp(doc, part, entry);
@@ -172,14 +172,20 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
 
   // Children that were not regenerated keep their nodes but must re-attach: their parent's slot has new
   // nodes (and, if a variant changed, a new set of names common to every variant).
+  // Grandchildren too: they may hold on to the grandparent.
   const regeneratedSlots = new Set([...regenerated].map((id) => slotOf(doc.parts, id)));
+  const partById = new Map(doc.parts.map((p) => [p.id, p]));
+  const upTwo = (p: Part) => {
+    const parent = p.parentPartId ? partById.get(p.parentPartId) : undefined;
+    return [parent, parent?.parentPartId ? partById.get(parent.parentPartId) : undefined].filter((x): x is Part => !!x);
+  };
   for (const child of doc.parts) {
-    if (regenerated.has(child.id) || !child.parentPartId || !regeneratedSlots.has(slotOf(doc.parts, child.parentPartId))) continue;
+    if (regenerated.has(child.id) || !child.parentPartId || !upTwo(child).some((a) => regeneratedSlots.has(slotOf(doc.parts, a.id)))) continue;
     const entry = tax.entry(child.taxonomyId);
     const nodes = doc.nodes.filter((n) => n.partId === child.id);
     if (!entry || !nodes.length) continue;
     doc.beams = doc.beams.filter((b) => !(b.partId === child.id && b.kind === 'attach'));
-    doc.beams.push(...attachBeams(doc, child, entry, nodes, partSettings(doc, child, entry).attachment).beams);
+    doc.beams.push(...attachBeams(doc, child, entry, nodes, partSettings(doc, child, entry).attachment, tax).beams);
     hingeUp(doc, child, entry);
   }
 
@@ -190,6 +196,9 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
   }
   return { reports, skipped, notProxies };
 }
+
+/** Glass: every node within this (m) of where it's held. */
+export const GLASS_ATTACH_SPAN = 0.2;
 
 /** Build the part's hinge if it has one (true when built). */
 export function hingeUp(doc: Doc, part: Part, entry: TaxonomyEntry): boolean {
@@ -206,9 +215,16 @@ export function reattachPart(doc: Doc, part: Part, entry: TaxonomyEntry): void {
   doc.beams.push(...attachBeams(doc, part, entry, nodes, partSettings(doc, part, entry).attachment).beams);
 }
 
-function attachBeams(doc: Doc, part: Part, entry: TaxonomyEntry, nodes: readonly StructNode[], style: PartProxy['attachment']) {
+function attachBeams(doc: Doc, part: Part, entry: TaxonomyEntry, nodes: readonly StructNode[], style: PartProxy['attachment'], tax?: TaxonomyLookup) {
   if (!part.parentPartId) return { beams: [], warning: null as string | null };
-  const parentNodes = swapSafeParentNodes(doc, part.parentPartId);
+  const own = swapSafeParentNodes(doc, part.parentPartId);
+  // The grandparent is always fitted when the parent is, so a part can hold on to it too where the parent's
+  // nodes alone would let it tip (a grille on a bumper whose nodes run along one line). Never through a
+  // part that moves: glass in a door must not tie the door to the body.
+  const parent = doc.parts.find((p) => p.id === part.parentPartId);
+  const parentEntry = parent && tax?.entry(parent.taxonomyId);
+  const parentMoves = !parent || !parentEntry || !!parentEntry.openable || doc.hinges.some((h) => h.partId === parent.id);
+  const parentNodes = !parentMoves && parent?.parentPartId ? [...own, ...swapSafeParentNodes(doc, parent.parentPartId)] : own;
   if (!parentNodes.length) return { beams: [], warning: 'Its parent part has no structure yet: generate the parent, then this part attaches automatically.' };
   const gap = parentGap(nodes, parentNodes);
   // Openable parts are held shut by temporary breakable bolts until a hinge replaces them.
@@ -217,7 +233,9 @@ function attachBeams(doc: Doc, part: Part, entry: TaxonomyEntry, nodes: readonly
     : gap > FAR_FROM_PARENT
       ? `${gap.toFixed(2)} m from its parent part: attached by its 3 nearest nodes only. Check the part's parent, or move its mesh.`
       : null;
-  return { beams: attachToParent(nodes, parentNodes, entry.openable ? 'bolted' : style, part.id), warning };
+  // Glass is clipped into its frame all the way round.
+  const span = entry.beamPreset === 'glass_brittle' ? GLASS_ATTACH_SPAN : undefined;
+  return { beams: attachToParent(nodes, parentNodes, entry.openable ? 'bolted' : style, part.id, span ? { span } : {}), warning };
 }
 
 /**
@@ -250,8 +268,11 @@ export function removePartStructure(doc: Doc, partId: string): void {
   doc.tris = doc.tris.filter((t) => t.partId !== partId);
 }
 
+/** A child or grandchild (attachments reach two levels up). */
 function isChildOfRemoved(doc: Doc, childPartId: string, parentPartId: string): boolean {
-  return doc.parts.find((p) => p.id === childPartId)?.parentPartId === parentPartId;
+  const parent = doc.parts.find((p) => p.id === childPartId)?.parentPartId;
+  if (!parent) return false;
+  return parent === parentPartId || doc.parts.find((p) => p.id === parent)?.parentPartId === parentPartId;
 }
 
 /** Totals for the status bar. */

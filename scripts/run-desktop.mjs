@@ -3313,6 +3313,8 @@ const scenarios = [
       await page.getByTestId('toolbar-generate').click();
       for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
       await page.waitForTimeout(1500);
+      // The generated project, for offline physics checks (scripts/dev/simParts.mts).
+      writeFileSync(join(outDir, 'practice-doc.json'), JSON.stringify(await hook(page, 'projectDoc')));
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
       await shot(page, 'practice-export-dialog');
