@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
-export const LAYOUT_VERSION = 1;
+/** 2: the Properties column (one panel with a tab per tool) replaced the separate tool panels. */
+export const LAYOUT_VERSION = 2;
 
-export const PRESET_IDS = ['modelling', 'model', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel'] as const;
+export const PRESET_IDS = ['modelling', 'model', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'suspension', 'tyres', 'wheels', 'panel'] as const;
 export const PresetIdSchema = z.enum(PRESET_IDS);
 export type PresetId = z.infer<typeof PresetIdSchema>;
 

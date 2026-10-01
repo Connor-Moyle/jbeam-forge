@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { SettingsService, serializeSettings } from '../../src/main/services/settings';
 import { LayoutService, serializeLayout } from '../../src/main/services/layout';
 import { DEFAULT_SETTINGS, mergeSettings } from '../../src/shared/settings-schema';
-import type { StoredLayout } from '../../src/shared/layout-schema';
+import { LAYOUT_VERSION, type StoredLayout } from '../../src/shared/layout-schema';
 import type { Logger } from '../../src/shared/logger';
 
 function recordingLogger() {
@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 const LAYOUT: StoredLayout = {
-  version: 1,
+  version: LAYOUT_VERSION,
   preset: 'modelling',
   dockview: {
     grid: { root: { type: 'branch', data: [] }, width: 800, height: 600, orientation: 'HORIZONTAL' },

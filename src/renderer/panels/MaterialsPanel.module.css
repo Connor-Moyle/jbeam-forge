@@ -19,6 +19,17 @@
   border-bottom: var(--border-width) solid var(--border-0);
 }
 
+/* Nothing picked: the list has the panel to itself, the hint sits under it. */
+.listFull {
+  flex: 1 1 0;
+  max-height: none;
+}
+
+.listFull + .editor {
+  flex: 0 0 auto;
+  height: auto;
+}
+
 .items {
   margin: 0;
   padding: var(--space-1) 0;

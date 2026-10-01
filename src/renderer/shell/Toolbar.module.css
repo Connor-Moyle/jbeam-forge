@@ -70,6 +70,7 @@
   background: var(--bg-1);
 }
 
-.channel {
-  width: var(--size-preset-select);
+/* Generate and Test read as steps, so they keep their words; a little air beside the icon-only buttons. */
+.step {
+  margin-left: var(--space-1);
 }

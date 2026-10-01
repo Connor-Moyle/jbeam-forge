@@ -405,7 +405,7 @@ const scenarios = [
     name: 'layout presets',
     async run({ page }) {
       const expected = {
-        materials: ['inspector', 'materials', 'paints', 'scene', 'skins', 'viewport'],
+        materials: ['materials', 'scene', 'viewport'],
         testing: ['scene', 'test-results', 'viewport'],
         modelling: ['inspector', 'scene', 'viewport'],
       };
@@ -1644,6 +1644,8 @@ const scenarios = [
       const parts = await hook(page, 'partNames');
       assert(parts.length >= 10, `practice car sorted into parts (${parts.join(', ')})`);
       await page.getByTestId('tour-next').click();
+      await step('properties');
+      await page.getByTestId('tour-next').click();
       await step('materials-tab');
       await page.getByTestId('workspace-materials').click();
       await step('materials');
@@ -2051,8 +2053,8 @@ const scenarios = [
       await page.getByTestId('newmod-create').click();
       await page.getByTestId('import-confirm').click();
       await page.getByTestId('classify-apply').click({ timeout: 30_000 });
-      // The old Modelling tab is now Editing; Modelling is the new one next to it.
-      assert((await page.getByTestId('workspace-modelling').textContent()).includes('Editing'), 'first tab reads Editing');
+      // The first tab is Parts; Modelling is the one next to it.
+      assert((await page.getByTestId('workspace-modelling').textContent()).includes('Parts'), 'first tab reads Parts');
       await page.getByTestId('workspace-model').click();
       await page.getByTestId('modelling-panel').waitFor();
       const open = await openPanels(page);
@@ -3055,7 +3057,7 @@ const scenarios = [
       await page.getByTestId('guide-card').waitFor();
       await page.getByRole('button', { name: 'Stop the tutorial' }).click();
       // The workspaces' tutorials: offered the first time each opens; the cap buttons replay them (on a car with parts and nodes).
-      await page.getByRole('tab', { name: 'Editing', exact: true }).click();
+      await page.getByRole('tab', { name: 'Parts', exact: true }).click();
       await hook(page, 'applyPreset', 'modelling'); // the Scene panel (a scenario before may have left another workspace)
       await page.getByTestId('scene-classify').click();
       await page.getByTestId('classify-apply').click();

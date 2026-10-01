@@ -25,6 +25,7 @@ import { ScriptTestPanel } from '@renderer/scripts/ScriptTestPanel';
 import { SkinStudioPanel } from '@renderer/skins/SkinStudioPanel';
 import { PanelBuilderPanel } from '@renderer/panelmod/PanelBuilderPanel';
 import { ModellingPanel } from '@renderer/modelling/ModellingPanel';
+import { PropertiesPanel } from './PropertiesPanel';
 
 export interface PanelDef {
   title: string;
@@ -37,13 +38,15 @@ export interface PanelDef {
 export const PANELS = {
   viewport: { title: 'Viewport', icon: Box, component: ViewportPanel },
   scene: { title: 'Scene', icon: FolderTree, component: ScenePanel },
+  // The column of tabbed tools on the right (see propertyTabs.ts); the tabs are the panels listed there.
+  properties: { title: 'Properties', icon: SlidersHorizontal, component: PropertiesPanel },
   inspector: { title: 'Inspector', icon: SlidersHorizontal, component: InspectorPanel },
   modelling: { title: 'Modelling', icon: Pentagon, component: ModellingPanel },
   materials: { title: 'Materials', icon: Palette, component: MaterialsPanel },
   'test-results': { title: 'Test Results', icon: FlaskConical, component: TestResultsPanel },
-  'jbeam-preview': { title: 'jbeam', icon: FileCode, component: JbeamPreviewPanel },
+  'jbeam-preview': { title: 'JBeam file', icon: FileCode, component: JbeamPreviewPanel },
   'jbeam-tables': { title: 'Nodes & beams', icon: Table2, component: JbeamTablesPanel },
-  'jbeam-props': { title: 'Properties', icon: SlidersHorizontal, component: JbeamPropertiesPanel },
+  'jbeam-props': { title: 'Node & beam values', icon: SlidersHorizontal, component: JbeamPropertiesPanel },
   'moving-parts': { title: 'Moving parts', icon: DoorOpen, component: MovingPartsPanel },
   'moving-part': { title: 'Settings', icon: SlidersHorizontal, component: MovingPartPanel },
   triggers: { title: 'Triggers', icon: MousePointerClick, component: TriggersPanel },

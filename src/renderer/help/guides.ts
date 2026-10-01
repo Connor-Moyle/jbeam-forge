@@ -83,7 +83,7 @@ export const GUIDES: Guide[] = [
       {
         heading: '5. Nodes and beams',
         steps: [
-          'Click Generate structure (the wand on the toolbar). Every part gets nodes and beams from its shape and weight.',
+          'Click Generate on the toolbar. Every part gets nodes and beams from its shape and weight.',
           'Look at them with {key:viewStructure} and X-ray ({key:viewXray}).',
           'Fine-tune in the JBeam workspace ({key:layout3}): move nodes, change beam stiffness, rename, mirror.',
         ],
@@ -139,7 +139,7 @@ export const GUIDES: Guide[] = [
     title: 'Workspaces, panels and keys',
     summary: 'Finding your way around the window.',
     sections: [
-      { text: 'The tabs at the top are workspaces: each arranges the panels for one job (Editing, Modelling, Materials, JBeam, Moving parts, Triggers, Scripts, Testing). Change a layout by dragging panel tabs; View → Reset Layout puts it back.' },
+      { text: 'The tabs at the top are workspaces: each arranges the panels for one job (Parts, Modelling, Materials, JBeam, Suspension, Engine, Moving parts, Triggers, Scripts, Testing), in the order a car comes together. The 3D view stays in the middle; the column on its right is Properties, with a strip of tabs down its side for the Inspector, materials, paints, suspension, engine, configurations, extras and the libraries. Change a layout by dragging panel tabs; View → Reset Layout puts it back.' },
       {
         heading: 'Keys worth knowing',
         steps: ['{key:palette}: the command palette, which finds any part, panel or action by name.', '{key:focus}: focus the selection. {key:frameAll}: frame everything.', '{key:editMode}: edit nodes and beams.', '{key:shortcuts}: every key. Change any of them in Settings → Keymap.'],

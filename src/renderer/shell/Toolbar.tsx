@@ -1,29 +1,28 @@
-import { CircleHelp, BadgePlus, Box, CloudDownload, PaintRoller, CarFront, Download, Eye, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, Gauge, LayoutGrid, ListTree, MousePointer2, Package, Play, Redo2, Save, ScanLine, Settings, Square, Undo2, Wrench } from 'lucide-react';
+import { CircleHelp, CloudDownload, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Square, Undo2 } from 'lucide-react';
 import { keyFor } from '@renderer/app/keys';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { openProject, redo, saveProject, undo } from '@renderer/project/actions';
 import { startImport } from '@renderer/import/importFlow';
-import { useUiStore } from '@renderer/app/stores/ui';
 import { useStructureUi } from '@renderer/structure/generate';
 import { GenerateMenu } from '@renderer/structure/GenerateMenu';
-import { useEditStore } from '@renderer/structure/editStore';
 import { openExport } from '@renderer/export/exportFlow';
 import { startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
-import { Select } from '@renderer/ui/components/Select';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS, workspacesFor } from './presets';
-import { CHANNELS, type Channel } from '@renderer/panels/viewport/channels';
 import styles from './Toolbar.module.css';
 
-
+/**
+ * The top of the editor. First row: the file, then the three steps every mod
+ * goes through (generate, test, export). Second row: the workspaces, in the
+ * order a car comes together. What the 3D view draws is on the view itself, and
+ * the tools that work on the car are tabs of the Properties column.
+ */
 export function Toolbar() {
-  const channel = useUiStore((s) => s.channel);
   const modKind = useProjectStore((s) => s.doc?.meta.modKind);
-  const setChannel = useUiStore((s) => s.setChannel);
   const { preset, applyPreset, togglePanel, showPanel, devMode } = useShell();
   const testing = useSim((s) => s.active);
   const hasStructure = useProjectStore((s) => (s.doc?.nodes.length ?? 0) > 0);
@@ -34,14 +33,10 @@ export function Toolbar() {
   const redoLabel = useProjectStore((s) => s.redoStack[s.redoStack.length - 1]?.label ?? null);
   const hasParts = useProjectStore((s) => (s.doc?.parts.length ?? 0) > 0);
   const generating = useStructureUi((s) => s.busy);
-  const view = useUiStore((s) => s.view);
-  const toggleView = useUiStore((s) => s.toggleView);
-  const editing = useEditStore((s) => s.active);
-  const setEditing = useEditStore((s) => s.setActive);
 
   return (
     <>
-      <header className={styles.toolbar}   role="toolbar" aria-label="Main toolbar">
+      <header className={styles.toolbar} role="toolbar" aria-label="Main toolbar">
         <div className={styles.brand}>JBeam Forge</div>
         <div className={styles.group} role="group" aria-label="File">
           <span className={styles.divider} aria-hidden />
@@ -55,53 +50,43 @@ export function Toolbar() {
           <IconButton icon={Undo2} label={undoLabel ? `Undo ${undoLabel}` : 'Nothing to undo'} shortcut={keyFor('undo')} disabled={!undoLabel} onClick={undo} />
           <IconButton icon={Redo2} label={redoLabel ? `Redo ${redoLabel}` : 'Nothing to redo'} shortcut={keyFor('redo')} disabled={!redoLabel} onClick={redo} />
         </div>
-        <div className={styles.group} role="group" aria-label="Generate">
+        <div className={styles.group} role="group" aria-label="Build">
           <span className={styles.divider} aria-hidden />
           <GenerateMenu label={hasParts ? 'Generate structure for all parts' : 'Generate structure (assign meshes to parts first)'} disabled={!hasParts || generating} />
-        </div>
-        <div className={styles.group} role="group" aria-label="View">
-          <span className={styles.divider} aria-hidden />
-          <IconButton icon={Eye} label={view.mesh ? 'Hide mesh' : 'Show mesh'} active={view.mesh} onClick={() => toggleView('mesh')} data-testid="toolbar-view-mesh" />
-          <IconButton icon={Box} label={view.structure ? 'Hide nodes & beams' : 'Show nodes & beams'} active={view.structure} onClick={() => toggleView('structure')} data-testid="toolbar-view-structure" />
-          <IconButton icon={ScanLine} label={view.xray ? 'X-ray off' : 'X-ray: see through the mesh'} active={view.xray} onClick={() => toggleView('xray')} data-testid="toolbar-view-xray" />
-          <Select<Channel> aria-label="Material channel view" value={channel} onChange={setChannel} options={CHANNELS} className={styles.channel} data-testid="toolbar-channel" />
-          <IconButton icon={MousePointer2} label={editing ? 'Stop editing nodes & beams' : hasStructure ? 'Edit nodes & beams' : 'Edit nodes & beams (generate the structure first)'} shortcut={keyFor('editMode')} active={editing} disabled={!hasStructure && !editing} onClick={() => setEditing(!editing)} data-testid="toolbar-edit" />
-        </div>
-        <div className={styles.group} role="group" aria-label="Test">
-          <span className={styles.divider} aria-hidden />
-          <IconButton
+          <Button
             icon={testing ? Square : Play}
-            label={testing ? 'Leave Test Mode' : hasStructure ? 'Test Mode: run the physics sandbox' : 'Test Mode (generate structure first)'}
-            active={testing}
+            className={styles.step}
+            title={testing ? 'Leave Test Mode' : hasStructure ? 'Test Mode: run the physics sandbox' : 'Test Mode (generate structure first)'}
+            aria-pressed={testing}
             disabled={!testing && !hasStructure}
             onClick={() => {
               if (testing) stopTestMode();
               else if (startTestMode()) showPanel('test-results');
             }}
             data-testid="toolbar-test"
-          />
+          >
+            {testing ? 'Stop test' : 'Test'}
+          </Button>
         </div>
 
         <div className={styles.spacer} />
 
-        <div className={styles.group}>
-          {devMode && (
-            <IconButton icon={LayoutGrid} label="Component kit (dev)" onClick={() => togglePanel('kit-gallery')} data-testid="toggle-kit" />
-          )}
-          <IconButton icon={FlaskConical} label="Test results panel" onClick={() => togglePanel('test-results')} />
-          <IconButton icon={FileCode} label="jbeam preview panel" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
-          <IconButton icon={Package} label="Objects library: calipers, discs, gauges…" onClick={() => togglePanel('objects')} data-testid="toggle-objects" />
-          <IconButton icon={PaintRoller} label="Paints: factory paints, paint slots, and painting on the car" onClick={() => togglePanel('paints')} data-testid="toggle-paints" />
-          <IconButton icon={BadgePlus} label="Extras: licence plates, tow hitch, nitrous, paint designs" onClick={() => togglePanel('features')} data-testid="toggle-features" />
-          <IconButton icon={ListTree} label="Configurations: versions of the car and their parts (.pc)" onClick={() => togglePanel('configs')} data-testid="toggle-configs" />
-          <IconButton icon={Gauge} label="Engine and gearbox from the game's cars" onClick={() => togglePanel('powertrain')} data-testid="toggle-powertrain" />
-          <IconButton icon={Wrench} label="Suspension: axles, and suspensions from the game's cars" onClick={() => togglePanel('suspension')} data-testid="toggle-suspension" />
-          <IconButton icon={CarFront} label="Reference car: specs and data files of a car brought over from another game" onClick={() => togglePanel('reference')} data-testid="toggle-reference" />
+        <div className={styles.group} role="group" aria-label="Output panels">
+          {devMode && <IconButton icon={LayoutGrid} label="Component kit (dev)" onClick={() => togglePanel('kit-gallery')} data-testid="toggle-kit" />}
+          <IconButton icon={FileCode} label="JBeam file: the jbeam the picked part exports" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
+          <IconButton icon={FlaskConical} label="Test results" onClick={() => togglePanel('test-results')} data-testid="toggle-test-results" />
+        </div>
+        <div className={styles.group} role="group" aria-label="Finish">
           <span className={styles.divider} aria-hidden />
+          <Button icon={ListTree} title="Configurations manager: the versions of the car players pick from" onClick={() => useDialogStore.getState().setConfigsOpen(true)} disabled={!hasParts} data-testid="open-configs">
+            Configurations
+          </Button>
           <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!hasParts} data-testid="toolbar-export">
             Export
           </Button>
-          <IconButton icon={CarFront} label="Configurations manager" onClick={() => useDialogStore.getState().setConfigsOpen(true)} disabled={!hasParts} data-testid="open-configs" />
+        </div>
+        <div className={styles.group} role="group" aria-label="App">
+          <span className={styles.divider} aria-hidden />
           <IconButton icon={CloudDownload} label="Downloads: updates, textures and meshes" shortcut={keyFor('downloads')} onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="open-downloads" />
           <IconButton icon={CircleHelp} label="Help, guides and the tutorial" shortcut={keyFor('help')} onClick={() => useDialogStore.getState().setHelpOpen(true)} data-testid="open-help" />
           <IconButton icon={Settings} label="Settings" shortcut={keyFor('settings')} onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />

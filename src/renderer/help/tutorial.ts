@@ -97,6 +97,12 @@ export function tourSteps(): TourStep[] {
       },
     },
     {
+      id: 'properties',
+      title: 'The Properties column',
+      target: '[data-testid="properties"]',
+      body: 'The strip of icons down its side switches what this column shows: the Inspector, then materials, paints and skins, then suspension and the engine, then configurations and extras, then the libraries. Rest the pointer on an icon to see its name.',
+    },
+    {
       id: 'materials-tab',
       title: 'Workspaces',
       target: '[data-testid="workspace-materials"]',
@@ -108,14 +114,14 @@ export function tourSteps(): TourStep[] {
       id: 'materials',
       title: 'Materials',
       target: '[data-panel="materials"]',
-      body: 'Every material from the model is here. Pick one to change its colour, shine and textures, or drag one from the library onto the car. Paints (the colours players pick) live in the tab next to it.',
+      body: 'Every material from the model is here. Pick one to change its colour, shine and textures, or drag one from the library onto the car. Paints (the colours players pick) and the Skin studio are the next two tabs on the strip down the side of this column.',
     },
     {
       id: 'modelling-tab',
-      title: 'Back to Editing',
+      title: 'Back to Parts',
       target: '[data-testid="workspace-modelling"]',
       body: 'Now the physics. (The Modelling tab next to it reshapes a mesh Blender-style: points, edges and faces.)',
-      action: 'Click the Editing tab at the top of the window.',
+      action: 'Click the Parts tab at the top of the window.',
       done: (ctx) => ctx.preset === 'modelling',
     },
     {
@@ -123,7 +129,7 @@ export function tourSteps(): TourStep[] {
       title: 'Nodes and beams',
       target: '[data-testid="toolbar-generate"]',
       body: 'A BeamNG car is a soft body: points (nodes) joined by springs (beams). Generate builds them for every part from its shape, weight and material.',
-      action: 'Click the highlighted wand button in the toolbar at the top (Generate structure).',
+      action: 'Click Generate in the toolbar at the top.',
       done: () => (doc()?.nodes.length ?? 0) > 0,
       skipIf: () => (doc()?.nodes.length ?? 0) > 0,
     },
@@ -131,7 +137,7 @@ export function tourSteps(): TourStep[] {
       id: 'views',
       title: 'Seeing the structure',
       target: '[data-testid="toolbar-view-structure"]',
-      body: `Show or hide the nodes and beams here (${keyFor('viewStructure')}); X-ray next to it lets you see through the body (${keyFor('viewXray')}).`,
+      body: `What the 3D view draws is set along its top edge. Show or hide the nodes and beams here (${keyFor('viewStructure')}); X-ray next to it lets you see through the body (${keyFor('viewXray')}).`,
     },
     {
       id: 'edit',

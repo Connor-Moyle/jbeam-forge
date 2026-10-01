@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import type { Channel } from '@renderer/panels/viewport/channels';
+import { isPropertyTab, type PropertyTab } from '@renderer/shell/propertyTabs';
 
 /**
  * UI-only state. See docs/zustand-rules.md: selectors must return stable
@@ -32,6 +33,9 @@ interface UiState {
   /** Material channel the viewport shows (roughness, normals, UV checker…). */
   channel: Channel;
   setChannel: (channel: Channel) => void;
+  /** The tab the Properties column shows. */
+  propsTab: PropertyTab;
+  setPropsTab: (tab: PropertyTab) => void;
   toggleView: (key: keyof ViewToggles) => void;
   status: StatusMessage | null;
   setCollapsed: (id: string, collapsed: boolean) => void;
@@ -50,6 +54,8 @@ export const useUiStore = create<UiState>()(
       view: { mesh: true, structure: true, xray: false },
       channel: 'shaded',
       setChannel: (channel) => set({ channel }),
+      propsTab: 'inspector',
+      setPropsTab: (propsTab) => set({ propsTab }),
       toggleView: (key) => set((s) => ({ view: { ...s.view, [key]: !s.view[key] } })),
       status: null,
       setCollapsed: (id, collapsed) => {
@@ -70,11 +76,11 @@ export const useUiStore = create<UiState>()(
       name: 'jbforge.ui',
       version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (s) => ({ collapsed: s.collapsed, view: s.view }),
+      partialize: (s) => ({ collapsed: s.collapsed, view: s.view, propsTab: s.propsTab }),
       // Older saved views lack newer toggles: fill them from the defaults.
       merge: (persisted, current) => {
-        const p = (persisted ?? {}) as Partial<Pick<UiState, 'collapsed' | 'view'>>;
-        return { ...current, ...p, view: { ...current.view, ...p.view } };
+        const p = (persisted ?? {}) as Partial<Pick<UiState, 'collapsed' | 'view' | 'propsTab'>>;
+        return { ...current, ...p, view: { ...current.view, ...p.view }, propsTab: p.propsTab && isPropertyTab(p.propsTab) ? p.propsTab : current.propsTab };
       },
     },
   ),

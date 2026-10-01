@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { DockviewApi } from 'dockview-react';
-import { PRESET_IDS } from '../../src/shared/layout-schema';
+import { LAYOUT_VERSION, PRESET_IDS } from '../../src/shared/layout-schema';
 import { PANELS, isPanelId } from '../../src/renderer/shell/panelRegistry';
-import { PRESETS, applyPreset, togglePanel } from '../../src/renderer/shell/presets';
+import { PRESETS, applyPreset, isPanelShown, showPanel, togglePanel } from '../../src/renderer/shell/presets';
+import { PROPERTY_TABS } from '../../src/renderer/shell/propertyTabs';
 import { isRestorable } from '../../src/renderer/shell/ShellContext';
 import { useUiStore } from '../../src/renderer/app/stores/ui';
 import { numericToken } from '../../src/renderer/ui/tokens';
@@ -10,7 +11,7 @@ import { numericToken } from '../../src/renderer/ui/tokens';
 /** Minimal DockviewApi fake recording panel operations. */
 function fakeApi() {
   const panels = new Map<string, { id: string; api: { isActive: boolean; close: () => void; setActive: () => void }; group: { api: { setSize: (s: { width?: number }) => void } } }>();
-  const added: { id: string; position?: unknown; initialWidth?: number }[] = [];
+  const added: { id: string; position?: unknown; initialWidth?: number; initialHeight?: number }[] = [];
   const sized: { id: string; width?: number }[] = [];
   const api = {
     clear: vi.fn(() => panels.clear()),
@@ -53,10 +54,11 @@ describe('presets', () => {
     // Widths are set again once every panel is in, so a later panel can't squeeze an earlier one.
     expect(sized).toEqual([
       { id: 'scene', width: numericToken('size-side-panel') },
-      { id: 'inspector', width: numericToken('size-side-panel') },
+      { id: 'properties', width: numericToken('size-props') },
     ]);
     expect(raw.clear).toHaveBeenCalled();
-    expect(added.map((a) => a.id)).toEqual(['viewport', 'scene', 'inspector']);
+    expect(added.map((a) => a.id)).toEqual(['viewport', 'scene', 'properties']);
+    expect(useUiStore.getState().propsTab).toBe('inspector');
     expect(added[1]?.position).toEqual({ referencePanel: 'viewport', direction: 'left' });
     expect(added[1]?.initialWidth).toBe(numericToken('size-side-panel'));
   });
@@ -73,11 +75,50 @@ describe('presets', () => {
     togglePanel(api, 'kit-gallery');
     expect(raw.getPanel('kit-gallery')).toBeUndefined();
   });
+
+  it('tools of the Properties column open as its tabs, never as panels of their own', () => {
+    const { api, raw, added, sized } = fakeApi();
+    applyPreset(api, 'modelling');
+    for (const tab of PROPERTY_TABS) {
+      showPanel(api, tab);
+      expect(useUiStore.getState().propsTab).toBe(tab);
+      expect(isPanelShown(api, tab)).toBe(true);
+    }
+    expect(added.map((a) => a.id)).toEqual(['viewport', 'scene', 'properties']);
+    // The column widens for a tool that needs the room (the engine designer).
+    expect(sized).toContainEqual({ id: 'properties', width: numericToken('size-props-xl') });
+    // Picking the tab that's showing goes back to the Inspector; the Inspector itself stays.
+    showPanel(api, 'suspension');
+    togglePanel(api, 'suspension');
+    expect(useUiStore.getState().propsTab).toBe('inspector');
+    togglePanel(api, 'inspector');
+    expect(useUiStore.getState().propsTab).toBe('inspector');
+    expect(raw.getPanel('properties')).toBeDefined();
+  });
+
+  it('a Properties tool opens the column when the workspace has none', () => {
+    const { api, raw } = fakeApi();
+    applyPreset(api, 'jbeam');
+    expect(raw.getPanel('properties')).toBeUndefined();
+    showPanel(api, 'materials');
+    expect(raw.getPanel('properties')).toBeDefined();
+    expect(useUiStore.getState().propsTab).toBe('materials');
+  });
+
+  it('output panels open under the 3D view and share one strip', () => {
+    const { api, added } = fakeApi();
+    applyPreset(api, 'modelling');
+    togglePanel(api, 'jbeam-preview');
+    togglePanel(api, 'test-results');
+    expect(added.at(-2)?.position).toEqual({ referencePanel: 'viewport', direction: 'below' });
+    expect(added.at(-2)?.initialHeight).toBe(numericToken('size-bottom-panel'));
+    expect(added.at(-1)?.position).toEqual({ referencePanel: 'jbeam-preview', direction: 'within' });
+  });
 });
 
 describe('isRestorable', () => {
   const layout = (components: string[]) => ({
-    version: 1 as const,
+    version: LAYOUT_VERSION as typeof LAYOUT_VERSION,
     preset: 'modelling' as const,
     dockview: {
       grid: { root: {} },
@@ -106,7 +147,7 @@ describe('isRestorable', () => {
 describe('ui store', () => {
   afterEach(() => {
     vi.useRealTimers();
-    useUiStore.setState({ collapsed: {}, status: null });
+    useUiStore.setState({ collapsed: {}, status: null, propsTab: 'inspector' });
   });
 
   it('setCollapsed keeps the same reference when nothing changes (stable selectors)', () => {
@@ -120,7 +161,7 @@ describe('ui store', () => {
     useUiStore.getState().setCollapsed('sec', true);
     useUiStore.getState().pushStatus('hi');
     const stored = JSON.parse(localStorage.getItem('jbforge.ui') ?? '{}') as { state: Record<string, unknown> };
-    expect(stored.state).toEqual({ collapsed: { sec: true }, view: { mesh: true, structure: true, xray: false } }); // view toggles persist too
+    expect(stored.state).toEqual({ collapsed: { sec: true }, view: { mesh: true, structure: true, xray: false }, propsTab: 'inspector' }); // view toggles and the Properties tab persist too
   });
 
   it('status messages expire, and a newer message is not cleared by an older timer', () => {

@@ -12,7 +12,8 @@ import { runSmokeWorker } from '@renderer/diagnostics/workerRelay';
 import { registerTestHooks } from '@renderer/app/testHooks';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { emitTestSignal } from '@renderer/app/testBus';
-import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, showPanel as show, togglePanel as toggle } from './presets';
+import { useEditStore } from '@renderer/structure/editStore';
+import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, isPanelShown, showPanel as show, togglePanel as toggle } from './presets';
 import { PANELS, isPanelId, type PanelId } from './panelRegistry';
 
 const logger = rlog('shell');
@@ -86,6 +87,8 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     (next: PresetId) => {
       const api = apiRef.current;
       if (!api) return;
+      // The JBeam workspace turns node editing on by itself: it doesn't follow you out.
+      if (presetRef.current === 'jbeam' && next !== 'jbeam') useEditStore.getState().setActive(false);
       presetRef.current = next;
       setPreset(next);
       buildPreset(api, next);
@@ -158,6 +161,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       ['layout7', 'testing'],
       ['layout8', 'model'],
       ['layout9', 'engine'],
+      ['layout0', 'suspension'],
     ];
     const onKey = (e: KeyboardEvent) => {
       if (inField(e) || e.defaultPrevented) return;
@@ -209,7 +213,9 @@ export function ShellProvider({ children }: { children: ReactNode }) {
         togglePanel: (id: PanelId) => togglePanel(id),
         maximizePanel: (id: PanelId) => apiRef.current?.getPanel(id)?.api.maximize(),
         exitMaximized: () => apiRef.current?.exitMaximizedGroup(),
-        openPanels: () => apiRef.current?.panels.map((p) => p.id) ?? [],
+        /** Dock panels on screen; the Properties column counts as the tab it shows. */
+        openPanels: () => apiRef.current?.panels.map((p) => (p.id === 'properties' ? useUiStore.getState().propsTab : p.id)) ?? [],
+        panelShown: (id: PanelId) => (apiRef.current ? isPanelShown(apiRef.current, id) : false),
         preset: () => presetRef.current,
         flushLayout: () => saveNow(),
         spawnSmokeWorker: () => runSmokeWorker(),

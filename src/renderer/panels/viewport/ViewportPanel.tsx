@@ -55,6 +55,7 @@ import { cx } from '@renderer/ui/cx';
 import { useMeshMove } from '@renderer/scene/meshMove';
 import { transformMeshes } from '@renderer/scene/meshCommands';
 import splitStyles from '@renderer/split/SplitToolbar.module.css';
+import { ViewportHeader } from './ViewportHeader';
 import styles from './ViewportPanel.module.css';
 import { commitTransform, gizmoMatrix, modelKey, modelState, movedPoints, pickElement, selectedFaces, selectedPoints, useModelUi, type ModelState } from '@renderer/modelling/commands';
 import { edgesOf, livePoints } from '@shared/mesh/meshModel';
@@ -594,31 +595,34 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
   }
 
   return (
-    <div ref={hostRef} className={styles.host} data-testid="viewport" data-gl-state={glState} tabIndex={0}>
-      <canvas ref={canvasRef} className={styles.canvas} />
-      <SplitToolbar />
-      <EditToolbar />
-      <FocusPill />
-      <MovePill />
-      <ModelPill />
-      <FpsCounter runtime={runtimeRef} />
-      {toolShape && toolShape.length >= 4 && (
-        <svg className={splitStyles.shape} aria-hidden>
-          <polygon points={svgPoints(toolShape)} />
-        </svg>
-      )}
-      {glState === 'lost' && (
-        <div className={styles.pill} role="status">
-          <MonitorX size={iconSize('size-icon-sm')} aria-hidden />
-          Graphics context lost — recovering…
-        </div>
-      )}
-      {!hasMeshes && glState !== 'lost' && (
-        <button type="button" className={styles.pill} onClick={() => void startImport()} data-testid="viewport-import">
-          <FileInput size={iconSize('size-icon-sm')} aria-hidden />
-          Import a model to begin
-        </button>
-      )}
+    <div className={styles.frame}>
+      <ViewportHeader />
+      <div ref={hostRef} className={styles.host} data-testid="viewport" data-gl-state={glState} tabIndex={0}>
+        <canvas ref={canvasRef} className={styles.canvas} />
+        <SplitToolbar />
+        <EditToolbar />
+        <FocusPill />
+        <MovePill />
+        <ModelPill />
+        <FpsCounter runtime={runtimeRef} />
+        {toolShape && toolShape.length >= 4 && (
+          <svg className={splitStyles.shape} aria-hidden>
+            <polygon points={svgPoints(toolShape)} />
+          </svg>
+        )}
+        {glState === 'lost' && (
+          <div className={styles.pill} role="status">
+            <MonitorX size={iconSize('size-icon-sm')} aria-hidden />
+            Graphics context lost — recovering…
+          </div>
+        )}
+        {!hasMeshes && glState !== 'lost' && (
+          <button type="button" className={styles.pill} onClick={() => void startImport()} data-testid="viewport-import">
+            <FileInput size={iconSize('size-icon-sm')} aria-hidden />
+            Import a model to begin
+          </button>
+        )}
+      </div>
     </div>
   );
 }

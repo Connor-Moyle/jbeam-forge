@@ -45,7 +45,9 @@ export function GenerateMenu({ disabled, label }: { disabled: boolean; label: st
   const save = (patch: Partial<Pick<Settings, 'generateMode' | 'generateDetail'>>) => void call('settings:update', patch).catch(() => undefined);
   return (
     <>
-      <IconButton icon={Wand2} label={label} disabled={disabled} onClick={run} data-testid="toolbar-generate" />
+      <Button icon={Wand2} title={label} disabled={disabled} onClick={run} data-testid="toolbar-generate">
+        Generate
+      </Button>
       <Popover
         open={open}
         onOpenChange={setOpen}

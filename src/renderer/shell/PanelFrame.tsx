@@ -1,5 +1,4 @@
-import { useEffect, useState, type ComponentType, type FunctionComponent } from 'react';
-import type { IDockviewPanelProps } from 'dockview-react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { PanelErrorBoundary } from '@renderer/diagnostics/ErrorBoundary';
 import { HARNESS_CRASH_MARKER, onTestSignal } from '@renderer/app/testBus';
 import { useShell } from './ShellContext';
@@ -20,7 +19,8 @@ function CrashProbe({ panelId }: { panelId: string }) {
   return null;
 }
 
-function PanelFrame({ id }: { id: PanelId }) {
+/** A panel's content with its own error boundary, so one panel failing leaves the rest working. */
+export function PanelFrame({ id }: { id: PanelId }) {
   const { resetLayout, devMode } = useShell();
   const def = PANELS[id];
   const Content: ComponentType = def.component;
@@ -33,12 +33,3 @@ function PanelFrame({ id }: { id: PanelId }) {
     </div>
   );
 }
-
-/** Stable dockview component map: one wrapper per registered panel. */
-export const DOCK_COMPONENTS: Record<string, FunctionComponent<IDockviewPanelProps>> = Object.fromEntries(
-  (Object.keys(PANELS) as PanelId[]).map((id) => {
-    const Wrapped = () => <PanelFrame id={id} />;
-    Wrapped.displayName = `Panel(${id})`;
-    return [id, Wrapped];
-  }),
-);

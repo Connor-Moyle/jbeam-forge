@@ -1,8 +1,19 @@
-import { DockviewReact, type DockviewTheme } from 'dockview-react';
+import type { FunctionComponent } from 'react';
+import { DockviewReact, type DockviewTheme, type IDockviewPanelProps } from 'dockview-react';
 import 'dockview-react/dist/styles/dockview.css';
 import { useShell } from './ShellContext';
-import { DOCK_COMPONENTS } from './PanelFrame';
+import { PanelFrame } from './PanelFrame';
+import { PANELS, type PanelId } from './panelRegistry';
 import './DockShell.css';
+
+/** Stable dockview component map: one wrapper per registered panel. */
+const DOCK_COMPONENTS: Record<string, FunctionComponent<IDockviewPanelProps>> = Object.fromEntries(
+  (Object.keys(PANELS) as PanelId[]).map((id) => {
+    const Wrapped = () => <PanelFrame id={id} />;
+    Wrapped.displayName = `Panel(${id})`;
+    return [id, Wrapped];
+  }),
+);
 
 const FORGE_THEME: DockviewTheme = {
   name: 'forge',

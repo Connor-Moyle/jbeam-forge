@@ -110,7 +110,7 @@ export function MaterialsPanel() {
         <IconButton icon={Combine} label="Merge duplicate materials" size="sm" onClick={() => useMergeUi.getState().setOpen(true)} data-testid="material-merge" />
         <IconButton icon={Plus} label="New material" size="sm" onClick={() => void mc.createMaterial()} data-testid="material-new" />
       </div>
-      <ScrollArea className={styles.list}>
+      <ScrollArea className={cx(styles.list, !current && styles.listFull)}>
         <ul className={styles.items} role="listbox" aria-label="Materials">
           {shown.map((m) => (
             <li

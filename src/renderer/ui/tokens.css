@@ -185,6 +185,11 @@
   --size-side-panel-wide: 340px;
   --size-side-panel-xl: 440px; /* the engine designer */
   --size-viewport-pill: 32px;
+  --size-props-rail: 36px; /* the Properties column's strip of tab icons */
+  --size-bottom-panel: 240px; /* an output panel opened under the 3D view */
+  --size-props: 316px; /* the Properties column: a side panel plus its strip */
+  --size-props-wide: 376px;
+  --size-props-xl: 476px;
   --size-preset-select: 120px;
   --size-tour-card: 340px;
   --size-guide-card-wide: 600px; /* a guided lesson showing code */
