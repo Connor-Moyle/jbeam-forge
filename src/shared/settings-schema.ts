@@ -26,6 +26,10 @@ export const SettingsSchema = z.object({
   author: z.string().max(100).nullable(),
   /** Focus mode: how visible the rest of the car stays (0 = hidden, 1 = solid). */
   focusGhostOpacity: z.number().min(0).max(1),
+  /** Engine workspace: the rest of the car turns see-through around the engine. */
+  engineViewXray: z.boolean(),
+  /** Engine workspace: the camera turns slowly round the engine until you move it. */
+  engineViewOrbit: z.boolean(),
   /** Name meshes after the part they're assigned to (typed names are never touched). */
   autoRenameMeshes: z.boolean(),
   /** Drop numbered leftovers from part display names ("Hood (2)" → "Hood"). */
@@ -216,6 +220,8 @@ export const DEFAULT_SETTINGS: Settings = {
   beamngUserDir: null,
   author: null,
   focusGhostOpacity: 0.12,
+  engineViewXray: true,
+  engineViewOrbit: true,
   autoRenameMeshes: true,
   autoRenameDisplayNames: true,
   materialFolders: [],

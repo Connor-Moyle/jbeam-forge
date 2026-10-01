@@ -40,7 +40,8 @@ interface SceneState {
   /** Part picked in the tree (Inspector subject); cleared by plain mesh selection. */
   activePart: string | null;
   /** Changed to ask the viewport to frame meshes (empty keys = everything); glide animates the camera. */
-  frameRequest: { id: number; keys: readonly string[]; glide?: boolean };
+  /** Frame these meshes, or (no meshes) a box in BeamNG space. */
+  frameRequest: { id: number; keys: readonly string[]; glide?: boolean; box?: readonly [[number, number, number], [number, number, number]] };
   /** Focus mode: these meshes stay solid, everything else is ghosted. null = off. */
   focus: FocusState | null;
 
@@ -54,7 +55,7 @@ interface SceneState {
   /** Select a part: its meshes become the selection and it becomes the active part. */
   selectPart: (partId: string | null, meshKeys: readonly string[]) => void;
   setHidden: (meshKeys: readonly string[], hidden: boolean) => void;
-  requestFrame: (keys?: readonly string[], glide?: boolean) => void;
+  requestFrame: (keys?: readonly string[], glide?: boolean, box?: readonly [[number, number, number], [number, number, number]]) => void;
   setFocus: (focus: FocusState | null) => void;
 }
 
@@ -143,7 +144,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
       }
       return { selection: current.size ? [...current] : EMPTY_ARR, activePart: null };
     }),
-  requestFrame: (keys = EMPTY_ARR, glide = false) => set((st) => ({ frameRequest: { id: st.frameRequest.id + 1, keys, glide } })),
+  requestFrame: (keys = EMPTY_ARR, glide = false, box) => set((st) => ({ frameRequest: { id: st.frameRequest.id + 1, keys, glide, box } })),
   setFocus: (focus) => set({ focus }),
 }));
 

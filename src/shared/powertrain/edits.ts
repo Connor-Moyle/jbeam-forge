@@ -1,5 +1,6 @@
 import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse';
 import type { PowertrainEdits } from '../project/schema';
+import type { DesignTarget } from './design';
 
 /**
  * The engine builder and gearbox builder: every number a fitted engine or
@@ -357,4 +358,21 @@ export function cylindersOf(text: string): number | null {
   if (Number.isFinite(n) && n >= 1 && n <= 16) return n;
   if (/rotary|wankel/i.test(text)) return 2;
   return null;
+}
+
+/** What the engine designer can set on this base engine (keys it already has), and its weight. */
+export function designTarget(parts: Readonly<Record<string, JbeamObject>>, root: string): DesignTarget {
+  const tp = torquePart(parts, root);
+  const keys: DesignTarget['keys'] = {};
+  const main = tp ? parts[tp]!.mainEngine : undefined;
+  if (tp && isJbeamObject(main)) for (const name of ['maxRPM', 'revLimiterRPM', 'idleRPM', 'inertia', 'friction', 'dynamicFriction', 'engineBrakeTorque'] as const) if (typeof main[name] === 'number') keys[name] = fieldKey(tp, 'mainEngine', name);
+  let hasTurbo = false;
+  for (const [part, body] of Object.entries(parts)) {
+    const t = body.turbocharger;
+    if (!isJbeamObject(t)) continue;
+    hasTurbo = true;
+    if (typeof t.wastegateStart === 'number') keys.wastegateStart ??= fieldKey(part, 'turbocharger', 'wastegateStart');
+    if (typeof t.wastegateLimit === 'number') keys.wastegateLimit ??= fieldKey(part, 'turbocharger', 'wastegateLimit');
+  }
+  return { keys, hasTurbo, gameMassKg: setMass(parts) };
 }

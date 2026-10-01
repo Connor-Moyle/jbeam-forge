@@ -7,6 +7,8 @@ import { removeSourceFromDoc } from '@shared/project/removeSource';
 import { emptyEdits, type Project } from '@shared/project/schema';
 import { engineTags } from '@shared/export/jbeam';
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from '@shared/powertrain/drivetrain';
+import { DEFAULT_DESIGN, designName, displacementOf, editsForDesign, type DesignTarget, type EngineDesign } from '@shared/powertrain/design';
+import { designTarget, MASS_SCALE } from '@shared/powertrain/edits';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -34,7 +36,7 @@ export const usePowertrainCatalogue = create<{ sets: SuspensionSet[] | null; loa
 }));
 
 /** What the panel shows: the two cards, a picker, or a tuning page. */
-export type PowertrainPage = 'pick' | 'tune' | 'build' | 'option';
+export type PowertrainPage = 'pick' | 'tune' | 'build' | 'option' | 'design';
 
 export const usePowertrainUi = create<{ view: { kind: PowertrainKind; page: PowertrainPage } | null; show: (view: { kind: PowertrainKind; page: PowertrainPage } | null) => void }>()((set) => ({
   view: null,
@@ -77,6 +79,16 @@ function target(kind: PowertrainKind, size: { y: number }, exclude: readonly str
   const engine = doc?.powertrain.engine ? boxOf(doc.powertrain.engine.sourceId) : null;
   if (kind === 'gearbox' && engine && !engine.isEmpty()) return [(engine.min.x + engine.max.x) / 2, engine.max.y + size.y / 2 - 0.05, (engine.min.z + engine.max.z) / 2 - 0.05];
   return [x, frontAxle + 0.25 + (kind === 'gearbox' ? 0.5 : 0), z];
+}
+
+/** Where an engine goes on this car (BeamNG space), for the Engine workspace's camera; null with no car loaded. */
+export function engineSpot(): [[number, number, number], [number, number, number]] | null {
+  if (carBox([]).isEmpty()) return null;
+  const [x, y, z] = target('engine', { y: 0.5 }, []);
+  return [
+    [x - 0.35, y - 0.4, z - 0.3],
+    [x + 0.35, y + 0.4, z + 0.3],
+  ];
 }
 
 /** Fitting an engine or gearbox imports, places, assigns and records it: one undo step. */
@@ -349,5 +361,66 @@ export function setDrivetrain(patch: Partial<DrivetrainSettings>): void {
     apply: (d) => {
       d.powertrain.drivetrain = { ...(d.powertrain.drivetrain ?? DEFAULT_DRIVETRAIN), ...patch };
     },
+  });
+}
+
+/** The engine designer's draft while no engine is fitted yet (it's applied once one is). */
+export const useEngineDraft = create<{ design: EngineDesign; set: (design: EngineDesign) => void }>()((set) => ({
+  design: DEFAULT_DESIGN,
+  set: (design) => set({ design }),
+}));
+
+/** Apply a design to the fitted engine: its curve, revs, friction, weight and turbo (one undo step per control). */
+export function applyEngineDesign(design: EngineDesign, target: DesignTarget, coalesce?: string): void {
+  projectStore.getState().execute({
+    label: 'Design the engine',
+    ...(coalesce ? { coalesce } : {}),
+    apply: (d) => {
+      const f = d.powertrain.engine;
+      if (!f) return;
+      const e = editsForDesign(design, target, f.edits.fields, MASS_SCALE);
+      f.edits.fields = e.fields;
+      f.edits.torque = e.torque;
+      f.edits.design = e.design;
+    },
+  });
+}
+
+/** How alike a game engine is to a design (lower is closer): layout and cylinders first, then fuel, size and boost. */
+function baseDistance(design: EngineDesign, set: SuspensionSet): number {
+  const e = set.engine;
+  if (!e) return Infinity;
+  const want = design.layout === 'electric' ? 'Electric' : design.layout === 'rotary' ? 'Rotary' : design.layout === 'inline' ? `Inline-${design.cylinders}` : design.layout === 'flat' ? `Flat-${design.cylinders}` : `${design.layout.toUpperCase()}${design.cylinders}`;
+  let d = e.layout === want ? 0 : e.layout.replace(/\D/g, '') === String(design.cylinders) ? 3 : 6;
+  const fuel = design.layout === 'electric' ? 'electric' : design.fuel === 'diesel' ? 'diesel' : 'petrol';
+  if (e.fuel !== fuel) d += 8;
+  if (e.displacementL !== null) d += Math.abs(e.displacementL - displacementOf(design));
+  const forced = design.aspiration === 'na' || design.boost === 0 ? null : design.aspiration === 'supercharger' ? 'supercharger' : 'turbo';
+  if (forced !== e.forcedInduction) d += 1;
+  return d;
+}
+
+/** The game engine most like a design, to carry it (mounts, shape and sound). */
+export function matchingBaseEngine(design: EngineDesign, sets: readonly SuspensionSet[]): SuspensionSet | null {
+  let best: SuspensionSet | null = null;
+  let bestD = Infinity;
+  for (const s of sets) {
+    if (s.kind !== 'engine') continue;
+    const d = baseDistance(design, s);
+    if (d < bestD) {
+      bestD = d;
+      best = s;
+    }
+  }
+  return best;
+}
+
+/** Fit the closest game engine and put the design on it: one undo step. */
+export function fitDesignedEngine(design: EngineDesign, set: SuspensionSet): Promise<void> {
+  return projectStore.getState().group(`Fit a ${designName(design)}`, async () => {
+    await fitPowertrainSteps('engine', set);
+    await useSetData.getState().ensure([set.id]);
+    const data = useSetData.getState().data[set.id];
+    if (data && projectStore.getState().doc?.powertrain.engine?.setId === set.id) applyEngineDesign(design, designTarget(data.parts, data.root));
   });
 }

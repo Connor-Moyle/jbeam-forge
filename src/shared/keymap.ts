@@ -45,6 +45,7 @@ export const KEYMAP: readonly KeymapAction[] = [
   { id: 'layout6', label: 'Scripts layout', group: 'Workspaces', default: 'Ctrl+6' },
   { id: 'layout7', label: 'Testing layout', group: 'Workspaces', default: 'Ctrl+7' },
   { id: 'layout8', label: 'Modelling layout', group: 'Workspaces', default: 'Ctrl+8' },
+  { id: 'layout9', label: 'Engine layout', group: 'Workspaces', default: 'Ctrl+9' },
   { id: 'focus', label: 'Focus the selection', group: 'Viewport', default: 'F' },
   { id: 'frameAll', label: 'Frame everything', group: 'Viewport', default: 'Home' },
   { id: 'move', label: 'Move (gizmo)', group: 'Viewport', default: 'G' },

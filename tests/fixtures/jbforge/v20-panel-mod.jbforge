@@ -1,0 +1,247 @@
+{
+  "format": "jbforge",
+  "formatVersion": 20,
+  "appVersion": "0.13.2",
+  "meta": {
+    "name": "Vented Hood",
+    "slug": "vented_hood",
+    "author": "Fatkiwi",
+    "description": "Saved by 0.13.x (v19): a body panel mod. Never edit.",
+    "brand": "",
+    "type": "Car",
+    "createdAt": "2026-09-30T21:35:49.583Z",
+    "modifiedAt": "2026-09-30T21:35:49.583Z",
+    "autoReimport": true,
+    "ddsConvert": false,
+    "modKind": "panel"
+  },
+  "sources": [
+    {
+      "id": "src_e55085bd",
+      "path": "/tmp/jbforge-harness-BpkwX6/library-scan/beamng/parts/sets/fakepanel/fakecar_hood/fakepanel_fakecar_hood.dae",
+      "absolutePath": "/tmp/jbforge-harness-BpkwX6/library-scan/beamng/parts/sets/fakepanel/fakecar_hood/fakepanel_fakecar_hood.dae",
+      "format": "dae",
+      "import": {
+        "scale": 1,
+        "upAxis": "+y",
+        "forwardAxis": "+z"
+      },
+      "textureDirs": [],
+      "placement": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1
+      },
+      "addedAt": "2026-09-30T21:35:54.642Z"
+    },
+    {
+      "id": "src_00ebf512",
+      "path": "/home/user/jbeam-forge/tests/fixtures/models/uv_box.obj",
+      "absolutePath": "/home/user/jbeam-forge/tests/fixtures/models/uv_box.obj",
+      "format": "obj",
+      "import": {
+        "scale": 1,
+        "upAxis": "+y",
+        "forwardAxis": "+z"
+      },
+      "textureDirs": [],
+      "placement": {
+        "position": [
+          0,
+          0,
+          0
+        ],
+        "rotation": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1
+      },
+      "addedAt": "2026-09-30T21:35:55.123Z"
+    }
+  ],
+  "splits": [],
+  "parts": [],
+  "assignments": {},
+  "ignoredMeshes": [],
+  "meshNames": {},
+  "customTaxonomy": [],
+  "proxy": {
+    "parts": {},
+    "refNodes": null
+  },
+  "nodes": [],
+  "beams": [],
+  "tris": [],
+  "materials": [
+    {
+      "id": "mat_adf8b0f4",
+      "name": "material",
+      "origin": {
+        "sourceId": "src_e55085bd",
+        "name": "material"
+      },
+      "layers": [
+        {
+          "baseColor": [
+            0.9999999999999999,
+            0.9999999999999999,
+            0.9999999999999999,
+            1
+          ],
+          "metallic": 0,
+          "roughness": 0.7,
+          "opacity": 1,
+          "normalStrength": 1,
+          "clearCoat": 0,
+          "clearCoatRoughness": 0,
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveIntensity": 0,
+          "detailScale": [
+            1,
+            1
+          ],
+          "detailNormalStrength": 1,
+          "maps": {},
+          "uv2": [],
+          "instanceDiffuse": false,
+          "vertColor": false,
+          "glow": false,
+          "pixelSpecular": false,
+          "useAnisotropic": false,
+          "extra": {}
+        }
+      ],
+      "paint": false,
+      "translucent": false,
+      "blend": "None",
+      "translucentZWrite": false,
+      "translucentRecvShadows": true,
+      "alphaTest": false,
+      "alphaRef": 0,
+      "doubleSided": false,
+      "castShadows": true,
+      "dynamicCubemap": true,
+      "gameMaterial": "material",
+      "extra": {}
+    },
+    {
+      "id": "mat_630935af",
+      "name": "material_2",
+      "origin": {
+        "sourceId": "src_00ebf512",
+        "name": "material_2"
+      },
+      "layers": [
+        {
+          "baseColor": [
+            0.9999999999999999,
+            0.9999999999999999,
+            0.9999999999999999,
+            1
+          ],
+          "metallic": 0,
+          "roughness": 0.7,
+          "opacity": 1,
+          "normalStrength": 1,
+          "clearCoat": 0,
+          "clearCoatRoughness": 0,
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveIntensity": 0,
+          "detailScale": [
+            1,
+            1
+          ],
+          "detailNormalStrength": 1,
+          "maps": {},
+          "uv2": [],
+          "instanceDiffuse": false,
+          "vertColor": false,
+          "glow": false,
+          "pixelSpecular": false,
+          "useAnisotropic": false,
+          "extra": {}
+        }
+      ],
+      "paint": false,
+      "translucent": false,
+      "blend": "None",
+      "translucentZWrite": false,
+      "translucentRecvShadows": true,
+      "alphaTest": false,
+      "alphaRef": 0,
+      "doubleSided": false,
+      "castShadows": true,
+      "dynamicCubemap": true,
+      "gameMaterial": null,
+      "extra": {}
+    }
+  ],
+  "materialSlots": {
+    "src_e55085bd:fixture_wheel_FL": [
+      "mat_adf8b0f4"
+    ],
+    "src_00ebf512:car_body": [
+      "mat_630935af"
+    ]
+  },
+  "hinges": [],
+  "reference": null,
+  "meshEdits": {},
+  "meshCopies": [],
+  "axles": [],
+  "suspension": {},
+  "panel": {
+    "setId": "fakepanel/fakecar_hood",
+    "vehicle": "fakepanel",
+    "vehicleName": "Forge Panel Car",
+    "part": "fakecar_hood",
+    "slotType": "fakecar_hood",
+    "name": "Hood",
+    "category": "Hoods",
+    "guideSourceId": "src_e55085bd"
+  },
+  "powertrain": {
+    "engine": null,
+    "gearbox": null
+  },
+  "configs": [],
+  "variables": [],
+  "features": {
+    "plates": {
+      "front": null,
+      "rear": null
+    },
+    "hitch": null,
+    "nitrous": null,
+    "skins": []
+  },
+  "paints": {
+    "list": [],
+    "defaults": [
+      null,
+      null,
+      null
+    ]
+  },
+  "vinyls": [],
+  "faceMaterials": {},
+  "meshModels": {}
+}

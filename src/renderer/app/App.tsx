@@ -25,6 +25,7 @@ import { startExtensions, stopExtensions } from '@renderer/extensions/host';
 import { useUiStore } from './stores/ui';
 import { isDirty, projectStore, useProjectStore } from './stores/project';
 import { useSceneStore } from './stores/scene';
+import { useEngineStage } from '@renderer/powertrain/engineStage';
 import { registerTestHooks } from './testHooks';
 import { commitTransform, useModelUi } from '@renderer/modelling/commands';
 import { Matrix4 } from 'three';
@@ -191,6 +192,7 @@ function AppEffects() {
           };
         },
         viewFrom: (dir: [number, number, number], only?: string) => emitTestSignal({ type: 'view-from', dir, only }),
+        engineStage: () => ({ ...useEngineStage.getState(), focus: useSceneStore.getState().focus?.meshKeys.length ?? null }),
         /** Hide (or show again) every mesh whose name matches (visual checks). */
         hideMeshes: (pattern: string, hidden = true) => {
           const re = new RegExp(pattern, 'i');

@@ -183,6 +183,7 @@
   --size-status-message: 360px;
   --size-side-panel: 280px; /* default dock side-panel width */
   --size-side-panel-wide: 340px;
+  --size-side-panel-xl: 440px; /* the engine designer */
   --size-viewport-pill: 32px;
   --size-preset-select: 120px;
   --size-tour-card: 340px;

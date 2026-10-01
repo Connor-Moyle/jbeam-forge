@@ -1,19 +1,19 @@
-// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
-
-exports[`.jbforge io > serializes an empty project deterministically (snapshot) 1`] = `
-"{
+{
   "format": "jbforge",
-  "formatVersion": 21,
-  "appVersion": "0.1.0",
+  "formatVersion": 20,
+  "appVersion": "0.13.2",
   "meta": {
-    "name": "Test Car",
-    "slug": "test_car",
+    "name": "Forge Five",
+    "slug": "forge_five",
     "author": "Fatkiwi",
-    "description": "",
+    "description": "Saved by 0.13.x (v19): a wheel mod. Never edit.",
     "brand": "",
     "type": "Car",
-    "createdAt": "2026-01-02T03:04:05.000Z",
-    "modifiedAt": "2026-01-02T03:04:05.000Z"
+    "createdAt": "2026-09-30T21:35:43.477Z",
+    "modifiedAt": "2026-09-30T21:35:43.477Z",
+    "autoReimport": true,
+    "ddsConvert": false,
+    "modKind": "wheels"
   },
   "sources": [],
   "splits": [],
@@ -37,6 +37,18 @@ exports[`.jbforge io > serializes an empty project deterministically (snapshot) 
   "meshCopies": [],
   "axles": [],
   "suspension": {},
+  "rim": {
+    "name": "Forge Five",
+    "diameter": 17,
+    "width": 8,
+    "lugs": 5,
+    "axles": "both",
+    "offsetMm": 35,
+    "hubNodeWeight": 1.3,
+    "hubBeamSpring": 800000,
+    "hubBeamDamp": 40,
+    "value": 900
+  },
   "powertrain": {
     "engine": null,
     "gearbox": null
@@ -64,5 +76,3 @@ exports[`.jbforge io > serializes an empty project deterministically (snapshot) 
   "faceMaterials": {},
   "meshModels": {}
 }
-"
-`;

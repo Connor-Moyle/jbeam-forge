@@ -8,6 +8,7 @@ import { TriggerSchema } from '../triggers/schema';
 import { RimSpecSchema, TyreSpecSchema } from '../wheels/schema';
 import { PortedFromSchema } from '../export/ported';
 import { SkinLayoutSchema } from '../uv/skinUnwrap';
+import { EngineDesignSchema } from '../powertrain/design';
 
 /**
  * `.jbforge` project document (SPEC §2).
@@ -21,7 +22,7 @@ import { SkinLayoutSchema } from '../uv/skinUnwrap';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 20;
+export const CURRENT_PROJECT_VERSION = 21;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -330,6 +331,8 @@ export const PowertrainEditsSchema = z.object({
   gearRatios: z.array(z.number()).nullable(),
   /** Word settings (fork), e.g. a differential's type: same keys as `fields`. */
   texts: z.record(z.string(), z.string()).optional(),
+  /** The engine designer's choices (v21): the curve, revs and weight above were made from them. */
+  design: EngineDesignSchema.optional(),
 });
 
 export const emptyEdits = (): z.infer<typeof PowertrainEditsSchema> => ({ fields: {}, torque: null, gearRatios: null });
@@ -636,7 +639,12 @@ export const ProjectV20Schema = ProjectV18Schema.extend({
   meshModels: z.record(z.string(), MeshModelSchema),
 });
 
-export const ProjectSchema = ProjectV20Schema;
+/** v21: an engine designed in the Engine workspace keeps its design (powertrain edits' `design`). */
+export const ProjectV21Schema = ProjectV20Schema.extend({
+  formatVersion: z.literal(21),
+});
+
+export const ProjectSchema = ProjectV21Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;

@@ -26,7 +26,7 @@ import styles from './Builder.module.css';
 
 const kwAt = (rpm: number, nm: number) => (nm * rpm * 2 * Math.PI) / 60000;
 
-function useFitted(kind: PowertrainKind): { fitted: FittedSet | null; parts: Record<string, JbeamObject> | null; root: string } {
+export function useFitted(kind: PowertrainKind): { fitted: FittedSet | null; parts: Record<string, JbeamObject> | null; root: string } {
   const fitted = useProjectStore((s) => s.doc?.powertrain[kind] ?? null);
   const data = useSetData((s) => (fitted ? s.data[fitted.setId] : undefined));
   useEffect(() => {

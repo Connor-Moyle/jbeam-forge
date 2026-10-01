@@ -25,7 +25,7 @@ interface PresetPlacement {
   /** Omitted for the first (anchor) panel. */
   relativeTo?: PanelId;
   direction?: 'left' | 'right' | 'above' | 'below' | 'within';
-  width?: 'size-side-panel' | 'size-side-panel-wide';
+  width?: 'size-side-panel' | 'size-side-panel-wide' | 'size-side-panel-xl';
 }
 
 /** Named layouts as data. Panels owned by later phases are placeholders until then. */
@@ -70,10 +70,10 @@ export const PRESETS: Record<PresetId, readonly PresetPlacement[]> = {
     { id: 'triggers', relativeTo: 'viewport', direction: 'left', width: 'size-side-panel' },
     { id: 'trigger', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
   ],
-  // Part mods (fork): the builder beside the model.
+  // The engine (and engine mods): the car big in the middle, the engine designer on the right.
   engine: [
     { id: 'viewport' },
-    { id: 'powertrain', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-wide' },
+    { id: 'powertrain', relativeTo: 'viewport', direction: 'right', width: 'size-side-panel-xl' },
   ],
   tyres: [
     { id: 'viewport' },
@@ -118,7 +118,7 @@ export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 
     case 'panel':
       return ['panel', 'materials'];
     default:
-      return ['modelling', 'model', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing'];
+      return ['modelling', 'model', 'materials', 'jbeam', 'engine', 'moving', 'triggers', 'scripts', 'testing'];
   }
 }
 

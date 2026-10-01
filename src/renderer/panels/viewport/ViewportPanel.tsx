@@ -49,6 +49,7 @@ import { PLATE_SIZE } from '@shared/export/features';
 import { useSettingsStore, useThemeVersion } from '@renderer/app/stores/settings';
 import { isKey } from '@renderer/app/keys';
 import { exitFocus, focusMesh, focusSelection, refreshFocus } from '@renderer/parts/focus';
+import { SHOWCASE_DEGREES_PER_SECOND, useEngineStage } from '@renderer/powertrain/engineStage';
 import { Focus, Move, Rotate3d, Scaling, X } from 'lucide-react';
 import { cx } from '@renderer/ui/cx';
 import { useMeshMove } from '@renderer/scene/meshMove';
@@ -97,6 +98,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
           scene.getState().select([key], mods.ctrl ? 'toggle' : mods.shift ? 'add' : 'replace');
         },
         onDoublePick: (key) => focusMesh(key),
+        onShowcaseStop: () => useEngineStage.getState().setOrbiting(false),
         onToolSelect: (tris, op) => useSplitTool.getState().select(tris, op),
         onToolShape: setToolShape,
         onPlace: (hit) => {
@@ -281,6 +283,10 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
     };
     ghost();
     const unsubscribeSettings = useSettingsStore.subscribe(ghost);
+    // Engine workspace: the slow turn round the engine.
+    const showcase = () => rt.setShowcase(useEngineStage.getState().orbiting ? SHOWCASE_DEGREES_PER_SECOND : 0);
+    showcase();
+    const unsubscribeShowcase = useEngineStage.subscribe((st, prev) => st.orbiting !== prev.orbiting && showcase());
     const unsubscribeView = useUiStore.subscribe((s) => {
       rt.setView(s.view);
       rt.setChannel(s.channel);
@@ -439,7 +445,9 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       pushStructure();
       if (s.frameRequest !== lastFrameRequest) {
         lastFrameRequest = s.frameRequest;
-        rt.frame(s.frameRequest.keys, s.frameRequest.glide);
+        const { keys, glide, box } = s.frameRequest;
+        if (!keys.length && box) rt.frameModelBox(box[0], box[1], glide);
+        else rt.frame(keys, glide);
       }
     });
 
@@ -535,6 +543,7 @@ function ViewportCanvas({ antialias }: { antialias: boolean }) {
       unsubscribeTriggerUi();
       unsubscribeTriggerDoc();
       unsubscribeSettings();
+      unsubscribeShowcase();
       unsubscribeView();
       unsubscribeEdit();
       unsubscribeMove();

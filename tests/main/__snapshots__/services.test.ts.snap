@@ -34,6 +34,8 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "beamngUserDir": null,
   "author": null,
   "focusGhostOpacity": 0.12,
+  "engineViewXray": true,
+  "engineViewOrbit": true,
   "autoRenameMeshes": true,
   "autoRenameDisplayNames": true,
   "materialFolders": [],

@@ -12,6 +12,10 @@ import { addEngineOption, fitPowertrain, makeDefaultEngine, removeEngineOption, 
 import { useUnits } from '@renderer/settings/useUnits';
 import styles from '@renderer/workshop/Workshop.module.css';
 import { EngineBuilder, GearboxBuilder } from './Builder';
+import { EngineDesigner } from './EngineDesigner';
+import { EngineHero } from './EngineHero';
+import { enterEngineStage, leaveEngineStage } from './engineStage';
+import { useOptionalShell } from '@renderer/shell/ShellContext';
 import { DrivetrainCard } from './DrivetrainCard';
 
 const LABEL: Record<PowertrainKind, string> = { engine: 'Engine', gearbox: 'Gearbox' };
@@ -27,6 +31,15 @@ export function PowertrainPanel() {
     const off = window.forge.on('library:changed', () => void load(true));
     return off;
   }, [load]);
+  // The Engine workspace: the camera on the engine, the rest of the car see-through, a slow turn.
+  const shell = useOptionalShell();
+  const onStage = shell?.preset === 'engine';
+  const engineSource = powertrain?.engine?.sourceId;
+  useEffect(() => {
+    if (!onStage) return;
+    enterEngineStage();
+    return () => leaveEngineStage();
+  }, [onStage, engineSource]);
 
   if (view && sets && view.page === 'option') {
     return (
@@ -58,6 +71,7 @@ export function PowertrainPanel() {
       />
     );
   }
+  if (view?.page === 'design') return <EngineDesigner />;
   if (view?.page === 'build' && powertrain?.[view.kind]) return view.kind === 'engine' ? <EngineBuilder /> : <GearboxBuilder />;
   const tuned = view?.page === 'tune' ? powertrain?.[view.kind] : null;
   if (view && tuned) {
@@ -66,6 +80,7 @@ export function PowertrainPanel() {
   return (
     <div className={styles.panel} data-testid="powertrain-panel">
       <ScrollArea className={styles.scroll}>
+        <EngineHero />
         <Card kind="engine" fitted={powertrain?.engine ?? null} />
         {powertrain?.engine && <EngineOptions alternates={powertrain.alternates ?? []} />}
         <Card kind="gearbox" fitted={powertrain?.gearbox ?? null} />

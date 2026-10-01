@@ -1,0 +1,196 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-2);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.title {
+  flex: 1;
+  overflow: hidden;
+  color: var(--text-0);
+  font-size: var(--text-panel-title);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-0);
+  border-radius: var(--radius-md);
+  background: var(--bg-1);
+}
+
+.statLabel {
+  color: var(--text-2);
+  font-size: var(--text-label);
+  text-transform: uppercase;
+}
+
+.statValue {
+  overflow: hidden;
+  color: var(--text-0);
+  font-size: var(--text-panel-title);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.muted {
+  color: var(--text-2);
+  font-size: var(--text-label);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter {
+  position: relative;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+}
+
+.meterFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+}
+
+.good {
+  background: var(--success);
+}
+
+.fair {
+  background: var(--warning);
+}
+
+.poor {
+  background: var(--danger);
+}
+
+.dyno {
+  flex: none;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  background: var(--bg-0);
+}
+
+.grid {
+  stroke: var(--grid-minor);
+  stroke-width: 1;
+}
+
+.axis,
+.axisTorque,
+.axisPower {
+  fill: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.axisTorque {
+  fill: var(--accent);
+}
+
+.axisPower {
+  fill: var(--warning);
+}
+
+.reference {
+  fill: none;
+  stroke: var(--text-2);
+  stroke-dasharray: 4 3;
+  stroke-width: 1;
+}
+
+.torque {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.power {
+  fill: none;
+  stroke: var(--warning);
+  stroke-width: 2;
+}
+
+.tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.note {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+  margin-block: var(--space-2);
+}
+
+.preset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border-0);
+  border-radius: var(--radius-md);
+  background: var(--bg-1);
+  color: var(--text-0);
+  font-size: var(--text-control);
+  text-align: start;
+  cursor: pointer;
+}
+
+.preset:hover,
+.preset:focus-visible {
+  border-color: var(--accent);
+}
+
+.preset span {
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-2);
+  border-top: var(--border-width) solid var(--border-0);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

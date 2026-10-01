@@ -69,7 +69,7 @@ export function resolveToken(name: Token | NumericToken): string {
   return value;
 }
 
-export type NumericToken = 'space-1' | 'space-2' | 'size-side-panel' | 'size-side-panel-wide' | 'size-icon' | 'size-icon-sm' | 'size-icon-lg' | 'size-control' | 'delay-tooltip' | 'dur-fast' | 'dur-base' | 'dur-slow';
+export type NumericToken = 'space-1' | 'space-2' | 'size-side-panel' | 'size-side-panel-wide' | 'size-side-panel-xl' | 'size-icon' | 'size-icon-sm' | 'size-icon-lg' | 'size-control' | 'delay-tooltip' | 'dur-fast' | 'dur-base' | 'dur-slow';
 
 /**
  * A token's numeric value (px or ms) for APIs that need numbers, e.g.
@@ -90,6 +90,7 @@ const NO_STYLESHEET_FALLBACK: Record<NumericToken, number> = {
   'space-2': 8,
   'size-side-panel': 280,
   'size-side-panel-wide': 340,
+  'size-side-panel-xl': 440,
   'size-icon': 16,
   'size-icon-sm': 14,
   'size-icon-lg': 28,

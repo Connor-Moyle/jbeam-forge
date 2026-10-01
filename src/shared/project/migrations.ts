@@ -162,6 +162,12 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'meshes reshaped in the Modelling workspace',
     migrate: (doc) => ({ ...doc, formatVersion: 20, meshModels: typeof doc.meshModels === 'object' && doc.meshModels !== null && !Array.isArray(doc.meshModels) ? doc.meshModels : {} }),
   },
+  {
+    from: 20,
+    // Nothing to change: an engine's design is new and optional.
+    describe: 'engines designed in the Engine workspace',
+    migrate: (doc) => ({ ...doc, formatVersion: 21 }),
+  },
 ];
 
 export class MigrationError extends Error {

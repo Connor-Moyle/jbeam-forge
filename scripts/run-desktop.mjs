@@ -63,6 +63,8 @@ const consoleWarnings = [];
 // built with the real repository builder into the temp folder.
 const fakeGh = join(userData, 'fake-github');
 const appVersion = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+/** The project format this build saves (read from the schema, so a new format needs no harness edit). */
+const FORMAT_VERSION = Number(/CURRENT_PROJECT_VERSION = (\d+)/.exec(readFileSync(join(ROOT, 'src', 'shared', 'project', 'schema.ts'), 'utf8'))[1]);
 execFileSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lib', 'fake-content.ts'), fakeGh, appVersion], { cwd: ROOT, stdio: 'ignore' });
 const ghHits = [];
 const ghServer = createServer((req, res) => {
@@ -500,7 +502,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !existsSync(projectFile); i++) await page.waitForTimeout(100);
       assert(existsSync(projectFile), 'project written via Save As dialog');
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 20 && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
+      assert(saved.formatVersion === FORMAT_VERSION && saved.meta.slug === 'harness_test_car', `saved at the current format (v${saved.formatVersion})`);
       let state = await waitSaved(page);
       assert(state.dirty === false && state.filePath === projectFile, `clean after save (${JSON.stringify(state)})`);
       assert(!(await page.title()).includes('•'), 'title has no unsaved marker');
@@ -559,7 +561,7 @@ const scenarios = [
       for (let i = 0; i < 50 && !JSON.parse(readFileSync(projectFile, 'utf8')).sources.length; i++) await page.waitForTimeout(100);
       await waitSaved(page);
       const saved = JSON.parse(readFileSync(projectFile, 'utf8'));
-      assert(saved.formatVersion === 20 && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
+      assert(saved.formatVersion === FORMAT_VERSION && saved.sources.length === 1 && saved.sources[0].format === 'dae', 'source saved in the project');
     },
   },
   {
@@ -2666,6 +2668,19 @@ const scenarios = [
       assert(eng.some((f) => /"parts_G_[^"]*transmission/i.test(f.text)), "the engine's transmission slot points at the fitted gearbox");
       assert(/parts_E_[^"]*engine/.test(allText), 'the body carries the engine slot');
       partsReport.powertrain = { engine: eng.map((f) => f.path), gearbox: gbx.map((f) => f.path) };
+      // The designer on the fitted engine: a preset changes its curve, revs and weight, and the export carries them.
+      await page.getByTestId('engine-design').click();
+      await page.getByTestId('engine-designer').waitFor();
+      await page.getByTestId('engine-preset-s14').click();
+      await page.waitForTimeout(500);
+      const designed = (await hook(page, 'projectDoc')).powertrain.engine;
+      assert(designed.edits.design?.valvetrain === 'dohc' && designed.edits.torque?.length > 10, 'the design is on the fitted engine');
+      const limit = Object.entries(designed.edits.fields).find(([k]) => k.endsWith('/mainEngine/revLimiterRPM') || k.endsWith('/mainEngine/maxRPM'));
+      assert(limit, `the rev limit is set (${Object.keys(designed.edits.fields).join(', ')})`);
+      const designedJbeam = (await hook(page, 'preparedJbeams')).files.filter((f) => /parts_E_/.test(f.path)).map((f) => f.text).join(' ');
+      assert(designedJbeam.includes(String(limit[1])), 'the exported engine has the designed rev limit');
+      await shot(page, 'engine-designer-fitted');
+      await page.getByRole('button', { name: 'Back' }).first().click();
       writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
     },
   },
@@ -2828,6 +2843,98 @@ const scenarios = [
       const running = await hook(page, 'glStats');
       await shot(page, 'probe-testing-mesh-running');
       assert(running.liveMeshes > 0 && running.liveMeshesVisible, `and while it runs (${JSON.stringify(running)})`);
+    },
+  },
+  {
+    id: 'engine-workspace',
+    name: 'Engine workspace: the camera on the engine, the car see-through, a slow turn; the designer and fitting a design',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      // A car in the game folder with an engine, to carry a design.
+      const engineZip = join(fakeInstall, 'content', 'vehicles', 'fakeengine.zip');
+      const engineJbeam = {
+        fakeengine_body: { information: { name: 'Body' }, slotType: 'main', slots: [['type', 'default', 'description'], ['fakeengine_engine', 'fakeengine_engine_i4', 'Engine']], nodes: [['id', 'posX', 'posY', 'posZ'], ['b1', 0, 0, 0.5]] },
+        fakeengine_engine_i4: {
+          information: { name: '1.8L I4 Engine' },
+          slotType: 'fakeengine_engine',
+          powertrain: [['type', 'name', 'inputName', 'inputIndex'], ['combustionEngine', 'mainEngine', 'dummy', 0]],
+          mainEngine: { torque: [['rpm', 'torque'], [0, 80], [2000, 130], [4000, 150], [6000, 135], [7000, 110]], idleRPM: 800, maxRPM: 6500, revLimiterRPM: 6400, inertia: 0.15, friction: 12, dynamicFriction: 0.02, engineBrakeTorque: 30 },
+          flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['fixture_body', ['fakeengine_engine']]],
+          nodes: [['id', 'posX', 'posY', 'posZ'], { nodeWeight: 30 }, ['e1', 0, -1.2, 0.4], ['e2', 0.2, -1.2, 0.4], ['e3', 0, -1.5, 0.4], ['e4', 0, -1.2, 0.7]],
+          beams: [['id1:', 'id2:'], ['e1', 'e2'], ['e1', 'e3'], ['e1', 'e4'], ['e2', 'e3'], ['e2', 'e4'], ['e3', 'e4']],
+        },
+      };
+      await new Promise((resolve, reject) => {
+        const zip = new yazl.ZipFile();
+        zip.addBuffer(Buffer.from(JSON.stringify(engineJbeam)), 'vehicles/fakeengine/fakeengine.jbeam');
+        zip.addBuffer(readFileSync(join(ROOT, 'tests', 'fixtures', 'models', 'zup_nodes.dae')), 'vehicles/fakeengine/fakeengine.dae');
+        zip.addBuffer(Buffer.from(JSON.stringify({ Name: 'Engine Car', Brand: 'Forge' })), 'vehicles/fakeengine/info.json');
+        zip.end();
+        zip.outputStream.pipe(createWriteStream(engineZip)).on('close', resolve).on('error', reject);
+      });
+      await page.evaluate((dir) => window.forge.invoke('settings:update', { beamngInstallDir: dir }), fakeInstall);
+      const scan = await page.evaluate(() => window.forge.invoke('library:rescan'));
+      assert(scan.ok, `library rescanned (${JSON.stringify(scan).slice(0, 200)})`);
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await page.getByRole('tab', { name: 'Engine' }).click();
+      await page.getByTestId('engine-hero').waitFor();
+      await page.waitForTimeout(1200);
+      let stage = await hook(page, 'engineStage');
+      assert(stage.active && stage.orbiting, `the Engine tab turns the camera round the engine (${JSON.stringify(stage)})`);
+      assert(stage.focus >= 3, `the car's own engine stays solid and the rest goes see-through (${stage.focus} meshes in focus)`);
+      await shot(page, 'engine-workspace');
+      // Taking the camera stops the turn.
+      const box = await page.locator('canvas:visible').first().boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 10, { steps: 6 });
+      await page.mouse.up();
+      stage = await hook(page, 'engineStage');
+      assert(!stage.orbiting, 'dragging the view stops the slow turn');
+      // See-through off: the whole car solid again.
+      await page.getByTestId('engine-view-options').getByRole('switch').first().click();
+      await page.waitForTimeout(300);
+      assert((await hook(page, 'engineStage')).focus === null, 'see-through car switched off');
+      await page.getByTestId('engine-view-options').getByRole('switch').first().click();
+      // The designer: presets, and the numbers follow.
+      await page.getByTestId('engine-design').click();
+      await page.getByTestId('engine-designer').waitFor();
+      await page.getByTestId('engine-preset-e30-m10').click();
+      assert(/1\.8 L inline-4/.test(await page.getByTestId('engine-design-name').textContent()), 'the M10 preset');
+      await page.waitForTimeout(400);
+      await shot(page, 'engine-designer');
+      await page.getByTestId('engine-preset-hot-hatch').click();
+      assert(/2\.0 L inline-4 turbo/.test(await page.getByTestId('engine-design-name').textContent()), 'the hot-hatch preset');
+      await page.getByRole('tab', { name: 'Induction' }).click();
+      await page.waitForTimeout(300);
+      await shot(page, 'engine-designer-induction');
+      // Put it on the closest game engine (from the harness's game folder).
+      const fit = page.getByTestId('engine-design-fit');
+      await fit.waitFor({ timeout: 15_000 });
+      {
+        await fit.click();
+        for (let i = 0; i < 600 && !(await hook(page, 'projectDoc')).powertrain?.engine?.edits?.design; i++) await page.waitForTimeout(100);
+        const engine = (await hook(page, 'projectDoc')).powertrain.engine;
+        assert(engine?.edits?.design?.aspiration === 'turbo' && engine.edits.torque?.length > 10, `the design went onto ${engine?.vehicle} ${engine?.name}`);
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(1500);
+        await shot(page, 'engine-designed-fitted');
+        assert(/inline-4 turbo/.test(await page.getByTestId('engine-design-name').textContent()), 'the designer shows the fitted design');
+        // Exported, the engine part carries the design's rev limit.
+        const limit = Object.entries(engine.edits.fields).find(([k]) => k.endsWith('/mainEngine/revLimiterRPM'));
+        assert(limit, `rev limit set on the engine (${Object.keys(engine.edits.fields).join(', ')})`);
+        const files = (await hook(page, 'preparedJbeams')).files;
+        assert(files.some((f) => f.text.includes(`"revLimiterRPM": ${limit[1]}`) || f.text.includes(`"revLimiterRPM":${limit[1]}`)), `the exported engine has the designed rev limit (${files.map((f) => f.path).join(', ')})`);
+      }
+      rmSync(engineZip, { force: true });
     },
   },
   {

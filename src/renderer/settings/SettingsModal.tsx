@@ -409,6 +409,8 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Field label="Focus mode: other parts" hint="How much of the rest of the car stays visible while you work on one part. 0% hides it.">
                 <Slider value={d.focusGhostOpacity} onChange={(focusGhostOpacity) => set({ focusGhostOpacity })} min={0} max={0.6} step={0.02} format={(v) => `${Math.round(v * 100)}%`} aria-label="Focus mode ghost opacity" />
               </Field>
+              <Toggle checked={d.engineViewXray} onChange={(engineViewXray) => set({ engineViewXray })} label="Engine tab: the rest of the car turns see-through" />
+              <Toggle checked={d.engineViewOrbit} onChange={(engineViewOrbit) => set({ engineViewOrbit })} label="Engine tab: the camera turns slowly round the engine until you move it" />
             </FieldGroup>
           </section>
 

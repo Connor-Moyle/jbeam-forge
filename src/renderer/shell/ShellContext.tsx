@@ -157,6 +157,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       ['layout6', 'scripts'],
       ['layout7', 'testing'],
       ['layout8', 'model'],
+      ['layout9', 'engine'],
     ];
     const onKey = (e: KeyboardEvent) => {
       if (inField(e) || e.defaultPrevented) return;
