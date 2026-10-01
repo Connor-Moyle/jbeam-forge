@@ -692,6 +692,8 @@ const MATERIALS: Record<string, { kd: V3; d?: number; ns?: number; ks?: number }
   demo_interior: { kd: [0.16, 0.15, 0.14], ns: 15, ks: 0.05 },
   demo_seat: { kd: [0.2, 0.19, 0.18], ns: 10, ks: 0.05 },
   demo_engine: { kd: [0.32, 0.32, 0.34], ns: 80, ks: 0.3 },
+  demo_alloy: { kd: [0.62, 0.62, 0.6], ns: 150, ks: 0.5 },
+  demo_carpet: { kd: [0.14, 0.14, 0.15], ns: 8, ks: 0.03 },
   demo_brake: { kd: [0.35, 0.34, 0.33], ns: 60, ks: 0.3 },
 };
 
@@ -1368,12 +1370,97 @@ export function demoCarObj(): { obj: string; mtl: string } {
 }
 
 /**
+ * A tube along a path of points (hoses, exhaust headers, intake runners, a
+ * belt): rings carried along the path without twisting, capped at the ends
+ * unless `closed` joins the last point back to the first.
+ */
+function tube(path: readonly V3[], radius: number, sides = 10, closed = false): Face[] {
+  const n = path.length;
+  const tangent = (i: number): V3 => {
+    const a = path[closed ? (i - 1 + n) % n : Math.max(0, i - 1)]!;
+    const b = path[closed ? (i + 1) % n : Math.min(n - 1, i + 1)]!;
+    return norm(sub(b, a));
+  };
+  let t = tangent(0);
+  let u = norm(cross(t, Math.abs(t[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0]));
+  const rings: V3[][] = [];
+  for (let i = 0; i < n; i++) {
+    const ti = tangent(i);
+    // Carry the frame on: take out the part of u along the new tangent.
+    u = norm(sub(u, scale(ti, dot(u, ti))));
+    t = ti;
+    const v = cross(t, u);
+    const ring: V3[] = [];
+    for (let k = 0; k < sides; k++) {
+      const a = (k / sides) * Math.PI * 2;
+      ring.push(add(path[i]!, add(scale(u, Math.cos(a) * radius), scale(v, Math.sin(a) * radius))));
+    }
+    rings.push(ring);
+  }
+  const faces: Face[] = [];
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    const r0 = rings[i]!;
+    const r1 = rings[(i + 1) % n]!;
+    for (let k = 0; k < sides; k++) faces.push([r0[k]!, r0[(k + 1) % sides]!, r1[(k + 1) % sides]!, r1[k]!]);
+  }
+  if (!closed) faces.push([...rings[0]!].reverse(), rings[n - 1]!);
+  return faces;
+}
+
+/** Points along a smooth curve through `pts` (Catmull-Rom), for hoses and pipes. */
+function curve(pts: readonly V3[], perSpan = 6): V3[] {
+  const out: V3[] = [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const p0 = pts[Math.max(0, i - 1)]!;
+    const p1 = pts[i]!;
+    const p2 = pts[i + 1]!;
+    const p3 = pts[Math.min(pts.length - 1, i + 2)]!;
+    for (let s = 0; s < perSpan; s++) {
+      const t = s / perSpan;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      out.push([0, 1, 2].map((k) => 0.5 * (2 * p1[k]! + (-p0[k]! + p2[k]!) * t + (2 * p0[k]! - 5 * p1[k]! + 4 * p2[k]! - p3[k]!) * t2 + (-p0[k]! + 3 * p1[k]! - 3 * p2[k]! + p3[k]!) * t3)) as V3);
+    }
+  }
+  out.push(pts[pts.length - 1]!);
+  return out;
+}
+
+/** The outline round some pulleys (x, y circles in a plane at z): where the belt runs. */
+function beltPath(pulleys: readonly [number, number, number][], z: number): V3[] {
+  const pts: [number, number][] = [];
+  for (const [cx, cy, r] of pulleys) for (let k = 0; k < 32; k++) pts.push([cx + Math.cos((k / 32) * Math.PI * 2) * r, cy + Math.sin((k / 32) * Math.PI * 2) * r]);
+  pts.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const turn = (o: [number, number], a: [number, number], b: [number, number]) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const hull: [number, number][] = [];
+  for (const pass of [pts, [...pts].reverse()]) {
+    const start = hull.length;
+    for (const p of pass) {
+      while (hull.length >= start + 2 && turn(hull[hull.length - 2]!, hull[hull.length - 1]!, p) <= 0) hull.pop();
+      hull.push(p);
+    }
+    hull.pop();
+  }
+  return hull.map(([x, y]) => [x, y, z]);
+}
+
+/**
  * The engine bay and engine for the practice car built from the owner's
- * reference model (scripts/dev/buildDemoCar.mts): body-coloured inner wings
- * with strut towers, the firewall, an undertray and the radiator support,
- * and the engine (block, head, cam cover, sump, pulleys, intake, exhaust
- * manifold), radiator with its fan, and battery. Front axle at z = 1.426,
- * the bonnet's back edge at z = 0.975.
+ * reference model (scripts/dev/buildDemoCar.mts). Front axle at z = 1.426,
+ * the bonnet's back edge at z = 0.975; +X is the car's left (the driver's
+ * side), +Y up, +Z forwards.
+ *
+ * - engine_bay: body-coloured inner wings with strut towers, the firewall
+ *   with the brake servo and master cylinder, the undertray and the
+ *   radiator support.
+ * - engine: an inline four laid 30° over to the right like the E30's M10:
+ *   sump, block with its ribs, head, cam cover, distributor and plug leads,
+ *   timing cover, crank, water pump and alternator pulleys with their belt,
+ *   the fan, oil filter and bell housing.
+ * - intake: runners, plenum and throttle body, the hose and the air box.
+ * - exhaust_manifold: four headers into a collector and the down pipe.
+ * - radiator (with its tanks, fan shroud, hoses and expansion tank), battery.
+ * - trunk_trim: the boot's floor and walls, seen with the boot lid off.
  */
 export function engineBayPieces(): Piece[] {
   const b = new Builder();
@@ -1381,27 +1468,101 @@ export function engineBayPieces(): Piece[] {
   const inner = 0.545;
   // Inner wings: walls beside the engine with a strut tower over each wheel.
   for (const s of [1, -1]) {
-    b.add('engine_bay', 'demo_paint', box([s * inner, 0.56, 1.5], [0.012, 0.44, 1.02]));
+    b.add('engine_bay', 'demo_paint', box([s * inner, 0.56, 1.295], [0.012, 0.44, 0.61]));
+    b.add('engine_bay', 'demo_paint', box([s * inner, 0.535, 1.805], [0.012, 0.39, 0.41])); // lower ahead of the tower, under the bonnet's slope
     b.add('engine_bay', 'demo_paint', cylinder([s * (inner - 0.07), 0.7, AF], 0.085, 0.18, 20, 'y'));
     b.add('engine_bay', 'demo_paint', box([s * (inner - 0.035), 0.785, AF], [0.07, 0.012, 0.2]));
+    b.add('engine_bay', 'demo_chrome', cylinder([s * (inner - 0.07), 0.8, AF], 0.025, 0.03, 12, 'y'));
   }
   // Firewall, undertray, radiator support.
   b.add('engine_bay', 'demo_paint', box([0, 0.6, 0.99], [2 * inner, 0.56, 0.012]));
   b.add('engine_bay', 'demo_trim', box([0, 0.2, 1.52], [2 * inner, 0.01, 1.05]));
   b.add('engine_bay', 'demo_paint', box([0, 0.72, 2.02], [2 * inner - 0.1, 0.05, 0.05]));
   b.add('engine_bay', 'demo_paint', box([0, 0.42, 2.02], [2 * inner - 0.1, 0.05, 0.05]));
-  // The engine: a four-cylinder leaning over, with its pulleys, intake and exhaust manifold.
-  const ez = 1.45;
-  b.add('engine', 'demo_engine', [
-    ...rotate([...box([0, 0.47, ez], [0.3, 0.3, 0.58]), ...box([0, 0.67, ez], [0.26, 0.12, 0.56]), ...roundedBox([0, 0.76, ez], [0.2, 0.07, 0.5], 0.025)], [0, 0.36, ez], [0, 0, 1], -30),
-    ...box([0, 0.3, ez], [0.26, 0.12, 0.48]),
-    ...cylinder([0.02, 0.41, ez + 0.32], 0.07, 0.04, 20, 'z'),
-    ...cylinder([0.14, 0.53, ez + 0.3], 0.045, 0.06, 16, 'z'),
-    ...box([-0.26, 0.63, ez], [0.12, 0.08, 0.42]),
-    ...cylinder([-0.36, 0.71, ez + 0.12], 0.09, 0.12, 20, 'x'),
-  ]);
-  for (let k = 0; k < 4; k++) b.add('engine', 'demo_chrome', bar([0.16, 0.52, ez - 0.2 + k * 0.13], [0.24, 0.36, ez - 0.2 + k * 0.13], 0.035, 0.035, [0, 0, 1]));
-  b.add('radiator', 'demo_engine', [...box([0, 0.57, 1.97], [0.62, 0.3, 0.05]), ...cylinder([0, 0.57, 1.92], 0.13, 0.03, 20, 'z')]);
-  b.add('battery', 'demo_trim', box([-0.42, 0.6, 1.12], [0.18, 0.18, 0.26]));
+  // Brake servo and master cylinder on the driver's side of the firewall.
+  b.add('engine_bay', 'demo_trim', lathe([0.33, 0.68, 1.06], [[0, -0.06], [0.1, -0.06], [0.115, -0.03], [0.115, 0.03], [0.1, 0.06], [0, 0.06]], 28, 'z'));
+  b.add('engine_bay', 'demo_alloy', cylinder([0.33, 0.68, 1.19], 0.03, 0.14, 14, 'z'));
+  b.add('engine_bay', 'demo_engine', roundedBox([0.33, 0.745, 1.17], [0.07, 0.05, 0.09], 0.01));
+
+  // ---- the engine, built upright about its crank and laid over.
+  const YC = 0.44; // crank height
+  const zc = (k: number) => 1.44 + (k - 1.5) * 0.13; // cylinder centres
+  const pivot: V3 = [0, YC, 1.44];
+  const lay = (faces: Face[]) => rotate(faces, pivot, [0, 0, 1], 30);
+  const layPoint = (p: V3) => rotate([[p, p, p]], pivot, [0, 0, 1], 30)[0]![0]!;
+  const engine = (mat: string, faces: Face[]) => b.add('engine', mat, lay(faces));
+  engine('demo_engine', roundedBox([0.02, YC - 0.18, 1.5], [0.24, 0.1, 0.44], 0.025)); // sump
+  engine('demo_engine', box([0, YC - 0.09, 1.44], [0.3, 0.08, 0.56])); // crankcase
+  engine('demo_engine', roundedBox([0, YC + 0.06, 1.44], [0.25, 0.22, 0.56], 0.015)); // block
+  for (const s of [1, -1]) for (let k = 0; k < 5; k++) engine('demo_engine', box([s * 0.128, YC + 0.05, 1.44 + (k - 2) * 0.13], [0.012, 0.18, 0.022])); // ribs
+  engine('demo_alloy', roundedBox([0, YC + 0.215, 1.44], [0.25, 0.09, 0.56], 0.012)); // head
+  engine('demo_trim', roundedBox([0, YC + 0.3, 1.44], [0.21, 0.08, 0.53], 0.03)); // cam cover
+  for (const s of [1, -1]) engine('demo_alloy', box([s * 0.05, YC + 0.343, 1.44], [0.014, 0.012, 0.42]));
+  engine('demo_alloy', cylinder([0.05, YC + 0.35, 1.62], 0.025, 0.03, 16, 'y')); // oil filler cap
+  engine('demo_alloy', roundedBox([0, YC + 0.08, 1.735], [0.22, 0.4, 0.03], 0.015)); // timing cover
+  engine('demo_alloy', lathe([0, YC, 1.77], [[0, -0.018], [0.075, -0.018], [0.075, -0.006], [0.068, 0], [0.075, 0.006], [0.075, 0.018], [0, 0.018]], 32, 'z')); // crank pulley
+  engine('demo_alloy', lathe([0, YC + 0.17, 1.765], [[0, -0.015], [0.055, -0.015], [0.055, -0.004], [0.049, 0], [0.055, 0.004], [0.055, 0.015], [0, 0.015]], 28, 'z')); // water pump pulley
+  engine('demo_alloy', cylinder([0.17, YC - 0.03, 1.66], 0.06, 0.12, 20, 'z')); // alternator
+  for (let k = 0; k < 8; k++) engine('demo_trim', rotate(box([0.17, YC - 0.03 + 0.057, 1.66], [0.012, 0.006, 0.1]), [0.17, YC - 0.03, 1.66], [0, 0, 1], k * 45)); // its vents
+  engine('demo_alloy', cylinder([0.17, YC - 0.03, 1.766], 0.03, 0.025, 16, 'z'));
+  engine('demo_rubber', tube(beltPath([[0, YC, 0.075], [0, YC + 0.17, 0.055], [0.17, YC - 0.03, 0.03]], 1.768), 0.007, 6, true)); // belt
+  engine('demo_trim', cylinder([0, YC + 0.17, 1.8], 0.035, 0.04, 16, 'z')); // fan hub
+  for (let k = 0; k < 7; k++) {
+    const blade = rotate(box([0, YC + 0.17 + 0.095, 1.81], [0.055, 0.13, 0.005]), [0, YC + 0.265, 1.81], [0, 1, 0], 25);
+    engine('demo_trim', rotate(blade, [0, YC + 0.17, 1.81], [0, 0, 1], (k * 360) / 7));
+  }
+  engine('demo_trim', cylinder([0.03, YC + 0.2, 1.77], 0.04, 0.07, 18, 'z')); // distributor
+  engine('demo_trim', lathe([0.03, YC + 0.2, 1.82], [[0, -0.015], [0.048, -0.015], [0.04, 0.02], [0, 0.03]], 18, 'z')); // its cap
+  engine('demo_paint', cylinder([0.19, YC - 0.06, 1.32], 0.045, 0.1, 18, 'x')); // oil filter
+  engine('demo_engine', lathe([0, YC - 0.02, 1.08], [[0, -0.08], [0.12, -0.08], [0.17, 0.08], [0, 0.08]], 24, 'z')); // bell housing
+  for (let k = 0; k < 4; k++) {
+    const boot: V3 = [-0.09, YC + 0.305, zc(k)];
+    engine('demo_rubber', cylinder(boot, 0.013, 0.05, 10, 'x')); // plug boot
+    engine('demo_rubber', tube(curve([boot, [-0.06, YC + 0.36, zc(k)], [-0.02, YC + 0.36, (zc(k) + 1.8) / 2], [0.03, YC + 0.25, 1.84]]), 0.0055, 6)); // its lead
+  }
+
+  // ---- intake (on the upper side): runners into a plenum, the throttle body, the hose and the air box.
+  const intake = (mat: string, faces: Face[]) => b.add('intake', mat, faces);
+  for (let k = 0; k < 4; k++) intake('demo_alloy', lay(tube(curve([[0.12, YC + 0.215, zc(k)], [0.17, YC + 0.24, zc(k)], [0.215, YC + 0.17, zc(k)], [0.23, YC + 0.09, zc(k)]]), 0.021, 10)));
+  intake('demo_alloy', lay(lathe([0.23, YC + 0.07, 1.44], [[0, -0.26], [0.04, -0.26], [0.046, -0.24], [0.046, 0.24], [0.04, 0.26], [0, 0.26]], 18, 'z')));
+  intake('demo_alloy', lay(cylinder([0.23, YC + 0.07, 1.735], 0.035, 0.05, 18, 'z')));
+  const throttle = layPoint([0.23, YC + 0.07, 1.76]);
+  intake('demo_rubber', tube(curve([throttle, add(throttle, [0.04, 0.02, 0.04]), [0.29, 0.63, 1.8], [0.33, 0.62, 1.77]]), 0.032, 14));
+  intake('demo_trim', roundedBox([0.39, 0.6, 1.68], [0.16, 0.13, 0.26], 0.02));
+  intake('demo_trim', box([0.39, 0.67, 1.68], [0.17, 0.012, 0.27]));
+  intake('demo_alloy', box([0.47, 0.67, 1.6], [0.01, 0.025, 0.02]));
+  intake('demo_alloy', box([0.47, 0.67, 1.76], [0.01, 0.025, 0.02]));
+
+  // ---- exhaust (on the lower side): four headers into a collector, then the down pipe under the floor.
+  const collector: V3 = [-0.215, YC - 0.05, 1.33];
+  for (let k = 0; k < 4; k++) b.add('exhaust_manifold', 'demo_chrome', lay(tube(curve([[-0.12, YC + 0.215, zc(k)], [-0.18, YC + 0.2, zc(k)], [-0.22, YC + 0.1, (zc(k) + collector[2]) / 2], collector]), 0.019, 10)));
+  b.add('exhaust_manifold', 'demo_chrome', lay(cylinder(collector, 0.04, 0.08, 16, 'y')));
+  const c = layPoint([collector[0], collector[1] - 0.04, collector[2]]);
+  b.add('exhaust_manifold', 'demo_chrome', tube(curve([c, [c[0] + 0.03, c[1] - 0.06, c[2] - 0.08], [-0.12, 0.24, 1.02], [-0.09, 0.22, 0.75], [-0.08, 0.22, 0.45]]), 0.03, 12));
+
+  // ---- cooling: the radiator with its tanks and fan shroud, hoses and the expansion tank.
+  b.add('radiator', 'demo_engine', box([0, 0.57, 1.95], [0.6, 0.28, 0.05]));
+  for (const y of [0.405, 0.735]) b.add('radiator', 'demo_trim', roundedBox([0, y, 1.95], [0.64, 0.05, 0.07], 0.012));
+  const fan = layPoint([0, YC + 0.17, 1.86]);
+  b.add('radiator', 'demo_trim', lathe(fan, [[0.172, -0.05], [0.182, -0.05], [0.182, 0.02], [0.2, 0.05], [0.2, 0.06], [0.172, 0.03]], 32, 'z', true));
+  const thermostat = layPoint([0, YC + 0.25, 1.75]);
+  b.add('radiator', 'demo_rubber', tube(curve([thermostat, add(thermostat, [-0.03, 0.02, 0.06]), [-0.2, 0.72, 1.84], [-0.22, 0.735, 1.91]]), 0.02, 12));
+  const pump = layPoint([0.05, YC + 0.1, 1.75]);
+  b.add('radiator', 'demo_rubber', tube(curve([pump, add(pump, [0.06, -0.02, 0.04]), [0.2, 0.43, 1.84], [0.23, 0.405, 1.91]]), 0.02, 12));
+  b.add('radiator', 'demo_engine', roundedBox([-0.42, 0.68, 1.72], [0.09, 0.12, 0.16], 0.02));
+  b.add('radiator', 'demo_trim', cylinder([-0.42, 0.75, 1.72], 0.022, 0.025, 12, 'y'));
+  b.add('radiator', 'demo_rubber', tube(curve([[-0.42, 0.63, 1.8], [-0.38, 0.66, 1.88], [-0.28, 0.75, 1.92]]), 0.008, 8));
+
+  // ---- the battery, with its terminals.
+  b.add('battery', 'demo_trim', roundedBox([-0.42, 0.6, 1.12], [0.18, 0.18, 0.26], 0.008));
+  for (const z of [1.05, 1.19]) b.add('battery', 'demo_chrome', cylinder([-0.37, 0.7, z], 0.011, 0.025, 10, 'y'));
+
+  // ---- the boot: floor, sides and ends, inside the body behind the rear seat.
+  const tub = (c: V3, s: V3) => b.add('trunk_trim', 'demo_carpet', box(c, s));
+  tub([0, 0.42, -1.856], [1.4, 0.012, 0.38]);
+  for (const s of [1, -1]) tub([s * 0.7, 0.64, -1.856], [0.012, 0.44, 0.38]);
+  tub([0, 0.65, -1.668], [1.4, 0.46, 0.012]);
+  tub([0, 0.5, -2.045], [1.4, 0.16, 0.012]);
+  b.add('trunk_trim', 'demo_engine', roundedBox([0.52, 0.47, -1.9], [0.16, 0.09, 0.3], 0.02)); // the spare wheel's cover
   return b.done();
 }

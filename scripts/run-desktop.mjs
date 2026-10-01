@@ -2858,6 +2858,12 @@ const scenarios = [
         await page.waitForTimeout(500);
         await shot(page, `demo-car-${name}`);
       }
+      // Bonnet off on its own: do the wings meet it along a clean line?
+      assert((await hook(page, 'hideMeshes', '^hood$')) === 1, 'bonnet hidden');
+      await hook(page, 'viewFrom', [2.4, 2.8, 2.6], '^(fender_F[LR]|engine_bay|grille)$');
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-bonnet-off');
+      await hook(page, 'hideMeshes', '.', false);
       // Panels off: the bonnet (engine bay), the left doors and their glass (the cabin), the boot lid.
       assert((await hook(page, 'hideMeshes', '^(hood|door_FL|door_glass_FL|trunk|fender_FL|spoiler|bumper_F)$')) === 7, 'seven panels hidden');
       await hook(page, 'viewFrom', [3.2, 1.8, 3]);
@@ -2866,6 +2872,19 @@ const scenarios = [
       await hook(page, 'viewFrom', [4.5, 2.2, -1]);
       await page.waitForTimeout(500);
       await shot(page, 'demo-car-cabin');
+      await hook(page, 'viewFrom', [1.6, 2.6, -4]);
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-boot-open');
+      await hook(page, 'viewFrom', [1.2, 2.2, -2.6], '^(trunk_trim|taillight_[LR])$');
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-boot-close');
+      // Close-ups: the engine, and the front seats with the steering wheel.
+      await hook(page, 'viewFrom', [2.2, 2.6, 2.4], '^(engine|radiator|battery)$');
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-engine');
+      await hook(page, 'viewFrom', [3, 1.5, 0.6], '^(seat_F[LR]|steering_wheel)$');
+      await page.waitForTimeout(500);
+      await shot(page, 'demo-car-seats');
       await hook(page, 'hideMeshes', '.', false);
       // Sorted into parts by name: every removable piece becomes its own part.
       await page.getByTestId('scene-classify').click();

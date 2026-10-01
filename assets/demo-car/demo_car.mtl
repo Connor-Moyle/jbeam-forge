@@ -55,6 +55,16 @@ Kd 0.32 0.32 0.34
 Ks 0.3 0.3 0.3
 Ns 80
 
+newmtl demo_alloy
+Kd 0.62 0.62 0.6
+Ks 0.5 0.5 0.5
+Ns 150
+
+newmtl demo_carpet
+Kd 0.14 0.14 0.15
+Ks 0.03 0.03 0.03
+Ns 8
+
 newmtl demo_rubber
 Kd 0.025 0.025 0.025
 Ks 0.05 0.05 0.05

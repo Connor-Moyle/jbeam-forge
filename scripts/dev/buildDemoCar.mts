@@ -6,7 +6,7 @@
  * crease-aware subdivision so it's less blocky, and adds an engine bay and
  * engine of our own.
  *
- *   npx tsx scripts/dev/buildDemoCar.mts <reference.fbx> <its texture folder>
+ *   npx tsx scripts/dev/buildDemoCar.mts <reference.fbx> <its texture folder (the zip's src/)>
  */
 import { copyFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -52,6 +52,107 @@ const HEADLAMP_UV = (uv: V2) => inUv(uv, 0.3, 0.52, 0, 0.12);
 const INDICATOR_UV = (uv: V2) => inUv(uv, 0.16, 0.29, 0, 0.14);
 const TAILLAMP_UV = (uv: V2) => inUv(uv, 0, 0.125, 0.65, 1);
 
+// ---------------------------------------------------------------- seams: cut the paint along the panel lines first
+
+/**
+ * The reference is low-poly, so sorting whole triangles leaves ragged panel
+ * edges. Each seam is a plane (axis = value) cutting the paintwork near
+ * it; a triangle across it becomes pieces that each sort cleanly.
+ */
+interface Seam {
+  axis: 0 | 1 | 2;
+  at: number;
+  near: (p: V3) => boolean;
+}
+const SEAMS: Seam[] = [
+  ...[0.7, -0.7].map((at): Seam => ({ axis: 0, at, near: ([, y, z]) => z > COWL_Z - 0.05 && y > 0.62 })), // bonnet | wing
+  { axis: 2, at: COWL_Z, near: ([x, y]) => Math.abs(x) < 0.78 && y > 0.7 }, // bonnet's back edge
+  ...[DOOR_FRONT, DOOR_BACK].map((at): Seam => ({ axis: 2, at, near: ([x, y]) => Math.abs(x) > 0.5 && y > 0.22 && y < 1.36 })), // door shut lines
+  { axis: 2, at: DECK_Z, near: ([x, y]) => Math.abs(x) < 0.75 && y > 0.8 }, // boot lid's front edge
+  ...[0.62, -0.62].map((at): Seam => ({ axis: 0, at, near: ([, y, z]) => z < DECK_Z + 0.05 && y > 0.82 })), // boot lid | gutters
+];
+
+/** Where a seam crosses an edge; the same point whichever triangle asks, so neighbours stay joined. */
+function crossing(a: { p: V3; uv: V2 }, b: { p: V3; uv: V2 }, axis: number, at: number): { p: V3; uv: V2 } {
+  const [lo, hi] = a.p.join() < b.p.join() ? [a, b] : [b, a];
+  const t = (at - lo.p[axis]!) / (hi.p[axis]! - lo.p[axis]!);
+  const p = lo.p.map((c, k) => c + (hi.p[k]! - c) * t) as V3;
+  p[axis] = at;
+  return { p, uv: [lo.uv[0] + (hi.uv[0] - lo.uv[0]) * t, lo.uv[1] + (hi.uv[1] - lo.uv[1]) * t] };
+}
+
+function cutAlong(tris: RefTri[], seam: Seam): RefTri[] {
+  const out: RefTri[] = [];
+  for (const t of tris) {
+    const side = t.p.map((p) => Math.sign(p[seam.axis]! - seam.at));
+    if (t.mesh !== 'body' || t.mat !== 'bodycolor' || !t.p.some(seam.near) || !(side.includes(1) && side.includes(-1))) {
+      out.push(t);
+      continue;
+    }
+    // Walk the corners, adding a point where the seam crosses each edge; split into the two sides.
+    const parts: { p: V3; uv: V2 }[][] = [[], []];
+    for (let i = 0; i < 3; i++) {
+      const a = { p: t.p[i]!, uv: t.uv[i]! };
+      const b = { p: t.p[(i + 1) % 3]!, uv: t.uv[(i + 1) % 3]! };
+      const sa = side[i]!;
+      const sb = side[(i + 1) % 3]!;
+      if (sa >= 0) parts[0]!.push(a);
+      if (sa <= 0) parts[1]!.push(a);
+      if (sa * sb < 0) {
+        const x = crossing(a, b, seam.axis, seam.at);
+        parts[0]!.push(x);
+        parts[1]!.push(x);
+      }
+    }
+    for (const poly of parts) for (let i = 1; i + 1 < poly.length; i++) out.push({ ...t, p: [poly[0]!.p, poly[i]!.p, poly[i + 1]!.p], uv: [poly[0]!.uv, poly[i]!.uv, poly[i + 1]!.uv] });
+  }
+  return out;
+}
+
+/** Each triangle's connected piece (shared corners), with its size: the interior's seats are separate pieces. */
+interface Island {
+  n: number;
+  lo: V3;
+  hi: V3;
+}
+const islandOf = new Map<RefTri, Island>();
+function findIslands(tris: readonly RefTri[]): void {
+  const ids = new Map<string, number>();
+  const parent: number[] = [];
+  const root = (a: number): number => {
+    while (parent[a] !== a) a = parent[a] = parent[parent[a]!]!;
+    return a;
+  };
+  const id = (p: readonly number[]) => {
+    const k = p.map((c) => Math.round(c * 1e4)).join(',');
+    let i = ids.get(k);
+    if (i === undefined) {
+      i = parent.length;
+      parent.push(i);
+      ids.set(k, i);
+    }
+    return i;
+  };
+  const corners = tris.map((t) => t.p.map(id));
+  for (const [a, b, c] of corners) {
+    parent[root(b!)] = root(a!);
+    parent[root(c!)] = root(a!);
+  }
+  const islands = new Map<number, Island>();
+  tris.forEach((t, i) => {
+    const r = root(corners[i]![0]!);
+    let isl = islands.get(r);
+    if (!isl) islands.set(r, (isl = { n: 0, lo: [Infinity, Infinity, Infinity], hi: [-Infinity, -Infinity, -Infinity] }));
+    isl.n++;
+    for (const p of t.p)
+      for (let k = 0; k < 3; k++) {
+        isl.lo[k] = Math.min(isl.lo[k]!, p[k]!);
+        isl.hi[k] = Math.max(isl.hi[k]!, p[k]!);
+      }
+    islandOf.set(t, isl);
+  });
+}
+
 function partOf(t: RefTri): string | null {
   const [x, y, z] = cen(t);
   const n = normal(t);
@@ -70,11 +171,14 @@ function partOf(t: RefTri): string | null {
     }
     case 'steering_wheel':
       return 'steering_wheel';
-    case 'interior':
+    case 'interior': {
+      // The front seats and their headrests are pieces of their own in the model; the rest is one shell.
+      const isl = islandOf.get(t);
+      if (isl && isl.n < 300 && isl.lo[1] > 0.3 && isl.hi[2] < 0.5 && isl.lo[2] > -0.45 && (isl.lo[0] > 0.1 || isl.hi[0] < -0.1) && isl.hi[0] - isl.lo[0] > 0.2) return `seat_F${side}`;
       if (z > 0.28) return 'dashboard';
-      if (z > -0.62 && z < 0.22 && ax > 0.1 && y > 0.3 && y < 1.2) return `seat_F${side}`;
       if (z <= -0.62 && y > 0.3 && y < 1.15) return 'rear_seat';
       return 'interior';
+    }
   }
   if (t.mesh.startsWith('Caliper_')) return `brake_caliper_${t.mesh.slice(8)}`;
   // The body, by material and place.
@@ -100,9 +204,14 @@ function partOf(t: RefTri): string | null {
   // Boot lid: the deck, and the panel between the lamps.
   if (z < DECK_Z && n[1] > 0.55 && ax < 0.71 && y > 0.85 && y < 0.96) return 'trunk';
   if (z < -2.0 && n[2] < -0.6 && ax < 0.38 && y > 0.56 && y < 0.96) return 'trunk';
-  // Wings and doors: the outer sides.
+  // The rounded edge between the bonnet and the wing: the bonnet's lip inboard of the seam, the wing's shoulder outboard.
+  const paint = t.mat === 'bodycolor';
+  if (paint && z > COWL_Z && z < 1.97 && y > 0.72) return ax < 0.7 ? 'hood' : `fender_F${side}`;
+  // Wings and doors: the outer sides (all the wing's paint ahead of the door, down to the sill).
   const outer = ax > 0.6 && Math.abs(n[0]) > 0.25;
-  if (outer && z > DOOR_FRONT && z < 2.08 && y > 0.29) return `fender_F${side}`;
+  if ((outer || (paint && ax > 0.6)) && z > DOOR_FRONT && z < 2.08 && y > (paint ? 0.15 : 0.29)) return `fender_F${side}`;
+  // And the boot lid's rounded edges, inboard of the gutters.
+  if (t.mat === 'bodycolor' && z < DECK_Z && y > 0.85 && ax < 0.62 && n[1] > 0) return 'trunk';
   if (outer && z <= DOOR_FRONT && z > DOOR_BACK && y > 0.26 && y < 1.33) return `door_F${side}`;
   return 'body';
 }
@@ -217,7 +326,9 @@ function loop(m: Mesh, creaseDeg: number): Mesh {
 
 // ---------------------------------------------------------------- build
 
-const ref = await loadFbx(fbxPath);
+let ref = await loadFbx(fbxPath);
+for (const seam of SEAMS) ref = cutAlong(ref, seam);
+findIslands(ref.filter((t) => t.mesh === 'interior'));
 const parts = new Map<string, Tri[]>();
 for (const t of ref) {
   const part = partOf(t);
@@ -380,6 +491,16 @@ newmtl demo_engine
 Kd 0.32 0.32 0.34
 Ks 0.3 0.3 0.3
 Ns 80
+
+newmtl demo_alloy
+Kd 0.62 0.62 0.6
+Ks 0.5 0.5 0.5
+Ns 150
+
+newmtl demo_carpet
+Kd 0.14 0.14 0.15
+Ks 0.03 0.03 0.03
+Ns 8
 
 newmtl demo_rubber
 Kd 0.025 0.025 0.025

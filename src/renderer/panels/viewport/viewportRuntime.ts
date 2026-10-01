@@ -433,7 +433,8 @@ export class ViewportRuntime {
         else if (signal.type === 'reference-structure') this.setReference(signal.nodes, signal.beams);
         else if (signal.type === 'view-from') {
           this.camera.position.copy(this.controls.target).add(new Vector3(...signal.dir));
-          this.frame();
+          const re = signal.only ? new RegExp(signal.only, 'i') : null;
+          this.frame(re ? [...this.meshObjects.entries()].filter(([, m]) => m.visible && re.test(m.name)).map(([k]) => k) : []);
         }
       }),
     );

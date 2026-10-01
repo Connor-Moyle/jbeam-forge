@@ -190,7 +190,7 @@ function AppEffects() {
               .slice(0, 40),
           };
         },
-        viewFrom: (dir: [number, number, number]) => emitTestSignal({ type: 'view-from', dir }),
+        viewFrom: (dir: [number, number, number], only?: string) => emitTestSignal({ type: 'view-from', dir, only }),
         /** Hide (or show again) every mesh whose name matches (visual checks). */
         hideMeshes: (pattern: string, hidden = true) => {
           const re = new RegExp(pattern, 'i');

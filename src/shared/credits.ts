@@ -31,7 +31,7 @@ export const ASSET_CREDITS: Credit[] = [
     licence: 'Creative Commons Attribution 4.0 (CC BY 4.0)',
     licenceUrl: 'https://creativecommons.org/licenses/by/4.0/',
     files: ['tutorial/demo_car.obj'],
-    changes: 'Smoothed with subdivision; split into separate parts (wings, doors, bonnet, boot lid, bumpers, side skirts, spoiler, glass, lights, mirrors, wheels, tyres, calipers, seats, dashboard, steering wheel); the driver figure removed; an engine bay, engine, radiator and battery added. Its textures are included unchanged.',
+    changes: 'Smoothed with subdivision; split into separate parts (wings, doors, bonnet, boot lid, bumpers, side skirts, spoiler, glass, lights, mirrors, wheels, tyres, calipers, seats, dashboard, steering wheel); the driver figure removed; an engine bay, engine with its intake and exhaust, radiator, battery and a boot floor added. Its textures are included unchanged.',
   },
 ];
 
