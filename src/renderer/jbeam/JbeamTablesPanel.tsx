@@ -1,5 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
-import { AlertCircle, AlertTriangle, Circle, CircleDot, FlipHorizontal2, Info, Link2, Plus, Spline, Trash2, Triangle, Wrench } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Circle, CircleDot, FlipHorizontal2, GraduationCap, Info, Link2, Plus, Spline, Trash2, Triangle, Wrench } from 'lucide-react';
+import { useGuide } from '@renderer/help/guide';
+import { offerWorkspaceLesson, workspaceLesson } from '@renderer/help/lessons/workspaceLessons';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { useSettingsStore } from '@renderer/app/stores/settings';
@@ -43,6 +45,7 @@ export function JbeamTablesPanel() {
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
   const pageSize = useSettingsStore((s) => s.settings?.jbeamPageSize ?? 300);
   const [shown, setShown] = useState(pageSize);
+  useEffect(() => offerWorkspaceLesson('jbeam'), []);
 
   // The workspace edits nodes: edit mode comes on with it.
   const hasNodes = (doc?.nodes.length ?? 0) > 0;
@@ -76,6 +79,7 @@ export function JbeamTablesPanel() {
           data-testid="jbeam-part"
         />
         <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={view === 'checks' ? 'Search problems' : 'Search names'} aria-label="Search the tables" data-testid="jbeam-search" />
+        <IconButton icon={GraduationCap} label="Tutorial: the JBeam workspace, step by step" onClick={() => useGuide.getState().start(workspaceLesson('jbeam'))} data-testid="jbeam-tutorial" />
       </div>
       <Tabs<View>
         value={view}

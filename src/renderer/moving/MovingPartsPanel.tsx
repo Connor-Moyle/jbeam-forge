@@ -1,7 +1,7 @@
 import { MovePartSwitch } from './MovePartSwitch';
 import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
-import { DoorOpen, FileCode, Gauge, MoveHorizontal, WandSparkles, type LucideIcon } from 'lucide-react';
+import { DoorOpen, FileCode, Gauge, GraduationCap, MoveHorizontal, WandSparkles, type LucideIcon } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { allMeshes, useSceneStore } from '@renderer/app/stores/scene';
 import { useTaxonomy } from '@renderer/parts/taxonomy';
@@ -23,6 +23,9 @@ import { Select } from '@renderer/ui/components/Select';
 import { cx } from '@renderer/ui/cx';
 import styles from '@renderer/jbeam/Jbeam.module.css';
 import own from './Moving.module.css';
+import { IconButton } from '@renderer/ui/components/IconButton';
+import { useGuide } from '@renderer/help/guide';
+import { offerWorkspaceLesson, workspaceLesson } from '@renderer/help/lessons/workspaceLessons';
 
 /**
  * Moving parts workspace (fork): everything on the car that moves, in one
@@ -61,6 +64,7 @@ export function MovingPartsPanel() {
   const pick = useMovingUi((s) => s.pick);
 
   const meshes = useMemo(() => (doc ? withMeshNames(doc, allMeshes(sources)) : []), [doc, sources]);
+  useEffect(() => offerWorkspaceLesson('moving'), []);
   if (!doc) return null;
   if (!doc.parts.length) return <EmptyState icon={DoorOpen} message="Sort the model into parts first (Auto-classify in the Scene panel); then doors, hoods, needles and wipers can be made to move here." />;
 
@@ -97,7 +101,10 @@ export function MovingPartsPanel() {
   return (
     <ScrollArea className={styles.scroll}>
       <div className={own.panel} data-testid="moving-parts">
-        <MovePartSwitch />
+        <div className={own.head}>
+          <MovePartSwitch />
+          <IconButton icon={GraduationCap} label="Tutorial: moving parts, step by step" onClick={() => useGuide.getState().start(workspaceLesson('moving'))} data-testid="moving-tutorial" />
+        </div>
         <section>
           <header className={own.head}>
             <span className={own.title}>Opening panels</span>
@@ -159,9 +166,7 @@ export function MovingPartsPanel() {
           <header className={own.head}>
             <span className={own.title}>Scripted movement</span>
           </header>
-          <ul className={own.list}>
-            {scripts.map((s) => row({ kind: 'script', id: s.id }, FileCode, s.label, templateById(s.templateId ?? '')?.name ?? s.name, s.enabled ? undefined : { text: 'Off', tone: 'neutral' }))}
-          </ul>
+          <ul className={own.list}>{scripts.map((s) => row({ kind: 'script', id: s.id }, FileCode, s.label, templateById(s.templateId ?? '')?.name ?? s.name, s.enabled ? undefined : { text: 'Off', tone: 'neutral' }))}</ul>
           <Select
             value={undefined}
             onChange={(id) => {
@@ -169,7 +174,10 @@ export function MovingPartsPanel() {
               const sel = useScriptUi.getState().selected;
               if (sel) pick({ kind: 'script', id: sel });
             }}
-            options={movingTemplates().map((t) => ({ value: t.id, label: t.name }))}
+            options={movingTemplates().map((t) => ({
+              value: t.id,
+              label: t.name,
+            }))}
             placeholder="Add wipers, windows, mirrors…"
             aria-label="Add scripted movement"
             data-testid="moving-add-script"

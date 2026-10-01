@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Copy, Crosshair, DoorOpen, FlipHorizontal2, MousePointerClick, Plus, Trash2 } from 'lucide-react';
+import { Copy, Crosshair, DoorOpen, FlipHorizontal2, GraduationCap, MousePointerClick, Plus, Trash2 } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { TRIGGER_PRESETS } from '@shared/triggers/schema';
@@ -15,6 +15,8 @@ import { cx } from '@renderer/ui/cx';
 import { addTrigger, duplicateTrigger, handlesFromHinges, removeTrigger, triggerActions, triggersOf, updateTrigger, useTriggerUi } from './commands';
 import styles from '@renderer/jbeam/Jbeam.module.css';
 import own from './Triggers.module.css';
+import { useGuide } from '@renderer/help/guide';
+import { offerWorkspaceLesson, workspaceLesson } from '@renderer/help/lessons/workspaceLessons';
 
 /**
  * Triggers workspace, left: every clickable box on the car. Add one, click
@@ -29,6 +31,7 @@ export function TriggersPanel() {
 
   useEffect(() => {
     useTriggerUi.getState().show(true);
+    offerWorkspaceLesson('triggers');
     return () => useTriggerUi.getState().show(false);
   }, []);
 
@@ -41,10 +44,19 @@ export function TriggersPanel() {
   return (
     <div className={styles.panel} data-testid="triggers-panel">
       <div className={own.add}>
-        <Select value={kind} onChange={setKind} options={TRIGGER_PRESETS.map((p) => ({ value: p.id, label: p.label }))} aria-label="Kind of trigger" />
+        <Select
+          value={kind}
+          onChange={setKind}
+          options={TRIGGER_PRESETS.map((p) => ({
+            value: p.id,
+            label: p.label,
+          }))}
+          aria-label="Kind of trigger"
+        />
         <Button variant="primary" icon={Plus} onClick={() => addTrigger(kind)} data-testid="trigger-add">
           Add
         </Button>
+        <IconButton icon={GraduationCap} label="Tutorial: triggers, step by step" onClick={() => useGuide.getState().start(workspaceLesson('triggers'))} data-testid="triggers-tutorial" />
       </div>
       {doc.hinges.length > 0 && (
         <div className={own.add}>
@@ -55,9 +67,7 @@ export function TriggersPanel() {
       )}
       <ScrollArea className={styles.scroll}>
         {triggers.length === 0 ? (
-          <p className={own.empty}>
-            Triggers are the spots players click in the game: door handles, the hood release, a light switch or a horn button. Pick a kind, click Add, then click on the car where it goes.
-          </p>
+          <p className={own.empty}>Triggers are the spots players click in the game: door handles, the hood release, a light switch or a horn button. Pick a kind, click Add, then click on the car where it goes.</p>
         ) : (
           <ul className={own.list} data-testid="trigger-list">
             {triggers.map((t) => (
@@ -90,8 +100,7 @@ export function TriggerPanel() {
   const actions = useMemo(() => triggerActions(doc), [doc]);
   const [nameProblem, setNameProblem] = useState<string | null>(null);
 
-  if (!doc || !t)
-    return <EmptyState icon={MousePointerClick} message="Pick a trigger in the list (or add one) to place it and choose what it does." />;
+  if (!doc || !t) return <EmptyState icon={MousePointerClick} message="Pick a trigger in the list (or add one) to place it and choose what it does." />;
 
   const groups = [...new Set(actions.map((a) => a.group))];
   const known = actions.some((a) => a.value === t.action);
@@ -109,13 +118,7 @@ export function TriggerPanel() {
         </Button>
 
         <Field label="What it does" hint="Clicking it in the game runs this, the same as its key.">
-          <Select
-            value={known ? t.action : '__other__'}
-            onChange={(v) => v !== '__other__' && set({ action: v }, 'Change trigger action')}
-            options={[...groups.flatMap((g) => actions.filter((a) => a.group === g).map((a) => ({ value: a.value, label: `${g}: ${a.label}` }))), ...(known ? [] : [{ value: '__other__', label: t.action }])]}
-            aria-label="What it does"
-            data-testid="trigger-action"
-          />
+          <Select value={known ? t.action : '__other__'} onChange={(v) => v !== '__other__' && set({ action: v }, 'Change trigger action')} options={[...groups.flatMap((g) => actions.filter((a) => a.group === g).map((a) => ({ value: a.value, label: `${g}: ${a.label}` }))), ...(known ? [] : [{ value: '__other__', label: t.action }])]} aria-label="What it does" data-testid="trigger-action" />
         </Field>
         {advanced && (
           <Field label="Input action (by name)" hint="Any of the game’s input actions, for ones not in the list.">

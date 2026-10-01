@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ExplainedLine } from '@shared/lua/explain';
 import { call } from '@renderer/diagnostics/ipc';
 import { useSettingsStore } from '@renderer/app/stores/settings';
+import { useTour } from './tutorial';
 
 /**
  * Guided lessons (script templates, triggers, moving parts, the JBeam
@@ -92,7 +93,8 @@ function markSeen(id: string): void {
 export function offerGuide(offer: NonNullable<GuideOfferState['offer']>): void {
   const s = useSettingsStore.getState().settings;
   if (s && !s.offerLessons) return;
-  if (guideSeen(offer.id) || useGuide.getState().guide) return;
+  // Not over the first-run tour, nor over another lesson.
+  if (guideSeen(offer.id) || useGuide.getState().guide || useTour.getState().step !== null) return;
   useGuideOffer.getState().show(offer);
 }
 

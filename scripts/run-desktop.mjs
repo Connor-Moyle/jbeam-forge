@@ -3005,6 +3005,32 @@ const scenarios = [
       await page.getByTestId('script-tutorial').click();
       await page.getByTestId('guide-card').waitFor();
       await page.getByRole('button', { name: 'Stop the tutorial' }).click();
+      // The workspaces' tutorials: offered the first time each opens; the cap buttons replay them (on a car with parts and nodes).
+      await page.getByRole('tab', { name: 'Editing', exact: true }).click();
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      for (const [tab, testid, lesson] of [['Triggers', 'triggers-tutorial', 'workspace:triggers'], ['Moving parts', 'moving-tutorial', 'workspace:moving'], ['JBeam', 'jbeam-tutorial', 'workspace:jbeam']]) {
+        await page.getByRole('tab', { name: tab, exact: true }).click();
+        await page.getByTestId('guide-offer').waitFor({ timeout: 5000 });
+        await page.getByTestId('guide-skip').click();
+        await page.getByTestId(testid).click();
+        await page.getByTestId('guide-card').waitFor();
+        let steps = 0;
+        for (; steps < 20; steps++) {
+          if ((await page.getByTestId('guide-card').getAttribute('data-step')) === 'done') break;
+          await page.getByTestId('guide-next').click();
+          await page.waitForTimeout(100);
+        }
+        assert(steps >= 3, `${tab}: a tutorial of several steps (${steps})`);
+        await page.waitForTimeout(500);
+        await shot(page, `tutorial-${testid}`);
+        await page.getByTestId('guide-finish').click();
+        const seenNow = (await page.evaluate(async () => (await window.forge.invoke('settings:get')).value)).lessonsSeen;
+        assert(seenNow.includes(lesson), `${lesson} remembered`);
+      }
+      await page.evaluate(() => window.forge.invoke('settings:update', { offerLessons: false }));
     },
   },
   {
