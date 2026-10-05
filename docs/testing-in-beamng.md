@@ -1,6 +1,6 @@
 # Testing in BeamNG — the in-game gate (SPEC §3.3)
 
-The app's physics sandbox is not BeamNG's solver, and Claude Code can't run the game. **Any phase that changes export output is only done after you confirm an in-game spawn.** The first such phase is 5; phases 10 and 11 have gates too.
+The app's physics sandbox is not BeamNG's solver, so passing it proves nothing about the game. **Any phase that changes export output is only done after you confirm an in-game spawn.** The first such phase is 5; phases 10 and 11 have gates too.
 
 ## Locations on this machine (detected, 0.39.1)
 

@@ -21,11 +21,11 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 13 | Config Manager v2 + previews | — | done (0.11.0) |
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | done (`npm run regress`) |
 
-## Roadmap from your feedback (2026-09-27)
+## Roadmap from feedback (2026-09-27)
 
-You asked to continue past the Phase 5 in-game gate. It stays open: every export-affecting phase still needs your in-game check. Each request below is assigned to the phase that builds it:
+Work continued past the Phase 5 in-game gate. It stays open: every export-affecting phase still needs an in-game check. Each request below is assigned to the phase that builds it:
 
-| Your request | Phase |
+| Request | Phase |
 |---|---|
 | Node/beam generation still not accurate enough: revisit | 7 (editing suite); proxy tuning continues |
 | Selected part focus: all other parts transparent (a setting) | 7 (Part Focus Mode) |
@@ -68,7 +68,7 @@ Every finished phase ships as a Windows installer and a portable exe on GitHub R
 
 ## Phase log
 
-### Fork: engine and gearbox builders, multicolour paints, painting on the car (branch `claude/fork-paint-powertrain`)
+### Fork: engine and gearbox builders, multicolour paints, painting on the car
 
 Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12), so the original line stays as it was.
 
@@ -442,7 +442,7 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 
 ### Phase 5 — Export v1 + in-game gate (built; waiting for your in-game test)
 
-**Node/beam generation revised** (your feedback: the structure didn't follow the mesh). Measured against the official Sunburst jbeam with the new `proxy-bench` and the in-app official-structure overlay. A new `surface` remesher is now the default for shells, with feature-line nodes, a cross-car cage on bodies, and real symmetry tests. Across 131 official parts: empty parts 10 → 0, coverage vs official 1.21× → 0.63×, parts clearly worse than official 55 → 2. Details and the full table are in `docs/proxy-generation.md`. The `test` mod was regenerated (1,343 nodes, lint clean).
+**Node/beam generation revised** (feedback: the structure didn't follow the mesh). Measured against the official Sunburst jbeam with the new `proxy-bench` and the in-app official-structure overlay. A new `surface` remesher is now the default for shells, with feature-line nodes, a cross-car cage on bodies, and real symmetry tests. Across 131 official parts: empty parts 10 → 0, coverage vs official 1.21× → 0.63×, parts clearly worse than official 55 → 2. Details and the full table are in `docs/proxy-generation.md`. The `test` mod was regenerated (1,343 nodes, lint clean).
 
 **Ground truth:** read from the official Sunburst's jbeam, materials and DAE:
 - part sections, and the option rows on nodes, beams and triangles (`groundModel` metal/plastic/glass);
@@ -489,7 +489,7 @@ Built on a fork of the work after 0.11.0 (plates, aero and the rest of Phase 12)
 
 ### Phase 4 — Proxy generation (done)
 
-Plan recorded here: you asked me to keep going without stopping, so no approval pause. Built in three steps: **4a** proxy engine · **4b** derivation · **4c** UI.
+Plan recorded here. Built in three steps: **4a** proxy engine · **4b** derivation · **4c** UI.
 
 **Ground truth first:**
 - New `npm run study-structure -- sunburst2` measures the official Sunburst's structure (aggregates only): beam presets per part kind, node weights, beam lengths, attachment beams, breakGroups, node naming, and parts without own nodes.
@@ -740,7 +740,7 @@ Decisions recorded with you:
 
 - ~~Structure generation is very slow on small, dense meshes: the 130k-triangle uC-10 dash took 131 s and made no beams.~~ No longer reproduces (fork): `npm run gen-bench` generates a 144k-triangle dash of 2,000 separate pieces (triangle soup, as imports deliver it) with a body in 1.9 s, and a 130k-triangle slab in 1.5 s. In the app, the same model imports and generates in 2.5 s wall time. Generation now runs on a plain working copy instead of immer drafts. The bench stays, to catch a regression.
 
-- **Repo file layout (needs the user):** root `SPEC.md` and `docs/SPEC.md` both contain the Claude Code project instructions, which belong in `CLAUDE.md`. The full rebuild spec is at `%USERPROFILE%\Downloads\SPEC.md` and needs copying to `docs/SPEC.md`. Both files were left out of the Phase 1 commit until this is fixed.
+- **Repo file layout:** `SPEC.md` and `docs/SPEC.md` are local planning notes and stay out of the repository (see `.gitignore`).
 - **npm 11 allow-scripts:** `package.json` → `allowScripts` approves Electron and esbuild. A `postinstall` (`install-electron`) fetches the Electron binary on a fresh clone.
 - **Renderer bundle is ~3 MB** (three.js, Radix, dockview). That's acceptable for a desktop app. Revisit with code-splitting if startup becomes slow.
 - The `project:*` IPC channels accept any absolute `*.jbforge` path. Phase 3 should route paths through native dialogs.

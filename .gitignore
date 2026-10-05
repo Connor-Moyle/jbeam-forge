@@ -9,7 +9,7 @@ coverage/
 .claude/settings.local.json
 scratch/
 
-# Local-only instruction/spec copies (never published)
+# Local-only notes and editor settings (never published)
 SPEC.md
 docs/SPEC.md
 .claude/
