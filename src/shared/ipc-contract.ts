@@ -208,6 +208,8 @@ export interface InvokeContract {
   'ac:pickCar': { req: undefined; res: AcCarInfo | null };
   /** Complete engines and gearboxes from the BeamNG install. */
   'powertrain:catalogue': { req: undefined; res: SuspensionSet[] };
+  /** Write an engine model the engine designer built (OBJ + MTL) where the project can import it. */
+  'powertrain:writeModel': { req: { name: string; obj: string; mtl: string }; res: { path: string } };
   /** Pick a car mod zip (a car exported from Automation) and add its engines and gearboxes to the catalogue; null when cancelled. */
   'powertrain:importMod': { req: undefined; res: { file: string; sets: SuspensionSet[] } | null };
   /** Body panels of the game's cars (hoods, bumpers, doors…), for panel mods. */
@@ -390,6 +392,7 @@ export const INVOKE_CHANNELS = [
   'suspension:catalogue',
   'powertrain:catalogue',
   'powertrain:importMod',
+  'powertrain:writeModel',
   'panels:catalogue',
   'suspension:set',
   'library:status',

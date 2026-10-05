@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronLeft, RotateCcw, SlidersHorizontal, Wand2 } from 'lucide-react';
+import { Box, ChevronLeft, RotateCcw, SlidersHorizontal, Wand2 } from 'lucide-react';
 import { ASPIRATIONS, BLOCK_MATERIALS, cylinderChoices, DEFAULT_DESIGN, DESIGN_PRESETS, designEngine, designName, displacementOf, ENGINE_LAYOUTS, EXHAUSTS, FLYWHEELS, FUEL_SYSTEMS, FUELS, INTAKES, tidyDesign, VALVETRAINS, type EngineDesign } from '@shared/powertrain/design';
 import { designTarget, effectiveTorque } from '@shared/powertrain/edits';
 import { Button } from '@renderer/ui/components/Button';
@@ -13,7 +13,7 @@ import { TabPanel, Tabs } from '@renderer/ui/components/Tabs';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import { useUnits } from '@renderer/settings/useUnits';
 import { useFitted } from './Builder';
-import { applyEngineDesign, fitDesignedEngine, matchingBaseEngine, resetPowertrainEdits, useEngineDraft, usePowertrainCatalogue, usePowertrainUi } from './commands';
+import { applyEngineDesign, buildEngineModel, fitDesignedEngine, matchingBaseEngine, resetPowertrainEdits, useEngineDraft, restoreGameEngineLook, usePowertrainCatalogue, usePowertrainUi } from './commands';
 import styles from './EngineDesigner.module.css';
 
 /**
@@ -306,6 +306,17 @@ export function EngineDesigner() {
               <Button size="sm" onClick={() => usePowertrainUi.getState().show({ kind: 'engine', page: 'pick' })}>
                 Change the base engine
               </Button>
+            </div>
+            <span className={styles.note}>{fitted.ownMeshes?.length ? 'Shown and exported with its own model, built from this design.' : "Shown with the game engine's model. Build its own from this design: every cylinder, the heads, intake, exhaust, turbos and the rest."}</span>
+            <div className={styles.row}>
+              <Button size="sm" variant={fitted.ownMeshes?.length ? 'default' : 'primary'} icon={Box} onClick={() => void buildEngineModel()} data-testid="engine-model-build">
+                {fitted.ownMeshes?.length ? 'Rebuild the 3D model' : 'Build its own 3D model'}
+              </Button>
+              {!!fitted.ownMeshes?.length && (
+                <Button size="sm" onClick={restoreGameEngineLook} data-testid="engine-model-game">
+                  Use the game engine's look
+                </Button>
+              )}
             </div>
           </>
         ) : base ? (

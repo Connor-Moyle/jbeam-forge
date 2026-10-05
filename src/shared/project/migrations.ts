@@ -168,6 +168,12 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'engines designed in the Engine workspace',
     migrate: (doc) => ({ ...doc, formatVersion: 21 }),
   },
+  {
+    from: 21,
+    // Nothing to change: an engine's own model is new and optional.
+    describe: "engines with their own model from the engine designer",
+    migrate: (doc) => ({ ...doc, formatVersion: 22 }),
+  },
 ];
 
 export class MigrationError extends Error {

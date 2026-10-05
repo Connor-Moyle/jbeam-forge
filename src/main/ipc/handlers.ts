@@ -487,6 +487,20 @@ export function registerIpcHandlers(services: HandlerServices): void {
   registerInvoke('objects:list', async () => [...(await packs.objects()), ...services.userLibrary.items.objects]);
   registerInvoke('suspension:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'suspension'));
   registerInvoke('powertrain:catalogue', () => services.userLibrary.items.sets.filter((s) => s.kind === 'engine' || s.kind === 'gearbox'));
+  registerInvoke(
+    'powertrain:writeModel',
+    async ({ name, obj, mtl }) => {
+      // Beside the painted textures in the app's own folder; one file per build, so an open project's model is never overwritten under it.
+      const dir = join(dirname(services.paintedTextures), 'engine-models');
+      await mkdir(dir, { recursive: true });
+      const path = join(dir, `${name}.obj`);
+      await writeFile(join(dir, `${name}.mtl`), mtl);
+      await writeFile(path, obj.replace(/^mtllib .*$/m, `mtllib ${name}.mtl`));
+      projects.grantFile(path);
+      return { path };
+    },
+    z.object({ name: z.string().regex(/^[a-z0-9_-]{1,80}$/), obj: z.string().max(64 * 1024 * 1024), mtl: z.string().max(1024 * 1024) }),
+  );
   registerInvoke('powertrain:importMod', async (_req, event) => {
     const settings = services.settings.get();
     const mods = settings.beamngUserDir ? join(settings.beamngUserDir, 'mods') : undefined;

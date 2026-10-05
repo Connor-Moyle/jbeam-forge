@@ -9,6 +9,7 @@ import { engineTags } from '@shared/export/jbeam';
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from '@shared/powertrain/drivetrain';
 import { DEFAULT_DESIGN, designName, displacementOf, editsForDesign, type DesignTarget, type EngineDesign } from '@shared/powertrain/design';
 import { designTarget, MASS_SCALE } from '@shared/powertrain/edits';
+import { engineModel, engineModelObj } from '@shared/powertrain/engineModel';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { useUiStore } from '@renderer/app/stores/ui';
@@ -455,4 +456,67 @@ export async function importAutomationEngine(): Promise<void> {
   }
   usePowertrainUi.getState().show({ kind: 'engine', page: 'pick' });
   ui.pushStatus(`${engines.length} engines from ${file} are in the list under ${engines[0]!.brand}.`, 'success', 9000);
+}
+
+/**
+ * The engine designer's own model for the fitted engine: built from its design, set where the game
+ * engine sits, and shown and exported in its place (the game engine's nodes, beams and sound stay
+ * underneath). Building again replaces the last one. One undo step.
+ */
+export function buildEngineModel(): Promise<void> {
+  return projectStore.getState().group('Build the engine model', async () => {
+    const fitted = projectStore.getState().doc?.powertrain.engine;
+    if (!fitted) return;
+    const { obj, mtl } = engineModelObj(engineModel(fitted.edits.design ?? DEFAULT_DESIGN), 'model.mtl');
+    const { path } = await call('powertrain:writeModel', { name: `engine_${Date.now().toString(36)}`, obj, mtl });
+    const staged = await stageImport(path, 'obj');
+    const sourceId = await confirmImport(staged, defaultSettings('obj'), { classify: false });
+    if (!sourceId) return;
+    // Where the game engine is: centred on it, the bottoms level.
+    const game = boxOf(fitted.sourceId);
+    const mine = boxOf(sourceId);
+    const src = projectStore.getState().doc?.sources.find((s) => s.id === sourceId);
+    if (src && !game.isEmpty() && !mine.isEmpty()) {
+      const g = game.getCenter(game.min.clone());
+      const m = mine.getCenter(mine.min.clone());
+      const p = src.placement.position;
+      setPlacement(sourceId, { ...src.placement, position: [p[0] + g.x - m.x, p[1] + g.y - m.y, p[2] + game.min.z - mine.min.z] });
+    }
+    const scene = useSceneStore.getState();
+    const keys = (scene.sources[sourceId]?.meshes ?? []).map((m) => m.key);
+    const gameKeys = (scene.sources[fitted.sourceId]?.meshes ?? []).map((m) => m.key);
+    projectStore.getState().execute({
+      label: 'Build the engine model',
+      apply: (d) => {
+        const e = d.powertrain.engine;
+        if (!e) return;
+        const partId = gameKeys.map((k) => d.assignments[k]).find(Boolean);
+        const previous = e.ownMeshes?.[0]?.slice(0, e.ownMeshes[0].indexOf(':'));
+        if (previous && previous !== sourceId) removeSourceFromDoc(d, previous);
+        if (partId) for (const k of keys) d.assignments[k] = partId;
+        // The game engine's meshes are set aside: the new model is the one shown and exported.
+        for (const k of gameKeys) if (!d.ignoredMeshes.includes(k)) d.ignoredMeshes.push(k);
+        d.powertrain.engine!.ownMeshes = keys;
+      },
+    });
+    useSceneStore.getState().setHidden(gameKeys, true);
+    useUiStore.getState().pushStatus(`Built the engine's own model: ${keys.length} meshes, every one made from your design.`, 'success');
+  });
+}
+
+/** Back to the game engine's own look: the built model goes and the game engine's meshes come back. */
+export function restoreGameEngineLook(): void {
+  const fitted = projectStore.getState().doc?.powertrain.engine;
+  if (!fitted?.ownMeshes?.length) return;
+  const gameKeys = (useSceneStore.getState().sources[fitted.sourceId]?.meshes ?? []).map((m) => m.key);
+  const own = fitted.ownMeshes[0]!.slice(0, fitted.ownMeshes[0]!.indexOf(':'));
+  projectStore.getState().execute({
+    label: "Use the game engine's look",
+    apply: (d) => {
+      removeSourceFromDoc(d, own);
+      d.ignoredMeshes = d.ignoredMeshes.filter((k) => !gameKeys.includes(k));
+      if (d.powertrain.engine) delete d.powertrain.engine.ownMeshes;
+    },
+  });
+  useSceneStore.getState().setHidden(gameKeys, false);
 }

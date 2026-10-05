@@ -443,6 +443,23 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       extraSlots.push([engineSlot, [engineSlot], [], t.rootPart, 'Engine']);
       engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
       engineParts = t.parts;
+      // The engine designer's own model rides on the engine's nodes, on the groups the game engine's meshes used.
+      const own = (pt.engine.ownMeshes ?? []).filter((k) => opts.meshNames.has(k) && !fullDoc.ignoredMeshes.includes(k)).map((k) => opts.meshNames.get(k)!);
+      if (own.length) {
+        const setParts = data(pt.engine.setId)?.parts ?? {};
+        const made = setGroups(setParts);
+        const used = new Set<string>();
+        for (const p of Object.values(setParts)) {
+          if (!Array.isArray(p.flexbodies)) continue;
+          for (const row of p.flexbodies.slice(1)) if (Array.isArray(row) && Array.isArray(row[1])) for (const g of row[1]) if (typeof g === 'string' && made.has(g)) used.add(g);
+        }
+        const groups = used.size ? [...used] : [...made];
+        const root = t.parts[t.rootPart]!;
+        const rows = Array.isArray(root.flexbodies) ? root.flexbodies : [['mesh', '[group]:', 'nonFlexMaterials']];
+        root.flexbodies = [...rows, ...own.map((m) => [m, groups])];
+        const file = files.find((f) => f.part === t.rootPart);
+        if (file) file.text = serializeJbeam({ [t.rootPart]: root });
+      }
       // The other engines fill the same slot: the player (or a configuration) picks one.
       for (const alt of pt.alternates ?? []) {
         const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices, undefined, rewritesFor(alt.setId).slots.length ? gearboxNodes : undefined);

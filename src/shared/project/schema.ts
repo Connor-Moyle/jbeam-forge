@@ -22,7 +22,7 @@ import { EngineDesignSchema } from '../powertrain/design';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 21;
+export const CURRENT_PROJECT_VERSION = 22;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -388,6 +388,11 @@ export const FittedSetSchema = z.object({
   choices: SetChoicesSchema.optional(),
   /** An engine's tag in exported part names (fork): E, E2, E3…, kept when engines are reordered so configurations stay valid. */
   tag: z.string().regex(/^E\d*$/).optional(),
+  /**
+   * An engine's own model (v22): the meshes the engine designer built for it. They ride on the game
+   * engine's nodes in place of its meshes, which are set aside.
+   */
+  ownMeshes: z.array(z.string()).optional(),
 });
 
 export const PowertrainSchema = z.object({
@@ -644,7 +649,12 @@ export const ProjectV21Schema = ProjectV20Schema.extend({
   formatVersion: z.literal(21),
 });
 
-export const ProjectSchema = ProjectV21Schema;
+/** v22: an engine can carry its own model from the engine designer (fitted set's `ownMeshes`). */
+export const ProjectV22Schema = ProjectV21Schema.extend({
+  formatVersion: z.literal(22),
+});
+
+export const ProjectSchema = ProjectV22Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
