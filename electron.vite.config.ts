@@ -6,6 +6,7 @@ import pkg from './package.json';
 const alias = {
   '@shared': resolve(__dirname, 'src/shared'),
   '@renderer': resolve(__dirname, 'src/renderer'),
+  '@ingame': resolve(__dirname, 'src/ingame'),
   '@workers': resolve(__dirname, 'src/workers'),
 };
 

@@ -1,0 +1,10 @@
+{
+  "devicetype":"keyboard",
+  "version":1,
+  "bindings":[
+    {
+      "action":"jbeamForgeToggle",
+      "control":"f10"
+    }
+  ]
+}

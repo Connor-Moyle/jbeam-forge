@@ -314,7 +314,7 @@ export function EngineDesigner() {
               </Button>
               {!!fitted.ownMeshes?.length && (
                 <Button size="sm" onClick={restoreGameEngineLook} data-testid="engine-model-game">
-                  Use the game engine's look
+                  Use the game engine’s look
                 </Button>
               )}
             </div>

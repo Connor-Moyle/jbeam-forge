@@ -35,7 +35,8 @@
     "build-content-repos": "tsx --tsconfig tsconfig.node.json scripts/build-content-repos.ts",
     "gen-bench": "tsx --tsconfig tsconfig.node.json scripts/gen-bench.ts",
     "build-material-pack": "tsx --tsconfig tsconfig.node.json scripts/build-material-pack.ts",
-    "build-object-pack": "tsx --tsconfig tsconfig.node.json scripts/build-object-pack.ts"
+    "build-object-pack": "tsx --tsconfig tsconfig.node.json scripts/build-object-pack.ts",
+    "build:ingame": "node scripts/build-ingame.mjs"
   },
   "engines": {
     "node": ">=22"

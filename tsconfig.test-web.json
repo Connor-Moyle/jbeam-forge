@@ -15,6 +15,7 @@
     "tests/renderer/**/*",
     "tests/workers/**/*",
     "tests/setup-dom.ts",
-    "scripts/web/**/*"
+    "scripts/web/**/*",
+    "src/ingame/**/*"
   ]
 }

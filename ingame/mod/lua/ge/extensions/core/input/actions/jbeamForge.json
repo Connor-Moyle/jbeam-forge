@@ -1,0 +1,3 @@
+{
+"jbeamForgeToggle": {"cat":"gameplay", "order": 1, "ctx": "tlua", "onDown" :"extensions.load('jbeamForge') extensions.jbeamForge.toggle()", "actionMap": "MenuIndependent", "title": "JBeam Forge", "desc": "Open or close JBeam Forge over the game" }
+}

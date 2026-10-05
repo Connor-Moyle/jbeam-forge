@@ -1,4 +1,4 @@
-import { CircleHelp, CloudDownload, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Square, Undo2 } from 'lucide-react';
+import { Car, CircleHelp, CloudDownload, LogOut, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Square, Undo2 } from 'lucide-react';
 import { keyFor } from '@renderer/app/keys';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -15,6 +15,8 @@ import type { LucideIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS, workspacesFor } from './presets';
+import { backToDriving, isInGame, testInGame, toggleShowOnCar } from '@ingame/currentCar';
+import { useState } from 'react';
 import styles from './Toolbar.module.css';
 
 /**
@@ -49,6 +51,8 @@ export function Toolbar() {
   const generating = useStructureUi((s) => s.busy);
   // Tyre, wheel, panel and engine mods export from their builder's settings, with or without parts.
   const canExport = hasParts || (!!modKind && modKind !== 'vehicle');
+  const ingame = isInGame();
+  const [onCar, setOnCar] = useState(false);
 
   return (
     <>
@@ -97,6 +101,16 @@ export function Toolbar() {
           <Button icon={ListTree} title="Configurations manager: the versions of the car players pick from" onClick={() => useDialogStore.getState().setConfigsOpen(true)} disabled={!hasParts} data-testid="open-configs">
             Configurations
           </Button>
+          {ingame && (
+            <Button icon={Car} title="Show the structure on the car you're driving, in the game" aria-pressed={onCar} onClick={() => void toggleShowOnCar().then(setOnCar)} disabled={!hasStructure} data-testid="toolbar-show-on-car">
+              On the car
+            </Button>
+          )}
+          {ingame && (
+            <Button icon={Play} title="Install it as it is now and drive it, in the game's own physics" onClick={() => void testInGame()} disabled={!canExport} data-testid="toolbar-test-in-game">
+              Drive it
+            </Button>
+          )}
           <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!canExport} data-testid="toolbar-export">
             Export
           </Button>
@@ -105,6 +119,7 @@ export function Toolbar() {
           <span className={styles.divider} aria-hidden />
           <Tool word="Downloads" icon={CloudDownload} label="Downloads: updates, textures and meshes" shortcut={keyFor('downloads')} onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="open-downloads" />
           <Tool word="Help" icon={CircleHelp} label="Help, guides and the tutorial" shortcut={keyFor('help')} onClick={() => useDialogStore.getState().setHelpOpen(true)} data-testid="open-help" />
+          {ingame && <Tool word="Drive" icon={LogOut} label="Back to driving" shortcut="F10" onClick={backToDriving} data-testid="toolbar-back-to-driving" />}
           <Tool word="Settings" icon={Settings} label="Settings" shortcut={keyFor('settings')} onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
         </div>
       </header>

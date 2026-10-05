@@ -15,6 +15,7 @@ import { EmptyState } from '@renderer/ui/components/EmptyState';
 import { IconButton } from '@renderer/ui/components/IconButton';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { iconSize } from '@renderer/ui/tokens';
+import { isInGame, openCurrentCar } from '@ingame/currentCar';
 import styles from './HomeScreen.module.css';
 
 let triedLastProject = false;
@@ -72,6 +73,13 @@ export function HomeScreen() {
               <span className={styles.cardTitle}>Open existing</span>
               <span className={styles.cardText}>Continue a .jbforge project.</span>
             </button>
+            {isInGame() && (
+              <button type="button" className={styles.card} onClick={() => void openCurrentCar()} data-testid="home-current-car">
+                <Car className={styles.cardIcon} size={iconSize('size-icon-lg')} aria-hidden />
+                <span className={styles.cardTitle}>The car I’m driving</span>
+                <span className={styles.cardText}>Open it with its configuration: every part, node and beam as the game has it.</span>
+              </button>
+            )}
             <button type="button" className={styles.card} onClick={() => void startTutorial()} data-testid="home-tour">
               <Compass className={styles.cardIcon} size={iconSize('size-icon-lg')} aria-hidden />
               <span className={styles.cardTitle}>Learn</span>

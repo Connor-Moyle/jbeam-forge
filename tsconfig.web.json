@@ -17,6 +17,7 @@
   "include": [
     "src/renderer/**/*",
     "src/workers/**/*",
-    "src/shared/**/*"
+    "src/shared/**/*",
+    "src/ingame/**/*"
   ]
 }

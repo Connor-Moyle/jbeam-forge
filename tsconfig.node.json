@@ -19,7 +19,8 @@
     "tests/main/**/*",
     "tests/shared/**/*",
     "tests/scripts/**/*",
-    "scripts/**/*.ts"
+    "scripts/**/*.ts",
+    "vite.ingame.config.ts"
   ],
   "exclude": [
     "scripts/web/**"

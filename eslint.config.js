@@ -54,7 +54,7 @@ export default tseslint.config(
   },
 
   {
-    files: ['scripts/**/*.mjs', 'eslint-rules/**/*.js', 'eslint.config.js'],
+    files: ['scripts/**/*.mjs', 'scripts/**/*.cjs', 'ingame/**/*.js', 'eslint-rules/**/*.js', 'eslint.config.js'],
     // run-desktop evaluates browser code inside page.evaluate callbacks.
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
