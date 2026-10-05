@@ -342,6 +342,16 @@ describe('validateExport', () => {
     expect(codes).toContain('refnodes-missing');
   });
 
+  it("binds a node-less variant's mesh to its parent, not to the slot its sibling's nodes make", () => {
+    const { doc } = carProject();
+    doc.nodes = doc.nodes.filter((n) => n.partId !== 'p_bumper_race');
+    const race = doc.parts.find((p) => p.id === 'p_bumper_race')!;
+    const bumper = doc.parts.find((p) => p.id === 'p_bumper')!;
+    // The stock bumper has nodes in the same slot; the race one is never installed with it.
+    expect(flexGroupOf(doc, race)).not.toBe(flexGroupOf(doc, bumper));
+    expect(flexGroupOf(doc, race)).toBe(flexGroupOf(doc, doc.parts.find((p) => p.id === 'p_body')!));
+  });
+
   it("stops a node named like the game's wheel hubs when a game suspension brings them", () => {
     const { doc, meshes } = carProject();
     const node = doc.nodes.find((n) => n.partId === 'p_hood')!;

@@ -165,7 +165,9 @@ export function flexGroupOf(doc: Doc, part: Part): string | null {
   }
   for (let cur: Part | undefined = part, guard = 0; cur && guard < 64; cur = cur.parentPartId ? byId.get(cur.parentPartId) : undefined, guard++) {
     const slot = slotTypeOf(doc.parts, cur);
-    if (slotsWithNodes.has(slot)) return slot;
+    // The part's own slot counts only when it has nodes itself: another option for the same slot (a variant) is
+    // never installed with it, so the group its nodes make wouldn't be there.
+    if (cur === part ? doc.nodes.some((n) => n.partId === part.id) : slotsWithNodes.has(slot)) return slot;
   }
   return null;
 }

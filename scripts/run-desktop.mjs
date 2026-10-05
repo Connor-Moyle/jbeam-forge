@@ -2854,6 +2854,58 @@ const scenarios = [
     },
   },
   {
+    id: 'importer-real',
+    name: "the BeamNG vehicle importer on a car from the install (the Pigeon): imported, exported, and read back the way the game does (--beamng-install)",
+    skip: () => !realInstall || !existsSync(join(realInstall, 'content', 'vehicles', 'pigeon.zip')),
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.evaluate((dir) => window.forge.invoke('settings:update', { beamngInstallDir: dir }), realInstall);
+      await page.getByTestId('home-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByRole('button', { name: 'Extensions' }).first().click();
+      const ext = page.getByTestId('extension-example-beamng-importer');
+      if ((await ext.count()) && (await ext.isEnabled())) await ext.click(); // already added by an earlier scenario
+      await page.getByTestId('extension-list').getByText(/Running: 1 command/).first().waitFor({ timeout: 15_000 });
+      await page.keyboard.press('Escape');
+      await hook(page, 'queueDialog', [join(realInstall, 'content', 'vehicles', 'pigeon.zip')]);
+      await page.getByTestId('home-ext-beamng-importer-import-vehicle').click();
+      await page.getByTestId('confirm-yes').waitFor({ timeout: 120_000 });
+      await page.getByTestId('confirm-yes').click();
+      let doc = null;
+      for (let i = 0; i < 1800; i++) {
+        doc = await hook(page, 'projectDoc').catch(() => null);
+        if (doc?.nodes.length) break;
+        await page.waitForTimeout(100);
+      }
+      assert(doc?.nodes.length > 50 && doc.beams.length > 100, `the Pigeon imported with its structure (${doc?.nodes.length} nodes, ${doc?.beams.length} beams)`);
+      await page.waitForTimeout(2000);
+      await shot(page, 'importer-real-pigeon');
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-dialog').waitFor();
+      await shot(page, 'importer-real-export');
+      await page.getByTestId('export-install').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 180_000 });
+      const unpacked = join(fakeUserDir, 'mods', 'unpacked');
+      const mod = readdirSync(unpacked).sort((a, b) => statSync(join(unpacked, b)).mtimeMs - statSync(join(unpacked, a)).mtimeMs)[0];
+      const modDir = join(outDir, 'importer-real-mod');
+      cpSync(join(unpacked, mod), modDir, { recursive: true });
+      const tsx = join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      const lint = spawnSync(process.execPath, [tsx, '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lint-mod.ts'), modDir], { encoding: 'utf8', env: { ...process.env, BEAMNG_INSTALL: realInstall } });
+      writeFileSync(join(outDir, 'importer-real-lint.txt'), lint.stdout + lint.stderr);
+      const vdir = join(modDir, 'vehicles', readdirSync(join(modDir, 'vehicles'))[0]);
+      const check = spawnSync(process.execPath, [tsx, join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir], { encoding: 'utf8', env: { ...process.env, STEPS: '4000' } });
+      writeFileSync(join(outDir, 'importer-real-stability.txt'), check.stdout + check.stderr);
+      for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
+      assert(lint.status === 0, `the imported Pigeon lints clean:\n${(lint.stdout + lint.stderr).split('\n').slice(0, 25).join('\n')}`);
+      assert(/RUN: \d+ steps .* stable/.test(check.stdout), `holds together at 2000 Hz:\n${check.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${check.stderr.slice(0, 400)}`);
+    },
+  },
+  {
     id: 'part-mods-real',
     name: 'part mods against a real BeamNG install: tyres, wheels, an ETK hood and an ETK engine, installed and checked against the game (--beamng-install)',
     skip: () => !realInstall,

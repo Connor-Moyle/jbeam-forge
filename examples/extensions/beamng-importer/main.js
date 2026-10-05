@@ -96,7 +96,7 @@ async function importVehicle() {
   const variables = variableDefaults(included.map((n) => parts[n]));
 
   // ---- the new mod, and the porting declaration
-  const niceName = String(info.Name || carId);
+  const niceName = await displayName(info, carId);
   // false when the user kept the open mod (cancelled "Save changes?"): stop, never touch that one.
   const made = await forge.project.create({ name: `${niceName} (edit)`, slug: `${slug(carId)}_edit`, brand: String(info.Brand || ''), description: `${niceName}, changed with JBeam Forge.` });
   if (!made) return;
@@ -199,7 +199,26 @@ async function importVehicle() {
             grew = true;
           }
   }
-  const keep = doc.parts.filter((p) => used.has(p.id));
+  let keep = doc.parts.filter((p) => used.has(p.id)).map((p) => ({ ...p }));
+  const hasMeshes = (id) => Object.values(assignments).includes(id);
+  const hasNodes = (id) => nodes.some((n) => n.partId === id);
+  // Auto-classify can split one body into a "variant" (3-wheel / 4-wheel): when the base was left with no
+  // meshes, the variant's meshes are the body, so they go back onto the base and the variant goes.
+  for (const v of keep.filter((p) => p.variantOf)) {
+    const base = keep.find((p) => p.id === v.variantOf);
+    if (!base || hasMeshes(base.id) || !hasMeshes(v.id) || hasNodes(v.id)) continue;
+    for (const [k, id] of Object.entries(assignments)) if (id === v.id) assignments[k] = base.id;
+    base.displayName = v.displayName;
+    keep = keep.filter((p) => p.id !== v.id);
+  }
+  // A part the game draws on other parts' nodes (lights, glass, grille…) has none of its own: it rides on its parent's.
+  // One that came with nodes keeps them, even if its kind usually rides (the Pigeon's gauges have their own).
+  const proxyParts = { ...doc.proxy.parts };
+  const settings = (role) => ({ mode: 'hull', detail: 0.5, symmetry: true, maxEdge: 0, minEdge: 0, inset: 0, bracing: 'none', attachment: 'bolted', massKg: null, role });
+  for (const p of keep) {
+    if (hasNodes(p.id)) proxyParts[p.id] = { ...(proxyParts[p.id] || settings('own')), role: 'own' };
+    else if (p.parentPartId && hasMeshes(p.id)) proxyParts[p.id] = settings('rides');
+  }
   await forge.project.update(`Bring over ${niceName}'s structure`, [
     { op: 'replace', path: '/parts', value: keep },
     { op: 'replace', path: '/nodes', value: nodes },
@@ -207,6 +226,8 @@ async function importVehicle() {
     { op: 'replace', path: '/tris', value: tris },
     { op: 'replace', path: '/assignments', value: assignments },
     { op: 'replace', path: '/ignoredMeshes', value: ignored },
+    { op: 'replace', path: '/proxy/parts', value: proxyParts },
+    { op: 'replace', path: '/proxy/refNodes', value: refNodesOf(included.map((n) => parts[n]), nodes) },
   ]);
 
   // ---- keep the files and the spec sheet
@@ -226,6 +247,31 @@ async function importVehicle() {
       (skipped.options ? ` ${skipped.options} values that used expressions were left at the part's defaults.` : ''),
     'success',
   );
+}
+
+/**
+ * The car's name: info.json's, or for the game's own cars (whose Name is a translation key such as
+ * "vehiclesData.pigeon.Name", and whose translations an extension can't read) the folder's name.
+ */
+async function displayName(info, carId) {
+  const name = typeof info.Name === 'string' ? info.Name : '';
+  if (name && !/^vehiclesData\./.test(name)) return name;
+  return carId.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * The car's refNodes (the game needs them to know front, left and up), from whichever imported part has
+ * them (often the body, not the main part), with corners found when it leaves them out.
+ */
+function refNodesOf(list, nodes) {
+  const known = new Set(nodes.map((n) => n.id));
+  const row = list.map((p) => tableRows(p.refNodes)[0]).find((r) => r && ['ref', 'back', 'left', 'up'].every((k) => known.has(r[k])));
+  if (!row) return null;
+  // Front is -Y: the front-left and front-right extremes.
+  const pick = (score) => nodes.reduce((best, n) => (score(n) > score(best) ? n : best)).id;
+  const leftCorner = known.has(row.leftCorner) ? row.leftCorner : pick((n) => n.pos[0] - n.pos[1]);
+  const rightCorner = known.has(row.rightCorner) ? row.rightCorner : pick((n) => -n.pos[0] - n.pos[1]);
+  return { ref: row.ref, back: row.back, left: row.left, up: row.up, leftCorner, rightCorner };
 }
 
 // ---------------------------------------------------------------- jbeam helpers
