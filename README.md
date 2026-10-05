@@ -15,6 +15,7 @@ JBeam Forge is a Windows desktop app I built because I was sick of the gap betwe
 - [What it does](#what-it-does)
 - [Installing](#installing)
 - [First launch](#first-launch)
+- [Finding your way around](#finding-your-way-around)
 - [Your first mod, start to finish](#your-first-mod-start-to-finish)
 - [The features in detail](#the-features-in-detail)
 - [Testing in-game](#testing-in-game)
@@ -96,6 +97,21 @@ You can change both later in **Settings**.
 ![Home screen](docs/images/home.png)
 
 After that you land on the home screen: **New Mod**, **Open Existing**, **Learn**, and your recent projects with thumbnails. The very first time, a short tour on a practice car shows you around; skip it whenever you like and replay it from **Learn**.
+
+---
+
+## Finding your way around
+
+If you've used Blender you'll feel at home. The window keeps the same shape whatever you're doing: the 3D view in the middle, the thing you pick from on the left, the thing you change on the right.
+
+- **Toolbar.** File buttons on the left, then **Generate** and **Test**. On the right, **Configurations** and **Export**, then downloads, help and settings. The steps of a mod have their names written on them; the rest are icons with a tooltip.
+- **Workspace tabs.** Under the toolbar, in the order a car comes together: Parts, Modelling, Materials, JBeam, Suspension, Engine, Moving parts, Triggers, Scripts, Testing. Each one lays the panels out for that job. Ctrl+1 to Ctrl+0 jump between them.
+- **The 3D view.** The strip along its top is everything about what it draws: **Edit nodes** on the left, then show/hide for the mesh and the nodes and beams, X-ray, and which material channel you're looking at.
+- **Scene.** The tree on the left: every mesh and the part it belongs to.
+- **Properties.** The column on the right, with a strip of icons down its side. Top to bottom: the Inspector (whatever you've picked), materials, paints and the Skin studio, suspension and the engine, configurations and extras, then the objects library and the reference car. Click an icon to switch; click it again to go back to the Inspector.
+- **Under the view.** The JBeam file for the picked part and the test results open here, from the two buttons at the right of the toolbar.
+
+Drag any panel tab to rearrange things. **View → Reset Layout** puts a workspace back the way it came.
 
 ---
 

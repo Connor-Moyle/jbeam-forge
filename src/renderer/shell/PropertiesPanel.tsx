@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { cx } from '@renderer/ui/cx';
 import { iconSize } from '@renderer/ui/tokens';
@@ -34,6 +34,9 @@ export function PropertiesPanel() {
   const shell = useOptionalShell();
   const pick = (id: PropertyTab) => (shell ? shell.togglePanel(id) : setTab(id));
   const Icon = PANELS[tab].icon;
+  // A tab you've been to stays as you left it (its search, its open sections) when you look at another.
+  const [visited, setVisited] = useState<readonly PropertyTab[]>([tab]);
+  if (!visited.includes(tab)) setVisited([...visited, tab]);
 
   return (
     <div className={styles.properties} data-testid="properties" data-tab={tab}>
@@ -57,9 +60,11 @@ export function PropertiesPanel() {
           <Icon size={iconSize('size-icon-sm')} aria-hidden />
           {PANELS[tab].title}
         </div>
-        <div className={styles.content}>
-          <PanelFrame key={tab} id={tab} />
-        </div>
+        {PROPERTY_TABS.filter((id) => id === tab || visited.includes(id)).map((id) => (
+          <div key={id} className={styles.content} hidden={id !== tab}>
+            <PanelFrame id={id} />
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -90,6 +90,10 @@ for (const id of ['modelling', 'model', 'materials', 'jbeam', 'suspension', 'eng
     const skip = page.getByRole('button', { name: /^Skip/ });
     if (await skip.count()) await skip.first().click();
     await shot(`workspace-${id}`);
+    if (id === 'materials') {
+      await page.getByTestId('material-row').first().click();
+      await shot('materials-picked');
+    }
   });
 }
 

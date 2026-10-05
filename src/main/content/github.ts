@@ -85,7 +85,8 @@ async function open(fetchFn: FetchFn, url: string, e: Endpoints, signal?: AbortS
   }
   if (res.url && !allowedHost(res.url, e)) throw new GithubError(`Refusing a download redirected to ${new URL(res.url).host}`, 'BAD_HOST');
   if (res.ok) return res;
-  if (res.status === 404) throw new GithubError(`Not found on GitHub: ${url.replace(/^https?:\/\/[^/]+/, '')}`, 'NOT_FOUND');
+  // GitHub answers 404 for a private repository as well as a missing one.
+  if (res.status === 404) throw new GithubError(`Not found on GitHub: ${url.replace(/^https?:\/\/[^/]+/, '')}. The repository may not be published yet, or its name in Settings → Downloads is wrong.`, 'NOT_FOUND');
   if ((res.status === 403 || res.status === 429) && res.headers.get('x-ratelimit-remaining') === '0') {
     const reset = Number(res.headers.get('x-ratelimit-reset'));
     const mins = Number.isFinite(reset) && reset > 0 ? Math.max(1, Math.ceil((reset * 1000 - Date.now()) / 60000)) : null;

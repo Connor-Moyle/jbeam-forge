@@ -805,6 +805,7 @@ const scenarios = [
       await page.getByTestId('newmod-create').click();
       await page.getByTestId('import-confirm').click();
       await waitMeshes(1);
+      await hook(page, 'applyPreset', 'modelling'); // the Inspector (an earlier scenario leaves Materials open)
       const tree = page.getByTestId('scene-tree');
       await tree.getByText('merged', { exact: true }).click({ button: 'right' });
       await page.getByRole('menuitem', { name: 'Split into connected pieces' }).click();
@@ -1150,6 +1151,7 @@ const scenarios = [
         // Per-mesh editing: move the caliper in the Inspector, then mirror it to the other side.
         const objKeys = (await hook(page, 'meshBounds')).filter((m) => !keysBefore.has(m.key)).map((m) => m.key);
         await hook(page, 'selectMeshes', objKeys);
+        await page.getByTestId('toggle-inspector').click(); // from the Objects tab back to the Inspector
         await page.getByLabel('Mesh position X').fill('0.7');
         await page.getByLabel('Mesh position X').press('Enter');
         await page.waitForTimeout(300);
@@ -1194,6 +1196,7 @@ const scenarios = [
 
         // "All four corners": the object and three copies, left/right mirrored, front/rear apart.
         const before4 = new Set((await hook(page, 'meshBounds')).map((m) => m.key));
+        await page.getByTestId('toggle-objects').click();
         await page.getByTestId('object-add').nth(1).click();
         await page.getByTestId('place-all').click();
         let four = [];
@@ -1873,7 +1876,7 @@ const scenarios = [
         await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       }
       const narrow = [];
-      for (const preset of ['modelling', 'model', 'materials', 'jbeam', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel']) {
+      for (const preset of ['modelling', 'model', 'materials', 'jbeam', 'suspension', 'moving', 'triggers', 'scripts', 'testing', 'engine', 'tyres', 'wheels', 'panel']) {
         await hook(page, 'applyPreset', preset);
         await page.waitForTimeout(150);
         const groups = await page.evaluate(() => [...document.querySelectorAll('.dv-groupview')].map((g) => ({ w: Math.round(g.getBoundingClientRect().width), h: Math.round(g.getBoundingClientRect().height), tabs: [...g.querySelectorAll('.dv-tab')].map((x) => x.textContent.trim()).join('+') })));
@@ -2201,7 +2204,7 @@ const scenarios = [
       await page.getByTestId('import-confirm').click();
       await page.getByTestId('classify-apply').click({ timeout: 30_000 });
       await hook(page, 'applyPreset', 'materials');
-      await page.locator('.dv-tab', { hasText: 'Skin studio' }).click();
+      await page.getByTestId('toggle-skins').click();
       await page.getByTestId('skin-studio').waitFor();
       await page.getByTestId('skin-step-1').click();
       await page.getByTestId('skin-parts').waitFor();

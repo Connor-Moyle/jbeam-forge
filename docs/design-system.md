@@ -46,7 +46,13 @@ The **Component Kit** panel (dev/harness only: toolbar grid icon) renders every 
 
 ## Chrome
 
-- 40 px grouped toolbar with dividers: File / Generate / View / Test, then preset selector, primary Export and Settings on the right. Actions from later phases are shown inert, with a "coming in phase N" tooltip.
+The window keeps one shape in every workspace: the 3D view in the middle, what you pick from on the left, what you change on the right.
+
+- 40 px toolbar, grouped with dividers. Left: File (new, open, import, save), Edit (undo, redo), Build (Generate with its options, Test). Right: the output panels (JBeam file, test results), Finish (Configurations, primary Export), App (downloads, help, settings). The steps of a mod (Generate, Test, Configurations, Export) keep their words; everything else is an icon with a tooltip.
+- Workspace tabs under the toolbar, in the order a car comes together: Parts, Modelling, Materials, JBeam, Suspension, Engine, Moving parts, Triggers, Scripts, Testing.
+- The 3D view has its own header strip: Edit nodes on the left; mesh, nodes and beams, X-ray and the material channel on the right. Nothing that changes what the view draws lives on the main toolbar.
+- The Properties column (`src/renderer/shell/PropertiesPanel.tsx`, tabs in `propertyTabs.ts`) is one dock panel with a strip of icon tabs down its side, like Blender's: Inspector · Materials, Paints, Skin studio · Suspension, Engine & gearbox · Configurations, Extras · Objects, Reference car. A tool that works on the car or the picked part is a tab here, never a panel of its own, so opening one can't squeeze another. The column widens to what the tab needs. Picking the tab that's showing goes back to the Inspector.
+- Output panels (JBeam file, test results, script test) open under the 3D view and share one strip.
 - dockview themed entirely from tokens (`src/renderer/shell/DockShell.css`), with 32 px panel headers.
 - 26 px mono status bar: nodes / beams / tris / mass / mode, plus a sliding status-message slot.
 - Floating viewport pills (e.g. "Graphics context lost — recovering…").

@@ -26,7 +26,7 @@ export function ViewportHeader() {
   const editHint = editing ? 'Stop editing nodes & beams' : hasStructure ? 'Edit nodes & beams' : 'Edit nodes & beams (generate the structure first)';
 
   return (
-    <div className={styles.header} role="toolbar" aria-label="3D view">
+    <div className={styles.header} role="group" aria-label="3D view">
       <Tooltip content={editHint} shortcut={keyFor('editMode')} side="bottom">
         <button
           type="button"

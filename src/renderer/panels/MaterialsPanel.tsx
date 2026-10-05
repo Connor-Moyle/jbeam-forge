@@ -147,7 +147,13 @@ export function MaterialsPanel() {
           {previewShown && <MaterialPreview def={current} />}
         </div>
       )}
-      <ScrollArea className={styles.editor}>{current ? <MaterialEditor key={current.id} def={current} used={usage.get(current.id) ?? 0} /> : <p className={styles.hint}>Select a material to edit it, or pick a mesh to jump to its material.</p>}</ScrollArea>
+      {current ? (
+        <ScrollArea className={styles.editor}>
+          <MaterialEditor key={current.id} def={current} used={usage.get(current.id) ?? 0} />
+        </ScrollArea>
+      ) : (
+        <p className={styles.hint}>Select a material to edit it, or pick a mesh to jump to its material.</p>
+      )}
     </div>
   );
 }

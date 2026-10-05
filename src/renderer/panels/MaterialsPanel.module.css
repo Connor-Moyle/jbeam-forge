@@ -25,11 +25,6 @@
   max-height: none;
 }
 
-.listFull + .editor {
-  flex: 0 0 auto;
-  height: auto;
-}
-
 .items {
   margin: 0;
   padding: var(--space-1) 0;

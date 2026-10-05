@@ -81,7 +81,18 @@
   text-transform: uppercase;
 }
 
+/* The tool fills what's left exactly, so its own scrolling and full-height layouts work as they do in a panel of their own. */
 .content {
+  position: relative;
   flex: 1;
   min-height: 0;
+}
+
+.content > * {
+  position: absolute;
+  inset: 0;
+}
+
+.content[hidden] {
+  display: none;
 }
