@@ -14,7 +14,7 @@
   margin: 0;
   color: var(--text-0);
   font-size: var(--text-label);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
 }
 
 .jobs {
@@ -79,7 +79,7 @@
 }
 
 .refused {
-  opacity: 0.75;
+  color: var(--text-2);
 }
 
 .why {

@@ -47,8 +47,8 @@ export interface AiField {
 }
 
 const round = (n: number) => (Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 1000) / 1000);
-const cell = (v: unknown) => String(v ?? '').replace(/[|\n]/g, ' ');
-const table = (header: string[], rows: unknown[][]) => [header.join(' | '), header.map(() => '---').join(' | '), ...rows.map((r) => r.map(cell).join(' | '))].join('\n');
+const cell = (v: string | number | null | undefined) => String(v ?? '').replace(/[|\n]/g, ' ');
+const table = (header: string[], rows: (string | number | null | undefined)[][]) => [header.join(' | '), header.map(() => '---').join(' | '), ...rows.map((r) => r.map(cell).join(' | '))].join('\n');
 
 /** The project as the jobs need it. */
 export function describeContext(ctx: AiContext, needs: ReadonlySet<AiSection>): string {

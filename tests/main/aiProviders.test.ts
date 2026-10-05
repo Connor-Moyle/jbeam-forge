@@ -7,9 +7,9 @@ type Call = { url: string; headers: Record<string, string>; body: Record<string,
 
 function fake(reply: unknown, status = 200) {
   const calls: Call[] = [];
-  const fetchFn = async (url: string, init: { headers: Record<string, string>; body: string }) => {
+  const fetchFn = (url: string, init: { headers: Record<string, string>; body: string }) => {
     calls.push({ url, headers: init.headers, body: JSON.parse(init.body) as Record<string, unknown> });
-    return new Response(JSON.stringify(reply), { status });
+    return Promise.resolve(new Response(JSON.stringify(reply), { status }));
   };
   return { calls, fetchFn };
 }
@@ -46,9 +46,7 @@ describe('AI mode: sending to a service', () => {
     await expect(sendToAi({ provider: 'openai', model: '', baseUrl: '', key: null, prompt: 'hi' }, f.fetchFn)).rejects.toThrow(/Add your OpenAI/);
     const refused = fake({ error: { message: 'Incorrect API key' } }, 401);
     await expect(sendToAi({ provider: 'openai', model: '', baseUrl: '', key: 'bad-key-123', prompt: 'hi' }, refused.fetchFn)).rejects.toThrow(/refused the key \(Incorrect API key\)/);
-    const down = async () => {
-      throw new Error('ECONNREFUSED');
-    };
+    const down = () => Promise.reject(new Error('ECONNREFUSED'));
     await expect(sendToAi({ provider: 'local', model: '', baseUrl: '', key: null, prompt: 'hi' }, down)).rejects.toThrow(/Is Ollama or LM Studio running/);
   });
 });
