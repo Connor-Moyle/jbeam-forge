@@ -211,7 +211,12 @@ const scenarios = [
       await page.waitForSelector('[data-view=editor][data-testid=app-ready]');
       const state = await hook(page, 'projectState');
       assert(state.name === 'Harness Test Car' && state.dirty === true && state.filePath === null, `new project is open and unsaved (${JSON.stringify(state)})`);
-      const settingsJson = JSON.parse(readFileSync(join(userData, 'settings.json'), 'utf8'));
+      // Settings are written in the background: give the write a moment to land.
+      let settingsJson = {};
+      for (let i = 0; i < 30 && settingsJson.author !== 'Fatkiwi'; i++) {
+        if (i) await page.waitForTimeout(100);
+        settingsJson = JSON.parse(readFileSync(join(userData, 'settings.json'), 'utf8'));
+      }
       assert(settingsJson.author === 'Fatkiwi', 'author remembered in settings');
     },
   },
@@ -2776,6 +2781,100 @@ const scenarios = [
       assert(lint.status === 0, `the mod lints clean:\n${(lint.stdout + lint.stderr).split('\n').slice(0, 25).join('\n')}`);
       assert(/RUN: \d+ steps .* stable/.test(check.stdout), `holds together at 2000 Hz:\n${check.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${check.stderr.slice(0, 400)}`);
       for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
+    },
+  },
+  {
+    id: 'part-mods-real',
+    name: 'part mods against a real BeamNG install: tyres, wheels and an ETK hood, installed and checked against the game (--beamng-install)',
+    skip: () => !realInstall,
+    async run({ page }) {
+      const home = async () => {
+        await page.waitForSelector('[data-testid=app-ready]');
+        if (await page.locator('[data-view=editor]').count()) {
+          await hook(page, 'runCommand', 'close');
+          if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+        }
+        await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      };
+      const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
+      const unpacked = join(fakeUserDir, 'mods', 'unpacked');
+      /** Export → Install, then check what was written against the game. */
+      const installAndCheck = async (label) => {
+        const before = new Set(existsSync(unpacked) ? readdirSync(unpacked) : []);
+        await page.getByTestId('toolbar-export').click();
+        await page.getByTestId('export-dialog').waitFor();
+        await shot(page, `${label}-export`);
+        await page.getByTestId('export-install').click();
+        await page.getByTestId('export-result').waitFor({ timeout: 120_000 });
+        const mod = readdirSync(unpacked).find((m) => !before.has(m)) ?? readdirSync(unpacked).sort((a, b) => statSync(join(unpacked, b)).mtimeMs - statSync(join(unpacked, a)).mtimeMs)[0];
+        const dir = join(outDir, `${label}-mod`);
+        cpSync(join(unpacked, mod), dir, { recursive: true });
+        const r = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'dev', 'checkPartMod.mts'), dir, realInstall], { encoding: 'utf8' });
+        writeFileSync(join(outDir, `${label}-check.txt`), r.stdout + r.stderr);
+        for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
+        return r;
+      };
+      await home();
+      await invoke('settings:update', { beamngInstallDir: realInstall });
+      for (let i = 0; i < 1800 && (await invoke('library:status')).scanning; i++) await page.waitForTimeout(100);
+      const failures = [];
+
+      // Tyres for every car.
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-kind-tyres').click();
+      await page.getByTestId('newmod-name').fill('Forge Grip');
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').waitFor({ timeout: 5000 }).catch(() => undefined);
+      if (await page.getByTestId('import-confirm').isVisible().catch(() => false)) await page.keyboard.press('Escape');
+      await page.getByTestId('tyre-builder').waitFor();
+      await hook(page, 'queueDialog', [join(ROOT, 'tests', 'fixtures', 'models', 'uv_box.obj')]);
+      await page.getByTestId('toolbar-import').click();
+      await page.getByTestId('import-confirm').click();
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 2000 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+      for (let i = 0; i < 200 && !((await hook(page, 'projectDoc')).parts.length > 0); i++) await page.waitForTimeout(100);
+      let r = await installAndCheck('tyres-real');
+      if (r.status !== 0) failures.push(`tyres:\n${r.stdout}${r.stderr.slice(0, 400)}`);
+
+      // Wheels for every car.
+      await home();
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-kind-wheels').click();
+      await page.getByTestId('newmod-name').fill('Forge Five');
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('import-confirm').waitFor({ timeout: 5000 }).catch(() => undefined);
+      if (await page.getByTestId('import-confirm').isVisible().catch(() => false)) await page.keyboard.press('Escape');
+      await page.getByTestId('wheel-builder').waitFor();
+      await hook(page, 'queueDialog', [join(ROOT, 'tests', 'fixtures', 'models', 'uv_box.obj')]);
+      await page.getByTestId('toolbar-import').click();
+      await page.getByTestId('import-confirm').click();
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 2000 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+      for (let i = 0; i < 200 && !((await hook(page, 'projectDoc')).parts.length > 0); i++) await page.waitForTimeout(100);
+      r = await installAndCheck('wheels-real');
+      if (r.status !== 0) failures.push(`wheels:\n${r.stdout}${r.stderr.slice(0, 400)}`);
+
+      // A hood for the ETK 800, on its stock physics.
+      await home();
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-kind-panel').click();
+      await page.getByTestId('newmod-name').fill('Vented Hood');
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('panel-picker').waitFor({ timeout: 60_000 });
+      await page.getByTestId('panel-car').click();
+      await page.getByRole('option', { name: /ETK 800/ }).first().click();
+      await page.getByTestId('panel-pick-etk800_hood').first().waitFor({ timeout: 30_000 });
+      await shot(page, 'panel-real-picker');
+      await page.getByTestId('panel-pick-etk800_hood').first().click();
+      await page.getByTestId('panel-builder').waitFor();
+      await hook(page, 'queueDialog', [join(ROOT, 'tests', 'fixtures', 'models', 'uv_box.obj')]);
+      await page.getByTestId('panel-import').click();
+      await page.getByTestId('import-confirm').click();
+      if (await page.getByTestId('classify-skip').isVisible({ timeout: 2000 }).catch(() => false)) await page.getByTestId('classify-skip').click();
+      for (let i = 0; i < 200 && !(await hook(page, 'sceneStats')).sources.every((s) => s.status === 'ready'); i++) await page.waitForTimeout(100);
+      await page.waitForTimeout(500);
+      r = await installAndCheck('panel-real');
+      if (r.status !== 0) failures.push(`panel:\n${r.stdout}${r.stderr.slice(0, 400)}`);
+
+      assert(!failures.length, failures.join('\n'));
     },
   },
   {

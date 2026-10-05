@@ -33,6 +33,8 @@ export function Toolbar() {
   const redoLabel = useProjectStore((s) => s.redoStack[s.redoStack.length - 1]?.label ?? null);
   const hasParts = useProjectStore((s) => (s.doc?.parts.length ?? 0) > 0);
   const generating = useStructureUi((s) => s.busy);
+  // Tyre, wheel, panel and engine mods export from their builder's settings, with or without parts.
+  const canExport = hasParts || (!!modKind && modKind !== 'vehicle');
 
   return (
     <>
@@ -81,7 +83,7 @@ export function Toolbar() {
           <Button icon={ListTree} title="Configurations manager: the versions of the car players pick from" onClick={() => useDialogStore.getState().setConfigsOpen(true)} disabled={!hasParts} data-testid="open-configs">
             Configurations
           </Button>
-          <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!hasParts} data-testid="toolbar-export">
+          <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!canExport} data-testid="toolbar-export">
             Export
           </Button>
         </div>
