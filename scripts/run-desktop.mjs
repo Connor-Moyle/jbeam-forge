@@ -2787,6 +2787,45 @@ const scenarios = [
       await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
       await page.waitForTimeout(800);
       await shot(page, 'practice-real-fitted');
+      // The rest of a finished car: every opening part hinged, plates, a hitch and nitrous, folding mirrors, a second configuration.
+      await page.getByTestId('workspace-moving').click();
+      await page.getByTestId('moving-parts').waitFor();
+      await page.getByTestId('moving-hinge-all').click();
+      await page.waitForTimeout(500);
+      const hinged = (await hook(page, 'projectDoc')).hinges.length;
+      assert(hinged >= 4, `doors, hood and trunk hinged (${hinged})`);
+      await page.getByTestId('workspace-modelling').click();
+      await page.getByTestId('toggle-features').click();
+      await page.getByTestId('features-panel').waitFor();
+      const extras = [];
+      for (const kind of ['plateFront', 'plateRear', 'hitch', 'nitrous']) {
+        const sw = page.getByTestId(`feature-${kind}`).getByRole('switch').first();
+        if (!(await sw.count())) continue;
+        await sw.click();
+        extras.push(kind);
+      }
+      assert(extras.length >= 3, `extras switched on (${extras.join(', ')})`);
+      await hook(page, 'applyPreset', 'scripts');
+      await page.getByTestId('scripts-panel').waitFor();
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').waitFor();
+      await page.getByRole('button', { name: 'Add Folding mirrors' }).click();
+      await page.getByTestId('script-panel').waitFor();
+      if (await page.getByTestId('guide-offer').isVisible({ timeout: 1000 }).catch(() => false)) await page.getByTestId('guide-skip').click();
+      const mirrors = (await hook(page, 'meshBounds')).filter((m) => /mirror/i.test(m.name)).map((m) => m.key);
+      if (mirrors.length) {
+        await hook(page, 'selectMeshes', mirrors);
+        await page.getByTestId('script-use-selection').first().click();
+      }
+      await hook(page, 'applyPreset', 'modelling');
+      await page.getByTestId('toggle-configs').click();
+      await page.getByTestId('configs-panel').waitFor();
+      await page.getByTestId('config-add').click();
+      await page.getByTestId('config-name').fill('Stripped');
+      await page.getByLabel('Front bumper part').click();
+      await page.getByRole('option', { name: '(empty)' }).click();
+      await page.getByTestId('toggle-configs').click();
+      await shot(page, 'practice-real-finished');
       // Export → Install, then read it back the way the game does.
       await page.getByTestId('toolbar-export').click();
       await page.getByTestId('export-dialog').waitFor();
@@ -2803,8 +2842,14 @@ const scenarios = [
       const vdir = join(modDir, 'vehicles', readdirSync(join(modDir, 'vehicles'))[0]);
       const check = spawnSync(process.execPath, [tsx, join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir], { encoding: 'utf8', env: { ...process.env, STEPS: '6000' } });
       writeFileSync(join(outDir, 'practice-real-stability.txt'), check.stdout + check.stderr);
+      // The second configuration too: the game spawns whichever the player picks.
+      const pcs = readdirSync(vdir).filter((f) => f.endsWith('.pc') && f !== 'default.pc');
+      const checks2 = pcs.map((pc) => ({ pc, r: spawnSync(process.execPath, [tsx, join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir, pc], { encoding: 'utf8', env: { ...process.env, STEPS: '4000' } }) }));
+      writeFileSync(join(outDir, 'practice-real-stability-configs.txt'), checks2.map((c) => `${c.pc}\n${c.r.stdout}${c.r.stderr}`).join('\n'));
       assert(lint.status === 0, `the mod lints clean:\n${(lint.stdout + lint.stderr).split('\n').slice(0, 25).join('\n')}`);
       assert(/RUN: \d+ steps .* stable/.test(check.stdout), `holds together at 2000 Hz:\n${check.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${check.stderr.slice(0, 400)}`);
+      assert(pcs.length >= 1, `the second configuration is exported (${readdirSync(vdir).filter((f) => f.endsWith('.pc')).join(', ')})`);
+      for (const c of checks2) assert(/RUN: \d+ steps .* stable/.test(c.r.stdout), `${c.pc} holds together at 2000 Hz:\n${c.r.stdout.split('\n').filter((l) => /RUN|worst/.test(l)).join('\n')}${c.r.stderr.slice(0, 300)}`);
       for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
     },
   },
