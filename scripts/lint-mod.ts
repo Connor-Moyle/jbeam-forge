@@ -70,11 +70,11 @@ if (install && existsSync(join(install, 'content', 'vehicles', 'common.zip'))) {
   const texts = await new Promise<string[]>((resolve, reject) => {
     const out: string[] = [];
     yauzl.open(join(install, 'content', 'vehicles', 'common.zip'), { lazyEntries: true }, (err, zip) => {
-      if (err || !zip) return reject(err);
+      if (err || !zip) return reject(err ?? new Error('common.zip could not be opened'));
       zip.on('entry', (e: yauzl.Entry) => {
         if (!e.fileName.endsWith('.jbeam')) return zip.readEntry();
         zip.openReadStream(e, (err2, stream) => {
-          if (err2 || !stream) return reject(err2);
+          if (err2 || !stream) return reject(err2 ?? new Error(`${e.fileName} could not be read`));
           const chunks: Buffer[] = [];
           stream.on('data', (c: Buffer) => chunks.push(c));
           stream.on('end', () => {
@@ -166,7 +166,7 @@ for (const name of installed) {
 for (const name of installed) {
   const p = partOf(name)!;
   for (const section of ['pressureWheels', 'hubWheels', 'wheels'] as const)
-    if (p[section]) for (const r of readTable(p[section]).records) for (const k of ['group', 'hubGroup']) if (typeof r.values[k] === 'string' && r.values[k]) groups.add(r.values[k] as string);
+    if (p[section]) for (const r of readTable(p[section]).records) for (const k of ['group', 'hubGroup']) if (typeof r.values[k] === 'string' && r.values[k]) groups.add(r.values[k]);
 }
 let flexCount = 0;
 for (const name of installed) {
