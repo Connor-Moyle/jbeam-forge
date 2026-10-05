@@ -113,6 +113,8 @@ If you've used Blender you'll feel at home. The window keeps the same shape what
 
 Drag any panel tab to rearrange things. **View → Reset Layout** puts a workspace back the way it came.
 
+Prefer it another way round? **Settings → Interface** puts the Properties column on the left, writes a word on every toolbar button, and can open every project on the Parts workspace.
+
 ---
 
 ## Your first mod, start to finish

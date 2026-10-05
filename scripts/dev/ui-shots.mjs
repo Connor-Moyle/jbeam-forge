@@ -67,6 +67,9 @@ const attempt = async (name, fn) => {
 };
 
 await page.waitForSelector('[data-view=home][data-testid=app-ready]', { timeout: 30_000 });
+// --settings='{"toolbarLabels":true,"propertiesSide":"left"}': shots with other interface settings.
+const extra = arg('settings');
+if (extra) await page.evaluate((patch) => window.forge.invoke('settings:update', JSON.parse(patch)), extra);
 await shot('home');
 
 await page.getByTestId('home-tour').click();

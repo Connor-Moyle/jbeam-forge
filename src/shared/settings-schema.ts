@@ -66,6 +66,12 @@ export const SettingsSchema = z.object({
   /** Hover time before a tooltip shows (ms). */
   tooltipDelay: z.number().int().min(0).max(2000),
   showStatusBar: z.boolean(),
+  /** Which side of the 3D view the Properties column is on (the Scene tree takes the other). */
+  propertiesSide: z.enum(['right', 'left']),
+  /** Words on every toolbar button, not only the steps of a mod. */
+  toolbarLabels: z.boolean(),
+  /** A project opens on the Parts workspace, or on whichever workspace was open last. */
+  openOnWorkspace: z.enum(['last', 'parts']),
   /** Ask before deleting parts, scripts and other things that take work to make again. */
   confirmDeletes: z.boolean(),
   /** Textures go into exported mods as DDS (new mods start with this; each mod can change it). */
@@ -255,6 +261,9 @@ export const DEFAULT_SETTINGS: Settings = {
   showTooltips: true,
   tooltipDelay: 300,
   showStatusBar: true,
+  propertiesSide: 'right',
+  toolbarLabels: false,
+  openOnWorkspace: 'last',
   confirmDeletes: true,
   ddsConvert: false,
   ddsMipmaps: true,

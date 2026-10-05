@@ -54,7 +54,7 @@ export function StatusBar() {
       )}
       <span className={styles.sep} aria-hidden />
       <span className={styles.stat}>
-        mode <span className={styles.value}>{PRESET_LABELS[preset]}</span>
+        workspace <span className={styles.value}>{PRESET_LABELS[preset]}</span>
       </span>
       <div className={styles.messageSlot} aria-live="polite">
         {status && (

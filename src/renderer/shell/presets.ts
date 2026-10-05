@@ -2,6 +2,7 @@ import type { DockviewApi } from 'dockview-react';
 import type { PresetId } from '@shared/layout-schema';
 import { numericToken } from '@renderer/ui/tokens';
 import { useUiStore } from '@renderer/app/stores/ui';
+import { useSettingsStore } from '@renderer/app/stores/settings';
 import { PANELS, type PanelId } from './panelRegistry';
 import { BOTTOM_PANELS, PROPERTY_TAB_WIDTH, isPropertyTab, type PropertyTab } from './propertyTabs';
 
@@ -197,10 +198,18 @@ export function workspacesFor(kind: 'vehicle' | 'engine' | 'tyres' | 'wheels' | 
   }
 }
 
+type Direction = NonNullable<PresetPlacement['direction']>;
+
+/** Settings → Interface → Properties column on the left: every workspace mirrored, like flipping Blender's areas. */
+function side(direction: Direction | undefined): Direction | undefined {
+  if (useSettingsStore.getState().settings?.propertiesSide !== 'left') return direction;
+  return direction === 'left' ? 'right' : direction === 'right' ? 'left' : direction;
+}
+
 export function applyPreset(api: DockviewApi, preset: PresetId): void {
   api.clear();
   for (const p of PRESETS[preset]) {
-    addPanel(api, p.id, p);
+    addPanel(api, p.id, { ...p, direction: side(p.direction) });
     if (p.tab) useUiStore.getState().setPropsTab(p.tab);
   }
   // Each side panel takes its width from whichever neighbour the dock picks as it's added, so a
@@ -238,7 +247,7 @@ function defaultPlacement(api: DockviewApi, id: PanelId): Omit<PresetPlacement, 
   return api.getPanel('viewport')
     ? {
         relativeTo: 'viewport',
-        direction: 'right',
+        direction: side('right'),
         width: 'size-side-panel-wide',
       }
     : undefined;
@@ -255,7 +264,7 @@ function showPropertyTab(api: DockviewApi, tab: PropertyTab): void {
       api.getPanel('viewport')
         ? {
             relativeTo: 'viewport',
-            direction: 'right',
+            direction: side('right'),
             width: PROPERTY_TAB_WIDTH[tab],
           }
         : undefined,

@@ -7,9 +7,13 @@
   border-bottom: var(--border-width) solid var(--border-0);
   background: var(--bg-2);
   flex-shrink: 0;
+  /* With words on every button (Settings → Interface) a narrow window scrolls the toolbar instead of cutting it off. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .brand {
+  flex-shrink: 0;
   padding: 0 var(--space-2);
   color: var(--text-0);
   font-size: var(--text-panel-title);
@@ -19,6 +23,7 @@
 
 .group {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-half);
 }
@@ -73,4 +78,11 @@
 /* Generate and Test read as steps, so they keep their words; a little air beside the icon-only buttons. */
 .step {
   margin-left: var(--space-1);
+}
+
+/* Words on every button in a narrow window: the file, undo and app buttons go back to icons so Export stays in view. */
+@media (max-width: 1500px) /* token-lint-ignore: media queries can't read custom properties */ {
+  .worded > span:last-child {
+    display: none;
+  }
 }

@@ -91,9 +91,9 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Action', hint: 'F1', run: () => useDialogStore.getState().setShortcutsOpen(true) },
     ];
     const panels: Item[] = (Object.keys(PANELS) as PanelId[])
-      .filter((id) => !('devOnly' in PANELS[id]))
+      .filter((id) => !('devOnly' in PANELS[id]) && id !== 'properties') // the column's tabs are listed one by one
       .map((id) => ({ id: `panel:${id}`, label: `Show ${PANELS[id].title} panel`, group: 'Panel', run: () => shell.showPanel(id) }));
-    const layouts: Item[] = PRESET_IDS.map((p) => ({ id: `layout:${p}`, label: `${PRESET_LABELS[p]} layout`, group: 'Layout', run: () => shell.applyPreset(p) }));
+    const layouts: Item[] = PRESET_IDS.map((p) => ({ id: `layout:${p}`, label: `${PRESET_LABELS[p]} workspace`, group: 'Layout', run: () => shell.applyPreset(p) }));
     const parts: Item[] = (doc?.parts ?? []).map((p) => ({ id: `part:${p.id}`, label: p.displayName, group: 'Part', hint: 'focus', run: () => focusPart(p.id) }));
     const extensions: Item[] = extensionList.flatMap((e) => (e.running ? e.commands.map((c) => ({ id: `ext:${e.id}:${c.id}`, label: c.label, group: 'Extension' as const, hint: e.name, run: () => runExtensionCommand(e.id, c.id) })) : []));
     return [...actions.filter((a): a is Item => !!a), ...extensions, ...parts, ...panels, ...layouts];

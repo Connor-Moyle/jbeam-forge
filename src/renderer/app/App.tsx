@@ -387,7 +387,9 @@ function Editor() {
     // A part mod just opened starts on its builder, even if the workspace left open (Materials) is one of its tabs.
     const justOpened = openedKey.current !== projectKey;
     const partMod = !!modKind && modKind !== 'vehicle';
-    if (tabs.includes(current) && !(justOpened && partMod && current !== tabs[0])) {
+    // Settings → Interface: a project can always open on its first workspace (Parts, or a part mod's builder).
+    const startFirst = partMod || useSettingsStore.getState().settings?.openOnWorkspace === 'parts';
+    if (tabs.includes(current) && !(justOpened && startFirst && current !== tabs[0])) {
       openedKey.current = projectKey;
       return;
     }

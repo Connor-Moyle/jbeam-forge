@@ -365,6 +365,13 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                 </Field>
               )}
               <Toggle checked={d.showStatusBar} onChange={(showStatusBar) => set({ showStatusBar })} label="Status bar" />
+              <Toggle checked={d.toolbarLabels} onChange={(toolbarLabels) => set({ toolbarLabels })} label="Words on every toolbar button" data-testid="setting-toolbar-labels" />
+              <Field label="Properties column" hint="The column of tools (Inspector, materials, suspension…). The Scene tree goes on the other side. Applies when you next pick a workspace.">
+                <Select value={d.propertiesSide} onChange={(propertiesSide) => set({ propertiesSide })} options={[{ value: 'right', label: 'Right of the 3D view (like Blender)' }, { value: 'left', label: 'Left of the 3D view' }]} aria-label="Properties column" data-testid="setting-properties-side" />
+              </Field>
+              <Field label="Opening a project">
+                <Select value={d.openOnWorkspace} onChange={(openOnWorkspace) => set({ openOnWorkspace })} options={[{ value: 'last', label: 'Stay on the workspace that was open' }, { value: 'parts', label: 'Start on the Parts workspace' }]} aria-label="Opening a project" data-testid="setting-open-workspace" />
+              </Field>
               <Toggle checked={d.confirmDeletes} onChange={(confirmDeletes) => set({ confirmDeletes })} label="Ask before deleting parts, materials, paints, configurations and scripts" />
               <p className={styles.help}>Changes here show straight away; Cancel puts them back.</p>
             </FieldGroup>

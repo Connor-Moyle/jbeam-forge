@@ -3549,7 +3549,8 @@ const scenarios = [
       await page.getByTestId('export-install').click();
       await page.getByTestId('export-result').waitFor({ timeout: 60_000 });
       const unpacked = join(fakeUserDir, 'mods', 'unpacked');
-      const mod = readdirSync(unpacked)[0];
+      // The one just written (other scenarios install mods here too).
+      const mod = readdirSync(unpacked).sort((a, b) => statSync(join(unpacked, b)).mtimeMs - statSync(join(unpacked, a)).mtimeMs)[0];
       cpSync(join(unpacked, mod), join(outDir, 'practice-mod'), { recursive: true });
       // Run it the way the game does (explicit steps at 2000 Hz, no sub-steps): it must hold together.
       const vdir = join(outDir, 'practice-mod', 'vehicles', readdirSync(join(outDir, 'practice-mod', 'vehicles'))[0]);

@@ -6,6 +6,8 @@ import { PRESETS, applyPreset, isPanelShown, showPanel, togglePanel } from '../.
 import { PROPERTY_TABS } from '../../src/renderer/shell/propertyTabs';
 import { isRestorable } from '../../src/renderer/shell/ShellContext';
 import { useUiStore } from '../../src/renderer/app/stores/ui';
+import { useSettingsStore } from '../../src/renderer/app/stores/settings';
+import { DEFAULT_SETTINGS } from '../../src/shared/settings-schema';
 import { numericToken } from '../../src/renderer/ui/tokens';
 
 /** Minimal DockviewApi fake recording panel operations. */
@@ -103,6 +105,18 @@ describe('presets', () => {
     showPanel(api, 'materials');
     expect(raw.getPanel('properties')).toBeDefined();
     expect(useUiStore.getState().propsTab).toBe('materials');
+  });
+
+  it('Properties on the left mirrors the workspace (Settings → Interface)', () => {
+    useSettingsStore.setState({ settings: { ...DEFAULT_SETTINGS, propertiesSide: 'left' } });
+    try {
+      const { api, added } = fakeApi();
+      applyPreset(api, 'modelling');
+      expect(added.find((a) => a.id === 'scene')?.position).toEqual({ referencePanel: 'viewport', direction: 'right' });
+      expect(added.find((a) => a.id === 'properties')?.position).toEqual({ referencePanel: 'viewport', direction: 'left' });
+    } finally {
+      useSettingsStore.setState({ settings: null });
+    }
   });
 
   it('output panels open under the 3D view and share one strip', () => {

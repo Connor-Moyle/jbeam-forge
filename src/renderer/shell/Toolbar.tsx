@@ -11,6 +11,8 @@ import { openExport } from '@renderer/export/exportFlow';
 import { startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
 import { Button } from '@renderer/ui/components/Button';
 import { IconButton } from '@renderer/ui/components/IconButton';
+import type { LucideIcon } from 'lucide-react';
+import type { ComponentProps } from 'react';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS, workspacesFor } from './presets';
 import styles from './Toolbar.module.css';
@@ -21,6 +23,18 @@ import styles from './Toolbar.module.css';
  * order a car comes together. What the 3D view draws is on the view itself, and
  * the tools that work on the car are tabs of the Properties column.
  */
+/** A toolbar button: an icon with a tooltip, or with Settings → Interface → "Words on every toolbar button", the icon and a short word. */
+function Tool({ icon, label, word, ...rest }: { icon: LucideIcon; label: string; word: string } & Omit<ComponentProps<typeof IconButton>, 'icon' | 'label'>) {
+  const labels = useSettingsStore((s) => s.settings?.toolbarLabels ?? false);
+  if (!labels) return <IconButton icon={icon} label={label} {...rest} />;
+  const { shortcut, active, ...button } = rest;
+  return (
+    <Button variant="ghost" icon={icon} title={shortcut ? `${label} (${shortcut})` : label} aria-label={label} aria-pressed={active} className={styles.worded} {...button}>
+      {word}
+    </Button>
+  );
+}
+
 export function Toolbar() {
   const modKind = useProjectStore((s) => s.doc?.meta.modKind);
   const { preset, applyPreset, togglePanel, showPanel, devMode } = useShell();
@@ -42,15 +56,15 @@ export function Toolbar() {
         <div className={styles.brand}>JBeam Forge</div>
         <div className={styles.group} role="group" aria-label="File">
           <span className={styles.divider} aria-hidden />
-          <IconButton icon={FilePlus} label="New mod" shortcut={keyFor('new')} onClick={() => setNewModOpen(true)} />
-          <IconButton icon={FolderOpen} label="Open project" shortcut={keyFor('open')} onClick={() => void openProject()} />
-          <IconButton icon={FileInput} label="Import model" shortcut={keyFor('import')} onClick={() => void startImport()} data-testid="toolbar-import" />
-          <IconButton icon={Save} label="Save" shortcut={keyFor('save')} onClick={() => void saveProject()} data-testid="toolbar-save" />
+          <Tool word="New" icon={FilePlus} label="New mod" shortcut={keyFor('new')} onClick={() => setNewModOpen(true)} />
+          <Tool word="Open" icon={FolderOpen} label="Open project" shortcut={keyFor('open')} onClick={() => void openProject()} />
+          <Tool word="Import" icon={FileInput} label="Import model" shortcut={keyFor('import')} onClick={() => void startImport()} data-testid="toolbar-import" />
+          <Tool word="Save" icon={Save} label="Save" shortcut={keyFor('save')} onClick={() => void saveProject()} data-testid="toolbar-save" />
         </div>
         <div className={styles.group} role="group" aria-label="Edit">
           <span className={styles.divider} aria-hidden />
-          <IconButton icon={Undo2} label={undoLabel ? `Undo ${undoLabel}` : 'Nothing to undo'} shortcut={keyFor('undo')} disabled={!undoLabel} onClick={undo} />
-          <IconButton icon={Redo2} label={redoLabel ? `Redo ${redoLabel}` : 'Nothing to redo'} shortcut={keyFor('redo')} disabled={!redoLabel} onClick={redo} />
+          <Tool word="Undo" icon={Undo2} label={undoLabel ? `Undo ${undoLabel}` : 'Nothing to undo'} shortcut={keyFor('undo')} disabled={!undoLabel} onClick={undo} />
+          <Tool word="Redo" icon={Redo2} label={redoLabel ? `Redo ${redoLabel}` : 'Nothing to redo'} shortcut={keyFor('redo')} disabled={!redoLabel} onClick={redo} />
         </div>
         <div className={styles.group} role="group" aria-label="Build">
           <span className={styles.divider} aria-hidden />
@@ -75,8 +89,8 @@ export function Toolbar() {
 
         <div className={styles.group} role="group" aria-label="Output panels">
           {devMode && <IconButton icon={LayoutGrid} label="Component kit (dev)" onClick={() => togglePanel('kit-gallery')} data-testid="toggle-kit" />}
-          <IconButton icon={FileCode} label="JBeam file: the jbeam the picked part exports" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
-          <IconButton icon={FlaskConical} label="Test results" onClick={() => togglePanel('test-results')} data-testid="toggle-test-results" />
+          <Tool word="JBeam file" icon={FileCode} label="JBeam file: the jbeam the picked part exports" onClick={() => togglePanel('jbeam-preview')} data-testid="toggle-jbeam-preview" />
+          <Tool word="Results" icon={FlaskConical} label="Test results" onClick={() => togglePanel('test-results')} data-testid="toggle-test-results" />
         </div>
         <div className={styles.group} role="group" aria-label="Finish">
           <span className={styles.divider} aria-hidden />
@@ -89,9 +103,9 @@ export function Toolbar() {
         </div>
         <div className={styles.group} role="group" aria-label="App">
           <span className={styles.divider} aria-hidden />
-          <IconButton icon={CloudDownload} label="Downloads: updates, textures and meshes" shortcut={keyFor('downloads')} onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="open-downloads" />
-          <IconButton icon={CircleHelp} label="Help, guides and the tutorial" shortcut={keyFor('help')} onClick={() => useDialogStore.getState().setHelpOpen(true)} data-testid="open-help" />
-          <IconButton icon={Settings} label="Settings" shortcut={keyFor('settings')} onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
+          <Tool word="Downloads" icon={CloudDownload} label="Downloads: updates, textures and meshes" shortcut={keyFor('downloads')} onClick={() => useDialogStore.getState().setDownloads('app')} data-testid="open-downloads" />
+          <Tool word="Help" icon={CircleHelp} label="Help, guides and the tutorial" shortcut={keyFor('help')} onClick={() => useDialogStore.getState().setHelpOpen(true)} data-testid="open-help" />
+          <Tool word="Settings" icon={Settings} label="Settings" shortcut={keyFor('settings')} onClick={() => setSettingsOpen(true)} disabled={!settings} data-testid="open-settings" />
         </div>
       </header>
       <nav className={styles.workspaces} aria-label="Workspaces" role="tablist" data-tour="workspaces">
