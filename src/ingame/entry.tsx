@@ -7,6 +7,7 @@ import { RootErrorBoundary } from '@renderer/diagnostics/ErrorBoundary';
 import { installGlobalHandlers } from '@renderer/diagnostics/globalHandlers';
 import { configureRendererLogging } from '@renderer/diagnostics/logger';
 import { createGameForge, type GameBridge } from './platform';
+import { runSelftest } from './selftest';
 
 /**
  * JBeam Forge inside BeamNG.drive: the desktop app's screens, mounted into the game's own UI by
@@ -27,6 +28,9 @@ export function mountForge(host: HTMLElement, bridge: GameBridge): () => void {
       </RootErrorBoundary>
     </StrictMode>,
   );
+  // Tell the game the screen is up (its self-test reads this; otherwise it's ignored).
+  void bridge.call('selftest:report', { mounted: true, userAgent: navigator.userAgent, size: [window.innerWidth, window.innerHeight] }).catch(() => undefined);
+  setTimeout(() => void runSelftest(bridge).catch(() => undefined), 1500);
   return () => {
     root.unmount();
     host.classList.remove('jbeam-forge-root');

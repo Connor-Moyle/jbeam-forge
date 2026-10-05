@@ -140,6 +140,8 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
       addedAt: new Date().toISOString(),
     };
     const done = await finishImport(staged, sourceId, settings, opts.textureDirs ?? EMPTY_ARR, textureCaps());
+    // With the game's materials the model's own texture paths are never used, so none are missing.
+    if (opts.gameMaterials) done.textures = { ...done.textures, missing: [] };
     useSceneStore.getState().setSource({
       sourceId,
       status: 'ready',
@@ -156,7 +158,7 @@ export async function confirmImport(staged: StagedImport, settings: ImportSettin
     const doc = projectStore.getState().doc;
     let seed = opts.material ? objectSeed(doc?.materials ?? [], opts.material, done.meshes) : doc ? planSeed(doc, sourceId, done.meshes) : { materials: [], slots: {} };
     // Parts cut from the game's own vehicles use the game's materials: reference them by name.
-    if (opts.gameMaterials) seed = { ...seed, materials: seed.materials.map((m) => ({ ...m, gameMaterial: m.name })) };
+    if (opts.gameMaterials) seed = { ...seed, materials: seed.materials.map((m) => ({ ...m, gameMaterial: m.origin?.name ?? m.name })) };
     // Assetto Corsa effect meshes (blurred rims, damage glass…) come in ignored.
     const helpers = staged.format === 'kn5' && acOption('acIgnoreHelpers') ? acHelperKeys(done.meshes) : [];
     useSceneStore.getState().setHidden(helpers, true);

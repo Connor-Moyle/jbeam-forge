@@ -72,6 +72,28 @@ local function b64decode(text)
   return table.concat(out)
 end
 
+local function utf8char(cp)
+  if cp < 0x80 then return string.char(cp) end
+  if cp < 0x800 then return string.char(0xC0 + bit.rshift(cp, 6), 0x80 + cp % 64) end
+  if cp < 0x10000 then return string.char(0xE0 + bit.rshift(cp, 12), 0x80 + bit.rshift(cp, 6) % 64, 0x80 + cp % 64) end
+  return string.char(0xF0 + bit.rshift(cp, 18), 0x80 + bit.rshift(cp, 12) % 64, 0x80 + bit.rshift(cp, 6) % 64, 0x80 + cp % 64)
+end
+
+-- The screens send JSON with everything past ASCII as \uXXXX (the UI can't pass other characters
+-- to Lua safely), and the game's JSON reader doesn't read those escapes: make them UTF-8 first.
+local function unescapeUnicode(json)
+  if not json:find('\\u', 1, true) then return json end
+  json = json:gsub('(\\+)u[dD]([89abAB]%x%x)\\u[dD]([c-fC-F]%x%x)', function(slashes, hi, lo)
+    if #slashes % 2 == 0 then return nil end
+    local cp = 0x10000 + (tonumber('d' .. hi, 16) - 0xD800) * 1024 + (tonumber('d' .. lo, 16) - 0xDC00)
+    return slashes:sub(2) .. utf8char(cp)
+  end)
+  return (json:gsub('(\\+)u(%x%x%x%x)', function(slashes, hex)
+    if #slashes % 2 == 0 then return nil end
+    return slashes:sub(2) .. utf8char(tonumber(hex, 16))
+  end))
+end
+
 local function readBinary(path)
   local f = io.open(path, 'rb')
   if not f then return nil end
@@ -127,7 +149,7 @@ local function currentVehicle()
       local n = vdata.nodes[cid]
       if n then
         names[cid] = n.name or tostring(cid)
-        out.nodes[#out.nodes + 1] = {id = names[cid], pos = vec(n.pos), weight = n.nodeWeight, group = n.group, part = n.partOrigin, collision = n.collision}
+        out.nodes[#out.nodes + 1] = {id = names[cid], pos = vec(n.pos), weight = n.nodeWeight, part = n.partOrigin, collision = n.collision}
       end
     end
     if vdata.beams then
@@ -140,7 +162,14 @@ local function currentVehicle()
     end
     if vdata.flexbodies then
       for _, fb in pairs(vdata.flexbodies) do
-        if type(fb) == 'table' and fb.mesh then out.flexbodies[#out.flexbodies + 1] = {mesh = fb.mesh, groups = fb['[group]'], part = fb.partOrigin} end
+        if type(fb) == 'table' and fb.mesh then
+          -- The nodes it's bound to (its groups are gone by now, these are what they made).
+          local bound = {}
+          for _, cid in ipairs(type(fb._group_nodes) == 'table' and fb._group_nodes or {}) do
+            if names[cid] then bound[#bound + 1] = names[cid] end
+          end
+          out.flexbodies[#out.flexbodies + 1] = {mesh = fb.originalMesh or fb.mesh, nodes = bound, part = fb.partOrigin}
+        end
       end
     end
     if vdata.refNodes and vdata.refNodes[0] then
@@ -221,11 +250,31 @@ channels['vehicle:current'] = function()
   return currentVehicle()
 end
 
+-- A car to spawn once the game has it: a mod just written is mounted a moment later.
+local pendingSpawn = nil
+
+local function modelAvailable(model)
+  return core_vehicles.getModelsData()[model] ~= nil
+end
+
+local function trySpawn(dt)
+  if not pendingSpawn then return end
+  pendingSpawn.t = pendingSpawn.t + (dt or 0)
+  if modelAvailable(pendingSpawn.model) then
+    core_vehicles.replaceVehicle(pendingSpawn.model, pendingSpawn.opt)
+    pendingSpawn = nil
+  elseif pendingSpawn.t > 20 then
+    log('E', logTag, 'the game never found ' .. pendingSpawn.model .. ' to spawn')
+    pendingSpawn = nil
+  end
+end
+
 channels['vehicle:spawn'] = function(req)
   if type(req.model) ~= 'string' then error('No vehicle to spawn') end
   local opt = {}
   if type(req.config) == 'string' then opt.config = req.config end
-  core_vehicles.replaceVehicle(req.model, opt)
+  pendingSpawn = {model = req.model, opt = opt, t = 0}
+  trySpawn(0)
   return nil
 end
 
@@ -244,7 +293,7 @@ end
 function M.call(channel, json)
   local handler = channels[channel]
   if not handler then return fail('JBeam Forge in the game has no "' .. tostring(channel) .. '" yet') end
-  local req = json and json ~= '' and jsonDecode(json) or {}
+  local req = json and json ~= '' and json ~= 'null' and jsonDecode(unescapeUnicode(json)) or {}
   local done, result = pcall(handler, req or {})
   if not done then
     log('E', logTag, tostring(channel) .. ': ' .. tostring(result))
@@ -256,7 +305,12 @@ end
 function M.open()
   if isOpen then return end
   isOpen = true
-  extensions.ui_router.navigate(ROUTE)
+  local result = extensions.ui_router.navigate(ROUTE)
+  if type(result) == 'table' and result.success == false then
+    log('E', logTag, 'could not open the screen: ' .. dumps(result))
+    isOpen = false
+  end
+  return result
 end
 
 function M.close()
@@ -312,8 +366,76 @@ function M.onInit()
   setExtensionUnloadMode(M, 'manual')
 end
 
+-- ---------------------------------------------------------------- self-test
+--
+-- Only when settings/jbeamForge/selftest.json exists (put there by the developer's test run):
+-- start a map, wait for the car, open JBeam Forge as F10 does, and write what happened to
+-- settings/jbeamForge/selftest-result.json. Without that file none of this runs.
+
+local selftest = nil
+local uiReport = nil
+
+channels['selftest:report'] = function(req)
+  uiReport = req
+  return nil
+end
+
+-- What the screen should do in a self-test (nothing, unless selftest.json lists steps).
+channels['selftest:plan'] = function()
+  if not selftest then return nil end
+  return {steps = selftest.steps}
+end
+
+local function startSelftest()
+  if not selftest and FS:fileExists(STORE .. 'selftest.json') then
+    local plan = jsonReadFile(STORE .. 'selftest.json') or {}
+    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}}
+    log('I', logTag, 'self-test: starting')
+  end
+end
+
+-- Mod scripts run after the mod manager says it's ready, so check on loading too.
+M.onModManagerReady = startSelftest
+
+function M.onClientPostStartMission()
+  if selftest and selftest.stage == 'level' then
+    selftest.stage = 'drive'
+    selftest.t = 0
+  end
+end
+
+function M.onUpdate(dtReal)
+  trySpawn(dtReal)
+  if not selftest then return end
+  selftest.t = selftest.t + (dtReal or 0)
+  if selftest.stage == 'menu' and selftest.t > 8 then
+    selftest.stage = 'level'
+    selftest.t = 0
+    freeroam_freeroam.startFreeroamByName(selftest.level)
+  elseif selftest.stage == 'drive' and selftest.t > 8 and getPlayerVehicle(0) then
+    selftest.stage = 'open'
+    selftest.t = 0
+    local navigated = M.open()
+    selftest.navigate = navigated and {success = navigated.success, reason = navigated.reason or navigated.message} or 'nothing'
+  elseif selftest.stage == 'open' and (selftest.t > 300 or (selftest.t > 25 and (#selftest.steps == 0 or (uiReport and uiReport.done)))) then
+    local car = currentVehicle()
+    if car then jsonWriteFile(STORE .. 'selftest-car.json', car, false) end
+    local current = extensions.ui_router.getCurrent and extensions.ui_router.getCurrent()
+    jsonWriteFile(STORE .. 'selftest-result.json', {
+      opened = isOpen,
+      navigate = selftest.navigate,
+      route = type(current) == 'table' and (current.name or current.routeName or dumps(current):sub(1, 400)) or tostring(current),
+      ui = uiReport,
+      vehicle = car and {model = car.model, nodes = #car.nodes, beams = #car.beams, flexbodies = #car.flexbodies, models = car.models, configFile = car.config.file} or nil,
+    }, true)
+    log('I', logTag, 'self-test: done')
+    selftest = nil
+  end
+end
+
 function M.onExtensionLoaded()
   log('I', logTag, 'JBeam Forge is ready: press F10 to open it.')
+  startSelftest()
 end
 
 return M

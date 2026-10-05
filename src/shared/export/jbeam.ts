@@ -172,6 +172,59 @@ export function flexGroupOf(doc: Doc, part: Part): string | null {
   return null;
 }
 
+/**
+ * Can these nodes carry a mesh? The game fits each vertex to a node and two more that aren't in
+ * line with it, so a flexbody group needs three nodes not all on one line.
+ */
+export function holdsMesh(points: readonly (readonly [number, number, number])[]): boolean {
+  if (points.length < 3) return false;
+  let a = points[0]!;
+  let b = a;
+  let far = 0;
+  for (const p of points) {
+    const d = Math.hypot(p[0] - a[0], p[1] - a[1], p[2] - a[2]);
+    if (d > far) [far, b] = [d, p];
+  }
+  if (far < 0.02) return false;
+  a = b;
+  far = 0;
+  for (const p of points) {
+    const d = Math.hypot(p[0] - a[0], p[1] - a[1], p[2] - a[2]);
+    if (d > far) [far, b] = [d, p];
+  }
+  const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]] as const;
+  const len = Math.hypot(...ab);
+  return points.some((p) => {
+    const ap = [p[0] - a[0], p[1] - a[1], p[2] - a[2]] as const;
+    const cross = Math.hypot(ap[1] * ab[2] - ap[2] * ab[1], ap[2] * ab[0] - ap[0] * ab[2], ap[0] * ab[1] - ap[1] * ab[0]);
+    return cross / len > 0.02;
+  });
+}
+
+/**
+ * The groups a part's meshes bind to: its group, and when those nodes can't carry a mesh (a door
+ * glass on its two runner nodes), the groups of the parts above it too until they can.
+ */
+export function flexGroupsOf(doc: Doc, part: Part, group: string): string[] {
+  const byId = new Map(doc.parts.map((p) => [p.id, p]));
+  const slotOfNode = (partId: string) => {
+    const p = byId.get(partId);
+    return p ? slotTypeOf(doc.parts, p) : null;
+  };
+  const nodesOf = (slot: string) => doc.nodes.filter((n) => slotOfNode(n.partId) === slot).map((n) => n.pos);
+  const groups = [group];
+  const points = nodesOf(group);
+  for (let cur = part.parentPartId ? byId.get(part.parentPartId) : undefined, guard = 0; cur && !holdsMesh(points) && guard < 64; cur = cur.parentPartId ? byId.get(cur.parentPartId) : undefined, guard++) {
+    const slot = slotTypeOf(doc.parts, cur);
+    if (groups.includes(slot)) continue;
+    const more = nodesOf(slot);
+    if (!more.length) continue;
+    groups.push(slot);
+    points.push(...more);
+  }
+  return groups;
+}
+
 function num(n: number): number {
   const r = Math.round(n * 1e4) / 1e4;
   return r === 0 ? 0 : r; // never write -0
@@ -595,11 +648,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     }
     const glass = entry.beamPreset === 'glass_brittle' && nodes.length > 0;
     if (meshes.length && (groups ?? group)) {
+      const bind = groups ?? flexGroupsOf(doc, part, group!);
       const rows: WritableValue[] = [['mesh', '[group]:', 'nonFlexMaterials']];
       for (const m of meshes) {
         const mat = glass ? opts.meshMaterials?.get(m)?.[0] : undefined;
         if (mat) rows.push({ deformGroup: glassBreakGroup(part), deformMaterialBase: mat, deformMaterialDamaged: damagedMaterialName(mat) });
-        rows.push([m, groups ?? [group!]]);
+        rows.push([m, bind]);
       }
       if (glass && rows.length > meshes.length + 1) rows.push({ deformGroup: '' });
       content.flexbodies = rows;

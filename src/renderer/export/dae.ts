@@ -142,8 +142,13 @@ function addBackFaces(c: Compacted, back: readonly (string | null)[], names: str
 }
 
 /** Build the DAE text. Mesh names must already be unique and XML-safe (see exportMeshNames). */
-export function writeDae(meshes: readonly DaeMesh[], materials: readonly DaeMaterial[], now = new Date()): string {
+export function writeDae(meshes: readonly DaeMesh[], given: readonly DaeMaterial[], now = new Date()): string {
   const stamp = now.toISOString().replace(/\.\d+Z$/, 'Z');
+  // Every material a mesh uses is defined, also those the game already has (its own materials,
+  // used by name): the game won't read a mesh whose material isn't in the file.
+  const defined = new Set(given.map((m) => m.name));
+  const extra = [...new Set(meshes.flatMap((m) => [...m.materials, ...(m.backMaterials ?? [])]))].filter((n): n is string => !!n && !defined.has(n));
+  const materials = [...given, ...extra.map((name) => ({ name, color: [0.6, 0.6, 0.6, 1] as [number, number, number, number] }))];
   const effects = materials
     .map((m) => `<effect id="${esc(m.name)}-effect"><profile_COMMON><technique sid="common"><phong><diffuse><color sid="diffuse">${[0, 1, 2, 3].map((k) => f(m.color[k] ?? 1)).join(' ')}</color></diffuse></phong></technique></profile_COMMON></effect>`)
     .join('\n    ');

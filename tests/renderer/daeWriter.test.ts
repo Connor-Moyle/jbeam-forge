@@ -69,6 +69,13 @@ describe('DAE writer', () => {
     expect(meshes[0]!.triangles).toBe(2);
   });
 
+  it('defines every material a mesh uses, also the game’s own ones it was not given', () => {
+    const text = writeDae([{ name: 'a', geometry: new BoxGeometry(1, 1, 1), materials: ['bx_main'], backMaterials: ['bx_interior'], flipV: false }], []);
+    expect(text).toContain('<material id="bx_main" name="bx_main">');
+    expect(text).toContain('<material id="bx_interior" name="bx_interior">');
+    expect(text).toContain('<effect id="bx_main-effect">');
+  });
+
   it('flips V for glTF-origin UVs', () => {
     const g = new BoxGeometry(1, 1, 1);
     const plain = writeDae([{ name: 'a', geometry: g, materials: ['m'], flipV: false }], [{ name: 'm', color: [1, 1, 1, 1] }]);

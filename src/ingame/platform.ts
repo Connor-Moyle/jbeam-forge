@@ -33,11 +33,27 @@ export interface GameVehicle {
   config: { file?: string; parts?: Record<string, string>; vars?: Record<string, number>; paints?: unknown };
   jbeamFiles: string[];
   models: string[];
-  nodes: { id: string; pos: [number, number, number] | null; weight?: number; group?: string | string[]; part?: string; collision?: boolean }[];
+  nodes: { id: string; pos: [number, number, number] | null; weight?: number; part?: string; collision?: boolean }[];
   /** [node1, node2, spring, damp, strength, deform, part, type] */
   beams: [string, string, number?, number?, number?, number?, string?, number?][];
-  flexbodies: { mesh: string; groups?: string[]; part?: string }[];
+  flexbodies: { mesh: string; nodes?: string[]; part?: string }[];
   refNodes?: Record<'ref' | 'back' | 'left' | 'up' | 'leftCorner' | 'rightCorner', string | undefined>;
+}
+
+/** A list from Lua: an empty Lua table comes over as {} rather than []. */
+const list = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
+
+/** The car as Lua sends it, with every list a list. */
+export function gameVehicle(raw: GameVehicle | null): GameVehicle | null {
+  if (!raw || typeof raw !== 'object') return null;
+  return {
+    ...raw,
+    jbeamFiles: list(raw.jbeamFiles),
+    models: list(raw.models),
+    nodes: list<GameVehicle['nodes'][number]>(raw.nodes).map((n) => ({ ...n, pos: Array.isArray(n.pos) && n.pos.length === 3 ? n.pos : null })),
+    beams: list(raw.beams),
+    flexbodies: list<GameVehicle['flexbodies'][number]>(raw.flexbodies).map((f) => ({ ...f, nodes: list<string>(f.nodes) })),
+  };
 }
 
 const PROJECTS = '/settings/jbeamForge/projects/';
@@ -153,7 +169,7 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
       for (const ref of req.refs) {
         const name = ref.replace(/\\/g, '/');
         const candidates = name.startsWith('/') ? [name] : dirs.flatMap((d) => [d + name, d + name.split('/').pop()!]);
-        const found = await lua<boolean[]>('fs:exists', { paths: candidates });
+        const found = list<boolean>(await lua<boolean[]>('fs:exists', { paths: candidates }));
         resolved[ref] = candidates[found.indexOf(true)] ?? null;
       }
       return { resolved, truncated: false };
@@ -183,7 +199,7 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
   };
 
   const game = {
-    vehicle: () => lua<GameVehicle | null>('vehicle:current'),
+    vehicle: () => lua<GameVehicle | null>('vehicle:current').then(gameVehicle),
     spawn: (model: string, config?: string) => lua<void>('vehicle:spawn', { model, ...(config ? { config } : {}) }),
     close: () => lua<void>('ui:close'),
     draw: (structure: { nodes: [number, number, number][]; beams: [number, number][] } | null) => lua<void>('world:draw', structure),

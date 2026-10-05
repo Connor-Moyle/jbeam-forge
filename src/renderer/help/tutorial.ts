@@ -245,9 +245,13 @@ export function endTutorial(closePractice: boolean): void {
   if (closePractice && d && practice && d.meta.createdAt === practice) projectStore.getState().close();
 }
 
-/** The first start: the tour opens by itself once. */
+/**
+ * The first start: the tour opens by itself once. Not in the game, where F10 is usually pressed to
+ * work on the car being driven; the home screen's Learn card has the tour there.
+ */
 export function maybeStartFirstRun(): void {
   const s = useSettingsStore.getState().settings;
+  if ((window.forge as { ingame?: boolean } | undefined)?.ingame) return;
   if (!s || s.tutorialSeen || projectStore.getState().doc || useTour.getState().step !== null) return;
   void startTutorial();
 }

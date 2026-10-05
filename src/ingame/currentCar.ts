@@ -25,6 +25,22 @@ type GameForge = typeof window.forge & { ingame?: boolean; game?: { vehicle: () 
 const NODE_ID = /^[A-Za-z][A-Za-z0-9_]*$/;
 const finite = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e30 ? v : undefined);
 
+/**
+ * The part a mesh goes to: the one owning most of the nodes it's bound to in the game. A mesh is
+ * often drawn by one part and held by another's nodes (a door's skin on the door panel's nodes),
+ * and here a part's meshes ride on its own nodes.
+ */
+export function meshOwner(car: GameVehicle, flexbody: GameVehicle['flexbodies'][number]): string {
+  const bound = new Set(flexbody.nodes ?? []);
+  if (!bound.size) return flexbody.part ?? '';
+  const count = new Map<string, number>();
+  for (const n of car.nodes) if (n.part && n.pos && NODE_ID.test(n.id) && bound.has(n.id)) count.set(n.part, (count.get(n.part) ?? 0) + 1);
+  const own = count.get(flexbody.part ?? '') ?? 0;
+  const [best, most] = [...count.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+  // Its own part keeps it unless another holds more of those nodes.
+  return !best || most <= own ? (flexbody.part ?? '') : best;
+}
+
 export function isInGame(): boolean {
   return !!(window.forge as GameForge).ingame;
 }
@@ -50,7 +66,7 @@ export async function openCurrentCar(): Promise<void> {
 
   // ---- the car's models; what the configuration doesn't draw is set aside
   ui.pushStatus(`Bringing in ${car.model}'s models…`, 'info', 20000);
-  const drawn = new Map(car.flexbodies.map((f) => [f.mesh, f.part ?? '']));
+  const drawn = new Map(car.flexbodies.map((f) => [f.mesh, meshOwner(car, f)]));
   const keysByMesh = new Map<string, string[]>();
   for (const path of car.models) {
     try {
@@ -68,8 +84,10 @@ export async function openCurrentCar(): Promise<void> {
 
   // ---- parts: one per jbeam part that draws meshes or has nodes, named for what it is
   const tax = currentTaxonomy();
+  // Only nodes that come over count: the game numbers the nodes it makes for pressure wheels, and
+  // those are made again from the wheel's settings.
   const nodeCount = new Map<string, number>();
-  for (const n of car.nodes) nodeCount.set(n.part ?? '', (nodeCount.get(n.part ?? '') ?? 0) + 1);
+  for (const n of car.nodes) if (n.pos && NODE_ID.test(n.id)) nodeCount.set(n.part ?? '', (nodeCount.get(n.part ?? '') ?? 0) + 1);
   const jbeamParts = [...new Set([...drawn.values(), ...nodeCount.keys()])].filter(Boolean);
   const main = [...nodeCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? jbeamParts[0];
 

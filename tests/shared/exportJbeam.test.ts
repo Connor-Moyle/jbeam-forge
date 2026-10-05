@@ -8,7 +8,7 @@ import type { Project } from '../../src/shared/project/schema';
 import { meshoptReady } from '../../src/shared/proxy/shapes';
 import type { ProxyMesh } from '../../src/shared/proxy/mesh';
 import { generateStructure } from '../../src/shared/proxy/generate';
-import { buildJbeamFiles, flexGroupOf } from '../../src/shared/export/jbeam';
+import { buildJbeamFiles, flexGroupOf, flexGroupsOf, holdsMesh, slotTypeOf } from '../../src/shared/export/jbeam';
 import { defaultConfig, exportMeshNames, infoJson, materialsJson } from '../../src/shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig, slotChoices } from '../../src/shared/export/configs';
 import { validateExport } from '../../src/shared/export/validate';
@@ -288,6 +288,20 @@ describe('jbeam export', () => {
     // Every beam references a node that exists in some exported part.
     const allNodes = new Set([...files.values()].flatMap((p) => (p.nodes ? readTable(p.nodes).records.map((r) => r.values.id as string) : [])));
     for (const part of files.values()) if (part.beams) for (const r of readTable(part.beams).records) expect(allNodes.has(r.values['id1:'] as string) && allNodes.has(r.values['id2:'] as string)).toBe(true);
+  });
+
+  it('binds a mesh to the parts above too when its own nodes are in a line', () => {
+    expect(holdsMesh([[0, 0, 0], [1, 0, 0]])).toBe(false);
+    expect(holdsMesh([[0, 0, 0], [0.5, 0, 0], [1, 0, 0.001]])).toBe(false); // in a line
+    expect(holdsMesh([[0, 0, 0], [1, 0, 0], [0, 0.3, 0]])).toBe(true);
+    const { doc } = carProject();
+    const badge = doc.parts.find((p) => p.id === 'p_badge')!;
+    // Two nodes of its own, like a door glass on its runners.
+    doc.nodes.push({ id: 'g1', partId: badge.id, pos: [0, 1, 0.5], weight: 1 }, { id: 'g2', partId: badge.id, pos: [0, 1, 0.9], weight: 1 });
+    expect(flexGroupsOf(doc, badge, slotTypeOf(doc.parts, badge))).toEqual([slotTypeOf(doc.parts, badge), 'test_body']);
+    // With a third node off the line, its own nodes are enough.
+    doc.nodes.push({ id: 'g3', partId: badge.id, pos: [0.3, 1, 0.5], weight: 1 });
+    expect(flexGroupsOf(doc, badge, slotTypeOf(doc.parts, badge))).toEqual([slotTypeOf(doc.parts, badge)]);
   });
 
   it('writes the body part deterministically (snapshot)', () => {
