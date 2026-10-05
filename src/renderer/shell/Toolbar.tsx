@@ -1,4 +1,5 @@
-import { Car, CircleHelp, CloudDownload, LogOut, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Square, Undo2 } from 'lucide-react';
+import { Car, CircleHelp, CloudDownload, LogOut, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Sparkles, Square, Undo2 } from 'lucide-react';
+import { useAiMode } from '@renderer/ai/AiModeDialog';
 import { keyFor } from '@renderer/app/keys';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useDialogStore } from '@renderer/app/stores/dialogs';
@@ -87,6 +88,7 @@ export function Toolbar() {
           >
             {testing ? 'Stop test' : 'Test'}
           </Button>
+          <Tool word="AI mode" icon={Sparkles} label="AI mode: hand names, prices, weights, hinges, configurations and more to an AI you use" disabled={!hasParts} onClick={() => useAiMode.getState().setOpen(true)} data-testid="toolbar-ai" />
         </div>
 
         <div className={styles.spacer} />

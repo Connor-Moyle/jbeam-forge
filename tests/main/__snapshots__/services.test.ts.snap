@@ -135,6 +135,10 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "previewEveryConfig": true,
   "extensionsEnabled": true,
   "disabledExtensions": [],
+  "aiMode": "paste",
+  "aiProvider": "openai",
+  "aiModel": "",
+  "aiBaseUrl": "",
   "contentBranch": "downloads"
 }
 "

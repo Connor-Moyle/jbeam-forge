@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron';
+import { app, BrowserWindow, clipboard, shell } from 'electron';
 import { INGAME_ZIP, ingameStatus, installIngame } from '../beamng/ingame';
 import { sendEvent } from './register';
 import { z } from 'zod';
@@ -240,6 +240,14 @@ export function registerIpcHandlers(services: HandlerServices): void {
   });
 
   registerInvoke('beamng:detect', () => beamng.detect());
+  registerInvoke(
+    'clipboard:writeText',
+    async ({ text }) => {
+      await clipboard.writeText(text);
+      return undefined;
+    },
+    z.object({ text: z.string().max(4_000_000) }),
+  );
   // JBeam Forge inside the game: carried by this app, kept at its version.
   const ingameZip = () => (app.isPackaged ? join(process.resourcesPath, 'ingame', INGAME_ZIP) : join(app.getAppPath(), 'release', 'jbeam_forge_ingame.zip'));
   const modsDirOrNull = () => modsDir().catch(() => null);

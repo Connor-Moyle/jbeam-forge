@@ -77,8 +77,9 @@ const ghServer = createServer((req, res) => {
   const base = `http://127.0.0.1:${ghServer.address().port}`;
   let m;
   if (/^\/api\/repos\/[^/]+\/jbeam-forge\/releases$/.test(url.pathname)) return send(200, readFileSync(join(fakeGh, 'releases.json'), 'utf8').replaceAll('ASSETS/', `${base}/assets/`));
-  if (/^\/api\/repos\/[^/]+\/jbeam-forge-(textures|meshes)\/tags$/.test(url.pathname)) return send(200, JSON.stringify([{ name: 'v2.0.0' }, { name: 'v1.0.0' }]));
-  if ((m = /^\/raw\/[^/]+\/jbeam-forge-(textures|meshes)\/[^/]+\/(.+)$/.exec(url.pathname))) {
+  // One content repository, a folder per kind (Connor-Moyle/jbeam-forge-content/textures …).
+  if (/^\/api\/repos\/[^/]+\/jbeam-forge-content\/tags$/.test(url.pathname)) return send(200, JSON.stringify([{ name: 'v2.0.0' }, { name: 'v1.0.0' }]));
+  if ((m = /^\/raw\/[^/]+\/jbeam-forge-content\/[^/]+\/(textures|meshes)\/(.+)$/.exec(url.pathname))) {
     const file = join(fakeGh, 'repos', m[1], ...decodeURIComponent(m[2]).split('/'));
     return existsSync(file) ? send(200, readFileSync(file), 'application/octet-stream') : send(404, 'not found', 'text/plain');
   }
@@ -1683,6 +1684,62 @@ const scenarios = [
       await page.getByTestId('help-search').fill('hinge');
       await shot(page, 'help-centre');
       await page.keyboard.press('Escape');
+    },
+  },
+  {
+    id: 'ai-mode',
+    name: 'AI mode: copy the request, check a pasted answer, apply as one undo step, iterate',
+    async run({ app, page }) {
+      // The practice car from the tutorial scenario is open with its parts.
+      const before = await hook(page, 'projectDoc');
+      assert(before.parts.length >= 3, 'a project with parts is open');
+      await page.getByTestId('toolbar-ai').click();
+      await page.getByTestId('ai-copy').waitFor();
+      await page.getByTestId('ai-copy').click();
+      let request = '';
+      for (let i = 0; i < 50 && !request.includes('# Your jobs'); i++) {
+        request = await app.evaluate(({ clipboard }) => clipboard.readText());
+        await page.waitForTimeout(100);
+      }
+      assert(request.includes('Only use names that appear in this request'), 'the request carries the rule book');
+      assert(request.includes(before.parts[0].name), 'the request lists the parts by name');
+      const [a, b, c] = before.parts;
+      const answer = `Here you go!\n\`\`\`json\n${JSON.stringify({
+        summary: 'Priced, weighed and named.',
+        changes: [
+          { do: 'price', part: a.name, price: 1234 },
+          { do: 'mass', part: b.name, kg: 7.5 },
+          { do: 'rename', part: c.name, displayName: 'Harness Part' },
+          { do: 'price', part: 'no_such_part', price: 10 },
+        ],
+        notes: ['Check the bumper weight.'],
+      })}\n\`\`\``;
+      await page.getByRole('textbox', { name: 'The AI’s answer' }).fill(answer);
+      await page.getByTestId('ai-check').click();
+      await page.getByTestId('ai-changes').waitFor();
+      assert((await page.getByTestId('ai-changes').getByText(/Refused: there is no part called "no_such_part"/).count()) === 1, 'an unknown part is refused');
+      await shot(page, 'ai-mode-check');
+      await page.getByTestId('ai-apply').click();
+      await page.getByText(/3 applied/).waitFor();
+      const after = await hook(page, 'projectDoc');
+      const byName = (d, n) => d.parts.find((p) => p.name === n);
+      assert(byName(after, a.name).price === 1234, 'price applied');
+      assert(after.proxy.parts[byName(after, b.name).id]?.massKg === 7.5, 'mass applied');
+      assert(byName(after, c.name).displayName === 'Harness Part', 'name applied');
+      // Iterate: the next request says what was applied and what was refused.
+      await page.getByTestId('ai-iterate').click();
+      await page.getByTestId('ai-copy').click();
+      let again = '';
+      for (let i = 0; i < 50 && !again.includes('# Applied'); i++) {
+        again = await app.evaluate(({ clipboard }) => clipboard.readText());
+        await page.waitForTimeout(100);
+      }
+      assert(again.includes('# Refused (fix these)') && again.includes('no_such_part'), 'iterate reports what was refused');
+      await page.keyboard.press('Escape');
+      // One Ctrl+Z takes the whole round back.
+      await hook(page, 'runCommand', 'undo');
+      const undone = await hook(page, 'projectDoc');
+      assert(byName(undone, a.name).price === a.price && byName(undone, c.name).displayName === c.displayName, 'one undo reverts the whole round');
     },
   },
   {

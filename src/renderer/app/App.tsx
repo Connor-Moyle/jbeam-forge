@@ -54,6 +54,7 @@ import { usePainter } from '@renderer/paint/painter';
 import { currentSet, useVinylUi } from '@renderer/paint/vinyls';
 import { paintedCounts } from '@renderer/paint/facePaint';
 import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
+import { AiModeDialog } from '@renderer/ai/AiModeDialog';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -432,6 +433,7 @@ export function App() {
       <Root />
       <DialogHost />
       <HelpCentre />
+      <AiModeDialog />
       <ImportHost />
     </TooltipProvider>
   );

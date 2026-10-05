@@ -337,6 +337,13 @@ export interface InvokeContract {
   'publish:push': { req: { message: string }; res: { committed: number; pushed: boolean } };
   /** Show the copy in the file manager. */
   'publish:reveal': { req: undefined; res: undefined };
+  /** AI mode, connected: which services have a saved key. */
+  'ai:status': { req: undefined; res: { keys: Record<string, boolean>; providers: { id: string; label: string; keyUrl: string | null; needsKey: boolean; defaultModel: string; defaultBaseUrl: string }[] } };
+  /** Save (or with null, forget) the modder's key for a service. */
+  'ai:setKey': { req: { provider: string; key: string | null }; res: undefined };
+  /** Send a request with the settings' service and model; the reply's text. */
+  'ai:send': { req: { prompt: string }; res: string };
+  'ai:cancel': { req: undefined; res: undefined };
   /** App versions on GitHub, newest first, and what's already downloaded. */
   'updates:info': { req: undefined; res: UpdatesInfo };
   /** Download one release file (installer, portable exe); progress arrives as updates:progress. */
@@ -347,6 +354,8 @@ export interface InvokeContract {
   'updates:clear': { req: undefined; res: undefined };
   /** Show the settings file in the file manager. */
   'app:revealSettings': { req: undefined; res: undefined };
+  /** Put text on the clipboard (the browser's clipboard refuses when the window isn't focused). */
+  'clipboard:writeText': { req: { text: string }; res: undefined };
 }
 
 /** Commands the native menu forwards to the renderer. */
@@ -470,6 +479,10 @@ export const INVOKE_CHANNELS = [
   'content:remove',
   'content:reveal',
   'publish:status',
+  'ai:status',
+  'ai:setKey',
+  'ai:send',
+  'ai:cancel',
   'publish:clone',
   'publish:addMaterial',
   'publish:addScript',
@@ -482,6 +495,7 @@ export const INVOKE_CHANNELS = [
   'updates:run',
   'updates:clear',
   'app:revealSettings',
+  'clipboard:writeText',
 ] as const satisfies readonly InvokeChannel[];
 
 export const EVENT_CHANNELS = [

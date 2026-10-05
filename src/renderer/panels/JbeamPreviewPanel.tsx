@@ -7,6 +7,7 @@ import { useProjectStore } from '@renderer/app/stores/project';
 import { allMeshes, useSceneStore } from '@renderer/app/stores/scene';
 import { useSettingsStore } from '@renderer/app/stores/settings';
 import { useUiStore } from '@renderer/app/stores/ui';
+import { call } from '@renderer/diagnostics/ipc';
 import { useEditStore } from '@renderer/structure/editStore';
 import { currentTaxonomy } from '@renderer/parts/taxonomy';
 import { EmptyState } from '@renderer/ui/components/EmptyState';
@@ -66,7 +67,7 @@ export function JbeamPreviewPanel() {
   const marked = markedLines(file.text, editNodes, editBeams, editTris);
 
   const copy = () => {
-    void navigator.clipboard.writeText(file.text).then(() => pushStatus(`Copied ${file.file}`, 'success'));
+    void call('clipboard:writeText', { text: file.text }).then(() => pushStatus(`Copied ${file.file}`, 'success'));
   };
   const lines = file.text.split('\n').length;
 

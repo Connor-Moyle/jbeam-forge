@@ -21,6 +21,7 @@ import { useUiStore } from '@renderer/app/stores/ui';
 import { BeamngParts, LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
 import { ExtensionList } from './ExtensionList';
 import { PublishSection } from './PublishSection';
+import { AiSettings } from './AiSettings';
 import { IngameVersion } from './IngameVersion';
 import { KeymapEditor } from './KeymapEditor';
 import { applyInterface, useSettingsStore } from '@renderer/app/stores/settings';
@@ -49,6 +50,7 @@ const SECTIONS = [
   { id: 'units', label: 'Units' },
   { id: 'export', label: 'Export' },
   { id: 'downloads', label: 'Downloads' },
+  { id: 'ai', label: 'AI mode' },
   { id: 'scripts', label: 'Scripts' },
   { id: 'extensions', label: 'Extensions' },
   { id: 'library', label: 'Library folders' },
@@ -631,6 +633,10 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               </CollapsibleSection>
               <PublishSection />
             </FieldGroup>
+          </section>
+
+          <section data-section="ai">
+            <AiSettings d={d} set={set} />
           </section>
 
           <section data-section="scripts">

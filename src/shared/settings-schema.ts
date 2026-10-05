@@ -15,6 +15,9 @@ export type WindowSize = (typeof WINDOW_SIZES)[number];
  */
 export const SETTINGS_VERSION = 1;
 
+/** Services AI mode can send to with the modder's own key (see src/main/ai/providers.ts). */
+export const AI_PROVIDERS = ['openai', 'anthropic', 'gemini', 'openrouter', 'local', 'custom'] as const;
+
 export const SettingsSchema = z.object({
   version: z.literal(SETTINGS_VERSION),
   debugLogging: z.boolean(),
@@ -225,9 +228,19 @@ export const SettingsSchema = z.object({
   disabledExtensions: z.array(z.string().max(40)).max(200),
   /** Branch the content repositories' latest version lives on. */
   contentBranch: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/),
+
+  // AI mode
+  /** paste: copy the request into any AI chat and paste the reply back; connected: send it with the modder's own key. */
+  aiMode: z.enum(['paste', 'connected']),
+  aiProvider: z.enum(AI_PROVIDERS),
+  /** Model name at that service; '' = its default. */
+  aiModel: z.string().max(120),
+  /** Address of a local or other OpenAI-compatible service; '' = the provider's own. */
+  aiBaseUrl: z.string().max(300),
 });
 
 export type Settings = z.infer<typeof SettingsSchema>;
+export type AiProviderId = (typeof AI_PROVIDERS)[number];
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
@@ -337,6 +350,10 @@ export const DEFAULT_SETTINGS: Settings = {
   previewEveryConfig: true,
   extensionsEnabled: true,
   disabledExtensions: [],
+  aiMode: 'paste',
+  aiProvider: 'openai',
+  aiModel: '',
+  aiBaseUrl: '',
   contentBranch: 'downloads',
 };
 
