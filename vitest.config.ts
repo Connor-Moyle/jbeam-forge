@@ -12,6 +12,8 @@ export default defineConfig({
   resolve: { alias },
   define: { __APP_VERSION__: JSON.stringify('0.0.0-test') },
   test: {
+    // The heavier geometry tests (the practice car's skin unwrap) need more than 5 s when every file runs at once.
+    testTimeout: 20_000,
     projects: [
       {
         resolve: { alias },
