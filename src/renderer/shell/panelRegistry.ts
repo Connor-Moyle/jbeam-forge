@@ -48,7 +48,7 @@ export const PANELS = {
   'jbeam-tables': { title: 'Nodes & beams', icon: Table2, component: JbeamTablesPanel },
   'jbeam-props': { title: 'Node & beam values', icon: SlidersHorizontal, component: JbeamPropertiesPanel },
   'moving-parts': { title: 'Moving parts', icon: DoorOpen, component: MovingPartsPanel },
-  'moving-part': { title: 'Settings', icon: SlidersHorizontal, component: MovingPartPanel },
+  'moving-part': { title: 'Moving part', icon: SlidersHorizontal, component: MovingPartPanel },
   triggers: { title: 'Triggers', icon: MousePointerClick, component: TriggersPanel },
   trigger: { title: 'Trigger', icon: SlidersHorizontal, component: TriggerPanel },
   'tyre-builder': { title: 'Tyre builder', icon: CircleDot, component: TyreBuilderPanel },

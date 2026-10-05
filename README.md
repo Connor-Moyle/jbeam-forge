@@ -234,7 +234,7 @@ Other controls:
 The cleanup pass welds duplicate points, removes slivers, splits beams that are too long (floppy) and collapses ones that are too short (unstable). You don't have to think about any of that unless you want to.
 
 ### Editing
-![Editing nodes](docs/images/edit.png)
+![The JBeam workspace: every node and beam in tables](docs/images/edit.png)
 
 This is where most of your time goes, so I put the most work into it.
 
@@ -260,7 +260,7 @@ This is where most of your time goes, so I put the most work into it.
 Double-click a part, press **F**, or click the focus icon in the tree. The camera glides to the part, everything else fades to a ghost, and the inspector turns into that part's page: variants, details, generation, attachment, hinges, aero, materials and validation all in one place. Press **Esc** or double-click empty space to leave, or double-click another part to jump straight to it.
 
 ### Physics sandbox
-![Crash test heatmap](docs/images/sandbox.png)
+![The Testing workspace](docs/images/sandbox.png)
 
 The sandbox runs its own soft-body solver at 2000 Hz. It uses the same spring and damping values the export writes, so what you see here is a reasonable preview of the structure.
 
@@ -304,7 +304,7 @@ Broken beams and unstable nodes are listed in the results panel. Click one to ju
 **UVs.** View UV islands over the texture, auto-unwrap models with bad or missing UVs, use box, planar or cylinder projection, and bake ambient occlusion.
 
 ### Hinges and latches
-![Hinge wizard](docs/images/hinge.png)
+![The Moving parts workspace](docs/images/hinge.png)
 
 1. Enter hinge mode and click the door, bonnet or boot.
 2. Let Forge find the hinge axis from the closest edge, or click two points yourself. Both points stay draggable.
@@ -316,7 +316,7 @@ Broken beams and unstable nodes are listed in the results panel. Click one to ju
 Forge generates the hinge beams, the opening limit and a latch that pops open under a big enough hit. Per door, you can tweak hinge stiffness and damping, opening angle, latch strength and auto-latching.
 
 ### Suspension
-![Suspension wizard](docs/images/suspension.png)
+![The Suspension workspace](docs/images/suspension.png)
 
 **From your own meshes.** If your model has control arms, hubs, coilovers, driveshafts and a diff, and they're named sensibly, Forge uses them. Pivot points come from the ends of the arms and hub centres from the hubs, and each mesh is bound to its own nodes, so they move properly in-game.
 
@@ -331,7 +331,7 @@ You can mix both approaches. A per-corner checklist shows what's from your mesh 
 **Also:** brakes per axle (disc or drum, size, torque, bias, handbrake, heat) as swappable parts, steering racks as parts, and front and rear subframes that the suspension and engine bolt to. Subframes can break away from the body in a big enough crash.
 
 ### Powertrain
-![Dyno chart](docs/images/dyno.png)
+![The engine designer](docs/images/dyno.png)
 
 **Engine designer.** Start from a preset (inline 3 through V12, boxer, rotary or diesel), then adjust displacement, idle, redline, inertia, friction and fuel. The **dyno chart** is the fun bit. Drag the torque curve points around and watch the power curve (kW and hp) update live, with peak numbers called out. Add a **turbo** and the boost curve overlays against the naturally aspirated one, so you can actually see spool, wastegate and max pressure. There's a supercharger option too.
 
