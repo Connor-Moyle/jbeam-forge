@@ -55,6 +55,18 @@ describe('drive shafts', () => {
     expect(powertrainRows(front)).toEqual([]);
   });
 
+  it("doesn't drive an axle whose differential stayed behind, and drops its dangling wheel shafts", () => {
+    // The ETK 800's front suspension on a rear-drive car: wheel shafts on differential_F, whose part is an empty slot.
+    const front = axle('F', null);
+    const plan = planDrivetrain({ engine: ENGINE, gearbox: BOX, axles: [{ index: 0, name: 'Front', y: -1.4, parts: front }, { index: 1, name: 'Rear', y: 1.3, parts: axle('R', 'driveshaft') }] });
+    expect(plan.axles.map((a) => [a.name, a.driveable, a.driven])).toEqual([['Front', false, false], ['Rear', true, true]]);
+    // No centre differential sending torque to nothing: one shaft to the rear.
+    expect(plan.rows).toEqual([H, ['shaft', 'jbf_driveshaft_2', 'gearbox', 1]]);
+    expect(plan.drop.has(0)).toBe(true);
+    applyDrivetrainToAxle(front, plan, 0);
+    expect(powertrainRows(front)).toEqual([]);
+  });
+
   it('says what is wrong', () => {
     expect(planDrivetrain({ engine: ENGINE, gearbox: BOX, axles: [{ index: 0, name: 'Front', y: -1.4, parts: undriven('F') }] }).problems[0]).toMatch(/no wheel is driven/);
     expect(planDrivetrain({ engine: ENGINE, gearbox: null, axles: [{ index: 0, name: 'Rear', y: 1, parts: axle('R', 'driveshaft') }] }).problems[0]).toMatch(/Fit a gearbox/);

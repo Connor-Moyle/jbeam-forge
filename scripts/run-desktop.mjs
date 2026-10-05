@@ -2744,6 +2744,31 @@ const scenarios = [
       await page.getByTestId('workshop-fit').first().click();
       await page.getByTestId('suspension-panel').waitFor({ timeout: 60_000 });
       await page.waitForTimeout(1000);
+      // And a rear one from the same car, so the gearbox drives the rear wheels.
+      await page.getByTestId('axle-choose').first().click();
+      await page.getByTestId('suspension-picker').waitFor();
+      let rearType = null;
+      for (const type of ['Independent', 'Double wishbone', 'Trailing arm', 'Solid axle']) {
+        const t = page.getByTestId('workshop-type').filter({ hasText: type });
+        if (!(await t.count())) continue;
+        await t.first().click();
+        await page.waitForTimeout(500);
+        const etk = page.getByTestId('workshop-brand').filter({ hasText: 'ETK' });
+        if (await etk.count()) {
+          await etk.first().click();
+          rearType = type;
+          break;
+        }
+        await page.getByRole('button', { name: 'Back' }).first().click();
+      }
+      assert(rearType, 'an ETK rear suspension in the catalogue');
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.waitForTimeout(2000);
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('suspension-panel').waitFor({ timeout: 60_000 });
+      await page.waitForTimeout(1000);
+      const axles = (await hook(page, 'projectDoc')).axles;
+      assert(axles.length >= 2 && axles.every((a) => a.fitted), `front and rear suspensions fitted (${axles.map((a) => a.fitted?.setId ?? 'none').join(', ')}; rear: ${rearType})`);
       // An engine and gearbox from the game.
       await page.getByTestId('toggle-powertrain').click();
       await page.getByTestId('powertrain-panel').waitFor();

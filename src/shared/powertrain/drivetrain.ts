@@ -135,7 +135,10 @@ export function planDrivetrain(input: { engine: Readonly<Record<string, JbeamObj
     const seen = new Set<string>();
     const entries = rows.filter((r) => !own.has(r.input) && !seen.has(r.name) && seen.add(r.name)).map((r) => ({ device: r.name, input: r.input, index: r.index }));
     const front = input.axles.length === 1 ? true : a.y <= mid;
-    return { index: a.index, name: a.name, front, driveable: entries.length > 0, driven: false, entries, via: '' };
+    // Only an axle with its own differential can be driven: a suspension whose wheel shafts hang on a differential that
+    // stayed behind (an empty slot, e.g. the ETK 800's front on a rear-drive car) just rolls.
+    const driveable = entries.length > 0 && rows.some((r) => r.type === 'differential');
+    return { index: a.index, name: a.name, front, driveable, driven: false, entries, via: '' };
   });
 
   // The same suspension on two axles: their devices share names, and the game would join them wrongly.
@@ -160,7 +163,8 @@ export function planDrivetrain(input: { engine: Readonly<Record<string, JbeamObj
   if (!driveable.length && input.axles.length) problems.push('None of the fitted suspensions has a differential, so no wheel is driven. Fit a suspension from a driven axle.');
 
   const rewire = new Map<number, Map<string, [string, number]>>();
-  const drop = new Set(axles.filter((a) => a.driveable && !a.driven).map((a) => a.index));
+  // Rows of an axle that isn't driven go; so do rows still pointing at a device nothing brought (the game would complain).
+  const drop = new Set(axles.filter((a) => (a.driveable && !a.driven) || (!a.driveable && a.entries.some((e) => !known.has(e.input)))).map((a) => a.index));
   const out: JbeamValue[][] = [];
   const add = (row: JbeamValue[]) => out.push(row);
   const resolved = (a: AxlePlan) => a.entries.every((e) => known.has(e.input) && !axleRows.some((rows, i) => input.axles[i]!.index !== a.index && rows.some((r) => r.name === e.input)));

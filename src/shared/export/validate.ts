@@ -9,7 +9,7 @@ import { bodyPart, flexGroupOf, slotTypeOf, type TaxonomyLookup } from './jbeam'
  * broken in-game; warnings don't.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'triggers'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'triggers' | 'axles'>>;
 
 export interface ExportIssue {
   code: string;
@@ -55,6 +55,13 @@ export function validateExport(doc: Doc, tax: TaxonomyLookup, input: ValidationI
     const prev = nodeIds.get(n.id);
     if (prev && prev !== slot) err('node-duplicate', `Node id ${n.id} is used by two different slots (${prev}, ${slot}).`, n.partId);
     nodeIds.set(n.id, slot);
+  }
+  // A fitted game suspension brings the game's wheels, whose hub nodes are fw1l, rw1rr…: a node of ours with such a
+  // name would be defined twice in the game. (Projects generated before 0.15.1 named firewall and rear window nodes so.)
+  if ((doc.axles ?? []).some((a) => a.fitted)) {
+    const clash = new Map<string, string>();
+    for (const n of doc.nodes) if (/^[fr]w\d+(l|ll|r|rr)?$/.test(n.id) && !clash.has(n.partId)) clash.set(n.partId, n.id);
+    for (const [partId, id] of clash) err('node-reserved', `${partById.get(partId)?.displayName ?? partId}: node ${id} has the same name as the game's wheel hub nodes. Regenerate the part (Generate) to rename its nodes.`, partId);
   }
   for (const b of doc.beams) if (!nodeIds.has(b.id1) || !nodeIds.has(b.id2)) err('beam-dangling', `A beam of ${partById.get(b.partId)?.name ?? b.partId} references a missing node (${b.id1}–${b.id2}). Regenerate the part.`, b.partId);
   for (const t of doc.tris) if (t.ids.some((id) => !nodeIds.has(id))) err('tri-dangling', `A triangle of ${partById.get(t.partId)?.name ?? t.partId} references a missing node. Regenerate the part.`, t.partId);

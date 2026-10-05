@@ -69,7 +69,7 @@
       "parent": "body",
       "defaultMass": 8,
       "defaultPrice": 300,
-      "nodePrefix": "fw",
+      "nodePrefix": "fwal",
       "beamPreset": "structure_stiff",
       "openable": false,
       "nameHints": [
@@ -1009,7 +1009,7 @@
       "parent": "body",
       "defaultMass": 8,
       "defaultPrice": 200,
-      "nodePrefix": "rw",
+      "nodePrefix": "rwin",
       "beamPreset": "glass_brittle",
       "openable": false,
       "nameHints": [

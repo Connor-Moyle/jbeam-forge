@@ -342,6 +342,21 @@ describe('validateExport', () => {
     expect(codes).toContain('refnodes-missing');
   });
 
+  it("stops a node named like the game's wheel hubs when a game suspension brings them", () => {
+    const { doc, meshes } = carProject();
+    const node = doc.nodes.find((n) => n.partId === 'p_hood')!;
+    const old = node.id;
+    node.id = 'rw1r';
+    for (const b of doc.beams) {
+      if (b.id1 === old) b.id1 = 'rw1r';
+      if (b.id2 === old) b.id2 = 'rw1r';
+    }
+    for (const t of doc.tris) t.ids = t.ids.map((id) => (id === old ? 'rw1r' : id)) as typeof t.ids;
+    expect(run(doc, meshes).errors.map((e) => e.code)).not.toContain('node-reserved');
+    (doc as { axles?: unknown }).axles = [{ fitted: { setId: 'car/car_suspension_R' } }];
+    expect(run(doc, meshes).errors.find((e) => e.code === 'node-reserved')?.partId).toBe('p_hood');
+  });
+
   it("doesn't ask for structure on an engine or gearbox fitted from the game, nor generate any for it", () => {
     const { doc, meshes } = carProject();
     const engine = createPart(doc, tax, { taxonomyId: 'engine_set', id: 'p_engine' });
