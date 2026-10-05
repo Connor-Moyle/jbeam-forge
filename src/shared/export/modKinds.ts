@@ -146,6 +146,8 @@ export function engineModFiles(doc: Pick<Project, 'meta' | 'powertrain'>, author
   if (!engines.length) errors.push('Pick an engine from a car of the game in the engine builder: the mod is that engine, changed, as a new part for that car.');
   const files: ModFileOut[] = [];
   const byVehicle = new Map<string, Record<string, JbeamObject>>();
+  // The car's folder in the game (etk800), from the set id "<folder>/<part>": its display name (ETK 800-Series) isn't a folder.
+  const folderOf = (e: FittedSet) => (e.setId.includes('/') ? e.setId.slice(0, e.setId.indexOf('/')) : e.vehicle);
   for (const e of engines) {
     const data = sets[e.setId];
     if (!data) {
@@ -154,7 +156,7 @@ export function engineModFiles(doc: Pick<Project, 'meta' | 'powertrain'>, author
     }
     const chosen = applyChoices(data, data.options, e.choices);
     const edited = applyPowertrainEdits(chosen.parts, chosen.root, e.edits);
-    const out = byVehicle.get(e.vehicle) ?? {};
+    const out = byVehicle.get(folderOf(e)) ?? {};
     const rootName = `${slug}_${chosen.root}`;
     let root = edited[chosen.root];
     if (!root || !isJbeamObject(root)) {
@@ -169,8 +171,8 @@ export function engineModFiles(doc: Pick<Project, 'meta' | 'powertrain'>, author
       root = renameDefaults(root, name, copy);
     }
     const info = isJbeamObject(root.information) ? root.information : {};
-    out[rootName] = { ...root, information: { ...info, authors: author || 'JBeam Forge', name: doc.meta.name + (engines.filter((x) => x.vehicle === e.vehicle).length > 1 ? ` (${e.name})` : '') } };
-    byVehicle.set(e.vehicle, out);
+    out[rootName] = { ...root, information: { ...info, authors: author || 'JBeam Forge', name: doc.meta.name + (engines.filter((x) => folderOf(x) === folderOf(e)).length > 1 ? ` (${e.name})` : '') } };
+    byVehicle.set(folderOf(e), out);
   }
   for (const [vehicle, parts] of byVehicle) files.push({ path: `vehicles/${vehicle}/${slug}_engine.jbeam`, text: serializeJbeam(parts) });
   return { files, errors };

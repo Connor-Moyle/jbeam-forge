@@ -2785,7 +2785,7 @@ const scenarios = [
   },
   {
     id: 'part-mods-real',
-    name: 'part mods against a real BeamNG install: tyres, wheels and an ETK hood, installed and checked against the game (--beamng-install)',
+    name: 'part mods against a real BeamNG install: tyres, wheels, an ETK hood and an ETK engine, installed and checked against the game (--beamng-install)',
     skip: () => !realInstall,
     async run({ page }) {
       const home = async () => {
@@ -2873,6 +2873,28 @@ const scenarios = [
       await page.waitForTimeout(500);
       r = await installAndCheck('panel-real');
       if (r.status !== 0) failures.push(`panel:\n${r.stdout}${r.stderr.slice(0, 400)}`);
+
+      // An engine for the ETK 800: its own inline-6, with a designer preset on it.
+      await home();
+      await page.getByTestId('home-new').click();
+      await page.getByTestId('newmod-kind-engine').click();
+      await page.getByTestId('newmod-name').fill('Forge Six');
+      await page.getByTestId('newmod-create').click();
+      await page.getByTestId('powertrain-panel').waitFor({ timeout: 30_000 });
+      await page.getByTestId('engine-choose').click();
+      await page.getByTestId('workshop-type').filter({ hasText: 'Inline-6' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.waitForTimeout(2000);
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
+      await page.getByTestId('engine-design').click();
+      await page.getByTestId('engine-designer').waitFor();
+      await page.getByTestId('engine-preset-s14').click();
+      await page.waitForTimeout(500);
+      await page.getByRole('button', { name: 'Back' }).first().click();
+      r = await installAndCheck('engine-real');
+      if (r.status !== 0) failures.push(`engine:\n${r.stdout}${r.stderr.slice(0, 400)}`);
 
       assert(!failures.length, failures.join('\n'));
     },

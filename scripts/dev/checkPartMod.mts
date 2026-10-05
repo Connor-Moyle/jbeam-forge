@@ -110,6 +110,16 @@ for (const car of readdirSync(join(modDir, 'vehicles'))) {
   const carNodes = new Set<string>();
   const carGroups = new Set<string>();
   for (const p of [...stock.values(), ...common.values()]) nodeIds(p, carNodes, carGroups);
+  // Meshes the game's own parts already show (an engine mod reuses the stock engine's), with the groups they ride on there.
+  const gameMeshes = new Map<string, Set<string>>();
+  for (const p of [...stock.values(), ...common.values()])
+    if (p.flexbodies)
+      for (const r of readTable(p.flexbodies).records) {
+        const gs = r.values['[group]:'];
+        const set = gameMeshes.get(s(r.values.mesh)) ?? new Set<string>();
+        for (const g of Array.isArray(gs) ? gs.map(s) : []) set.add(g);
+        gameMeshes.set(s(r.values.mesh), set);
+      }
   for (const p of [...stock.values(), ...common.values()])
     for (const section of ['pressureWheels', 'hubWheels', 'wheels'])
       if (p[section]) for (const r of readTable(p[section]).records) for (const k of ['group', 'hubGroup']) if (typeof r.values[k] === 'string') carGroups.add(r.values[k] as string);
@@ -130,9 +140,11 @@ for (const car of readdirSync(join(modDir, 'vehicles'))) {
     if (p.flexbodies)
       for (const r of readTable(p.flexbodies).records) {
         const mesh = s(r.values.mesh);
-        if (!daeNodes.has(mesh)) errors.push(`${name}: mesh ${mesh} is in none of the mod's DAE files`);
+        const game = gameMeshes.get(mesh);
+        if (!daeNodes.has(mesh) && !game) errors.push(`${name}: mesh ${mesh} is in none of the mod's DAE files, and no part of the game shows it`);
         const gs = r.values['[group]:'];
-        for (const g of Array.isArray(gs) ? gs.map(s) : []) if (!ownGroups.has(g) && !carGroups.has(g)) errors.push(`${name}: mesh ${mesh} rides on node group ${g}, which neither the part nor ${car} has`);
+        // A game mesh on the same groups the game's own part puts it on behaves as it does in the game.
+        for (const g of Array.isArray(gs) ? gs.map(s) : []) if (!ownGroups.has(g) && !carGroups.has(g) && !game?.has(g)) errors.push(`${name}: mesh ${mesh} rides on node group ${g}, which neither the part nor ${car} has`);
       }
   }
 }

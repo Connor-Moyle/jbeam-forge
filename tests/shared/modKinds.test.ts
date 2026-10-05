@@ -66,7 +66,8 @@ describe('engine mods', () => {
       car_turbo_stock: { information: { name: 'Stock turbo' }, slotType: 'car_turbo', turbocharger: { maxPressure: 10 } },
     } as Record<string, JbeamObject>,
   };
-  const engine: FittedSet = { setId: 'car/car_engine_v8', name: 'V8', vehicle: 'car', type: 'engine', sourceId: 's', tuning: {}, edits: { ...emptyEdits(), fields: { 'car_engine_v8/mainEngine/maxRPM': 8000, 'car_turbo_stock/turbocharger/maxPressure': 14 } } };
+  // The display name, as the catalogue gives it: the folder comes from the set id.
+  const engine: FittedSet = { setId: 'car/car_engine_v8', name: 'V8', vehicle: 'Gavril Car-Series', type: 'engine', sourceId: 's', tuning: {}, edits: { ...emptyEdits(), fields: { 'car_engine_v8/mainEngine/maxRPM': 8000, 'car_turbo_stock/turbocharger/maxPressure': 14 } } };
 
   it('a new part in the car’s engine slot, with changed sub-parts renamed and pointed at', () => {
     const r = engineModFiles({ meta: { slug: 'boost', name: 'Boosted V8' } as never, powertrain: { engine, gearbox: null } }, 'Me', { 'car/car_engine_v8': set });
