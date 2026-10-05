@@ -12,14 +12,14 @@ import { Select } from '@renderer/ui/components/Select';
 import { Slider } from '@renderer/ui/components/Slider';
 import { Toggle } from '@renderer/ui/components/Toggle';
 import type { Part, PartProxy } from '@shared/project/schema';
-import { ATTACHMENT_VALUES, ATTACHMENT_STYLES, BRACING_DENSITIES, STRUCTURE_ROLES, kindDefaults, targetVertices, type StructureRole } from '@shared/proxy/presets';
+import { ATTACHMENT_VALUES, ATTACHMENT_STYLES, BRACING_DENSITIES, STRUCTURE_ROLES, GAME_SET_IDS, kindDefaults, targetVertices, type StructureRole } from '@shared/proxy/presets';
 import { PROXY_MODES } from '@shared/proxy/build';
 import { massNodeCap, partMass, partRole, partSettings } from '@shared/proxy/generate';
 import { clearStructure, generateParts, previewCounts, updateProxySettings, useStructureUi } from './generate';
 import styles from './StructureSection.module.css';
 
 const MODE_LABELS: Record<(typeof PROXY_MODES)[number], string> = { surface: 'Surface (even spacing)', decimate: 'Decimate (shell)', hull: 'Convex hull', box: 'Box (PCA fit)', cylinder: 'Cylinder (PCA fit)' };
-const ROLE_LABELS: Record<StructureRole, string> = { own: 'Own nodes (generated proxy)', rides: 'Rides on parent part', suspension: 'Suspension-built (Phase 10)' };
+const ROLE_LABELS: Record<StructureRole, string> = { own: 'Own nodes (generated proxy)', rides: 'Rides on parent part', suspension: 'Built by the suspension' };
 const BRACING_LABELS: Record<(typeof BRACING_DENSITIES)[number], string> = { none: 'None', light: 'Light', standard: 'Standard', heavy: 'Heavy' };
 
 /** Inspector section: how this part's jbeam structure is generated (SPEC §4.4). */
@@ -59,6 +59,15 @@ export function StructureSection({ part }: { part: Part }) {
       <Select value={role} onChange={(r) => set({ role: r === defaults.role ? undefined : r })} options={STRUCTURE_ROLES.map((r) => ({ value: r, label: ROLE_LABELS[r] }))} />
     </Field>
   );
+  if (GAME_SET_IDS.has(part.taxonomyId)) {
+    return (
+      <FieldGroup title="Structure">
+        <p className={styles.note} data-testid="structure-role-note">
+          From the game: its own nodes and beams go into the mod as they are, so there is nothing to generate.
+        </p>
+      </FieldGroup>
+    );
+  }
   if (role !== 'own') {
     return (
       <FieldGroup title="Structure">
@@ -66,7 +75,7 @@ export function StructureSection({ part }: { part: Part }) {
         <p className={styles.note} data-testid="structure-role-note">
           {role === 'rides'
             ? 'No nodes of its own: its mesh moves with its parent part’s nodes, like official badges, lights and gauges.'
-            : 'Built by the suspension system from this mesh (Phase 10): arms, hubs, struts, steering and brakes get few heavy nodes there.'}
+            : 'Built by the suspension from this mesh: arms, hubs, struts, steering and brakes get a few heavy nodes there.'}
         </p>
       </FieldGroup>
     );

@@ -2596,6 +2596,11 @@ const scenarios = [
     name: 'suspension workshop with a real BeamNG install (--beamng-install)',
     skip: () => !realInstall,
     async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
       await page.waitForSelector('[data-view=home][data-testid=app-ready]');
       await page.getByTestId('home-new').click();
       await page.getByTestId('newmod-name').fill('Parts');
@@ -2693,6 +2698,84 @@ const scenarios = [
       await shot(page, 'engine-designer-fitted');
       await page.getByRole('button', { name: 'Back' }).first().click();
       writeFileSync(join(outDir, 'beamng-parts-report.json'), JSON.stringify(partsReport, null, 1));
+    },
+  },
+  {
+    id: 'practice-real',
+    name: 'the practice car with a real game suspension, engine and gearbox, exported and checked as the game reads it (--beamng-install)',
+    skip: () => !realInstall,
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
+      await invoke('settings:update', { beamngInstallDir: realInstall });
+      for (let i = 0; i < 1800; i++) {
+        const lib = await invoke('library:status');
+        if (!lib.scanning && (await invoke('suspension:catalogue')).length) break;
+        await page.waitForTimeout(100);
+      }
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      await hook(page, 'applyPreset', 'modelling');
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      await page.waitForTimeout(1500);
+      // A front suspension from the game.
+      await page.getByTestId('toggle-suspension').click();
+      await page.getByRole('button', { name: 'Set up axles' }).click();
+      await page.getByTestId('suspension-picker').waitFor();
+      await page.getByTestId('workshop-type').filter({ hasText: 'MacPherson strut' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.waitForTimeout(2000);
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('suspension-panel').waitFor({ timeout: 60_000 });
+      await page.waitForTimeout(1000);
+      // An engine and gearbox from the game.
+      await page.getByTestId('toggle-powertrain').click();
+      await page.getByTestId('powertrain-panel').waitFor();
+      await page.getByTestId('engine-choose').click();
+      await page.getByTestId('workshop-type').filter({ hasText: 'Inline-6' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.waitForTimeout(2000);
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
+      await page.getByTestId('gearbox-choose').click();
+      await page.getByTestId('workshop-type').filter({ hasText: 'Manual' }).click();
+      await page.getByTestId('workshop-brand').filter({ hasText: 'ETK' }).click();
+      await page.getByTestId('workshop-vehicle').first().click();
+      await page.getByTestId('workshop-fit').first().click();
+      await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
+      await page.waitForTimeout(800);
+      await shot(page, 'practice-real-fitted');
+      // Export → Install, then read it back the way the game does.
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-dialog').waitFor();
+      await page.getByTestId('export-install').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 120_000 });
+      await shot(page, 'practice-real-exported');
+      const unpacked = join(fakeUserDir, 'mods', 'unpacked');
+      const mod = readdirSync(unpacked).sort((a, b) => statSync(join(unpacked, b)).mtimeMs - statSync(join(unpacked, a)).mtimeMs)[0];
+      const modDir = join(outDir, 'practice-real-mod');
+      cpSync(join(unpacked, mod), modDir, { recursive: true });
+      const tsx = join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      const lint = spawnSync(process.execPath, [tsx, '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lint-mod.ts'), modDir], { encoding: 'utf8', env: { ...process.env, BEAMNG_INSTALL: realInstall } });
+      writeFileSync(join(outDir, 'practice-real-lint.txt'), lint.stdout + lint.stderr);
+      const vdir = join(modDir, 'vehicles', readdirSync(join(modDir, 'vehicles'))[0]);
+      const check = spawnSync(process.execPath, [tsx, join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir], { encoding: 'utf8', env: { ...process.env, STEPS: '6000' } });
+      writeFileSync(join(outDir, 'practice-real-stability.txt'), check.stdout + check.stderr);
+      assert(lint.status === 0, `the mod lints clean:\n${(lint.stdout + lint.stderr).split('\n').slice(0, 25).join('\n')}`);
+      assert(/RUN: \d+ steps .* stable/.test(check.stdout), `holds together at 2000 Hz:\n${check.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${check.stderr.slice(0, 400)}`);
+      for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
     },
   },
   {
@@ -3351,6 +3434,10 @@ const scenarios = [
       const vdir = join(outDir, 'practice-mod', 'vehicles', readdirSync(join(outDir, 'practice-mod', 'vehicles'))[0]);
       const check = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir], { encoding: 'utf8', env: { ...process.env, STEPS: '6000' } });
       writeFileSync(join(outDir, 'practice-stability.txt'), check.stdout + check.stderr);
+      // And read the way the game reads it: slots, nodes, groups, meshes and materials all resolve.
+      const lint = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lint-mod.ts'), join(outDir, 'practice-mod')], { encoding: 'utf8' });
+      writeFileSync(join(outDir, 'practice-lint.txt'), lint.stdout + lint.stderr);
+      assert(lint.status === 0, `the practice mod lints clean:\n${(lint.stdout + lint.stderr).split('\n').slice(0, 25).join('\n')}`);
       // And in the app's physics on stands: every part holds (none hinging on one edge or dropping).
       const sag = spawnSync(process.execPath, [join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs'), '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'dev', 'simParts.mts'), join(outDir, 'practice-doc.json'), '4'], { encoding: 'utf8' });
       writeFileSync(join(outDir, 'practice-sag.txt'), sag.stdout + sag.stderr);

@@ -1,5 +1,6 @@
 import type { Project } from '../project/schema';
 import { partRole, partSettings } from '../proxy/generate';
+import { GAME_SET_IDS } from '../proxy/presets';
 import { bodyPart, flexGroupOf, slotTypeOf, type TaxonomyLookup } from './jbeam';
 
 /**
@@ -73,7 +74,7 @@ export function validateExport(doc: Doc, tax: TaxonomyLookup, input: ValidationI
       warn('part-empty', `${part.displayName} has no meshes; it exports as an empty slot option.`, part.id);
       continue;
     }
-    if (role === 'own' && !hasNodes) {
+    if (role === 'own' && !hasNodes && !GAME_SET_IDS.has(part.taxonomyId)) {
       err('not-generated', `${part.displayName} has no structure yet: generate it (Generate in the toolbar).`, part.id);
       continue;
     }

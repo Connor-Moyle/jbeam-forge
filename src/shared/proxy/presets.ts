@@ -73,6 +73,8 @@ export interface KindDefaults {
 const RIDERS = new Set(['badge', 'sunstrip', 'gauges', 'radio', 'plate_light', 'brake_light', 'indicator', 'underglow', 'license_plate', 'door_handle', 'window_switch', 'interior_mirror', 'seatbelt', 'headliner', 'carpet', 'parcel_shelf', 'trunk_trim', 'interior_trim', 'trim', 'pedals', 'police_lights', 'wiper', 'rear_wiper', 'antenna', 'engine_cover']);
 const SUSPENSION_SUBCATEGORIES = new Set(['Suspension', 'Steering', 'Wheels', 'Brakes']);
 const SUSPENSION_IDS = new Set(['halfshaft', 'driveshaft', 'axle', 'steering_column']);
+/** Parts fitted from the game (a suspension, engine or gearbox): the game's own nodes and beams go into the mod, so nothing is generated for them. */
+export const GAME_SET_IDS: ReadonlySet<string> = new Set(['suspension_set', 'engine_set', 'gearbox_set']);
 
 const CYLINDERS = new Set(['driveshaft', 'halfshaft', 'axle', 'lower_arm', 'upper_arm', 'trailing_arm', 'link', 'sway_bar', 'tie_rod', 'steering_column', 'strut', 'coilover', 'spring', 'antenna']);
 const HULLS = new Set(['hub', 'knuckle', 'brake_disc', 'brake_caliper', 'brake_drum', 'radiator', 'intercooler', 'oil_cooler', 'fuel_tank', 'nitrous', 'battery', 'washer_tank', 'intake', 'turbo', 'supercharger', 'engine_mount', 'steering_rack', 'muffler', 'wheel', 'spare_wheel', 'shifter', 'pedals', 'handbrake', 'steering_wheel', 'seat', 'rear_seat', 'tow_hitch', 'tow_hook']);
@@ -81,7 +83,7 @@ const HULLS = new Set(['hub', 'knuckle', 'brake_disc', 'brake_caliper', 'brake_d
 export function kindDefaults(entry: TaxonomyEntry): KindDefaults {
   const attachment: AttachmentStyle = entry.beamPreset === 'glass_brittle' ? 'clipped' : entry.subcategory === 'Structure' || entry.category === 'Mechanical' ? 'bolted' : entry.beamPreset === 'panel_plastic' || entry.beamPreset === 'trim_light' ? 'clipped' : 'bolted';
   const base = { bracing: 'standard' as BracingDensity, attachment, role: 'own' as StructureRole };
-  if (entry.beamPreset === 'tyre_rubber' || SUSPENSION_SUBCATEGORIES.has(entry.subcategory) || SUSPENSION_IDS.has(entry.id)) return { ...base, role: 'suspension', mode: 'cylinder', budget: [4, 8] };
+  if (entry.beamPreset === 'tyre_rubber' || SUSPENSION_SUBCATEGORIES.has(entry.subcategory) || SUSPENSION_IDS.has(entry.id) || GAME_SET_IDS.has(entry.id)) return { ...base, role: 'suspension', mode: 'cylinder', budget: [4, 8] };
   if (RIDERS.has(entry.id)) return { ...base, role: 'rides', mode: 'decimate', budget: [4, 8], bracing: 'none' };
   // The shell follows its surface: a hull would bridge the wheel arches, with collision faces through the tyres.
   if (entry.id === 'body' || entry.id === 'frame' || entry.id === 'cab') return { ...base, mode: 'surface', budget: [160, 380], bracing: 'heavy' };

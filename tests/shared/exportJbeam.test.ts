@@ -341,6 +341,25 @@ describe('validateExport', () => {
     expect(codes).toContain('beam-dangling');
     expect(codes).toContain('refnodes-missing');
   });
+
+  it("doesn't ask for structure on an engine or gearbox fitted from the game, nor generate any for it", () => {
+    const { doc, meshes } = carProject();
+    const engine = createPart(doc, tax, { taxonomyId: 'engine_set', id: 'p_engine' });
+    const gearbox = createPart(doc, tax, { taxonomyId: 'gearbox_set', id: 'p_gearbox' });
+    const fitted = [
+      { key: 'g:engine_from_the_game', name: 'engine_from_the_game', sourceId: 'g' },
+      { key: 'g:gearbox_from_the_game', name: 'gearbox_from_the_game', sourceId: 'g' },
+    ];
+    assignMeshes(doc, [fitted[0]!.key], engine.id);
+    assignMeshes(doc, [fitted[1]!.key], gearbox.id);
+    const r = generateStructure(doc, tax, [
+      { partId: engine.id, mesh: box(0.3, -1.6, -0.9, 0.3, 0.9, 2) },
+      { partId: gearbox.id, mesh: box(0.2, -0.9, -0.4, 0.3, 0.6, 2) },
+    ]);
+    expect(r.notProxies.map((n) => n.partId).sort()).toEqual(['p_engine', 'p_gearbox']);
+    expect(doc.nodes.some((n) => n.partId === engine.id || n.partId === gearbox.id)).toBe(false);
+    expect(run(doc, [...meshes, ...fitted]).errors.map((e) => e.code)).not.toContain('not-generated');
+  });
 });
 
 describe('configurations manager', () => {

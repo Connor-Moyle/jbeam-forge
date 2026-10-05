@@ -20,6 +20,7 @@
 
 .row {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
 }
 
@@ -49,11 +50,18 @@
   gap: var(--space-2);
 }
 
+/* In a narrow column the buttons go under the name instead of squeezing it. */
 .fitted {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+.fitted > :first-child {
+  flex: 1 1 calc(var(--space-8) * 5);
+  min-width: 0;
 }
 
 .cardTitle {

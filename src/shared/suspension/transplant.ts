@@ -69,6 +69,40 @@ export interface TransplantInput {
    * should take another transplanted set instead: original slot type → its new slot type and part.
    */
   slotRewrites?: Readonly<Record<string, { slotType: string; part: string }>>;
+  /**
+   * Nodes the set uses that another transplanted set defines (an engine's mounts on the gearbox's
+   * nodes): original id → that set's renamed id. Taken before the nearest-body-node attachment.
+   */
+  linkedNodes?: Readonly<Record<string, string>>;
+  /**
+   * The new car's node group for meshes that were bound to groups only the original car had (its
+   * body, its radiator…). Without one, such groups are left as they were.
+   */
+  fallbackGroup?: string;
+}
+
+/** Node groups a set makes: groups in its nodes tables, and the wheel groups its wheels create at spawn. */
+export function setGroups(parts: Record<string, JbeamObject>): Set<string> {
+  const out = new Set<string>();
+  const add = (g: JbeamValue | undefined) => {
+    if (typeof g === 'string' && g) out.add(g);
+    else if (Array.isArray(g)) for (const x of g) if (typeof x === 'string' && x) out.add(x);
+  };
+  for (const p of Object.values(parts)) {
+    if (Array.isArray(p.nodes)) for (const row of p.nodes) if (isJbeamObject(row)) add(row.group);
+    for (const section of ['pressureWheels', 'hubWheels', 'wheels']) {
+      const table = p[section];
+      if (!Array.isArray(table) || !Array.isArray(table[0])) continue;
+      const h = table[0].map(String);
+      for (const row of table.slice(1)) {
+        if (isJbeamObject(row)) {
+          add(row.group);
+          add(row.hubGroup);
+        } else if (Array.isArray(row)) for (const k of ['group', 'hubGroup']) if (h.includes(k)) add(row[h.indexOf(k)]);
+      }
+    }
+  }
+  return out;
 }
 
 /** Point rewritten slots at their new slot type and default part. */
@@ -142,11 +176,15 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
 
   const nodeIds = new Map<string, string>();
   for (const body of Object.values(input.parts)) for (const id of definedNodes(body).keys()) nodeIds.set(id, `${input.nodePrefix}${id}`);
+  for (const [id, to] of Object.entries(input.linkedNodes ?? {})) if (!nodeIds.has(id)) nodeIds.set(id, to);
+  const groups = setGroups(input.parts);
+  const keepGroup = (g: JbeamValue): JbeamValue => (typeof g === 'string' && input.fallbackGroup && !groups.has(g) ? input.fallbackGroup : g);
 
   // The original car's body nodes → the new car's nearest node.
   const attached: Record<string, string> = {};
   const extra: [string, V3][] = [];
   for (const [id, pos] of Object.entries(input.anchors)) {
+    if (input.linkedNodes?.[id]) continue;
     const at = add(pos, input.offset);
     let best: { id: string; d: number } | null = null;
     for (const t of input.target) {
@@ -180,7 +218,14 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
           return [nodeIds.get(id) ?? id, ...moved, ...rest] as JbeamValue[];
         });
       } else if (section === 'flexbodies' && Array.isArray(value)) {
-        part[section] = value.filter((row, i) => i === 0 || !Array.isArray(row) || typeof row[0] !== 'string' || input.meshNames[row[0]] !== undefined).map((row, i) => (i > 0 && Array.isArray(row) && typeof row[0] === 'string' ? [input.meshNames[row[0]]!, ...row.slice(1)] : row));
+        part[section] = value
+          .filter((row, i) => i === 0 || !Array.isArray(row) || typeof row[0] !== 'string' || input.meshNames[row[0]] !== undefined)
+          .map((row, i) => {
+            if (i === 0 || !Array.isArray(row) || typeof row[0] !== 'string') return row;
+            const [, bound, ...rest] = row;
+            const regrouped = Array.isArray(bound) ? [...new Set(bound.map(keepGroup))] : bound;
+            return [input.meshNames[row[0]]!, regrouped as JbeamValue, ...rest];
+          });
       } else if (section === 'variables' && Array.isArray(value)) {
         const header = Array.isArray(value[0]) ? value[0].map(String) : [];
         const col = header.indexOf('default');

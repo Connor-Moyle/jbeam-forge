@@ -10,8 +10,12 @@
  *  - every beam/triangle/refNode references a node present in the installed config
  *  - node ids are unique across the installed config
  *  - main.materials.json covers every DAE material, and every texture file it references exists
+ *
+ * With BEAMNG_INSTALL set to the game folder, the parts every car can use (vehicles/common in
+ * the install: wheels, tyres, hubcaps…) count as available, the way the game resolves slots.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import yauzl from 'yauzl';
 import { join } from 'node:path';
 import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '../src/shared/jbeam/parse';
 import { readTable } from '../src/shared/jbeam/tables';
@@ -59,20 +63,60 @@ for (const f of daeFiles) {
   for (const m of text.matchAll(/<material id="([^"]+)"/g)) daeMaterials.add(m[1]!);
 }
 
+// The game's shared parts (vehicles/common), which every car can use.
+const gameParts = new Map<string, JbeamObject>();
+const install = process.env.BEAMNG_INSTALL;
+if (install && existsSync(join(install, 'content', 'vehicles', 'common.zip'))) {
+  const texts = await new Promise<string[]>((resolve, reject) => {
+    const out: string[] = [];
+    yauzl.open(join(install, 'content', 'vehicles', 'common.zip'), { lazyEntries: true }, (err, zip) => {
+      if (err || !zip) return reject(err);
+      zip.on('entry', (e: yauzl.Entry) => {
+        if (!e.fileName.endsWith('.jbeam')) return zip.readEntry();
+        zip.openReadStream(e, (err2, stream) => {
+          if (err2 || !stream) return reject(err2);
+          const chunks: Buffer[] = [];
+          stream.on('data', (c: Buffer) => chunks.push(c));
+          stream.on('end', () => {
+            out.push(Buffer.concat(chunks).toString('utf8'));
+            zip.readEntry();
+          });
+        });
+      });
+      zip.on('end', () => resolve(out));
+      zip.readEntry();
+    });
+  });
+  for (const text of texts) {
+    try {
+      const v = parseJbeam(text).value;
+      if (isJbeamObject(v)) for (const [name, part] of Object.entries(v)) if (isJbeamObject(part) && !parts.has(name)) gameParts.set(name, part);
+    } catch {
+      /* a game file the lenient parser can't read: its parts just aren't counted */
+    }
+  }
+}
+const partOf = (name: string) => parts.get(name) ?? gameParts.get(name);
+
+/** A part's slots, from either table the game reads: slots2 (name, allowTypes, default) or the older slots (type, default). */
+function slotRows(p: JbeamObject): { name: string; allow: string[]; def: string }[] {
+  if (p.slots2) return readTable(p.slots2).records.map((r) => ({ name: s(r.values.name), allow: Array.isArray(r.values.allowTypes) ? r.values.allowTypes.map(s) : [s(r.values.name)], def: typeof r.values.default === 'string' ? r.values.default : '' }));
+  if (p.slots) return readTable(p.slots).records.map((r) => ({ name: s(r.values.type), allow: [s(r.values.type)], def: typeof r.values.default === 'string' ? r.values.default : '' }));
+  return [];
+}
+
 // Slots: every slot's allowTypes must name a slotType some part has.
-const slotTypes = new Set([...parts.values()].map((p) => s(p.slotType)));
+const slotTypes = new Set([...parts.values(), ...gameParts.values()].map((p) => s(p.slotType)));
 const partsBySlot = new Map<string, string[]>();
 for (const [name, p] of parts) partsBySlot.set(s(p.slotType), [...(partsBySlot.get(s(p.slotType)) ?? []), name]);
 // Filled by the game's own common parts (every stock car declares them), and meshes from vehicles/common.
 const GAME_SLOT_TYPES = new Set(['paint_design', 'skin_glass', 'licenseplate_design_2_1']);
 const GAME_MESHES = new Set(['licenseplate', 'towhitch', 'n2o_bottle_10lb', 'n2o_bottle_20lb']);
 for (const [name, p] of parts) {
-  if (!p.slots2) continue;
-  for (const r of readTable(p.slots2).records) {
-    const allow = r.values.allowTypes;
-    for (const t of Array.isArray(allow) ? allow : []) if (!slotTypes.has(s(t)) && !GAME_SLOT_TYPES.has(s(t))) errors.push(`${name}: slot ${s(r.values.name)} allows "${s(t)}" but no part has that slotType`);
-    const def = s(r.values.default);
-    if (def && !parts.has(def)) errors.push(`${name}: slot ${s(r.values.name)} defaults to missing part ${def}`);
+  for (const r of slotRows(p)) {
+    // An optional slot with nothing to fit stays empty in the game (an ETK-only power steering slot on a borrowed suspension): worth knowing, not broken.
+    for (const t of r.allow) if (!slotTypes.has(t) && !GAME_SLOT_TYPES.has(t)) (r.def ? errors : warnings).push(`${name}: slot ${r.name} allows "${t}" but no part has that slotType${r.def ? '' : ', so it stays empty'}`);
+    if (r.def && !partOf(r.def)) errors.push(`${name}: slot ${r.name} defaults to missing part ${r.def}`);
   }
 }
 
@@ -83,17 +127,17 @@ const installed = new Set<string>([slug]);
 // Walk the slot tree from the main part with the .pc choices.
 const queue = [slug];
 while (queue.length) {
-  const p = parts.get(queue.shift()!);
-  if (!p?.slots2) continue;
-  for (const r of readTable(p.slots2).records) {
-    const slot = s(r.values.name);
-    const choice = pc.parts[slot] ?? s(r.values.default);
+  const p = partOf(queue.shift()!);
+  if (!p) continue;
+  for (const r of slotRows(p)) {
+    const slot = r.name;
+    const choice = pc.parts[slot] ?? r.def;
     if (!choice) continue;
-    if (!parts.has(choice)) {
+    if (!partOf(choice)) {
       errors.push(`default.pc: slot ${slot} → missing part ${choice}`);
       continue;
     }
-    if (s(parts.get(choice)!.slotType) !== slot) errors.push(`default.pc: part ${choice} does not fit slot ${slot}`);
+    if (s(partOf(choice)!.slotType) !== slot) errors.push(`default.pc: part ${choice} does not fit slot ${slot}`);
     if (!installed.has(choice)) {
       installed.add(choice);
       queue.push(choice);
@@ -105,7 +149,7 @@ while (queue.length) {
 const nodeOwner = new Map<string, string>();
 const groups = new Set<string>();
 for (const name of installed) {
-  const p = parts.get(name)!;
+  const p = partOf(name)!;
   if (!p.nodes) continue;
   for (const r of readTable(p.nodes).records) {
     const id = s(r.values.id);
@@ -114,26 +158,34 @@ for (const name of installed) {
     const g = r.options.group;
     if (typeof g === 'string' && g) groups.add(g);
     else if (Array.isArray(g)) g.forEach((x) => groups.add(s(x)));
-    else errors.push(`${name}: node ${id} has no group`);
+    // The game doesn't need a group on every node, but a node of ours without one usually means a generator slip.
+    else if (parts.has(name)) warnings.push(`${name}: node ${id} has no group`);
   }
+}
+// Wheels make node groups of their own at spawn (group and hubGroup of pressureWheels, hubWheels and wheels).
+for (const name of installed) {
+  const p = partOf(name)!;
+  for (const section of ['pressureWheels', 'hubWheels', 'wheels'] as const)
+    if (p[section]) for (const r of readTable(p[section]).records) for (const k of ['group', 'hubGroup']) if (typeof r.values[k] === 'string' && r.values[k]) groups.add(r.values[k] as string);
 }
 let flexCount = 0;
 for (const name of installed) {
-  const p = parts.get(name)!;
+  const p = partOf(name)!;
+  const game = !parts.has(name);
   if (p.flexbodies)
     for (const r of readTable(p.flexbodies).records) {
       flexCount++;
       const mesh = s(r.values.mesh);
-      if (!daeNodes.has(mesh) && !GAME_MESHES.has(mesh)) errors.push(`${name}: flexbody mesh ${mesh} is not in the DAE`);
+      if (!game && !daeNodes.has(mesh) && !GAME_MESHES.has(mesh)) errors.push(`${name}: flexbody mesh ${mesh} is not in the DAE`);
       const gs = r.values['[group]:'];
       for (const g of Array.isArray(gs) ? gs : []) if (!groups.has(s(g))) errors.push(`${name}: flexbody ${mesh} binds to node group ${s(g)}, which no installed part has`);
     }
   if (p.beams) for (const r of readTable(p.beams).records) for (const k of ['id1:', 'id2:']) if (!nodeOwner.has(s(r.values[k]))) errors.push(`${name}: beam references missing node ${s(r.values[k])}`);
   if (p.triangles) for (const r of readTable(p.triangles).records) for (const k of ['id1:', 'id2:', 'id3:']) if (!nodeOwner.has(s(r.values[k]))) errors.push(`${name}: triangle references missing node ${s(r.values[k])}`);
   if (p.refNodes) for (const r of readTable(p.refNodes).records) for (const v of Object.values(r.values)) if (!nodeOwner.has(s(v))) errors.push(`${name}: refNode ${s(v)} missing`);
-  if (name !== slug && !p.flexbodies && !p.nodes) warnings.push(`${name}: no flexbodies and no nodes (empty part)`);
+  if (!game && name !== slug && !p.flexbodies && !p.nodes) warnings.push(`${name}: no flexbodies and no nodes (empty part)`);
 }
-if (![...installed].some((n) => parts.get(n)!.refNodes)) errors.push('no installed part has refNodes');
+if (![...installed].some((n) => partOf(n)!.refNodes)) errors.push('no installed part has refNodes');
 
 // Materials
 const mats = JSON.parse(readFileSync(join(dir, 'main.materials.json'), 'utf8')) as Record<string, { mapTo: string; Stages: Record<string, unknown>[] }>;
@@ -151,11 +203,11 @@ for (const [name, m] of Object.entries(mats)) {
 let nodeCount = 0;
 let beamCount = 0;
 for (const name of installed) {
-  const p = parts.get(name)!;
+  const p = partOf(name)!;
   if (p.nodes) nodeCount += readTable(p.nodes).records.length;
   if (p.beams) beamCount += readTable(p.beams).records.length;
 }
-console.log(`${slug}: ${parts.size} parts in ${readdirSync(dir).filter((x) => x.endsWith('.jbeam')).length} jbeam files · default config installs ${installed.size} parts, ${nodeCount} nodes, ${beamCount} beams, ${flexCount} flexbodies · DAE ${daeNodes.size} meshes / ${daeMaterials.size} materials`);
+console.log(`${slug}: ${parts.size} parts in ${readdirSync(dir).filter((x) => x.endsWith('.jbeam')).length} jbeam files · default config installs ${installed.size} parts (${[...installed].filter((n) => !parts.has(n)).length} from the game's common parts), ${nodeCount} nodes, ${beamCount} beams, ${flexCount} flexbodies · DAE ${daeNodes.size} meshes / ${daeMaterials.size} materials`);
 for (const w of warnings.slice(0, 20)) console.log(`  warn: ${w}`);
 if (errors.length) {
   console.log(`${errors.length} ERRORS:`);

@@ -102,6 +102,28 @@ describe('suspension jbeam transplant', () => {
     expect(r.rootSlotType).toBe('m_E_car_engine');
   });
 
+  it("puts an engine's mounts on the gearbox's renamed nodes, not the nearest body node", () => {
+    const engine = {
+      eng: { information: { name: 'Engine' }, slotType: 'car_engine', nodes: [['id', 'posX', 'posY', 'posZ'], ['e1', 0, -1.2, 0.5]], beams: [['id1:', 'id2:'], ['e1', 'tra1']] },
+    };
+    const r = transplantSuspension({ parts: engine, root: 'eng', anchors: { tra1: [0, -0.8, 0.5] }, offset: [0, 0, 0], partPrefix: 'm_E_', nodePrefix: 'e_', target: [{ id: 'b1', pos: [0, -0.8, 0.5] }], meshNames: {}, tuning: {}, linkedNodes: { tra1: 'g_tra1' } });
+    expect(r.parts.m_E_eng!.beams).toEqual([['id1:', 'id2:'], ['e_e1', 'g_tra1']]);
+    expect(r.attached).toEqual({});
+  });
+
+  it("binds meshes on groups only the original car had to the new car's body group", () => {
+    const set = {
+      eng: {
+        information: { name: 'Engine' },
+        slotType: 'car_engine',
+        nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'car_engine' }, ['e1', 0, -1.2, 0.5], { group: '' }],
+        flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['engine_block', ['car_engine']], ['radiator_hose', ['car_engine', 'car_radiator', 'car_body']]],
+      },
+    };
+    const r = transplantSuspension({ parts: set, root: 'eng', anchors: {}, offset: [0, 0, 0], partPrefix: 'm_E_', nodePrefix: 'e_', target: [], meshNames: { engine_block: 'mod_block', radiator_hose: 'mod_hose' }, tuning: {}, fallbackGroup: 'mod_body' });
+    expect(r.parts.m_E_eng!.flexbodies).toEqual([['mesh', '[group]:', 'nonFlexMaterials'], ['mod_block', ['car_engine']], ['mod_hose', ['car_engine', 'mod_body']]]);
+  });
+
   it('lists the tuning variables', () => {
     expect(tuningVariables(PARTS)).toEqual([{ name: '$camber_F', unit: '', category: 'Wheel Alignment', title: 'Camber', description: 'Camber angle', default: 1, min: 0.95, max: 1.05, step: 0.001 }]);
   });

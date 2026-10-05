@@ -12,7 +12,7 @@ import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
 import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
-import { definedNodes, transplantSuspension } from '../suspension/transplant';
+import { definedNodes, setGroups, transplantSuspension } from '../suspension/transplant';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
 import type { PartScripts } from '../lua/export';
@@ -365,7 +365,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   // Parts not built from our structure (the game's sets, plates, the hitch): their beams load our nodes.
   const foreign: JbeamObject[] = [];
   const data = (setId: string) => opts.suspensions?.[setId];
-  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>, edits?: PowertrainEdits, choices?: SetChoices, driveline?: PowertrainEdits) => {
+  // Meshes of a set bound to groups only the original car had ride on our body instead.
+  const bodyGroup = (() => {
+    const b = bodyPart(doc, tax);
+    return b ? (flexGroupOf(doc, b) ?? undefined) : undefined;
+  })();
+  const bring = (setId: string, sourceId: string, tag: string, target: readonly { id: string; pos: [number, number, number] }[], tuning: Record<string, number>, slotRewrites?: Record<string, { slotType: string; part: string }>, edits?: PowertrainEdits, choices?: SetChoices, driveline?: PowertrainEdits, linkedNodes?: Record<string, string>) => {
     const found = opts.suspensions?.[setId];
     if (!found) return null;
     // The game's other parts the user chose, then the engine and gearbox builders' changes, onto the game's parts before they're renamed.
@@ -376,7 +381,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
     const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
     // Every engine shares the e_ node names (only one is fitted at a time), so the gearbox fits whichever is chosen.
-    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.startsWith('E') ? 'e' : tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites });
+    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.startsWith('E') ? 'e' : tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites, linkedNodes, fallbackGroup: bodyGroup });
     for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
     foreign.push(...Object.values(t.parts));
     return t;
@@ -392,9 +397,11 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const own = axle.ownMeshes.filter((k) => opts.meshNames.has(k) && !fullDoc.ignoredMeshes.includes(k)).map((k) => opts.meshNames.get(k)!);
     if (own.length) {
       const groups = new Set<string>();
-      for (const p of Object.values(data(axle.fitted.setId)?.parts ?? {})) {
+      const setParts = data(axle.fitted.setId)?.parts ?? {};
+      const made = setGroups(setParts);
+      for (const p of Object.values(setParts)) {
         if (!Array.isArray(p.flexbodies)) continue;
-        for (const row of p.flexbodies.slice(1)) if (Array.isArray(row) && Array.isArray(row[1])) for (const g of row[1]) if (typeof g === 'string') groups.add(g);
+        for (const row of p.flexbodies.slice(1)) if (Array.isArray(row) && Array.isArray(row[1])) for (const g of row[1]) if (typeof g === 'string') groups.add(made.has(g) || !bodyGroup ? g : bodyGroup);
       }
       const root = t.parts[t.rootPart]!;
       const rows = Array.isArray(root.flexbodies) ? root.flexbodies : [['mesh', '[group]:', 'nonFlexMaterials']];
@@ -413,12 +420,14 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     return { slots, rewrites: Object.fromEntries(slots.map((st) => [st, { slotType: `${slug}_G_${boxSlot}`, part: `${slug}_G_${box!.root}` }])) };
   };
   const engineTransmissionSlots = pt?.engine ? rewritesFor(pt.engine.setId).slots : [];
+  // An engine's mounts often sit on the gearbox's nodes: point them at the gearbox's renamed ones (its prefix is g_).
+  const gearboxNodes: Record<string, string> = engineTransmissionSlots.length && box ? Object.fromEntries(Object.values(box.parts).flatMap((p) => [...definedNodes(p).keys()].map((id) => [id, `g_${id}`]))) : {};
   let engineNodes: { id: string; pos: [number, number, number] }[] = [];
   let engineParts: Record<string, JbeamObject> | null = null;
   let gearboxParts: Record<string, JbeamObject> | null = null;
   if (pt?.engine) {
     const tags = engineTags(pt);
-    const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices);
+    const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices, undefined, gearboxNodes);
     if (t) {
       // One engine slot name whichever engine is the default (engines from different cars name theirs differently), so configurations keep working.
       const engineSlot = engineSlotType(slug);
@@ -434,7 +443,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       engineParts = t.parts;
       // The other engines fill the same slot: the player (or a configuration) picks one.
       for (const alt of pt.alternates ?? []) {
-        const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices);
+        const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices, undefined, rewritesFor(alt.setId).slots.length ? gearboxNodes : undefined);
         if (a) setSlot(a.rootPart, a.parts[a.rootPart]);
       }
     }

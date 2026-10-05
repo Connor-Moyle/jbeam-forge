@@ -18,7 +18,7 @@ const FORMAT_NOTES: Record<SourceFormat, string> = {
   obj: 'OBJ materials come from its .mtl file next to it.',
   gltf: 'glTF gives the cleanest material mapping of all formats.',
   glb: 'glTF gives the cleanest material mapping of all formats.',
-  stl: 'STL has no UVs or materials: everything imports untextured. UV tools arrive with materials (Phase 8).',
+  stl: 'STL has no texture coordinates or materials: everything imports untextured. Inspector → Texture mapping can give a mesh texture coordinates afterwards.',
   kn5: 'Assetto Corsa kn5: meshes, materials and the textures packed inside the file all come in. Car data from the same folder can be read with Import Assetto Corsa car.',
 };
 
