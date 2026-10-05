@@ -64,6 +64,18 @@ export interface ContentInfo {
   scripts: ContentStatus;
 }
 
+/** The copy of the content repository that new content is published from. */
+export interface PublishStatus {
+  dir: string | null;
+  ok: boolean;
+  /** Why it can't be used yet. */
+  problem: string | null;
+  /** Files changed since the last publish. */
+  changed?: number;
+  branch?: string;
+  remote?: string;
+}
+
 export interface UpdatesInfo {
   current: string;
   /** Running as the portable exe (updates are a new exe, not an installer). */

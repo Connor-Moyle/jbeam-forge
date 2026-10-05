@@ -62,8 +62,8 @@ export async function runSelftest(bridge: GameBridge): Promise<void> {
       const doc = projectStore.getState().doc!;
       report.chains = (prepared?.report.errors ?? []).slice(0, 5).map((e) => {
         const chain: string[] = [];
-        for (let p = doc.parts.find((x) => x.id === e.partId), g = 0; p && g < 10; p = doc.parts.find((x) => x.id === p!.parentPartId), g++) {
-          chain.push(`${p.displayName} [${p.name}, ${p.taxonomyId}${p.variantOf ? ', variant' : ''}] nodes=${doc.nodes.filter((n) => n.partId === p!.id).length}`);
+        for (let p = doc.parts.find((x) => x.id === e.partId), g = 0; p && g < 10; p = doc.parts.find((x) => x.id === p.parentPartId), g++) {
+          chain.push(`${p.displayName} [${p.name}, ${p.taxonomyId}${p.variantOf ? ', variant' : ''}] nodes=${doc.nodes.filter((n) => n.partId === p.id).length}`);
         }
         return chain;
       });

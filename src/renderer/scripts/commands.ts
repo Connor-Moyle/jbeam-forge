@@ -182,6 +182,15 @@ export async function saveToLibrary(id: string, description = ''): Promise<void>
   void useScriptLibrary.getState().load();
 }
 
+/** Add a car's script to your copy of the content repository, ready to publish. */
+export async function addScriptToDownloads(id: string): Promise<void> {
+  const s = projectStore.getState().doc?.scripts?.find((x) => x.id === id);
+  if (!s) return;
+  const t = s.templateId ? templateById(s.templateId) : undefined;
+  const folder = await call('publish:addScript', { entry: scriptToLibrary(s, t, '', projectStore.getState().doc?.meta.author || undefined) });
+  useUiStore.getState().pushStatus(`Added to the download library: ${folder}. Publish it in Settings → Downloads.`, 'success', 8000);
+}
+
 export async function exportLua(id: string): Promise<void> {
   const s = projectStore.getState().doc?.scripts?.find((x) => x.id === id);
   if (!s) return;

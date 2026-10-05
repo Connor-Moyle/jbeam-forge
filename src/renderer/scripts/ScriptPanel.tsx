@@ -1,6 +1,8 @@
 import { confirmDelete } from '@renderer/app/confirm';
 import { useMemo, useRef, useState } from 'react';
-import { BookMarked, Code2, Download, FileCode, GraduationCap, Plus, RotateCcw, Share2, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { BookMarked, CloudUpload, Code2, Download, FileCode, GraduationCap, Plus, RotateCcw, Share2, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { useSettingsStore } from '@renderer/app/stores/settings';
+import { useUiStore } from '@renderer/app/stores/ui';
 import { BEAMNG_API, CONTROLLER_HOOKS, ELECTRICS } from '@shared/lua/api';
 import { checkLua } from '@shared/lua/check';
 import { outputName, scriptActions, type ParamDef, type ScriptTemplate } from '@shared/lua/templates';
@@ -21,7 +23,7 @@ import { Select } from '@renderer/ui/components/Select';
 import { Slider } from '@renderer/ui/components/Slider';
 import { Textarea } from '@renderer/ui/components/Textarea';
 import { Toggle } from '@renderer/ui/components/Toggle';
-import { customiseCode, doorSignals, exportLua, removeScript, renameScript, resetCode, saveToLibrary, setScriptParam, shareScript, updateScript, useScriptUi } from './commands';
+import { addScriptToDownloads, customiseCode, doorSignals, exportLua, removeScript, renameScript, resetCode, saveToLibrary, setScriptParam, shareScript, updateScript, useScriptUi } from './commands';
 import { LuaEditor, type LuaEditorHandle } from './LuaEditor';
 import { templateById } from './registry';
 import { KeyCapture } from './KeyCapture';
@@ -342,6 +344,7 @@ function CustomSettings({ script }: { script: VehicleScript }) {
 }
 
 function CodeView({ script, template }: { script: VehicleScript; template: ScriptTemplate | undefined }) {
+  const publishing = useSettingsStore((s) => !!s.settings?.contentRepoDir);
   const editor = useRef<LuaEditorHandle>(null);
   const code = script.code ?? template?.lua ?? '';
   const locked = script.code === null && !!template;
@@ -364,6 +367,7 @@ function CodeView({ script, template }: { script: VehicleScript; template: Scrip
         <span className={styles.grow} />
         <IconButton icon={BookMarked} label="Save to my library" onClick={() => void saveToLibrary(script.id)} data-testid="script-save-library" />
         <IconButton icon={Share2} label="Save as a .jbscript to share" onClick={() => void shareScript(script.id)} />
+        {publishing && <IconButton icon={CloudUpload} label="Add to the download library" onClick={() => void addScriptToDownloads(script.id).catch((e: Error) => useUiStore.getState().pushStatus(e.message, 'danger', 8000))} data-testid="script-add-downloads" />}
         <IconButton icon={Download} label="Save the .lua" onClick={() => void exportLua(script.id)} />
       </div>
       {locked && <p className={styles.note}>The template&rsquo;s own code (read-only). Customise it to change it for this car.</p>}

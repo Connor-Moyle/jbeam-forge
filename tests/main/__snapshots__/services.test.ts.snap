@@ -120,13 +120,14 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "previewAngle": "front-left",
   "previewBackdrop": "studio",
   "contentDir": null,
+  "contentRepoDir": null,
   "checkUpdatesOnStartup": true,
   "includePrereleases": false,
   "downloadConcurrency": 4,
   "appRepo": "Connor-Moyle/jbeam-forge",
-  "texturesRepo": "Connor-Moyle/jbeam-forge-textures",
-  "meshesRepo": "Connor-Moyle/jbeam-forge-meshes",
-  "scriptsRepo": "Connor-Moyle/jbeam-forge-scripts",
+  "texturesRepo": "Connor-Moyle/jbeam-forge-content/textures",
+  "meshesRepo": "Connor-Moyle/jbeam-forge-content/meshes",
+  "scriptsRepo": "Connor-Moyle/jbeam-forge-content/scripts",
   "scriptFontSize": 13,
   "scriptTabSize": 2,
   "scriptStrictExport": false,
@@ -134,7 +135,7 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
   "previewEveryConfig": true,
   "extensionsEnabled": true,
   "disabledExtensions": [],
-  "contentBranch": "main"
+  "contentBranch": "downloads"
 }
 "
 `;

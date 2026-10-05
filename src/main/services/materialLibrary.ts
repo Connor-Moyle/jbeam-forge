@@ -33,11 +33,11 @@ const FileSchema = z.object({ version: z.literal(1), items: z.array(LibraryItemS
 const JbmatSchema = z.object({ version: z.literal(1), name: z.string().min(1), category: z.string(), def: MaterialDefSchema });
 
 /** Every texture path a material uses, per layer and slot. */
-function mapPaths(def: MaterialDef, fn: (path: string) => string): MaterialDef {
+export function mapPaths(def: MaterialDef, fn: (path: string) => string): MaterialDef {
   return { ...def, layers: def.layers.map((l) => ({ ...l, maps: Object.fromEntries(Object.entries(l.maps).map(([slot, p]) => [slot, p.startsWith('/vehicles/') ? p : fn(p)])) })) };
 }
 
-function texturesOf(def: MaterialDef): string[] {
+export function texturesOf(def: MaterialDef): string[] {
   const out = new Set<string>();
   for (const l of def.layers) for (const slot of TEXTURE_SLOTS) {
     const p = l.maps[slot];

@@ -11,6 +11,16 @@ export interface InstallValidation {
   problems: string[];
 }
 
+/** JBeam Forge inside the game: the version this app carries and the one in the mods folder. */
+export interface IngameStatus {
+  bundled: string | null;
+  installed: string | null;
+  modsDir: string | null;
+  /** An unpacked copy (mods/unpacked/jbeam_forge) is what's installed. */
+  unpacked: boolean;
+  updateAvailable: boolean;
+}
+
 export interface BeamngDetection {
   /** Validated candidates, most trustworthy first. */
   installs: InstallValidation[];

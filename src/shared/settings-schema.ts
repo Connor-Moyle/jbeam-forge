@@ -193,6 +193,8 @@ export const SettingsSchema = z.object({
   // Downloads
   /** Where downloaded textures and meshes go (null = beside the program). */
   contentDir: z.string().min(1).nullable(),
+  /** A copy of the content repository on this computer, for publishing new content to the download library. */
+  contentRepoDir: z.string().min(1).nullable(),
   checkUpdatesOnStartup: z.boolean(),
   includePrereleases: z.boolean(),
   /** Files downloaded at once. */
@@ -320,13 +322,14 @@ export const DEFAULT_SETTINGS: Settings = {
   previewAngle: 'front-left',
   previewBackdrop: 'studio',
   contentDir: null,
+  contentRepoDir: null,
   checkUpdatesOnStartup: true,
   includePrereleases: false,
   downloadConcurrency: 4,
   appRepo: 'Connor-Moyle/jbeam-forge',
-  texturesRepo: 'Connor-Moyle/jbeam-forge-textures',
-  meshesRepo: 'Connor-Moyle/jbeam-forge-meshes',
-  scriptsRepo: 'Connor-Moyle/jbeam-forge-scripts',
+  texturesRepo: 'Connor-Moyle/jbeam-forge-content/textures',
+  meshesRepo: 'Connor-Moyle/jbeam-forge-content/meshes',
+  scriptsRepo: 'Connor-Moyle/jbeam-forge-content/scripts',
   scriptFontSize: 13,
   scriptTabSize: 2,
   scriptStrictExport: false,
@@ -334,7 +337,14 @@ export const DEFAULT_SETTINGS: Settings = {
   previewEveryConfig: true,
   extensionsEnabled: true,
   disabledExtensions: [],
-  contentBranch: 'main',
+  contentBranch: 'downloads',
+};
+
+/** Download settings from before the content moved into one repository (never published): the new ones. */
+const MOVED: Partial<Record<keyof Settings, Record<string, string>>> = {
+  texturesRepo: { 'Connor-Moyle/jbeam-forge-textures': DEFAULT_SETTINGS.texturesRepo },
+  meshesRepo: { 'Connor-Moyle/jbeam-forge-meshes': DEFAULT_SETTINGS.meshesRepo },
+  scriptsRepo: { 'Connor-Moyle/jbeam-forge-scripts': DEFAULT_SETTINGS.scriptsRepo },
 };
 
 /** Fields the renderer may change. `version` is owned by the main process. */
@@ -356,5 +366,11 @@ export function mergeSettings(raw: unknown): Settings {
     const parsed = shape[key].safeParse(record[key]);
     if (parsed.success) (out as Record<string, unknown>)[key] = parsed.data;
   }
+  for (const [key, map] of Object.entries(MOVED) as [keyof Settings, Record<string, string>][]) {
+    const now = map[out[key] as string];
+    if (now) (out as Record<string, unknown>)[key] = now;
+  }
+  // The old content repositories were built on main; the new one's downloads are built on their own branch.
+  if (out.contentBranch === 'main' && out.texturesRepo === DEFAULT_SETTINGS.texturesRepo && record.texturesRepo !== DEFAULT_SETTINGS.texturesRepo) out.contentBranch = DEFAULT_SETTINGS.contentBranch;
   return out;
 }

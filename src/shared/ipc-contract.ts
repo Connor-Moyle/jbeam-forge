@@ -11,7 +11,7 @@ import type { SetOptions } from './suspension/options';
 import type { LibraryScript } from './lua/types';
 import type { ExtensionInfo } from './extensions/api';
 import type { ContentKind, ContentManifest } from './content/manifest';
-import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, UpdatesInfo } from './content/types';
+import type { ContentInfo, ContentProgress, ContentRef, DownloadResult, PublishStatus, UpdatesInfo } from './content/types';
 
 /** A complete suspension, engine or gearbox from a stock BeamNG vehicle (cut from the user's install). */
 /** Text files the app saves and opens where the user picks. */
@@ -91,7 +91,7 @@ export interface LibraryItem {
   def: MaterialDef;
 }
 import type { StoredLayout } from './layout-schema';
-import type { BeamngDetection, InstallValidation } from './beamng';
+import type { BeamngDetection, IngameStatus, InstallValidation } from './beamng';
 import type { SourceFormat } from './project/schema';
 import type { TaxonomyEntry } from './taxonomy/schema';
 import type { JbeamObject } from './jbeam/parse';
@@ -299,6 +299,10 @@ export interface InvokeContract {
   /** Reveal the last export in Explorer. */
   'export:reveal': { req: undefined; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
+  /** JBeam Forge inside the game: the version this app carries and the one installed. */
+  'ingame:status': { req: undefined; res: IngameStatus };
+  /** Install or update it in the game's mods folder. */
+  'ingame:install': { req: undefined; res: IngameStatus };
   'beamng:validate': { req: { dir: string }; res: InstallValidation };
   /** Engine sound blends in the install (fork): names an engine's soundConfig sampleName can take. */
   'beamng:engineSounds': { req: undefined; res: { name: string }[] };
@@ -321,6 +325,18 @@ export interface InvokeContract {
   'content:remove': { req: { kind: ContentKind; ids: string[] | 'all' }; res: string[] };
   /** Show the content folder (or one kind's) in the file manager. */
   'content:reveal': { req: { kind?: ContentKind }; res: undefined };
+  /** Publishing to the download library: the local copy of the content repository and what's changed in it. */
+  'publish:status': { req: undefined; res: PublishStatus };
+  /** Download a copy of the content repository into a folder and use it. */
+  'publish:clone': { req: { parent: string }; res: PublishStatus };
+  /** Add a material, a script or a finished item folder to the copy (not yet published). Returns the folder written. */
+  'publish:addMaterial': { req: { name: string; category: string; def: MaterialDef }; res: string };
+  'publish:addScript': { req: { entry: LibraryScript }; res: string };
+  'publish:addFolder': { req: { kind: ContentKind; source: string; category: string }; res: string };
+  /** Commit and push what's changed; the repository builds the downloads from it. */
+  'publish:push': { req: { message: string }; res: { committed: number; pushed: boolean } };
+  /** Show the copy in the file manager. */
+  'publish:reveal': { req: undefined; res: undefined };
   /** App versions on GitHub, newest first, and what's already downloaded. */
   'updates:info': { req: undefined; res: UpdatesInfo };
   /** Download one release file (installer, portable exe); progress arrives as updates:progress. */
@@ -376,6 +392,8 @@ export const INVOKE_CHANNELS = [
   'window:setDirty',
   'harness:queueDialog',
   'beamng:detect',
+  'ingame:status',
+  'ingame:install',
   'beamng:validate',
   'beamng:gameMaterials',
   'beamng:engineSounds',
@@ -451,6 +469,13 @@ export const INVOKE_CHANNELS = [
   'content:cancel',
   'content:remove',
   'content:reveal',
+  'publish:status',
+  'publish:clone',
+  'publish:addMaterial',
+  'publish:addScript',
+  'publish:addFolder',
+  'publish:push',
+  'publish:reveal',
   'updates:info',
   'updates:download',
   'updates:cancel',

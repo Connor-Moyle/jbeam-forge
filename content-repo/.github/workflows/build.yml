@@ -1,0 +1,56 @@
+name: Build downloads
+
+# Every push to main (an upload on the website counts) rebuilds what JBeam Forge downloads and
+# publishes it on the "downloads" branch, tagged with a new version so earlier ones stay
+# available. Pull requests are only checked.
+
+on:
+  push:
+    branches: [main]
+    paths: ['textures/**', 'meshes/**', 'scripts/**', 'tools/**', '.github/workflows/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: downloads
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check every folder
+        run: node tools/build.mjs --check
+
+      - name: Build
+        if: github.event_name != 'pull_request'
+        run: |
+          npm install --no-save --no-audit --no-fund yazl@2
+          echo "VERSION=$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          node tools/build.mjs --out "$RUNNER_TEMP/out" --version "$(date -u +%Y.%m.%d).${GITHUB_RUN_NUMBER}"
+
+      - name: Publish
+        if: github.event_name != 'pull_request'
+        working-directory: ${{ runner.temp }}/out
+        run: |
+          git init -q -b downloads
+          git config user.name "JBeam Forge downloads"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+          # On top of the last build, so only the zips that changed are uploaded.
+          if git fetch -q --depth=1 origin downloads; then git reset -q --soft FETCH_HEAD; fi
+          git add -A
+          if git diff --cached --quiet; then echo "Nothing changed."; exit 0; fi
+          git commit -q -m "Downloads $VERSION (from ${GITHUB_SHA::7})"
+          git tag "v$VERSION"
+          git push origin downloads
+          git push origin "v$VERSION"

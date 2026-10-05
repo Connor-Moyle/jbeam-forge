@@ -133,8 +133,17 @@ export function contentChanges(m: ContentManifest, installed: InstalledContent):
   return { updated, removed };
 }
 
-/** "owner/name" of a GitHub repository. */
-export const REPO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/;
+/**
+ * "owner/name" of a GitHub repository, optionally followed by a folder inside it
+ * ("Connor-Moyle/jbeam-forge-content/textures"): one repository can hold every kind.
+ */
+export const REPO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}(\/[A-Za-z0-9][A-Za-z0-9._-]{0,99}){0,3}$/;
+
+/** A repository setting split into the repository and the folder inside it ('' for its root). */
+export function splitRepo(spec: string): { repo: string; folder: string } {
+  const [owner = '', name = '', ...rest] = spec.split('/');
+  return { repo: `${owner}/${name}`, folder: rest.join('/') };
+}
 
 /** Branch or tag names we accept in a URL. */
 export const REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;

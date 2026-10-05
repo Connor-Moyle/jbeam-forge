@@ -191,3 +191,40 @@ describe('content repositories', () => {
     expect(p.bytes).toBe(10);
   });
 });
+
+describe('the content repository template (content-repo/)', () => {
+  it('builds the same items, ids and hashes as the app’s own builder', async () => {
+    const src = join(dir, 'src');
+    await pack(src, 'Candy Red', 'red');
+    await pack(src, 'Matte Black', 'black');
+    const app = await buildContentRepo(src, join(dir, 'a'), 'textures', '1.0.0');
+    const toolPath = '../../content-repo/tools/build.mjs'; // plain JS, run by the content repository's workflow
+    const tool = (await import(/* @vite-ignore */ toolPath)) as { buildKind: (Z: unknown, s: string, o: string, k: string, v: string) => Promise<{ manifest: ContentManifest; skipped: string[] }> };
+    const { ZipFile } = await import('yazl');
+    const theirs = await tool.buildKind(ZipFile, src, join(dir, 'b'), 'textures', '1.0.0');
+    expect(theirs.skipped).toEqual([]);
+    const pick = (m: ContentManifest) => m.items.map(({ id, dir, path, size, sha256, files, unpacked, name, category }) => ({ id, dir, path, size, sha256, files, unpacked, name, category }));
+    expect(pick(theirs.manifest)).toEqual(pick(app.manifest));
+  });
+
+  it('downloads from a folder inside one repository', async () => {
+    const src = join(dir, 'src');
+    await pack(src, 'Candy Red', 'red');
+    const repo = join(dir, 'repo');
+    await buildContentRepo(src, join(repo, 'textures'), 'textures', '2.0.0');
+    const hits: string[] = [];
+    const fetch: FetchFn = async (url) => {
+      hits.push(url);
+      const m = /^\/raw\/me\/content\/downloads\/(.+)$/.exec(new URL(url).pathname);
+      const path = m ? join(repo, decodeURIComponent(m[1]!)) : '';
+      if (!m || !existsSync(path)) return new Response('nope', { status: 404, statusText: 'Not Found' });
+      const body = await readFile(path);
+      return new Response(body, { status: 200, headers: { 'content-length': String(body.length) } });
+    };
+    const svc = new ContentService(join(dir, 'content'), fetch, quiet, {}, ENV);
+    const r = await svc.download('textures', 'me/content/textures', 'downloads', 'all');
+    expect(r.failed).toEqual([]);
+    expect(r.installed).toHaveLength(1);
+    expect(hits[0]).toBe('http://fake.test/raw/me/content/downloads/textures/manifest.json');
+  });
+});

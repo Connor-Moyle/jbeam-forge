@@ -1,14 +1,16 @@
 import { confirmDelete } from '@renderer/app/confirm';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookmarkPlus, ChevronDown, ChevronRight, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
+import { BookmarkPlus, ChevronDown, ChevronRight, CloudUpload, Combine, Copy, FolderOpen, Library, Palette, Plus, Share2, Trash2, X } from 'lucide-react';
 import { useMergeUi } from '@renderer/materials/MergeDialog';
 import { MaterialPreview, MaterialThumb } from '@renderer/materials/MaterialPreview';
-import { saveToLibrary, shareMaterial, useLibrary } from '@renderer/materials/LibraryDialog';
+import { addMaterialToDownloads, saveToLibrary, shareMaterial, useLibrary } from '@renderer/materials/LibraryDialog';
 import { EMPTY_ARR } from '@shared/empty';
 import { BLEND_OPS, TEXTURE_SLOTS, type MaterialDef, type MaterialLayer, type TextureSlot } from '@shared/materials/schema';
 import { fuzzyScore } from '@shared/fuzzy';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { call } from '@renderer/diagnostics/ipc';
+import { useSettingsStore } from '@renderer/app/stores/settings';
+import { useUiStore } from '@renderer/app/stores/ui';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { slotsOf } from '@renderer/materials/seed';
 import * as mc from '@renderer/materials/commands';
@@ -160,6 +162,7 @@ export function MaterialsPanel() {
 
 
 function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
+  const publishing = useSettingsStore((s) => !!s.settings?.contentRepoDir);
   const layerIndex = mc.useMaterialUi((s) => Math.min(s.layer, def.layers.length - 1));
   const setLayer = mc.useMaterialUi((s) => s.setLayer);
   const selection = useSceneStore((s) => s.selection);
@@ -185,6 +188,7 @@ function MaterialEditor({ def, used }: { def: MaterialDef; used: number }) {
         <IconButton icon={Copy} label="Duplicate" size="sm" onClick={() => void mc.duplicateMaterial(def.id)} />
         <IconButton icon={BookmarkPlus} label="Save to your library" size="sm" onClick={() => void saveToLibrary(def)} data-testid="material-save-library" />
         <IconButton icon={Share2} label="Share as a .jbmat file" size="sm" onClick={() => void shareMaterial(def)} />
+        {publishing && <IconButton icon={CloudUpload} label="Add to the download library" size="sm" onClick={() => void addMaterialToDownloads(def).catch((e: Error) => useUiStore.getState().pushStatus(e.message, 'danger', 8000))} data-testid="material-add-downloads" />}
         <IconButton icon={Trash2} label={used ? `Delete (its ${used} meshes go back to their imported look)` : 'Delete'} size="sm" onClick={() => void (used ? confirmDelete(`the ${def.name} material`, `Its ${used} meshes go back to their imported look. You can undo this with Ctrl+Z.`) : Promise.resolve(true)).then((yes) => yes && mc.deleteMaterial(def.id, null))} />
       </div>
 

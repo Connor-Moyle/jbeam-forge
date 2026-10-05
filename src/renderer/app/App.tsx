@@ -53,6 +53,7 @@ import type { AppCommand } from '@shared/ipc-contract';
 import { usePainter } from '@renderer/paint/painter';
 import { currentSet, useVinylUi } from '@renderer/paint/vinyls';
 import { paintedCounts } from '@renderer/paint/facePaint';
+import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -113,6 +114,7 @@ function AppEffects() {
   // The first start opens the tour (once settings are known).
   useEffect(() => {
     maybeStartFirstRun();
+    void syncIngameOnStartup();
     let started = false;
     return useSettingsStore.subscribe((s) => {
       if (started || !s.settings) return;

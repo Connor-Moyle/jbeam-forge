@@ -1,4 +1,5 @@
 import { app, BrowserWindow, shell } from 'electron';
+import { INGAME_ZIP, ingameStatus, installIngame } from '../beamng/ingame';
 import { sendEvent } from './register';
 import { z } from 'zod';
 import { demoCarObj } from '@shared/tutorial/demoCar';
@@ -239,6 +240,15 @@ export function registerIpcHandlers(services: HandlerServices): void {
   });
 
   registerInvoke('beamng:detect', () => beamng.detect());
+  // JBeam Forge inside the game: carried by this app, kept at its version.
+  const ingameZip = () => (app.isPackaged ? join(process.resourcesPath, 'ingame', INGAME_ZIP) : join(app.getAppPath(), 'release', 'jbeam_forge_ingame.zip'));
+  const modsDirOrNull = () => modsDir().catch(() => null);
+  registerInvoke('ingame:status', async () => ingameStatus(ingameZip(), await modsDirOrNull()));
+  registerInvoke('ingame:install', async () => {
+    const r = await installIngame(ingameZip(), await modsDir());
+    logger.info(`in-game version ${r.installed ?? '?'} installed in ${r.modsDir}`);
+    return r;
+  });
   registerInvoke('beamng:validate', ({ dir }) => beamng.validate(dir), z.object({ dir: z.string().min(1).max(1024) }));
   const installDir = () => settings.get().beamngInstallDir;
   registerInvoke('beamng:engineSounds', async () => {

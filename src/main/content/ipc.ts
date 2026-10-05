@@ -9,6 +9,9 @@ import type { Settings } from '@shared/settings-schema';
 import { registerInvoke, sendEvent } from '../ipc/register';
 import type { SettingsService } from '../services/settings';
 import { assertRef } from './github';
+import { addFolder, addMaterial, addScript, cloneContentRepo, publish, publishStatus } from './publish';
+import { MaterialDefSchema } from '@shared/materials/schema';
+import { LibraryScriptSchema } from '@shared/lua/types';
 import type { Packs } from './packs';
 import { type ContentService } from './service';
 import { assetRole, compareVersions, type UpdateService } from './updates';
@@ -82,6 +85,32 @@ export function registerContentHandlers(ctx: ContentContext): void {
     },
     z.object({ kind: Kind.optional() }),
   );
+
+  // ---- publishing new content (whoever looks after the download library)
+  const repoDir = () => {
+    const dir = settings.get().contentRepoDir;
+    if (!dir) throw new Error('Choose your copy of the content repository first (Settings → Downloads → Publishing).');
+    return dir;
+  };
+  registerInvoke('publish:status', () => publishStatus(settings.get().contentRepoDir));
+  registerInvoke(
+    'publish:clone',
+    async ({ parent }) => {
+      const dir = await cloneContentRepo(parent);
+      await settings.update({ contentRepoDir: dir });
+      return publishStatus(dir);
+    },
+    z.object({ parent: z.string().min(1).max(1000) }),
+  );
+  registerInvoke('publish:addMaterial', ({ name, category, def }) => addMaterial(repoDir(), name, category, def), z.object({ name: z.string().min(1).max(100), category: z.string().max(60), def: MaterialDefSchema }));
+  registerInvoke('publish:addScript', ({ entry }) => addScript(repoDir(), entry), z.object({ entry: LibraryScriptSchema }));
+  registerInvoke('publish:addFolder', ({ kind, source, category }) => addFolder(repoDir(), kind, source, category), z.object({ kind: Kind, source: z.string().min(1).max(1000), category: z.string().min(1).max(60) }));
+  registerInvoke('publish:push', ({ message }) => publish(repoDir(), message), z.object({ message: z.string().max(500) }));
+  registerInvoke('publish:reveal', async () => {
+    const err = await shell.openPath(repoDir());
+    if (err) throw new Error(err);
+    return undefined;
+  });
 
   registerInvoke('updates:info', async () => {
     const s = settings.get();

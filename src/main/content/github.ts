@@ -4,7 +4,7 @@ import { rename, rm } from 'node:fs/promises';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
-import { isSafeRef, REPO_PATTERN } from '@shared/content/manifest';
+import { isSafeRef, REPO_PATTERN, splitRepo } from '@shared/content/manifest';
 
 /**
  * Talking to GitHub: the REST API (releases, tags) and raw file downloads.
@@ -36,23 +36,25 @@ export class GithubError extends Error {
 }
 
 export function assertRepo(repo: string): void {
-  if (!REPO_PATTERN.test(repo)) throw new GithubError(`Not a GitHub repository name: "${repo}" (expected owner/name)`, 'BAD_INPUT');
+  if (!REPO_PATTERN.test(repo)) throw new GithubError(`Not a GitHub repository name: "${repo}" (expected owner/name, or owner/name/folder)`, 'BAD_INPUT');
 }
 
 export function assertRef(ref: string): void {
   if (!isSafeRef(ref)) throw new GithubError(`Not a branch or tag name: "${ref}"`, 'BAD_INPUT');
 }
 
-/** A file in a repository at a branch or tag. */
-export function rawUrl(e: Endpoints, repo: string, ref: string, path: string): string {
-  assertRepo(repo);
+/** A file in a repository (or the folder of one a setting names) at a branch or tag. */
+export function rawUrl(e: Endpoints, spec: string, ref: string, path: string): string {
+  assertRepo(spec);
   assertRef(ref);
+  const { repo, folder } = splitRepo(spec);
+  if (folder) path = `${folder}/${path}`;
   return `${e.raw}/${repo}/${ref.split('/').map(encodeURIComponent).join('/')}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-export function apiUrl(e: Endpoints, repo: string, path: string): string {
-  assertRepo(repo);
-  return `${e.api}/repos/${repo}/${path}`;
+export function apiUrl(e: Endpoints, spec: string, path: string): string {
+  assertRepo(spec);
+  return `${e.api}/repos/${splitRepo(spec).repo}/${path}`;
 }
 
 /** Hosts a download may come from (after redirects): GitHub's, or the configured test endpoints. */

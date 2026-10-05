@@ -9,7 +9,7 @@
  * the practice car. Drop the zip in the game's mods folder, or the folder in mods/unpacked.
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yazl from 'yazl';
@@ -25,6 +25,9 @@ mkdirSync(out, { recursive: true });
 cpSync(join(ROOT, 'ingame', 'mod'), out, { recursive: true });
 cpSync(join(ROOT, 'out', 'ingame'), ui, { recursive: true });
 cpSync(join(ROOT, 'assets', 'demo-car'), join(ui, 'demo-car'), { recursive: true });
+// Which version this is: the desktop app compares it with its own to keep the game's copy up to date.
+const { version } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+writeFileSync(join(out, 'jbeamforge-version.json'), `${JSON.stringify({ version }, null, 2)}\n`);
 
 const files = [];
 const walk = (dir) => {

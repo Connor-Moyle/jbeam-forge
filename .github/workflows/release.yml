@@ -71,4 +71,5 @@ jobs:
           gh release create "$TAG" \
             "release/JBeam-Forge-Setup-$version.exe" \
             "release/JBeam-Forge-$version-portable.exe" \
+            "release/jbeam_forge_ingame.zip#JBeam Forge in BeamNG.drive (mod zip)" \
             --target "$GITHUB_SHA" --title "$title" --notes-file release/notes.md --latest

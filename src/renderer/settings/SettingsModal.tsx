@@ -20,6 +20,8 @@ import { call, IpcCallError } from '@renderer/diagnostics/ipc';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { BeamngParts, LibraryFolderList, ScanNow, useLibraryStatus } from './LibraryFolders';
 import { ExtensionList } from './ExtensionList';
+import { PublishSection } from './PublishSection';
+import { IngameVersion } from './IngameVersion';
 import { KeymapEditor } from './KeymapEditor';
 import { applyInterface, useSettingsStore } from '@renderer/app/stores/settings';
 import styles from './SettingsModal.module.css';
@@ -312,6 +314,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                   {settings.beamngUserDir ?? 'Not found'}
                 </span>
               </Field>
+              <IngameVersion />
             </FieldGroup>
           </section>
 
@@ -622,10 +625,11 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
                 </Field>
                 {(badRepos.length > 0 || badBranch) && (
                   <Callout tone="danger" className={styles.gap}>
-                    Repositories are written owner/name (e.g. Connor-Moyle/jbeam-forge); the branch is a plain name like main.
+                    Repositories are written owner/name, or owner/name/folder for one folder of a repository (e.g. Connor-Moyle/jbeam-forge-content/textures); the branch is a plain name like downloads.
                   </Callout>
                 )}
               </CollapsibleSection>
+              <PublishSection />
             </FieldGroup>
           </section>
 

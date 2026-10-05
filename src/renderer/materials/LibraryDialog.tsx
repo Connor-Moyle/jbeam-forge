@@ -38,6 +38,22 @@ export async function saveToLibrary(def: MaterialDef, category = 'Mine'): Promis
   useLibrary.getState().setItems(await call('materials:saveToLibrary', { name: def.name, category, def }));
   useUiStore.getState().pushStatus(`Saved ${def.name} to your library`, 'success');
 }
+/** A first guess at where a material belongs in the download library (its folder can be moved later). */
+export function libraryCategory(def: MaterialDef): string {
+  const l = def.layers[0];
+  if (!l) return 'Other';
+  if (l.opacity < 1) return 'Glass';
+  if (l.metallic >= 0.5) return 'Metals';
+  if (l.clearCoat > 0) return 'Paint';
+  return 'Other';
+}
+
+/** Add a material to your copy of the content repository, ready to publish. */
+export async function addMaterialToDownloads(def: MaterialDef): Promise<void> {
+  const folder = await call('publish:addMaterial', { name: def.name, category: libraryCategory(def), def });
+  useUiStore.getState().pushStatus(`Added to the download library: ${folder}. Publish it in Settings → Downloads.`, 'success', 8000);
+}
+
 export async function shareMaterial(def: MaterialDef): Promise<void> {
   const path = await call('materials:exportJbmat', { name: def.name, category: 'Shared', def });
   if (path) useUiStore.getState().pushStatus(`Saved ${path}`, 'success');

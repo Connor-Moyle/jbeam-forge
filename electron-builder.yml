@@ -16,6 +16,9 @@ extraResources:
   # The tutorial's practice car (scripts/dev/buildDemoCar.mts builds it).
   - from: assets/demo-car
     to: demo-car
+  # JBeam Forge inside BeamNG.drive (npm run build:ingame), installed into the game from Settings → BeamNG.
+  - from: release/jbeam_forge_ingame.zip
+    to: ingame/jbeam_forge.zip
 # Textures and meshes are optional downloads from their own repositories (Downloads window;
 # npm run build-content-repos builds them), so the installer no longer carries the packs.
 win:
