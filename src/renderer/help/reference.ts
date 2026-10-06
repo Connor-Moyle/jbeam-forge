@@ -348,7 +348,8 @@ export const REFERENCE: Guide[] = [
     title: 'Updating JBeam Forge',
     summary: 'Getting new versions of the app and of JBeam Forge in the game.',
     sections: [
-      { steps: ['At startup JBeam Forge says when a new version is out (Settings → Downloads).', 'Downloads → Application lists every version: download and install the newest, or go back to an older one.', 'The portable version is replaced by the new exe; the installed version runs its installer and keeps your settings, projects and downloads.', 'JBeam Forge in the game updates itself to match the app at the next start.'] },
+      { steps: ['At startup JBeam Forge says when a new version is out (Settings → Downloads).', 'Downloads → Application lists every version: download and install the newest, or go back to an older one.', 'Windows: the installed version runs its installer and keeps your settings, projects and downloads; the portable version gets the new exe beside it.', 'Linux: the .deb opens in your package installer; the AppImage version gets the new AppImage beside it, ready to run.', 'JBeam Forge in the game updates itself to match the app at the next start.'] },
+      { heading: 'Linux', text: 'JBeam Forge runs on Linux from the same code. It finds BeamNG.drive whether you play the native Linux build or the Windows one through Steam’s Proton, and installs JBeam Forge in the game into whichever it is.' },
     ],
   },
   {

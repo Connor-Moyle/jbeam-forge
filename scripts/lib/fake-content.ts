@@ -48,16 +48,14 @@ await buildContentRepo(join(packs, 'objects'), join(dir, 'repos', 'meshes'), 'me
 
 // Releases: one newer than the app, the app's own, and one older (to roll back to).
 const [maj, min] = current.split('.').map(Number) as [number, number];
+// Every file a real release has: Windows installer and portable exe, Linux .deb and AppImage.
 const assetsFor = (v: string) => {
-  const setup = Buffer.from(`fake installer ${v}`);
-  const portable = Buffer.from(`fake portable ${v}`);
   mkdirSync(join(dir, 'assets'), { recursive: true });
-  writeFileSync(join(dir, 'assets', `JBeam-Forge-Setup-${v}.exe`), setup);
-  writeFileSync(join(dir, 'assets', `JBeam-Forge-${v}-portable.exe`), portable);
-  return [
-    { name: `JBeam-Forge-Setup-${v}.exe`, size: setup.length, browser_download_url: `ASSETS/JBeam-Forge-Setup-${v}.exe` },
-    { name: `JBeam-Forge-${v}-portable.exe`, size: portable.length, browser_download_url: `ASSETS/JBeam-Forge-${v}-portable.exe` },
-  ];
+  return [`JBeam-Forge-Setup-${v}.exe`, `JBeam-Forge-${v}-portable.exe`, `jbeam-forge_${v}_amd64.deb`, `JBeam-Forge-${v}.AppImage`].map((name) => {
+    const body = Buffer.from(`fake ${name}`);
+    writeFileSync(join(dir, 'assets', name), body);
+    return { name, size: body.length, browser_download_url: `ASSETS/${name}` };
+  });
 };
 const versions = [`${maj}.${min + 1}.0`, current, `${maj}.${Math.max(0, min - 1)}.0`];
 writeFileSync(

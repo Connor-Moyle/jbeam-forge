@@ -236,7 +236,9 @@ const scenarios = [
       await page.getByTestId('update-download').first().click();
       await page.getByText(/is downloaded and checked/).waitFor();
       const updates = join(userData, 'updates');
-      assert(readdirSync(updates).some((f) => /Setup-.*\.exe$/.test(f)), `installer downloaded (${readdirSync(updates)})`);
+      // This system's installer: the Setup exe on Windows, the .deb on Linux.
+      const installerName = process.platform === 'linux' ? /_amd64\.deb$/ : /Setup-.*\.exe$/;
+      assert(readdirSync(updates).some((f) => installerName.test(f)), `installer downloaded (${readdirSync(updates)})`);
       // Roll back: the older version's installer.
       await page.getByTestId('update-older-toggle').click();
       await page.getByTestId('update-older').waitFor();
