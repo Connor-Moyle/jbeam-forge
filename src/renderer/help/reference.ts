@@ -55,7 +55,7 @@ export const REFERENCE: Guide[] = [
       },
       {
         heading: 'Variants',
-        steps: ['Right-click a part → Add a variant: another part for the same slot (a vented hood, a race bumper).', 'Assign the variant’s own meshes to it. Configurations pick which one a version of the car uses.', 'A variant without nodes of its own rides on its parent’s nodes.'],
+        steps: ['Right-click a part → Duplicate as variant: another part for the same slot (a vented hood, a race bumper).', 'Assign the variant’s own meshes to it. Configurations pick which one a version of the car uses.', 'A variant without nodes of its own rides on its parent’s nodes.'],
       },
       { heading: 'Advanced', steps: ['Settings → Naming: name meshes after their part automatically, and tidy numbered names in the parts menu.', 'Mesh names are written to the DAE with the mod’s prefix; the export window lists the final names.'] },
     ],

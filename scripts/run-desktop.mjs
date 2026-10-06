@@ -3524,6 +3524,20 @@ const scenarios = [
         const seenNow = (await page.evaluate(async () => (await window.forge.invoke('settings:get')).value)).lessonsSeen;
         assert(seenNow.includes(lesson), `${lesson} remembered`);
       }
+      // Help → Tutorials: every tutorial listed step by step, by group; Start switches workspace and runs it.
+      await page.getByTestId('open-help').click();
+      await page.getByTestId('help-centre').waitFor();
+      for (const group of ['Tutorials: getting started', 'Tutorials: vehicle scripts', 'Tutorials: part mods']) await page.getByTestId('help-centre').getByText(group, { exact: true }).waitFor();
+      await page.getByTestId('guide-tutorial-engine-design').click();
+      assert((await page.getByTestId('help-article').locator('ol li').count()) >= 5, 'a written tutorial lists its steps');
+      await page.getByTestId('guide-tutorial-script-wipers').click();
+      assert((await page.getByTestId('help-article').locator('ol li').count()) >= 6, 'a script tutorial lists its lesson’s steps');
+      await shot(page, 'help-tutorials');
+      await page.getByTestId('guide-tutorial-triggers').click();
+      await page.getByTestId('help-start').click();
+      await page.getByTestId('guide-card').waitFor();
+      assert((await page.getByTestId('workspace-triggers').getAttribute('aria-selected')) === 'true', 'starting from Help opens the Triggers workspace');
+      await page.getByRole('button', { name: 'Stop the tutorial' }).click();
       await page.evaluate(() => window.forge.invoke('settings:update', { offerLessons: false }));
     },
   },

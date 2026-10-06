@@ -55,6 +55,7 @@ import { currentSet, useVinylUi } from '@renderer/paint/vinyls';
 import { paintedCounts } from '@renderer/paint/facePaint';
 import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
 import { AiModeDialog } from '@renderer/ai/AiModeDialog';
+import { useWorkspaceBridge } from '@renderer/shell/workspaceBridge';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -383,6 +384,11 @@ function Editor() {
   // A tyre, wheel, engine or panel mod opens on its builder; a vehicle never on a part mod's workspace.
   const modKind = useProjectStore((s) => s.doc?.meta.modKind);
   const { ready, preset: current, applyPreset: apply } = useShell();
+  // Help can start a workspace's lesson: it switches workspace through this.
+  useEffect(() => {
+    useWorkspaceBridge.getState().set(ready ? apply : null);
+    return () => useWorkspaceBridge.getState().set(null);
+  }, [ready, apply]);
   const openedKey = useRef<string | null>(null);
   useEffect(() => {
     if (!ready) return;

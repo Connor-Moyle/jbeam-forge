@@ -12,6 +12,7 @@ import { Input } from '@renderer/ui/components/Input';
 import { Modal } from '@renderer/ui/components/Modal';
 import { GUIDE_GROUPS, GUIDES, type Guide } from './guides';
 import { startTutorial } from './tutorial';
+import { tutorialGuides } from './tutorials';
 import styles from './Help.module.css';
 import { ASSET_CREDITS, SOFTWARE_CREDITS, type Credit } from '@shared/credits';
 import { useObjects } from '@renderer/panels/ObjectsPanel';
@@ -39,10 +40,12 @@ function HelpBody() {
   const overrides = useSettingsStore((s) => s.settings?.keymap);
   const hasProject = useProjectStore((s) => s.doc !== null);
   const keys = useMemo(() => effectiveKeymap(overrides), [overrides]);
+  // Every guide and every tutorial (built now: the lessons read the open project).
+  const all = useMemo(() => [...GUIDES, ...tutorialGuides()], []);
   const [id, setId] = useState(GUIDES[0]!.id);
   const [query, setQuery] = useState('');
   const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = GUIDES.filter((g) => words.every((w) => guideText(g).includes(w)));
+  const shown = all.filter((g) => words.every((w) => guideText(g).includes(w)));
   const credits = id === 'credits';
   const guide = credits ? null : (shown.find((g) => g.id === id) ?? shown[0] ?? null);
   const close = () => setOpen(false);
@@ -155,6 +158,23 @@ function HelpBody() {
                 {guide.title}
               </h2>
               <p className={styles.summary}>{guide.summary}</p>
+              {guide.start && (
+                <div className={styles.startRow}>
+                  <Button
+                    variant="primary"
+                    icon={Compass}
+                    disabled={guide.start.needsProject && !hasProject}
+                    onClick={() => {
+                      close();
+                      guide.start!.run();
+                    }}
+                    data-testid="help-start"
+                  >
+                    {guide.start.label}
+                  </Button>
+                  {guide.start.needsProject && !hasProject && <span className={styles.startNote}>Open or make a mod first: this tutorial works on your car.</span>}
+                </div>
+              )}
               {guide.sections.map((s, i) => (
                 <section key={i} className={styles.section}>
                   {s.heading && <h3 className={styles.heading}>{s.heading}</h3>}

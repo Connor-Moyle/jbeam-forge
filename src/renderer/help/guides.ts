@@ -6,7 +6,21 @@
 
 import { REFERENCE } from './reference';
 
-export type GuideGroup = 'Start here' | 'Building a car' | 'Making it work' | 'Going further' | 'Reference' | 'Examples';
+export type GuideGroup =
+  | 'Start here'
+  | 'Tutorials: getting started'
+  | 'Tutorials: building the car'
+  | 'Tutorials: moving parts and controls'
+  | 'Tutorials: engine, gearbox and wheels'
+  | 'Tutorials: vehicle scripts'
+  | 'Tutorials: finishing and sharing'
+  | 'Tutorials: part mods'
+  | 'Tutorials: going further'
+  | 'Building a car'
+  | 'Making it work'
+  | 'Going further'
+  | 'Reference'
+  | 'Examples';
 
 export interface GuideSection {
   heading?: string;
@@ -25,9 +39,26 @@ export interface Guide {
   sections: GuideSection[];
   /** Buttons under the guide. */
   actions?: ('tutorial' | 'newMod' | 'import' | 'shortcuts' | 'settings' | 'extensionsFolder')[];
+  /** An interactive tutorial: the button that starts it. */
+  start?: { label: string; run: () => void; needsProject?: boolean };
 }
 
-export const GUIDE_GROUPS: GuideGroup[] = ['Start here', 'Building a car', 'Making it work', 'Going further', 'Reference', 'Examples'];
+export const GUIDE_GROUPS: GuideGroup[] = [
+  'Start here',
+  'Tutorials: getting started',
+  'Tutorials: building the car',
+  'Tutorials: moving parts and controls',
+  'Tutorials: engine, gearbox and wheels',
+  'Tutorials: vehicle scripts',
+  'Tutorials: finishing and sharing',
+  'Tutorials: part mods',
+  'Tutorials: going further',
+  'Building a car',
+  'Making it work',
+  'Going further',
+  'Reference',
+  'Examples',
+];
 
 export const GUIDES: Guide[] = [
   {
@@ -191,7 +222,7 @@ export const GUIDES: Guide[] = [
       { text: 'A BeamNG vehicle is a tree of parts. The body has slots (places a part can go); each part fills one slot and can have slots of its own. Players swap parts in the game’s parts menu, and configurations remember which parts fill which slots.' },
       {
         heading: 'In JBeam Forge',
-        steps: ['The Scene tree shows the parts under the body. Drag a part onto another to attach it there.', 'Variants are other parts for the same slot (a different bumper, a wing). Right-click a part → Add a variant.', 'Each part is one .jbeam entry in the export; its meshes become the part’s flexbodies.'],
+        steps: ['The Scene tree shows the parts under the body. Drag a part onto another to attach it there.', 'Variants are other parts for the same slot (a different bumper, a wing). Right-click a part → Duplicate as variant.', 'Each part is one .jbeam entry in the export; its meshes become the part’s flexbodies.'],
       },
     ],
   },
