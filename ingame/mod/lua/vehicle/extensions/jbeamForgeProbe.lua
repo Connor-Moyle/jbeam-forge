@@ -71,10 +71,12 @@ local function diagnose()
   end
   -- Broken beams by the part they come from.
   out.brokenByPart = {}
+  out.brokenList = {}
   for _, b in ipairs(list) do
     if b.broken then
       local p = tostring(b.part or '?')
       out.brokenByPart[p] = (out.brokenByPart[p] or 0) + 1
+      if #out.brokenList < 40 then out.brokenList[#out.brokenList + 1] = {b.a, b.b, p} end
     end
   end
   table.sort(list, function(x, y) return x.strain > y.strain end)
