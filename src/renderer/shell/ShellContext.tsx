@@ -13,6 +13,7 @@ import { registerTestHooks } from '@renderer/app/testHooks';
 import { useUiStore } from '@renderer/app/stores/ui';
 import { emitTestSignal } from '@renderer/app/testBus';
 import { useEditStore } from '@renderer/structure/editStore';
+import { keepSideSizes, type SizeKeeper } from './keepSizes';
 import { DEFAULT_PRESET, PRESET_LABELS, applyPreset as buildPreset, isPanelShown, showPanel as show, togglePanel as toggle } from './presets';
 import { PANELS, isPanelId, type PanelId } from './panelRegistry';
 
@@ -58,6 +59,9 @@ export function isRestorable(layout: StoredLayout, devMode: boolean): boolean {
 export function ShellProvider({ children }: { children: ReactNode }) {
   const devMode = window.forge.isDev || window.forge.harness;
   const apiRef = useRef<DockviewApi | null>(null);
+  const keeper = useRef<SizeKeeper | null>(null);
+  // Rebuilding the whole layout: the size keeper stands aside.
+  const rebuild = (fn: () => void) => (keeper.current ? keeper.current.during(fn) : fn());
   const presetRef = useRef<PresetId>(DEFAULT_PRESET);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [preset, setPreset] = useState<PresetId>(DEFAULT_PRESET);
@@ -91,7 +95,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
       if (presetRef.current === 'jbeam' && next !== 'jbeam') useEditStore.getState().setActive(false);
       presetRef.current = next;
       setPreset(next);
-      buildPreset(api, next);
+      rebuild(() => buildPreset(api, next));
       scheduleSave();
     },
     [scheduleSave],
@@ -113,12 +117,14 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     (api: DockviewApi) => {
       apiRef.current = api;
       api.onDidLayoutChange(scheduleSave);
+      keeper.current?.dispose();
+      keeper.current = keepSideSizes(api);
       void call('layout:load')
         .catch(() => null)
         .then((stored) => {
           if (stored && isRestorable(stored, devMode)) {
             try {
-              api.fromJSON(stored.dockview as unknown as SerializedDockview);
+              rebuild(() => api.fromJSON(stored.dockview as unknown as SerializedDockview));
               presetRef.current = stored.preset;
               setPreset(stored.preset);
               logger.info('restored layout, preset =', stored.preset);
@@ -129,7 +135,7 @@ export function ShellProvider({ children }: { children: ReactNode }) {
           } else if (stored) {
             logger.warn('stored layout references unknown panels; using default');
           }
-          buildPreset(api, presetRef.current);
+          rebuild(() => buildPreset(api, presetRef.current));
         })
         .finally(() => setReady(true));
     },

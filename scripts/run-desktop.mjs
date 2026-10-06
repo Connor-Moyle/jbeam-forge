@@ -3551,6 +3551,67 @@ const scenarios = [
     },
   },
   {
+    id: 'panel-close',
+    name: 'closing a side panel gives its room to the 3D view; the other side panels keep their size',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (!(await page.locator('[data-view=editor]').count())) {
+        await page.getByTestId('home-tour').click();
+        await page.waitForSelector('[data-testid=tour-card]');
+        await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      }
+      await hook(page, 'applyPreset', 'modelling');
+      await page.waitForTimeout(600);
+      // Each panel's width, by the title on its tab.
+      const widths = () =>
+        page.evaluate(() => {
+          const out = {};
+          for (const tab of document.querySelectorAll('.dv-tab')) {
+            const group = tab.closest('.dv-groupview') ?? tab.closest('.dv-groupview-wrapper') ?? tab.parentElement?.closest('[class*=group]');
+            const name = tab.textContent.trim();
+            const box = tab.closest('.dv-tabs-and-actions-container')?.parentElement?.getBoundingClientRect() ?? group?.getBoundingClientRect();
+            if (name && box) out[name] = Math.round(box.width);
+          }
+          return out;
+        });
+      const before = await widths();
+      assert(before.Scene && before.Viewport && before.Properties, `the three panels are there (${JSON.stringify(before)})`);
+      await page.locator('.dv-tab', { hasText: 'Properties' }).locator('.dv-default-tab-action').click();
+      await page.waitForTimeout(600);
+      const after = await widths();
+      await shot(page, 'panel-closed');
+      assert(!after.Properties, 'Properties closed');
+      assert(Math.abs(after.Scene - before.Scene) <= 2, `the Scene panel keeps its width (${before.Scene} → ${after.Scene})`);
+      assert(after.Viewport >= before.Viewport + before.Properties - 10, `the 3D view takes the room (${before.Viewport} → ${after.Viewport})`);
+      // And back: it opens at about its old width, taken from the 3D view.
+      await hook(page, 'runCommand', 'palette');
+      await page.getByTestId('palette-input').fill('Show Inspector panel');
+      await page.getByTestId('palette-input').press('Enter');
+      await page.waitForTimeout(600);
+      assert((await widths()).Properties, 'Properties is back');
+      const again = await widths();
+      assert(Math.abs(again.Scene - before.Scene) <= 2, `the Scene panel still keeps its width when Properties comes back (${before.Scene} → ${again.Scene})`);
+      // The left one: Properties keeps its width.
+      await hook(page, 'applyPreset', 'modelling');
+      await page.waitForTimeout(600);
+      const b2 = await widths();
+      await page.locator('.dv-tab', { hasText: 'Scene' }).locator('.dv-default-tab-action').click();
+      await page.waitForTimeout(600);
+      const a2 = await widths();
+      assert(Math.abs(a2.Properties - b2.Properties) <= 2, `closing Scene leaves Properties as it was (${b2.Properties} → ${a2.Properties})`);
+      // One under the 3D view (Scripts: Script test): the side columns keep their widths.
+      await hook(page, 'applyPreset', 'scripts');
+      await page.waitForTimeout(600);
+      const b3 = await widths();
+      assert(b3['Script test'], `the Scripts workspace has its test strip (${JSON.stringify(b3)})`);
+      await page.locator('.dv-tab', { hasText: 'Script test' }).locator('.dv-default-tab-action').click();
+      await page.waitForTimeout(600);
+      const a3 = await widths();
+      for (const side of ['Scripts', 'Script']) assert(Math.abs(a3[side] - b3[side]) <= 2, `closing Script test leaves ${side} as it was (${b3[side]} → ${a3[side]})`);
+      await hook(page, 'applyPreset', 'modelling');
+    },
+  },
+  {
     id: 'small-window',
     name: 'a 1366×768 laptop: every workspace and the main windows fit, nothing runs off the side',
     async run({ app, page }) {
