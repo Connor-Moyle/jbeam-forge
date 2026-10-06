@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { assetRole, compareVersions, toReleases, UpdateService } from '../../src/main/content/updates';
+import { assetRole, compareVersions, isAppFile, toReleases, UpdateService } from '../../src/main/content/updates';
 import { preferredContentRoot, resolveContentRoot } from '../../src/main/content/paths';
 import { allowedHost, endpoints, rawUrl, type FetchFn } from '../../src/main/content/github';
 
@@ -45,6 +45,9 @@ describe('versions', () => {
     const names = ['JBeam-Forge-Setup-0.16.0.exe', 'JBeam-Forge-0.16.0-portable.exe', 'JBeam-Forge-0.16.0.AppImage', 'jbeam-forge_0.16.0_amd64.deb', 'jbeam_forge_ingame.zip'];
     expect(names.map((n) => assetRole(n, 'win32'))).toEqual(['installer', 'portable', 'other', 'other', 'other']);
     expect(names.map((n) => assetRole(n, 'linux'))).toEqual(['other', 'other', 'portable', 'installer', 'other']);
+    // Every one of this app's files can be downloaded; nothing else.
+    expect(names.slice(0, 4).every(isAppFile)).toBe(true);
+    expect(['evil.sh', '../JBeam-Forge-1.exe', 'jbeam-forge_1_amd64.deb.sh'].some(isAppFile)).toBe(false);
   });
 });
 

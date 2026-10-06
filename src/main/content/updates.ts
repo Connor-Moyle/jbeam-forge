@@ -20,6 +20,11 @@ import { apiUrl, assertRepo, downloadFile, endpoints, getJson, GithubError, type
  * .deb (its installer) and the AppImage (its portable). The other system's files are 'other', so
  * only the right ones are offered.
  */
+/** This app's own release files (nothing else is downloaded or run): Windows exes, the Linux AppImage and .deb, zips. */
+export function isAppFile(name: string): boolean {
+  return /^JBeam-Forge-[A-Za-z0-9._-]+\.(exe|zip|AppImage)$/.test(name) || /^jbeam-forge_[A-Za-z0-9._-]+_amd64\.deb$/.test(name);
+}
+
 export function assetRole(name: string, platform: NodeJS.Platform = process.platform): ReleaseAsset['role'] {
   const linux = platform === 'linux';
   if (/setup.*\.exe$/i.test(name)) return linux ? 'other' : 'installer';
@@ -89,7 +94,7 @@ export class UpdateService {
    */
   async download(repo: string, tag: string, assetName: string, onProgress: (done: number, total: number) => void): Promise<string> {
     if (this.job) throw new GithubError('A download is already running', 'BAD_INPUT');
-    if (!/^JBeam-Forge-[A-Za-z0-9._-]+\.(exe|zip)$/.test(assetName)) throw new GithubError(`Not a JBeam Forge download: ${assetName}`, 'BAD_INPUT');
+    if (!isAppFile(assetName)) throw new GithubError(`Not a JBeam Forge download: ${assetName}`, 'BAD_INPUT');
     // Taken before the first await, so a second call can't slip past the check.
     const ctrl = new AbortController();
     this.job = ctrl;
@@ -130,7 +135,7 @@ export class UpdateService {
    * in the downloads folder afterwards never runs.
    */
   async verifyDownloaded(repo: string, assetName: string): Promise<string> {
-    if (!/^JBeam-Forge-[A-Za-z0-9._-]+\.(exe|zip)$/.test(assetName)) throw new GithubError(`Not a JBeam Forge download: ${assetName}`, 'BAD_INPUT');
+    if (!isAppFile(assetName)) throw new GithubError(`Not a JBeam Forge download: ${assetName}`, 'BAD_INPUT');
     const version = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)/.exec(assetName)?.[1];
     if (!version) throw new GithubError(`No version in ${assetName}`, 'BAD_INPUT');
     const release = (await this.releases(repo, true)).find((r) => r.version === version);

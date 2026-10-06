@@ -4141,6 +4141,8 @@ try {
     } catch (err) {
       await shot(ctx.page, `FAILED-${s.id}`).catch(() => undefined);
       results.push({ id: s.id, name: s.name, ok: false, ms: Date.now() - started, error: err.message });
+      // Close whatever window it left open, so one failure doesn't block every scenario after it.
+      for (let i = 0; i < 3; i++) await ctx.page.keyboard.press('Escape').catch(() => undefined);
     }
   }
 } catch (err) {
