@@ -44,7 +44,7 @@ jobs:
       - name: The desktop scenarios
         run: |
           only=""
-          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then only="--only=home,downloads,shell,settings,project,import,parts,persist,unsaved,split,generate,tutorial,ai-mode,jbeam,undo-steps,part-mods"; fi
+          if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then only="--only=home,downloads,shell,settings,project,import,parts,persist,unsaved,split,generate,tutorial,ai-mode,jbeam,undo-steps,part-mods,small-window"; fi
           xvfb-run -a --server-args="-screen 0 1600x1000x24" node scripts/run-desktop.mjs $only
         env:
           JBFORGE_SWIFTSHADER: '1'

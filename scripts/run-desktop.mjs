@@ -3551,6 +3551,69 @@ const scenarios = [
     },
   },
   {
+    id: 'small-window',
+    name: 'a 1366×768 laptop: every workspace and the main windows fit, nothing runs off the side',
+    async run({ app, page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (!(await page.locator('[data-view=editor]').count())) {
+        await page.getByTestId('home-tour').click();
+        await page.waitForSelector('[data-testid=tour-card]');
+        await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+        for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      }
+      // Parts and a structure, so every workspace and the export have something to show.
+      if (!((await hook(page, 'projectDoc')).nodes.length > 50)) {
+        await hook(page, 'applyPreset', 'modelling');
+        await page.getByTestId('scene-classify').click();
+        await page.getByTestId('classify-apply').click();
+        await page.getByTestId('toolbar-generate').click();
+        for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+      }
+      const before = await app.evaluate(({ BrowserWindow }) => {
+        const w = BrowserWindow.getAllWindows()[0];
+        const b = w.getBounds();
+        if (w.isMaximized()) w.unmaximize();
+        w.setContentSize(1366, 728); // a 768-pixel screen less the taskbar
+        return b;
+      });
+      await page.waitForTimeout(800);
+      const problems = [];
+      // Something wider than the window (the page scrolls sideways), or the toolbar cut off.
+      const overflow = async (what) => {
+        const o = await page.evaluate(() => {
+          const out = [];
+          if (document.documentElement.scrollWidth > window.innerWidth + 1) out.push(`the page is ${document.documentElement.scrollWidth - window.innerWidth}px wider than the window`);
+          for (const el of document.querySelectorAll('[role=dialog]')) {
+            const r = el.getBoundingClientRect();
+            if (r.right > window.innerWidth + 1 || r.bottom > window.innerHeight + 1 || r.left < -1 || r.top < -1) out.push(`a window runs off the screen (${Math.round(r.width)}×${Math.round(r.height)})`);
+          }
+          return out;
+        });
+        for (const p of o) problems.push(`${what}: ${p}`);
+      };
+      const workspaces = await page.locator('[data-testid^=workspace-]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid')));
+      for (const ws of workspaces) {
+        await page.getByTestId(ws).click();
+        await page.waitForTimeout(600);
+        await overflow(ws);
+        await shot(page, `small-${ws}`);
+      }
+      for (const id of ['open-settings', 'open-downloads', 'open-help', 'toolbar-export']) {
+        await page.getByTestId(id).click();
+        await page.waitForTimeout(600);
+        await overflow(id);
+        await shot(page, `small-${id}`);
+        for (let i = 0; i < 4 && (await page.locator('[role=dialog]').count()); i++) {
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(150);
+        }
+      }
+      await app.evaluate(({ BrowserWindow }, b) => BrowserWindow.getAllWindows()[0].setBounds(b), before);
+      await page.waitForTimeout(500);
+      assert(problems.length === 0, `fits a 1366×768 screen:\n  ${problems.join('\n  ')}`);
+    },
+  },
+  {
     id: 'high-poly',
     name: 'a high-poly car (the practice car subdivided to about a million triangles): load, view, structure, Test Mode, materials',
     async run({ page }) {
