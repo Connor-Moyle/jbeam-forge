@@ -586,6 +586,7 @@ async function writeSets(
       kind,
       vehicle,
       vehicleName: info.name,
+      ...(info.type ? { vehicleType: info.type } : {}),
       brand: info.brand || 'Other',
       axle,
       type,

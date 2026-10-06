@@ -36,6 +36,8 @@ export interface SuspensionSet {
   gearbox?: GearboxSpecs;
   vehicle: string;
   vehicleName: string;
+  /** The game's type for the car it comes from (Car, Truck, Trailer…); absent before catalogue 14. */
+  vehicleType?: string;
   brand: string;
   /** Brand logo (absolute), or null. */
   logo: string | null;

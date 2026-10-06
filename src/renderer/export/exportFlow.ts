@@ -17,7 +17,7 @@ import type { ExportBundle, PublishListing } from '@shared/ipc-contract';
 import { bodyPart, buildJbeamFiles, damagedMaterialName, nodesExported, SET_KINDS } from '@shared/export/jbeam';
 import type { Project } from '@shared/project/schema';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
-import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
+import { loadFittedSets, useSetData, useSuspensionCatalogue } from '@renderer/suspension/commands';
 import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
 import { withMeasured } from '@shared/export/performance';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
@@ -268,6 +268,14 @@ export function prepareExport(): PreparedExport | null {
     const wheels = wheelNames(useSetData.getState().data[a.fitted!.setId]?.parts ?? {});
     const bothEnds = wheels.some((w) => /^F/i.test(w)) && wheels.some((w) => /^R/i.test(w));
     if (bothEnds && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '')} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
+  }
+  // A trailer's axle under a car: no steering, built for a trailer's loads, and in testing two such
+  // cars shook apart at spawn. Allowed, with a word of warning.
+  const catalogue = useSuspensionCatalogue.getState().sets ?? [];
+  for (const a of fittedAxles) {
+    const set = catalogue.find((s) => s.id === a.fitted!.setId);
+    if (set?.vehicleType && /trailer/i.test(set.vehicleType) && !/trailer/i.test(doc.meta.type ?? ''))
+      report.warnings.push({ code: 'TRAILER_SUSPENSION', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '').toLowerCase()} axle comes from a trailer (${set.vehicleName}): it doesn't steer and is built for a trailer's loads, so the car may handle badly or come apart. Spawn it and check, or pick a car's suspension.` });
   }
   // Two axles whose suspensions make wheels of the same name (a rear suspension on the front axle,
   // a trailer's axle, which calls its wheels front ones): the game builds one wheel from both and
