@@ -1,5 +1,6 @@
 import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse';
 import { readTable } from '../jbeam/tables';
+import { STABILITY_DT, STABILITY_OK } from '../proxy/derive';
 
 /**
  * Bringing a stock suspension's jbeam into another car. The set's parts are
@@ -79,6 +80,22 @@ export function definedNodes(part: JbeamObject, vars: ReadonlyMap<string, number
   return out;
 }
 
+/** Node id → nodeWeight (kg), from a part's nodes table (the game's default, 25, when none is set). */
+export function definedWeights(part: JbeamObject, vars: ReadonlyMap<string, number> = variableDefaults([part])): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!Array.isArray(part.nodes)) return out;
+  try {
+    for (const r of readTable(part.nodes).records) {
+      if (typeof r.values.id !== 'string') continue;
+      const w = coordinate(r.options.nodeWeight ?? 25, vars);
+      out.set(r.values.id, Number.isFinite(w) && w > 0 ? w : 25);
+    }
+  } catch {
+    // not a table: no weights
+  }
+  return out;
+}
+
 /** Every string anywhere in a value (for finding node references). */
 export function collectStrings(value: JbeamValue | undefined, out: Set<string>): void {
   if (typeof value === 'string') out.add(value);
@@ -113,8 +130,11 @@ export interface TransplantInput {
   partPrefix: string;
   /** Prefix for node ids, e.g. "f_". */
   nodePrefix: string;
-  /** The new car's nodes the suspension can attach to. */
-  target: readonly { id: string; pos: V3 }[];
+  /**
+   * The new car's nodes the suspension can attach to. With a weight, a node too light for the
+   * beams that would land on it is passed over for the next nearest.
+   */
+  target: readonly { id: string; pos: V3; weight?: number }[];
   /** Original mesh name → exported mesh name (meshes not exported are dropped from flexbodies). */
   meshNames: Readonly<Record<string, string>>;
   /** Variable name ($springheight_F…) → value to use as its default. */
@@ -283,7 +303,23 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   for (const body of Object.values(input.parts)) for (const [id, pos] of definedNodes(body)) if (!setPositions.has(id)) setPositions.set(id, pos);
   const keepGroup = (g: JbeamValue): JbeamValue => (typeof g === 'string' && input.fallbackGroup && !groups.has(g) ? input.fallbackGroup : g);
 
-  // The original car's body nodes → the new car's nearest node.
+  // How much spring the set's beams put on each node it doesn't define.
+  const vars = variableDefaults(Object.values(input.parts));
+  const anchorSpring = new Map<string, number>();
+  for (const body of Object.values(input.parts)) {
+    if (!Array.isArray(body.beams)) continue;
+    try {
+      for (const r of readTable(body.beams).records) {
+        const k = coordinate(r.options.beamSpring ?? 4_300_000, vars);
+        if (!(k > 0)) continue;
+        for (const end of [r.values['id1:'], r.values['id2:']]) if (typeof end === 'string' && !own.has(end)) anchorSpring.set(end, (anchorSpring.get(end) ?? 0) + k);
+      }
+    } catch {
+      // not a table: nothing to count
+    }
+  }
+
+  // The original car's body nodes → the new car's nearest node that can take them.
   const attached: Record<string, string> = {};
   const extra: [string, V3][] = [];
   for (const [id, pos] of Object.entries(input.anchors)) {
@@ -292,11 +328,21 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     // them the names of body nodes.
     if (input.linkedNodes?.[id] || own.has(id)) continue;
     const at = add(pos, input.offset);
+    // A light node under stiff beams shakes the car apart: the Barstow gearbox's 20 MN/m beam to its
+    // own exhaust landed on the Autobello's 0.4 kg exhaust node. Such nodes are passed over.
+    const k = anchorSpring.get(id) ?? 0;
+    const carries = (t: { weight?: number }) => t.weight === undefined || Math.sqrt(k / t.weight) * STABILITY_DT <= STABILITY_OK;
     let best: { id: string; d: number } | null = null;
     for (const t of input.target) {
+      if (!carries(t)) continue;
       const d = dist2(at, t.pos);
       if (!best || d < best.d) best = { id: t.id, d };
     }
+    if (!best)
+      for (const t of input.target) {
+        const d = dist2(at, t.pos);
+        if (!best || d < best.d) best = { id: t.id, d };
+      }
     if (best) {
       attached[id] = best.id;
       nodeIds.set(id, best.id);

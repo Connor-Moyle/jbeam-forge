@@ -337,3 +337,23 @@ describe('a borrowed mesh whose groups keep too few of the set’s nodes (the Ho
     expect(r.parts.m_s!.flexbodies).toEqual([['mesh', '[group]:'], ['arm', ['hopper_lowerarm_F', 'm_body']], ['hub', ['hopper_hub_F']]]);
   });
 });
+
+describe('attaching to the new car', () => {
+  it('passes over a node too light for the beams that would land on it (the Barstow gearbox on the Autobello exhaust)', () => {
+    const r = transplantSuspension({
+      parts: { box: { slotType: 'box', nodes: [['id', 'posX', 'posY', 'posZ'], ['tra1', 0, 0, 0.3]], beams: [['id1:', 'id2:'], { beamSpring: 20_000_000 }, ['tra1', 'ex1r']] } },
+      root: 'box',
+      anchors: { ex1r: [0.3, 0, 0.3] },
+      offset: [0, 0, 0],
+      partPrefix: 'm_G_',
+      nodePrefix: 'g_',
+      target: [
+        { id: 'e_ex1r', pos: [0.3, 0, 0.3], weight: 0.4 },
+        { id: 'e_e1r', pos: [0.2, 0, 0.35], weight: 20 },
+      ],
+      meshNames: {},
+      tuning: {},
+    });
+    expect(r.attached).toEqual({ ex1r: 'e_e1r' });
+  });
+});

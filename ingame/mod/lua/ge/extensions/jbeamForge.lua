@@ -288,6 +288,12 @@ function M.onTelemetry(t)
   if type(t) == 'table' then t.at = os.time() end
 end
 
+-- The self-test's look at what came apart on a car (jbeamForgeProbe.diagnose), into the log.
+function M.onDiagnose(d)
+  local car = getPlayerVehicle(0)
+  log('I', logTag, 'self-test: diagnose ' .. tostring(car and car:getJBeamFilename() or '?') .. ' ' .. jsonEncode(d or {}))
+end
+
 local function askTelemetry()
   local veh = getPlayerVehicle(0)
   if veh then veh:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe.telemetry()") end
@@ -624,7 +630,13 @@ function M.onUpdate(dtReal)
     end
   elseif selftest.stage == 'drive' and selftest.vehicles and (selftest.vi or 0) < #selftest.vehicles then
     -- A batch of cars, one after another: each gets a while to load and settle (its log lines are what count).
+    if selftest.vi and not selftest.diagnosed and selftest.t > 10 then
+      selftest.diagnosed = true
+      local car = getPlayerVehicle(0)
+      if car then car:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe.diagnose()") end
+    end
     if selftest.t > (selftest.vi and 15 or 8) then
+      selftest.diagnosed = false
       selftest.vi = (selftest.vi or 0) + 1
       local v = selftest.vehicles[selftest.vi]
       selftest.t = 0

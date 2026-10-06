@@ -376,7 +376,11 @@ export function attachToParent(child: readonly StructNode[], parent: readonly St
 // ---------------------------------------------------------------- stability predictor
 
 export const STABILITY_DT = 1 / 2000;
-/** ω·Δt limits calibrated on official content (docs/proxy-generation.md). */
+/**
+ * ω·Δt limits calibrated on official content (docs/proxy-generation.md). Checked on every official
+ * vehicle (scripts/dev/calibrate-stability.mts, game 0.39): cars, trucks and trailers alike keep
+ * 99.9% of their nodes at or below 2.4 and almost none above 2.5, so one limit fits every type.
+ */
 export const STABILITY_OK = 2.5;
 export const STABILITY_UNSTABLE = 4;
 

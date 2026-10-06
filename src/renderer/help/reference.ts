@@ -246,7 +246,7 @@ export const REFERENCE: Guide[] = [
     summary: 'The physics sandbox here, and testing in the game itself.',
     sections: [
       { heading: 'Test Mode', text: 'Test (toolbar) drops the car in a physics sandbox: it settles on its suspension, and the Test results panel reports weight, balance, sagging, loose or exploding parts. Swing doors and drop it from a height to see how it holds.' },
-      { heading: 'In the game', steps: ['Export installs the mod in BeamNG’s mods folder. Start the game (or Ctrl+R in it to reload the car) and spawn it.', 'With JBeam Forge in the game (F10), “Drive it” installs and spawns it straight from the editor.', 'The game’s console (~) and beamng.log list anything the game didn’t like.'] },
+      { heading: 'In the game', steps: ['Export installs the mod in BeamNG’s mods folder. Start the game (or Ctrl+R in it to reload the car) and spawn it.', 'With JBeam Forge in the game (F10), “Drive it” installs and spawns it straight from the editor.', 'What the game said (Export, Test results or the command palette) reads beamng.log after a spawn and lists what the game didn’t like about the car, first causes first, each with a jump to the part.', 'Measure (in the game) adds the game’s own performance figures to the mod.'] },
       { tip: 'Test Mode is a fast check; the game is the final word. Test there before you share a mod.' },
     ],
   },
@@ -275,6 +275,7 @@ export const REFERENCE: Guide[] = [
           'The car I’m driving: opens that car as a project, with its current configuration: every part, node and beam as the game built it, its models and materials.',
           'On the car: draws your project’s nodes and beams on the car you’re driving.',
           'Drive it: installs the mod as it is now and spawns it, in the game’s own physics.',
+          'Measure: installs it and runs the game’s own performance tests on its flat test map (0-100 km/h, top speed, braking, off-road). The figures appear on screen and in the vehicle selector, and the next export writes them into the mod.',
           'Everything else works as on the desktop: parts, materials, the builders, configurations, export.',
         ],
       },

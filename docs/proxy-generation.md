@@ -98,6 +98,18 @@
 7. **Stability predictor:** per node, ω = √(Σ incident spring / nodeWeight), with Δt = 1/2000 s.
    - **Calibrated on official content** (sedan config, 767 nodes): ω·Δt median 1.50, p90 2.46, p99 3.36, max 5.3.
    - The textbook symplectic-Euler limit (ω·Δt < 2) would flag a third of the official car, so the limits come from the measurement: **ok ≤ 2.5** (≈ official p90), **marginal ≤ 4** (beyond official p99), **unstable > 4**.
+   - **Checked across vehicle types** (game 0.39, every official vehicle, `scripts/dev/calibrate-stability.mts`). Each part is counted on its own, so beams that other parts attach to a node are left out and the figures sit a little below the whole-car ones above. The spread is the same for every type, so one set of limits fits them all:
+
+     | Type | Nodes | p50 | p90 | p99 | p99.9 |
+     |---|---|---|---|---|---|
+     | Car | 50,763 | 1.33 | 1.79 | 2.11 | 2.37 |
+     | Truck | 37,070 | 1.29 | 1.73 | 2.06 | 2.37 |
+     | Trailer | 13,496 | 0.72 | 1.53 | 2.00 | 2.41 |
+     | Traffic | 6,930 | 1.10 | 1.34 | 1.67 | 2.00 |
+     | Heavy machinery | 3,323 | 1.01 | 1.72 | 2.19 | 4.33 |
+     | Prop | 9,634 | 0.61 | 1.48 | 1.98 | 2.54 |
+
+     Only hydraulic machinery (the WL-40's rams) goes past 4, and it does that on purpose.
    - Offenders are reported with a concrete fix ("node dl4r 0.2 kg with ~4M of beams: add mass or soften").
    - Phase 6's own solver re-checks this with real integration.
 

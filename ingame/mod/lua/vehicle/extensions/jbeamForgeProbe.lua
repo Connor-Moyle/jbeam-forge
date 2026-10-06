@@ -52,6 +52,37 @@ local function telemetry()
   obj:queueGameEngineLua('if jbeamForge then jbeamForge.onTelemetry(' .. serialize(out) .. ') end')
 end
 
+-- What came apart: beams broken since spawn and the ones stretched or squashed most, with the
+-- parts they come from (the game only says "Instability detected", not where).
+local function diagnose()
+  local out = {broken = 0, worst = {}}
+  local list = {}
+  for cid, beam in pairs(v.data.beams or {}) do
+    if type(cid) == 'number' and type(beam) == 'table' then
+      if obj:beamIsBroken(cid) then out.broken = out.broken + 1 end
+      local rest = obj:getBeamRestLength(cid)
+      local len = obj:getBeamLength(cid)
+      local strain = (rest and rest > 1e-4 and len) and math.abs(len / rest - 1) or math.huge
+      if strain ~= strain then strain = math.huge end
+      local n1 = v.data.nodes[beam.id1]
+      local n2 = v.data.nodes[beam.id2]
+      list[#list + 1] = {strain = strain, a = n1 and n1.name or tostring(beam.id1), b = n2 and n2.name or tostring(beam.id2), part = beam.partOrigin, broken = obj:beamIsBroken(cid)}
+    end
+  end
+  table.sort(list, function(x, y) return x.strain > y.strain end)
+  for i = 1, math.min(15, #list) do
+    local b = list[i]
+    out.worst[i] = {b.a, b.b, b.strain == math.huge and 'NaN' or math.floor(b.strain * 1000) / 1000, b.part, b.broken}
+  end
+  out.beams = #list
+  obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDiagnose(' .. serialize(out) .. ') end')
+end
+
+M.diagnose = function()
+  local done, err = pcall(diagnose)
+  if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDiagnose(' .. serialize({error = tostring(err)}) .. ') end') end
+end
+
 M.telemetry = function()
   local done, err = pcall(telemetry)
   if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onTelemetry(' .. serialize({error = tostring(err)}) .. ') end') end

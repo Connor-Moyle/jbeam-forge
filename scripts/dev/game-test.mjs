@@ -221,10 +221,20 @@ async function main() {
           duplicatedBeams: has(/duplicated beam/).length,
           missingMaterials: [...new Set(has(/NO-MATERIAL/).map((l) => /mapping to: (\S+)/.exec(l)?.[1]))],
           luaErrors: has(/expressionParser|attempt to|stack traceback/).length,
+          // What came apart, from the self-test's probe: broken beams and the most strained ones.
+          diagnose: (() => {
+            const line = has(/self-test: diagnose /)[0];
+            try {
+              return line ? JSON.parse(line.slice(line.indexOf('{'))) : null;
+            } catch {
+              return null;
+            }
+          })(),
           errors: has(/\|E\|/).slice(0, 30),
         };
       });
-      for (const c of summary.cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}`);
+      for (const c of summary.cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}${c.diagnose ? ` · broken ${c.diagnose.broken}/${c.diagnose.beams}` : ''}`);
+      for (const c of summary.cars) if (c.instability && c.diagnose?.worst) say(`  ${c.vehicle} most strained: ${c.diagnose.worst.slice(0, 6).map(([a, b, s, part]) => `${a}-${b} ${s} (${String(part ?? '').replace(/^forge_[a-z0-9]+_/, '')})`).join(', ')}`);
     }
     if (measure) {
       const store2 = join(store, 'selftest-measured.json');

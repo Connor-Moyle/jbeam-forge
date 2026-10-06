@@ -12,7 +12,7 @@ import { beamPhysics, DEFORM_LIMIT_EXPANSION } from '../proxy/beamValues';
 import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
-import { definedNodes, setGroups, transplantSuspension } from '../suspension/transplant';
+import { definedNodes, definedWeights, setGroups, transplantSuspension } from '../suspension/transplant';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
 import type { PartScripts } from '../lua/export';
@@ -485,7 +485,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const engineTransmissionSlots = pt?.engine ? rewritesFor(pt.engine.setId).slots : [];
   // An engine's mounts often sit on the gearbox's nodes: point them at the gearbox's renamed ones (its prefix is g_).
   const gearboxNodes: Record<string, string> = engineTransmissionSlots.length && box ? Object.fromEntries(Object.values(box.parts).flatMap((p) => [...definedNodes(p).keys()].map((id) => [id, `g_${id}`]))) : {};
-  let engineNodes: { id: string; pos: [number, number, number] }[] = [];
+  let engineNodes: { id: string; pos: [number, number, number]; weight?: number }[] = [];
   let engineParts: Record<string, JbeamObject> | null = null;
   let gearboxParts: Record<string, JbeamObject> | null = null;
   if (pt?.engine) {
@@ -502,7 +502,10 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       };
       if (engineSlot !== t.rootSlotType) setSlot(t.rootPart, t.parts[t.rootPart]);
       extraSlots.push([engineSlot, [engineSlot], [], t.rootPart, 'Engine']);
-      engineNodes = Object.values(t.parts).flatMap((p) => [...definedNodes(p)].map(([id, pos]) => ({ id, pos })));
+      engineNodes = Object.values(t.parts).flatMap((p) => {
+        const weights = definedWeights(p);
+        return [...definedNodes(p)].map(([id, pos]) => ({ id, pos, weight: weights.get(id) }));
+      });
       engineParts = t.parts;
       // The engine designer's own model rides on the engine's nodes, on the groups the game engine's meshes used.
       const own = (pt.engine.ownMeshes ?? []).filter((k) => opts.meshNames.has(k) && !fullDoc.ignoredMeshes.includes(k)).map((k) => opts.meshNames.get(k)!);
