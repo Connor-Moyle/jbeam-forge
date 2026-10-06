@@ -174,6 +174,12 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: "engines with their own model from the engine designer",
     migrate: (doc) => ({ ...doc, formatVersion: 22 }),
   },
+  {
+    from: 22,
+    // Nothing to change: settings adjustable in game and part versions are new and optional.
+    describe: 'engine, gearbox and suspension settings adjustable in game, and versions of their parts',
+    migrate: (doc) => ({ ...doc, formatVersion: 23 }),
+  },
 ];
 
 export class MigrationError extends Error {

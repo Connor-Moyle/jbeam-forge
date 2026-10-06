@@ -19,6 +19,7 @@ import yauzl from 'yauzl';
 import { join } from 'node:path';
 import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '../src/shared/jbeam/parse';
 import { readTable } from '../src/shared/jbeam/tables';
+import { scanGameMaterials } from '../src/main/beamng/gameMaterials';
 
 const root = process.argv[2];
 if (!root) {
@@ -190,7 +191,9 @@ if (![...installed].some((n) => partOf(n)!.refNodes)) errors.push('no installed 
 // Materials
 const mats = JSON.parse(readFileSync(join(dir, 'main.materials.json'), 'utf8')) as Record<string, { mapTo: string; Stages: Record<string, unknown>[] }>;
 const mapped = new Set(Object.values(mats).map((m) => m.mapTo));
-for (const m of daeMaterials) if (!mapped.has(m)) errors.push(`DAE material ${m} has no main.materials.json entry`);
+// Materials the game itself defines (a game part's own, used by name) need no entry of the mod's.
+const gameMaterials = install ? new Set((await scanGameMaterials(install)).map((m) => m.name)) : new Set<string>();
+for (const m of daeMaterials) if (!mapped.has(m) && !gameMaterials.has(m)) errors.push(`DAE material ${m} has no main.materials.json entry${install ? ' and isn’t one of the game’s' : ''}`);
 for (const [name, m] of Object.entries(mats)) {
   for (const stage of m.Stages)
     for (const [k, v] of Object.entries(stage)) {

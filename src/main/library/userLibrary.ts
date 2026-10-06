@@ -121,11 +121,34 @@ export class UserLibrary {
     return { materials: this.materials, objects: this.objects, sets: this.sets, folders: this.folders, scanning: this.running !== null };
   }
 
-  /** Scan (or reuse the cache of) every folder. Concurrent calls share one run. */
+  /**
+   * Scan (or reuse the cache of) every folder. Calls for the same folders while one runs share it;
+   * a call with other folders (the game folder changed meanwhile) runs again once it's done, with
+   * the newest folders, so a change is never lost.
+   */
   scan(folders: Folders): Promise<void> {
-    this.running ??= this.scanAll(folders).finally(() => (this.running = null));
-    return this.running;
+    const key = JSON.stringify(folders);
+    if (!this.running) {
+      this.runningKey = key;
+      this.running = this.scanAll(folders).finally(() => {
+        this.running = null;
+        const next = this.queued;
+        this.queued = null;
+        if (next) void this.scan(next.folders).then(next.resolve, next.resolve);
+      });
+      return this.running;
+    }
+    if (key === this.runningKey && !this.queued) return this.running;
+    // Only the newest request matters; earlier waiters are answered by the same run.
+    const prev = this.queued;
+    let resolve!: () => void;
+    const done = new Promise<void>((r) => (resolve = r));
+    this.queued = { folders, resolve: () => (prev?.resolve(), resolve()) };
+    return done;
   }
+
+  private runningKey = '';
+  private queued: { folders: Folders; resolve: () => void } | null = null;
 
   /** Sets cut from car mods (Automation exports), kept under the cache's imports folder. */
   private async importedSets(): Promise<SuspensionSet[]> {

@@ -33,6 +33,8 @@ export interface EditableField {
   /** Sensible slider range. */
   min: number;
   max: number;
+  /** One of the settings mods usually change (shown outside advanced mode). */
+  common: boolean;
 }
 
 /** What the well-known keys mean, for labels and ranges. Anything else is shown by its own name. */
@@ -56,6 +58,24 @@ const KNOWN: Record<string, { label: string; unit?: string; hint?: string; range
   maxTorqueRating: { label: 'Torque rating (breaks above)', unit: 'Nm', range: [0, 5000] },
   maxOverTorqueDamage: { label: 'Over-torque damage', range: [0, 2000] },
   oilVolume: { label: 'Oil volume', unit: 'L', range: [0, 20] },
+  // cooling (the radiator and oil cooler parts set these on the engine)
+  radiatorArea: { label: 'Radiator core area', unit: 'm²', hint: 'Bigger cools better, adds drag', range: [0, 2] },
+  radiatorEffectiveness: { label: 'Radiator effectiveness', hint: 'How well the core sheds heat (race radiators are higher)', range: [0, 50000] },
+  coolantVolume: { label: 'Coolant volume', unit: 'L', range: [0, 40] },
+  thermostatTemperature: { label: 'Thermostat opens', unit: '°C', range: [50, 120] },
+  radiatorFanTemperature: { label: 'Fan switches on', unit: '°C', range: [50, 130] },
+  radiatorFanMaxAirSpeed: { label: 'Fan air speed', unit: 'm/s', range: [0, 30] },
+  radiatorFanVolume: { label: 'Fan volume', range: [0, 2] },
+  oilRadiatorArea: { label: 'Oil cooler area', unit: 'm²', range: [0, 1] },
+  oilRadiatorEffectiveness: { label: 'Oil cooler effectiveness', range: [0, 50000] },
+  oilThermostatTemperature: { label: 'Oil thermostat opens', unit: '°C', range: [50, 150] },
+  engineBlockAirCoolingEfficiency: { label: 'Block air cooling', hint: 'Air-cooled engines rely on this', range: [0, 200] },
+  // fuel
+  fuelConsumption: { label: 'Fuel consumption', range: [0, 5] },
+  // brakes
+  brakeTorque: { label: 'Brake torque', unit: 'Nm', range: [0, 20000] },
+  parkingTorque: { label: 'Handbrake torque', unit: 'Nm', range: [0, 10000] },
+  brakeSpring: { label: 'Brake spring', range: [0, 200] },
   fuelCapacity: { label: 'Fuel capacity', unit: 'L', range: [1, 400] },
   instantAfterFireCoef: { label: 'Backfire (instant)', hint: 'Pops on lift-off', range: [0, 5] },
   sustainedAfterFireCoef: { label: 'Backfire (sustained)', range: [0, 5] },
@@ -136,7 +156,7 @@ export function editableFields(parts: Readonly<Record<string, JbeamObject>>): Ed
         if (typeof v !== 'number' || !Number.isFinite(v)) continue;
         const known = KNOWN[name];
         const [min, max] = rangeFor(name, v);
-        out.push({ key: fieldKey(part, section, name), part, section, name, value: v, label: known?.label ?? name, unit: known?.unit ?? '', hint: known?.hint ?? '', min, max });
+        out.push({ key: fieldKey(part, section, name), part, section, name, value: v, label: known?.label ?? name, unit: known?.unit ?? '', hint: known?.hint ?? '', min, max, common: !!known });
       }
     }
   }
@@ -290,7 +310,54 @@ export function applyPowertrainEdits(parts: Readonly<Record<string, JbeamObject>
   if (typeof k === 'number' && k > 0 && k !== 1) {
     for (const [name, body] of Object.entries(out)) if (Array.isArray(body.nodes)) out[name] = { ...body, nodes: scaleNodeWeights(body.nodes, k) };
   }
+  // The modder's own versions: copies of a part in the same slot, with their own values.
+  const taken = new Set<string>();
+  for (const v of edits.versions ?? []) {
+    const base = out[v.base];
+    const name = `${v.base}_${v.id}`;
+    if (!base || out[name]) continue;
+    const copy = structuredClone(base);
+    const info = isJbeamObject(copy.information) ? copy.information : {};
+    copy.information = { ...info, name: v.label, ...(v.price !== null ? { value: v.price } : {}) };
+    for (const [key, value] of Object.entries(v.fields)) {
+      const [section, field] = key.split('/');
+      const sec = section ? copy[section] : undefined;
+      if (field && isJbeamObject(sec) && typeof sec[field] === 'number') sec[field] = value;
+    }
+    out[name] = copy;
+    for (const [key, range] of Object.entries(v.tunable ?? {})) makeTunable(out, name, key, range, `jbf_${v.id}_`, taken);
+  }
+  // Settings the player can adjust in the game's tuning menu.
+  for (const [key, range] of Object.entries(edits.tunable ?? {})) {
+    const [part, ...rest] = key.split('/');
+    if (part && out[part]) makeTunable(out, part, rest.join('/'), range, 'jbf_', taken);
+  }
   return out;
+}
+
+const VARIABLES_HEADER = ['name', 'type', 'unit', 'category', 'default', 'min', 'max', 'title', 'description'];
+
+/**
+ * Make one number of a part a tuning variable: a $variable in the part's `variables` table (the
+ * game's tuning menu shows it under the section's name, from min to max, starting at the value
+ * the part has), and the number replaced by it. The part must already be a copy (it's changed).
+ */
+function makeTunable(out: Record<string, JbeamObject>, part: string, key: string, range: { min: number; max: number }, prefix: string, taken: Set<string>): void {
+  const [section, field] = key.split('/');
+  const body = out[part];
+  if (!body || !section || !field) return;
+  const sec = body[section];
+  if (!isJbeamObject(sec) || typeof sec[field] !== 'number') return;
+  const value = sec[field];
+  const min = Math.min(range.min, range.max, value);
+  const max = Math.max(range.min, range.max, value);
+  let name = `$${prefix}${section}_${field}`.replace(/[^A-Za-z0-9_$]/g, '_');
+  for (let i = 2; taken.has(name); i++) name = `$${prefix}${section}_${field}_${i}`.replace(/[^A-Za-z0-9_$]/g, '_');
+  taken.add(name);
+  const known = KNOWN[field];
+  const table = Array.isArray(body.variables) && Array.isArray(body.variables[0]) ? body.variables : [VARIABLES_HEADER];
+  const nextSec = { ...sec, [field]: name };
+  out[part] = { ...body, [section]: nextSec, variables: [...table, [name, 'range', known?.unit ?? '', SECTION_LABELS[section] ?? section, r4(value), r4(min), r4(max), known?.label ?? field, known?.hint ?? `${field} (${SECTION_LABELS[section] ?? section})`]] };
 }
 
 /** Torque curve operations the builder offers. */

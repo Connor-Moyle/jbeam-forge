@@ -21,6 +21,8 @@ export const AI_PROVIDERS = ['openai', 'anthropic', 'gemini', 'openrouter', 'loc
 export const SettingsSchema = z.object({
   version: z.literal(SETTINGS_VERSION),
   debugLogging: z.boolean(),
+  /** Advanced mode: every number the game has, not just the usual ones (engine, gearbox, cooling, suspension…). */
+  advancedMode: z.boolean(),
   /** BeamNG.drive install folder (contains BeamNG.drive.exe and content/vehicles). */
   beamngInstallDir: z.string().min(1).nullable(),
   /** BeamNG user folder (…/BeamNG.drive/current); mods are installed under it. */
@@ -245,6 +247,7 @@ export type AiProviderId = (typeof AI_PROVIDERS)[number];
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
   debugLogging: false,
+  advancedMode: false,
   beamngInstallDir: null,
   beamngUserDir: null,
   author: null,

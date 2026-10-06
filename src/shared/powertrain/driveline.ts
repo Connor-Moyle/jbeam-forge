@@ -90,6 +90,38 @@ export function settingValue(s: DiffSetting, edits: PowertrainEdits | undefined)
   return typeof s.value === 'number' ? s.value : null;
 }
 
+/** Wheel and brake settings a suspension's wheel rows carry (pressureWheels options), in order. */
+export const WHEEL_SETTINGS: { name: string; label: string; unit?: string; hint?: string; min: number; max: number; step: number }[] = [
+  { name: 'brakeTorque', label: 'Brake torque', unit: 'Nm', hint: 'How hard this axle brakes', min: 0, max: 20000, step: 50 },
+  { name: 'parkingTorque', label: 'Handbrake torque', unit: 'Nm', min: 0, max: 10000, step: 50 },
+  { name: 'brakeSpring', label: 'Brake response', hint: 'How quickly the brakes bite', min: 0, max: 100, step: 1 },
+  { name: 'brakeVentingCoef', label: 'Brake venting', hint: 'Cooling of the discs', min: 0, max: 5, step: 0.05 },
+  { name: 'pressurePSI', label: 'Tyre pressure', unit: 'psi', min: 5, max: 80, step: 0.5 },
+  { name: 'enableABS', label: 'ABS (1 on, 0 off)', min: 0, max: 1, step: 1 },
+];
+
+/** A wheel/brake setting of the set: the value its wheel rows give it (the first found), and its edit key. */
+export function wheelSettings(parts: Readonly<Record<string, JbeamObject>>): { part: string; name: string; key: string; value: number }[] {
+  const out: { part: string; name: string; key: string; value: number }[] = [];
+  for (const [part, body] of Object.entries(parts)) {
+    const table = body.pressureWheels;
+    if (!Array.isArray(table)) continue;
+    const seen = new Set<string>();
+    for (const row of table) {
+      const objs = isJbeamObject(row) ? [row] : Array.isArray(row) ? row.filter((c): c is JbeamObject => isJbeamObject(c)) : [];
+      for (const o of objs)
+        for (const s of WHEEL_SETTINGS) {
+          const v = o[s.name];
+          if (typeof v === 'number' && !seen.has(s.name)) {
+            seen.add(s.name);
+            out.push({ part, name: s.name, key: fieldKey(part, 'pressureWheels', s.name), value: v });
+          }
+        }
+    }
+  }
+  return out;
+}
+
 /**
  * The driveline edits applied: numbers and words at their keys, in the
  * device's section or its powertrain row options (added when the game left
@@ -103,6 +135,14 @@ export function applyDrivelineEdits(parts: Readonly<Record<string, JbeamObject>>
   for (const [key, value] of entries) {
     const [part, section, name] = key.split('/');
     if (!part || !section || !name || !out[part]) continue;
+    if (section === 'pressureWheels') {
+      // Every wheel row's options that set it (rows take the last options object, so all of them).
+      const table = out[part].pressureWheels;
+      if (!Array.isArray(table)) continue;
+      const set = (o: JbeamObject): JbeamObject => (name in o ? { ...o, [name]: value } : o);
+      out[part] = { ...out[part], pressureWheels: table.map((row) => (isJbeamObject(row) ? set(row) : Array.isArray(row) ? row.map((c) => (isJbeamObject(c) ? set(c) : c)) : row)) };
+      continue;
+    }
     if (section.startsWith('powertrain:')) {
       const device = section.slice('powertrain:'.length);
       const table = out[part].powertrain;

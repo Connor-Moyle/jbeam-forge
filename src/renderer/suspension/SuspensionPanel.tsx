@@ -109,7 +109,7 @@ function AxleCard({ axle }: { axle: Axle }) {
                 Tune
               </Button>
               <Button size="sm" onClick={() => useSuspensionUi.getState().drive(axle.id)} data-testid="axle-driveline">
-                Differential
+                Brakes &amp; diff
               </Button>
               <Button size="sm" icon={Move} onClick={() => startPlacing(axle.fitted!.sourceId, 'suspension')} title="Pick it up with the arrows: its physics moves with it" data-testid="axle-move">
                 Move

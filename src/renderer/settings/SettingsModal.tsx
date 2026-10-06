@@ -325,6 +325,8 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Field label="Author" hint="Written into every mod you export (also asked in the New Mod wizard).">
                 <Input value={d.author ?? ''} onChange={(e) => set({ author: e.target.value.slice(0, 100) || null })} placeholder="Your name" aria-label="Author" />
               </Field>
+              <Toggle checked={d.advancedMode} onChange={(advancedMode) => set({ advancedMode })} label="Advanced mode: show every setting the game has" />
+              <p className={styles.help}>Off, the engine, gearbox and suspension builders show the settings most mods change, and anything you’ve changed. On, they list every number the game’s parts have (sound, damage, thermal, controller tuning…).</p>
               <Toggle checked={d.openLastProject} onChange={(openLastProject) => set({ openLastProject })} label="Open the last project when JBeam Forge starts" />
               <Toggle checked={d.offerLessons} onChange={(offerLessons) => set({ offerLessons })} label="Offer a tutorial (Watch or Skip) the first time I use a script template, triggers, moving parts or the JBeam workspace" />
               <Button size="sm" disabled={!d.lessonsSeen.length} onClick={() => set({ lessonsSeen: [] })} data-testid="settings-reset-lessons">

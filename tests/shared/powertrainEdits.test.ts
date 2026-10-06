@@ -54,6 +54,38 @@ describe('engine and gearbox builder', () => {
     expect(setMass(ENGINE)).toBe(50);
   });
 
+  it('makes settings adjustable in the game’s tuning menu, starting at the value set', () => {
+    const key = fieldKey('v6_engine', 'mainEngine', 'maxRPM');
+    const out = applyPowertrainEdits(ENGINE, 'v6_engine', { ...emptyEdits(), fields: { [key]: 7000 }, tunable: { [key]: { min: 6000, max: 8500 } } });
+    const main = out.v6_engine!.mainEngine as JbeamObject;
+    expect(main.maxRPM).toBe('$jbf_mainEngine_maxRPM');
+    expect(out.v6_engine!.variables).toEqual([
+      ['name', 'type', 'unit', 'category', 'default', 'min', 'max', 'title', 'description'],
+      ['$jbf_mainEngine_maxRPM', 'range', 'rpm', 'Engine', 7000, 6000, 8500, 'Rev limit', 'Where the torque curve stops'],
+    ]);
+    // A range that doesn't hold the value is widened to it.
+    const wide = applyPowertrainEdits(ENGINE, 'v6_engine', { ...emptyEdits(), tunable: { [key]: { min: 7000, max: 9000 } } });
+    expect((wide.v6_engine!.variables as unknown[][])[1]!.slice(4, 7)).toEqual([6500, 6500, 9000]);
+    expect(ENGINE.v6_engine!.variables).toBeUndefined();
+  });
+
+  it('adds the modder’s versions of a part in the same slot, with their own values and tuning', () => {
+    const out = applyPowertrainEdits(ENGINE, 'v6_engine', {
+      ...emptyEdits(),
+      versions: [{ id: 'race', base: 'v6_intake_turbo', label: 'Race Turbo', price: 2500, fields: { 'turbocharger/wastegateStart': 22, 'turbocharger/nope': 1 }, tunable: { 'turbocharger/maxExhaustPower': { min: 3000, max: 6000 } } }],
+    });
+    const race = out.v6_intake_turbo_race!;
+    expect(race.slotType).toBe('v6_intake');
+    expect(race.information).toEqual({ name: 'Race Turbo', value: 2500 });
+    const turbo = race.turbocharger as JbeamObject;
+    expect(turbo.wastegateStart).toBe(22);
+    expect(turbo.nope).toBeUndefined();
+    expect(turbo.maxExhaustPower).toBe('$jbf_race_turbocharger_maxExhaustPower');
+    // The original is left as it was.
+    expect((out.v6_intake_turbo!.turbocharger as JbeamObject).wastegateStart).toBe(12);
+    expect(out.v6_intake_turbo!.variables).toBeUndefined();
+  });
+
   it('reads the curve and its peaks, and reshapes it', () => {
     const curve = effectiveTorque(ENGINE, 'v6_engine', emptyEdits());
     expect(curve).toEqual([[0, 0], [2000, 300], [4000, 400], [6000, 380]]);

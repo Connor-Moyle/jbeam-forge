@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { ChevronLeft, Minus, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronLeft, CopyPlus, Gamepad2, Minus, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import type { JbeamObject } from '@shared/jbeam/parse';
-import type { FittedSet } from '@shared/project/schema';
+import type { FittedSet, PartVersion } from '@shared/project/schema';
 import { tuningVariables } from '@shared/suspension/transplant';
 import { applyPowertrainEdits, cylindersOf, soundConfigs, curveOps, curvePeaks, editableFields, effectiveRatios, effectiveTorque, fieldKey, MASS_SCALE, SECTION_LABELS, setMass, spacedRatios, speedAt, torquePart, type EditableField } from '@shared/powertrain/edits';
 import { useProjectStore } from '@renderer/app/stores/project';
+import { useSettingsStore } from '@renderer/app/stores/settings';
+import { Select } from '@renderer/ui/components/Select';
 import { useSetData } from '@renderer/suspension/commands';
 import { Button } from '@renderer/ui/components/Button';
 import { Field, FieldGroup } from '@renderer/ui/components/Field';
@@ -13,7 +15,7 @@ import { Input } from '@renderer/ui/components/Input';
 import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Slider } from '@renderer/ui/components/Slider';
-import { resetPowertrainEdits, setGearRatios, setPowertrainField, setPowertrainText, setTorqueCurve, usePowertrainUi, type PowertrainKind } from './commands';
+import { addPartVersion, removePartVersion, resetPowertrainEdits, setGearRatios, setPowertrainField, setPowertrainText, setPowertrainTunable, setTorqueCurve, updatePartVersion, usePowertrainUi, type PowertrainKind } from './commands';
 import { RevPreview } from './revPreview';
 import { call } from '@renderer/diagnostics/ipc';
 import { useUnits } from '@renderer/settings/useUnits';
@@ -51,43 +53,126 @@ function Header({ title, onReset }: { title: string; onReset: () => void }) {
 
 const digitsFor = (v: number) => (Number.isInteger(v) && Math.abs(v) >= 10 ? 0 : Math.abs(v) >= 100 ? 1 : Math.abs(v) >= 1 ? 3 : 5);
 
-/** Every other number of the set, grouped by part and section, with a filter. */
+/** A starting range for a setting made adjustable in game: half to one and a half times its value, inside the slider's range. */
+function defaultRange(f: EditableField, value: number): { min: number; max: number } {
+  if (value === 0) return { min: f.min, max: f.max };
+  const a = value * 0.5;
+  const b = value * 1.5;
+  return { min: Math.max(f.min, Math.min(a, b)), max: Math.min(f.max, Math.max(a, b)) };
+}
+
+/**
+ * Every other number of the set, part by part and section by section, with a filter. Each can be
+ * made adjustable in the game's tuning menu, and each part can have the modder's own versions (a
+ * race radiator) with their own values. Outside advanced mode only the usual settings show.
+ */
 function FieldList({ kind, fields, edits, hide }: { kind: PowertrainKind; fields: readonly EditableField[]; edits: Readonly<Record<string, number>>; hide?: ReadonlySet<string> }) {
   const [filter, setFilter] = useState('');
+  const advanced = useSettingsStore((s) => s.settings?.advancedMode ?? false);
+  const fitted = useProjectStore((s) => s.doc?.powertrain[kind] ?? null);
+  const tunable = fitted?.edits.tunable ?? {};
+  const versions = fitted?.edits.versions ?? EMPTY_VERSIONS;
+  // Per part: the version being edited ('' = the part itself).
+  const [editing, setEditing] = useState<Record<string, string>>({});
   const q = filter.trim().toLowerCase();
-  const shown = fields.filter((f) => !hide?.has(f.key) && (!q || `${f.label} ${f.name} ${f.section} ${f.part}`.toLowerCase().includes(q)));
-  const groups = [...new Set(shown.map((f) => `${f.part}\u0000${f.section}`))];
+  const sectionKey = (f: EditableField) => `${f.section}/${f.name}`;
+  const versionOf = (part: string) => versions.find((v) => v.base === part && v.id === editing[part]);
+  const touched = (f: EditableField) => edits[f.key] !== undefined || !!tunable[f.key] || versions.some((v) => v.base === f.part && (v.fields[sectionKey(f)] !== undefined || v.tunable?.[sectionKey(f)]));
+  const matching = fields.filter((f) => !hide?.has(f.key) && (!q || `${f.label} ${f.name} ${f.section} ${f.part}`.toLowerCase().includes(q)));
+  const shown = matching.filter((f) => advanced || q || f.common || touched(f) || !!versionOf(f.part));
+  const hidden = matching.length - shown.length;
+  const parts = [...new Set(matching.map((f) => f.part))];
   return (
     <FieldGroup title={`Everything else the game lets you set (${fields.length})`}>
-      <Input placeholder="Filter: rpm, boost, sound, shift…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter settings" />
-      {groups.map((g) => {
-        const [part, section] = g.split('\u0000') as [string, string];
+      <Input placeholder="Filter: rpm, boost, radiator, sound, shift…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter settings" />
+      {hidden > 0 && <p className={styles.muted}>{hidden} more in advanced mode (Settings → General), or type in the filter to find one.</p>}
+      {parts.map((part) => {
+        const version = versionOf(part);
+        const own = versions.filter((v) => v.base === part);
+        const sections = [...new Set(shown.filter((f) => f.part === part).map((f) => f.section))];
+        if (!sections.length && !own.length) return null;
         return (
-          <section key={g} className={styles.group} data-testid={`${kind}-section-${section}`}>
-            <strong className={styles.groupTitle}>
-              {SECTION_LABELS[section] ?? section} <span className={styles.muted}>· {part}</span>
-            </strong>
-            {shown
-              .filter((f) => f.part === part && f.section === section)
-              .map((f) => {
-                const value = edits[f.key] ?? f.value;
-                const changed = edits[f.key] !== undefined;
-                const digits = digitsFor(f.value);
-                return (
-                  <div key={f.key} className={styles.fieldRow} title={f.hint || f.name}>
-                    <span className={changed ? styles.changed : undefined}>{f.label}</span>
-                    <NumberInput value={value} precision={digits} step={digits ? 10 ** -Math.min(digits, 3) : 1} unit={f.unit || undefined} onChange={(v) => setPowertrainField(kind, f.key, v)} aria-label={f.label} />
-                    <span className={styles.muted}>{changed ? `game: ${f.value}` : ''}</span>
-                    <IconButton icon={RotateCcw} size="sm" label="Back to the game's value" disabled={!changed} onClick={() => setPowertrainField(kind, f.key, null)} />
-                  </div>
-                );
-              })}
+          <section key={part} className={styles.group} data-testid={`${kind}-part-${part}`}>
+            <div className={styles.partHead}>
+              <strong className={styles.groupTitle}>{part}</strong>
+              <Select
+                value={editing[part] || SELF}
+                onChange={(id: string) => setEditing({ ...editing, [part]: id === SELF ? '' : id })}
+                options={[{ value: SELF, label: 'The part itself' }, ...own.map((v) => ({ value: v.id, label: `Version: ${v.label}` }))]}
+                aria-label={`Which version of ${part} to edit`}
+              />
+              <IconButton
+                icon={CopyPlus}
+                size="sm"
+                label="Make a version of this part (a race radiator, a sport exhaust…): a copy with its own values, offered next to it in the parts menu"
+                onClick={() => {
+                  const id = addPartVersion(kind, part, `${part.replace(/_/g, ' ')} (race)`);
+                  if (id) setEditing({ ...editing, [part]: id });
+                }}
+                data-testid={`${kind}-version-add-${part}`}
+              />
+            </div>
+            {version && (
+              <div className={styles.versionRow}>
+                <Input value={version.label} onChange={(e) => updatePartVersion(kind, part, version.id, { label: e.target.value.slice(0, 80) || version.label })} aria-label="Version name in the parts menu" />
+                <NumberInput value={version.price ?? 0} min={0} step={10} precision={0} unit="$" onChange={(v) => updatePartVersion(kind, part, version.id, { price: v > 0 ? v : null })} aria-label="Version price (0: the same as the part)" />
+                <IconButton
+                  icon={Trash2}
+                  size="sm"
+                  label="Remove this version"
+                  onClick={() => {
+                    removePartVersion(kind, part, version.id);
+                    setEditing({ ...editing, [part]: '' });
+                  }}
+                />
+              </div>
+            )}
+            {sections.map((section) => (
+              <div key={section} data-testid={`${kind}-section-${section}`}>
+                <span className={styles.sectionTitle}>{SECTION_LABELS[section] ?? section}</span>
+                {shown
+                  .filter((f) => f.part === part && f.section === section)
+                  .map((f) => {
+                    const sk = sectionKey(f);
+                    const base = edits[f.key] ?? f.value;
+                    const value = version ? (version.fields[sk] ?? base) : base;
+                    const changed = version ? version.fields[sk] !== undefined : edits[f.key] !== undefined;
+                    const range = version ? version.tunable?.[sk] : tunable[f.key];
+                    const digits = digitsFor(f.value);
+                    const setValue = (v: number | null) => (version ? updatePartVersion(kind, part, version.id, { field: { key: sk, value: v } }) : setPowertrainField(kind, f.key, v));
+                    const setRange = (r: { min: number; max: number } | null) => (version ? updatePartVersion(kind, part, version.id, { tunable: { key: sk, range: r } }) : setPowertrainTunable(kind, f.key, r));
+                    return (
+                      <div key={f.key} className={styles.fieldBlock}>
+                        <div className={styles.fieldRow} title={f.hint || f.name}>
+                          <span className={changed ? styles.changed : undefined}>{f.label}</span>
+                          <NumberInput value={value} precision={digits} step={digits ? 10 ** -Math.min(digits, 3) : 1} unit={f.unit || undefined} onChange={setValue} aria-label={f.label} />
+                          <span className={styles.muted}>{changed ? `${version ? 'part' : 'game'}: ${version ? base : f.value}` : ''}</span>
+                          <IconButton icon={Gamepad2} size="sm" label={range ? 'Adjustable in the game’s tuning menu (click to fix it again)' : 'Let the player adjust this in the game’s tuning menu'} aria-pressed={!!range} onClick={() => setRange(range ? null : defaultRange(f, value))} data-testid={`tunable-${f.name}`} />
+                          <IconButton icon={RotateCcw} size="sm" label={version ? 'Back to the part’s value' : "Back to the game's value"} disabled={!changed} onClick={() => setValue(null)} />
+                        </div>
+                        {range && (
+                          <div className={styles.rangeRow}>
+                            <span className={styles.muted}>In game from</span>
+                            <NumberInput value={range.min} precision={digits} unit={f.unit || undefined} onChange={(v) => setRange({ ...range, min: v })} aria-label={`${f.label}: lowest in game`} />
+                            <span className={styles.muted}>to</span>
+                            <NumberInput value={range.max} precision={digits} unit={f.unit || undefined} onChange={(v) => setRange({ ...range, max: v })} aria-label={`${f.label}: highest in game`} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            ))}
           </section>
         );
       })}
     </FieldGroup>
   );
 }
+
+const EMPTY_VERSIONS: readonly PartVersion[] = [];
+/** The version picker's value for the part itself (a version id is never this). */
+const SELF = '-';
 
 const W = 320;
 const H = 180;

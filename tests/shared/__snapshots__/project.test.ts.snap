@@ -3,7 +3,7 @@
 exports[`.jbforge io > serializes an empty project deterministically (snapshot) 1`] = `
 "{
   "format": "jbforge",
-  "formatVersion": 22,
+  "formatVersion": 23,
   "appVersion": "0.1.0",
   "meta": {
     "name": "Test Car",

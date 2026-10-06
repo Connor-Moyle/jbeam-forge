@@ -30,6 +30,7 @@ exports[`settings > serializes deterministically (snapshot) 1`] = `
 "{
   "version": 1,
   "debugLogging": true,
+  "advancedMode": false,
   "beamngInstallDir": null,
   "beamngUserDir": null,
   "author": null,

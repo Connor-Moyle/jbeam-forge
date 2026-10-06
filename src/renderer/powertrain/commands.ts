@@ -261,6 +261,76 @@ export function setPowertrainField(kind: PowertrainKind, key: string, value: num
   });
 }
 
+/** Let the player adjust one of the set's numbers in the game's tuning menu (null: fixed again). */
+export function setPowertrainTunable(kind: PowertrainKind, key: string, range: { min: number; max: number } | null): void {
+  projectStore.getState().execute({
+    label: range ? 'Adjustable in game' : 'Not adjustable in game',
+    coalesce: `tunable:${kind}:${key}:${range ? 'on' : 'off'}`,
+    apply: (d) => {
+      const f = d.powertrain[kind];
+      if (!f) return;
+      const t = (f.edits.tunable ??= {});
+      if (range) t[key] = { min: Math.min(range.min, range.max), max: Math.max(range.min, range.max) };
+      else delete t[key];
+      if (!Object.keys(t).length) delete f.edits.tunable;
+    },
+  });
+}
+
+/** A new version of one of the set's parts (a race radiator…); returns its id. */
+export function addPartVersion(kind: PowertrainKind, base: string, label: string): string | null {
+  const f = projectStore.getState().doc?.powertrain[kind];
+  if (!f) return null;
+  const taken = new Set((f.edits.versions ?? []).filter((v) => v.base === base).map((v) => v.id));
+  const stem = label.toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12) || 'v';
+  let id = stem;
+  for (let i = 2; taken.has(id); i++) id = `${stem}${i}`;
+  projectStore.getState().execute({
+    label: `New version: ${label}`,
+    apply: (d) => {
+      const g = d.powertrain[kind];
+      if (g) (g.edits.versions ??= []).push({ id, base, label, price: null, fields: {} });
+    },
+  });
+  return id;
+}
+
+/** Change a version: its name, price, one of its numbers (null: as the original part), or whether one is adjustable in game. */
+export function updatePartVersion(kind: PowertrainKind, base: string, id: string, patch: { label?: string; price?: number | null; field?: { key: string; value: number | null }; tunable?: { key: string; range: { min: number; max: number } | null } }): void {
+  projectStore.getState().execute({
+    label: 'Edit version',
+    coalesce: `version:${kind}:${base}:${id}:${patch.field?.key ?? patch.tunable?.key ?? Object.keys(patch).join(',')}`,
+    apply: (d) => {
+      const v = d.powertrain[kind]?.edits.versions?.find((x) => x.base === base && x.id === id);
+      if (!v) return;
+      if (patch.label !== undefined) v.label = patch.label;
+      if (patch.price !== undefined) v.price = patch.price;
+      if (patch.field) {
+        if (patch.field.value === null) delete v.fields[patch.field.key];
+        else v.fields[patch.field.key] = patch.field.value;
+      }
+      if (patch.tunable) {
+        const t = (v.tunable ??= {});
+        if (patch.tunable.range) t[patch.tunable.key] = patch.tunable.range;
+        else delete t[patch.tunable.key];
+        if (!Object.keys(t).length) delete v.tunable;
+      }
+    },
+  });
+}
+
+export function removePartVersion(kind: PowertrainKind, base: string, id: string): void {
+  projectStore.getState().execute({
+    label: 'Remove version',
+    apply: (d) => {
+      const e = d.powertrain[kind]?.edits;
+      if (!e?.versions) return;
+      e.versions = e.versions.filter((v) => !(v.base === base && v.id === id));
+      if (!e.versions.length) delete e.versions;
+    },
+  });
+}
+
 /** A word setting of the engine or gearbox (its sound blend…); null goes back to the game's. */
 export function setPowertrainText(kind: PowertrainKind, key: string, value: string | null): void {
   projectStore.getState().execute({

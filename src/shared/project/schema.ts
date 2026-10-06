@@ -22,7 +22,7 @@ import { EngineDesignSchema } from '../powertrain/design';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 22;
+export const CURRENT_PROJECT_VERSION = 23;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -323,6 +323,26 @@ export const MeshCopySchema = z.object({
  * names, e.g. "etk_engine_i6_3.0/mainEngine/maxRPM"; only numbers the game
  * already has are offered, so nothing unknown to it is written.
  */
+/**
+ * The modder's own version of one of a fitted set's game parts (v23): a copy offered in the same
+ * slot (so the player picks it in the parts menu, and configurations can), with its own values. A
+ * race radiator is the stock one with a bigger core and more coolant.
+ */
+export const PartVersionSchema = z.object({
+  /** Added to the part's name: <part>_<id>. */
+  id: z.string().regex(/^[a-z0-9]{1,16}$/),
+  /** The game part it's a copy of. */
+  base: z.string().min(1),
+  /** Its name in the parts menu. */
+  label: z.string().min(1).max(80),
+  /** In-game price ($); null = the base part's. */
+  price: z.number().nonnegative().nullable(),
+  /** "<section>/<key>" → value, over the base part's (after the set's own edits). */
+  fields: z.record(z.string(), z.number()),
+  /** Its own settings adjustable in game: "<section>/<key>" → range. */
+  tunable: z.record(z.string(), z.object({ min: z.number(), max: z.number() })).optional(),
+});
+
 export const PowertrainEditsSchema = z.object({
   fields: z.record(z.string(), z.number()),
   /** The engine's torque curve, [rpm, Nm] rising in rpm; null keeps the game's. */
@@ -333,6 +353,10 @@ export const PowertrainEditsSchema = z.object({
   texts: z.record(z.string(), z.string()).optional(),
   /** The engine designer's choices (v21): the curve, revs and weight above were made from them. */
   design: EngineDesignSchema.optional(),
+  /** Settings the player can adjust in the game's tuning menu (v23): field key → range; it starts at the value set here. */
+  tunable: z.record(z.string(), z.object({ min: z.number(), max: z.number() })).optional(),
+  /** The modder's own versions of the set's parts (v23). */
+  versions: z.array(PartVersionSchema).optional(),
 });
 
 export const emptyEdits = (): z.infer<typeof PowertrainEditsSchema> => ({ fields: {}, torque: null, gearRatios: null });
@@ -654,8 +678,14 @@ export const ProjectV22Schema = ProjectV21Schema.extend({
   formatVersion: z.literal(22),
 });
 
-export const ProjectSchema = ProjectV22Schema;
+/** v23: settings of the engine, gearbox and suspension parts adjustable in game, and the modder's own versions of those parts. */
+export const ProjectV23Schema = ProjectV22Schema.extend({
+  formatVersion: z.literal(23),
+});
+
+export const ProjectSchema = ProjectV23Schema;
 export type Project = z.infer<typeof ProjectSchema>;
+export type PartVersion = z.infer<typeof PartVersionSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 export type Source = z.infer<typeof SourceSchema>;
 export type Split = z.infer<typeof SplitSchema>;

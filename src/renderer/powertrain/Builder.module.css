@@ -169,7 +169,7 @@
 
 .fieldRow {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.8fr) auto auto;
   align-items: center;
   gap: var(--space-2);
   color: var(--text-1);
@@ -216,4 +216,42 @@
   font-size: var(--text-label);
   font-variant-numeric: tabular-nums;
   line-height: var(--size-control);
+}
+
+.partHead,
+.versionRow,
+.rangeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.partHead .groupTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.versionRow {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--bg-2);
+}
+
+.sectionTitle {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-2);
+  font-size: var(--text-label);
+}
+
+.fieldBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.rangeRow {
+  padding-left: var(--space-4);
 }

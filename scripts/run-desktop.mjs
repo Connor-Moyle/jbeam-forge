@@ -2844,6 +2844,20 @@ const scenarios = [
       await page.getByTestId('powertrain-panel').waitFor({ timeout: 60_000 });
       await page.waitForTimeout(800);
       await shot(page, 'practice-real-fitted');
+      // Advanced: the oil volume adjustable in the game's tuning menu, and a race version of one of the engine's parts.
+      await page.getByTestId('engine-build').click();
+      await page.getByTestId('engine-builder').waitFor();
+      await page.getByRole('textbox', { name: 'Filter settings' }).fill('oil');
+      await page.getByTestId('tunable-oilVolume').first().click();
+      await page.getByRole('textbox', { name: 'Filter settings' }).fill('');
+      const versionButtons = page.locator('[data-testid^=engine-version-add-]');
+      assert((await versionButtons.count()) >= 2, 'the engine builder lists its parts');
+      await versionButtons.nth(1).click();
+      await shot(page, 'practice-real-engine-advanced');
+      const engineEdits = (await hook(page, 'projectDoc')).powertrain.engine.edits;
+      assert(Object.keys(engineEdits.tunable ?? {}).some((k) => k.endsWith('/oilVolume')), 'oil volume adjustable in game');
+      assert(engineEdits.versions?.length === 1, 'a version of an engine part');
+      await page.getByRole('button', { name: 'Back' }).first().click();
       // The rest of a finished car: every opening part hinged, plates, a hitch and nitrous, folding mirrors, a second configuration.
       await page.getByTestId('workspace-moving').click();
       await page.getByTestId('moving-parts').waitFor();
@@ -3291,7 +3305,7 @@ const scenarios = [
       await page.waitForSelector('[data-testid=tour-card]');
       await page.getByRole('button', { name: 'Skip the tutorial' }).click();
       for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
-      await page.getByRole('tab', { name: 'Engine' }).click();
+      await page.getByRole('tab', { name: 'Engine', exact: true }).click();
       await page.getByTestId('engine-hero').waitFor();
       await page.waitForTimeout(1200);
       let stage = await hook(page, 'engineStage');

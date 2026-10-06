@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { ChevronLeft, RotateCcw } from 'lucide-react';
-import { DIFF_SETTINGS, DIFF_TYPES, differentials, settingValue } from '@shared/powertrain/driveline';
+import { DIFF_SETTINGS, DIFF_TYPES, differentials, settingValue, WHEEL_SETTINGS, wheelSettings } from '@shared/powertrain/driveline';
 import type { Axle } from '@shared/project/schema';
 import { Button } from '@renderer/ui/components/Button';
 import { Field } from '@renderer/ui/components/Field';
@@ -19,6 +19,7 @@ export function DrivelineView({ axle }: { axle: Axle & { fitted: NonNullable<Axl
   const data = useSetData((s) => s.data[axle.fitted.setId]);
   useEffect(() => void useSetData.getState().ensure([axle.fitted.setId]), [axle.fitted.setId]);
   const diffs = useMemo(() => (data ? differentials(data.parts) : []), [data]);
+  const wheels = useMemo(() => (data ? wheelSettings(data.parts) : []), [data]);
   const edited = !!axle.edits && (Object.keys(axle.edits.fields).length > 0 || Object.keys(axle.edits.texts ?? {}).length > 0);
   return (
     <div className={styles.panel} data-testid="driveline-view">
@@ -27,7 +28,7 @@ export function DrivelineView({ axle }: { axle: Axle & { fitted: NonNullable<Axl
           Back
         </Button>
         <span className={styles.crumbs}>
-          {axle.name} · differentials
+          {axle.name} · differentials and brakes
         </span>
         {edited && (
           <Button icon={RotateCcw} size="sm" variant="ghost" onClick={() => resetDriveline(axle.id)}>
@@ -37,6 +38,29 @@ export function DrivelineView({ axle }: { axle: Axle & { fitted: NonNullable<Axl
       </header>
       <ScrollArea className={styles.scroll}>
         {!data && <p className={styles.note}>Reading its jbeam…</p>}
+        {wheels.length > 0 && (
+          <section className={styles.card} data-testid="axle-brakes">
+            <strong className={styles.cardTitle}>Brakes and wheels</strong>
+            <span className={styles.note}>Set on every wheel of this axle.</span>
+            {WHEEL_SETTINGS.map((s) => {
+              const w = wheels.find((x) => x.name === s.name);
+              if (!w) return null;
+              const edited = axle.edits?.fields[w.key];
+              return (
+                <Field key={s.name} label={s.label} hint={s.hint}>
+                  <div className={styles.tuneRow}>
+                    <NumberInput value={edited ?? w.value} onChange={(v) => setDrivelineValue(axle.id, w.key, v)} min={s.min} max={s.max} step={s.step} precision={s.step < 0.1 ? 2 : s.step < 1 ? 1 : 0} unit={s.unit} aria-label={s.label} />
+                    {edited !== undefined && (
+                      <Button size="sm" variant="ghost" onClick={() => setDrivelineValue(axle.id, w.key, null)}>
+                        Reset
+                      </Button>
+                    )}
+                  </div>
+                </Field>
+              );
+            })}
+          </section>
+        )}
         {data && !diffs.length && <p className={styles.note}>This suspension has no differential of its own (it isn&rsquo;t driven, or its differential comes with the gearbox).</p>}
         {diffs.map((d) => {
           const type = axle.edits?.texts?.[d.diffType.key] ?? d.diffType.value ?? 'open';
