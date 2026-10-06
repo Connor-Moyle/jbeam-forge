@@ -1746,6 +1746,45 @@ const scenarios = [
     },
   },
   {
+    id: 'extension-examples',
+    name: 'example extensions: mod checklist, quick adjust (undoable), warning lights pack (script templates)',
+    async run({ page }) {
+      // The practice car is open (tutorial scenario).
+      await page.getByTestId('open-settings').click();
+      await page.getByTestId('settings-modal').waitFor();
+      await page.getByRole('button', { name: 'Extensions' }).first().click();
+      for (const id of ['mod-checklist', 'quick-adjust', 'warning-lights']) await page.getByTestId(`extension-example-${id}`).click();
+      await page.getByTestId('extension-list').getByText(/Running: 5 commands/).first().waitFor({ timeout: 15_000 });
+      await page.getByTestId('extension-list').getByText('Warning lights pack').first().waitFor();
+      await shot(page, 'extension-examples-more');
+      await page.keyboard.press('Escape');
+      const palette = async (text) => {
+        await hook(page, 'runCommand', 'palette');
+        await page.getByTestId('palette-input').fill(text);
+        await page.getByTestId('palette-input').press('Enter');
+      };
+      await palette('Mod checklist');
+      await page.getByTestId('status-bar').getByText(/to look at before sharing|ready to share/).waitFor({ timeout: 10_000 });
+      // Quick adjust: one undo step.
+      const before = (await hook(page, 'projectDoc')).parts.map((p) => p.displayName);
+      await palette('Tidy parts-menu names');
+      await page.getByTestId('status-bar').getByText(/tidied|tidy already/).waitFor({ timeout: 10_000 });
+      const after = (await hook(page, 'projectDoc')).parts.map((p) => p.displayName);
+      if (after.join() !== before.join()) {
+        await hook(page, 'runCommand', 'undo');
+        assert((await hook(page, 'projectDoc')).parts.map((p) => p.displayName).join() === before.join(), 'one undo puts every name back');
+      }
+      // The pack's templates are in the gallery.
+      await hook(page, 'applyPreset', 'scripts');
+      await page.getByTestId('scripts-panel').waitFor();
+      await page.getByTestId('scripts-view-gallery').click();
+      await page.getByTestId('template-gallery').waitFor();
+      await page.getByRole('button', { name: 'Add Overheat warning light' }).waitFor();
+      await page.getByRole('button', { name: 'Add Trip computer' }).waitFor();
+      await shot(page, 'script-gallery');
+    },
+  },
+  {
     id: 'jbeam',
     name: 'JBeam workspace: tables · pick · rename · property · triangle · logical names · checks',
     async run({ page }) {

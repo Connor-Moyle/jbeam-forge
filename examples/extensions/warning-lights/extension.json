@@ -1,0 +1,9 @@
+{
+  "id": "warning-lights",
+  "name": "Warning lights pack",
+  "version": "1.0.0",
+  "description": "Two more vehicle scripts in Scripts → Templates: an overheat warning light and a speed warning light. Shows how an extension adds script templates.",
+  "author": "JBeam Forge",
+  "main": "main.js",
+  "permissions": []
+}

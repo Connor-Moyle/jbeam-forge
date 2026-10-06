@@ -1,0 +1,9 @@
+{
+  "id": "quick-adjust",
+  "name": "Quick adjust",
+  "version": "1.0.0",
+  "description": "Bulk changes in one undoable step: every set price or weight up or down 10%, and tidy parts-menu names (no underscores or leftover numbers).",
+  "author": "JBeam Forge",
+  "main": "main.js",
+  "permissions": []
+}

@@ -1,0 +1,9 @@
+{
+  "id": "mod-checklist",
+  "name": "Mod checklist",
+  "version": "1.0.0",
+  "description": "Before you share a mod: lists what's missing or looks off (descriptions, prices, empty parts, doors without hinges, configurations, paints, weight). Changes nothing.",
+  "author": "JBeam Forge",
+  "main": "main.js",
+  "permissions": []
+}
