@@ -178,7 +178,9 @@ for (const name of installed) {
     const id = s(r.values.id);
     // Restated at the same place (the game's own parts do this; it merges them) is fine.
     const at = ['posX', 'posY', 'posZ'].map((k) => (typeof r.values[k] === 'number' ? Math.round(r.values[k] * 200) / 200 : JSON.stringify(r.values[k]))).join(',');
-    if (nodeOwner.has(id) && nodeAt.get(id) !== at) errors.push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
+    // A part placing it by a tuning formula over a fixed one is the game's way of making it adjustable
+    // (the Sunburst rally coilovers move the strut tops for camber and caster): the later one wins.
+    if (nodeOwner.has(id) && nodeAt.get(id) !== at) (/\$=/.test(at + nodeAt.get(id)) ? warnings : errors).push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
     nodeOwner.set(id, name);
     nodeAt.set(id, at);
     const g = r.options.group;

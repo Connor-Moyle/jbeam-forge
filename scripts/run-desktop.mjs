@@ -2650,10 +2650,13 @@ const scenarios = [
       const rears = spread(susp.filter((s) => s.axle !== 'front'), (s) => s.type);
       const engines = spread(power.filter((s) => s.kind === 'engine'), (s) => s.type);
       const boxes = spread(power.filter((s) => s.kind === 'gearbox'), (s) => s.type);
-      const combos = Array.from({ length: count }, (_, k) => {
-        const i = (offset || 0) + k;
-        return { slug: `forge_m${String(i + 1).padStart(3, '0')}`, front: fronts[i % fronts.length].id, rear: rears[i % rears.length].id, engine: engines[i % engines.length].id, gearbox: boxes[i % boxes.length].id };
-      });
+      // --matrix=file:<combos.json> for chosen cars ([{ slug, front, rear, engine, gearbox }], to narrow a problem down).
+      const combos = matrixArg.startsWith('file:')
+        ? JSON.parse(readFileSync(matrixArg.slice(5), 'utf8'))
+        : Array.from({ length: count }, (_, k) => {
+            const i = (offset || 0) + k;
+            return { slug: `forge_m${String(i + 1).padStart(3, '0')}`, front: fronts[i % fronts.length].id, rear: rears[i % rears.length].id, engine: engines[i % engines.length].id, gearbox: boxes[i % boxes.length].id };
+          });
       const modDir = join(outDir, 'matrix-mod');
       mkdirSync(join(modDir, 'vehicles'), { recursive: true });
       const report = [];

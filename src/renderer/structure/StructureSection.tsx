@@ -15,6 +15,8 @@ import type { Part, PartProxy } from '@shared/project/schema';
 import { ATTACHMENT_VALUES, ATTACHMENT_STYLES, BRACING_DENSITIES, STRUCTURE_ROLES, GAME_SET_IDS, kindDefaults, targetVertices, type StructureRole } from '@shared/proxy/presets';
 import { PROXY_MODES } from '@shared/proxy/build';
 import { massNodeCap, partMass, partRole, partSettings } from '@shared/proxy/generate';
+import { materialDefaults } from '@shared/parts/materials';
+import { partReportCard } from '@shared/structure/reportCard';
 import { clearStructure, generateParts, previewCounts, updateProxySettings, useStructureUi } from './generate';
 import styles from './StructureSection.module.css';
 
@@ -29,6 +31,12 @@ export function StructureSection({ part }: { part: Part }) {
   const proxy = useProjectStore((s) => s.doc?.proxy);
   const nodeCount = useProjectStore((s) => s.doc?.nodes.reduce((n, x) => n + (x.partId === part.id ? 1 : 0), 0) ?? 0);
   const report = useStructureUi((s) => s.reports[part.id]);
+  const doc = useProjectStore((s) => s.doc);
+  const card = useMemo(() => {
+    if (!doc || !entry) return [];
+    const mine = <T extends { partId: string }>(rows: readonly T[]) => rows.filter((r) => r.partId === part.id);
+    return partReportCard(mine(doc.nodes), mine(doc.beams), mine(doc.tris).length, materialDefaults(entry, part.constructionMaterial).beamPreset);
+  }, [doc, entry, part]);
   const busy = useStructureUi((s) => s.busy);
   const settings = useMemo(() => (proxy && entry ? partSettings({ proxy }, part, entry) : null), [proxy, entry, part]);
   const [detail, setDetail] = useState<number | null>(null);
@@ -136,6 +144,37 @@ export function StructureSection({ part }: { part: Part }) {
             ))}
           </ul>
         </Callout>
+      )}
+      {card.length > 0 && (
+        <CollapsibleSection id="structure-card" title={`Against the game’s own parts${card.some((l) => l.verdict !== 'ok') ? ` · ${card.filter((l) => l.verdict !== 'ok').length} to look at` : ''}`} defaultOpen={false}>
+          <table className={styles.card} data-testid="structure-card">
+            <thead>
+              <tr>
+                <th>Measure</th>
+                <th>This part</th>
+                <th>Game median</th>
+              </tr>
+            </thead>
+            <tbody>
+              {card.map((l) => (
+                <tr key={l.measure} data-verdict={l.verdict} title={l.verdict === 'ok' ? undefined : l.hint}>
+                  <td>{l.measure}</td>
+                  <td>
+                    {l.value} {l.verdict !== 'ok' && <Badge tone="warning">{l.verdict}</Badge>}
+                  </td>
+                  <td>{l.reference}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {card
+            .filter((l) => l.verdict !== 'ok')
+            .map((l) => (
+              <p key={l.measure} className={styles.note}>
+                {l.hint}
+              </p>
+            ))}
+        </CollapsibleSection>
       )}
       <div className={styles.actions}>
         <Button icon={Wand2} variant="primary" onClick={() => void generateParts([part.id])} disabled={busy} data-testid="structure-generate">

@@ -24,7 +24,7 @@ export interface FolderStatus {
 
 const MAX_FILES = 50_000;
 /** Bump when the BeamNG part cutting changes, so installs are cut again. */
-const BEAMNG_FORMAT = 12; // 12: props (the cannon) offer no engines or gearboxes
+const BEAMNG_FORMAT = 13; // 13: a wheel only one car has (the Covet 3-wheel's) comes with its suspension
 
 type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
 

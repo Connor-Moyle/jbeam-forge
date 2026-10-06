@@ -21,6 +21,23 @@
   padding-left: var(--space-4);
 }
 
+.card {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-label);
+}
+
+.card th {
+  text-align: left;
+  color: var(--text-2);
+  font-weight: var(--weight-medium);
+}
+
+.card th,
+.card td {
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+}
+
 .actions {
   display: flex;
   gap: var(--space-2);

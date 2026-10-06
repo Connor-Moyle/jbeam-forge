@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryOf, indexDae, partsOf, subsetDae } from '../../src/main/beamng/partObjects';
+import { categoryOf, indexDae, partsOf, subsetDae, suspensionClosure } from '../../src/main/beamng/partObjects';
 
 const DAE = `<?xml version="1.0"?>
 <COLLADA><asset><unit name="meter" meter="1"/><up_axis>Z_UP</up_axis></asset>
@@ -69,5 +69,18 @@ describe('BeamNG part objects', () => {
 
   it('returns nothing when no node is found', () => {
     expect(subsetDae([{ doc: indexDae(DAE), names: ['missing'] }], '0 0 0')).toBeNull();
+  });
+});
+
+describe('what a suspension brings along', () => {
+  const parts: Record<string, Record<string, unknown>> = {
+    covet_hub_R_3wheel: { slotType: 'covet_hub_R_3wheel', slots2: [['name', 'allowTypes', 'default'], ['wheel_R_3wheel', ['wheel_R_3wheel'], 'tractor_wheel_35x10'], ['wheel_R_4', ['wheel_R_4'], 'steelwheel_14x6_R']] },
+    tractor_wheel_35x10: { slotType: 'wheel_R_3wheel' },
+    steelwheel_14x6_R: { slotType: 'wheel_R_4' },
+  };
+  const find = (n: string) => parts[n] as never;
+
+  it('leaves the game’s shared wheels to the game, but brings a wheel only this car has', () => {
+    expect(suspensionClosure('covet_hub_R_3wheel', find, 40, new Set(['wheel_R_4']))).toEqual(['covet_hub_R_3wheel', 'tractor_wheel_35x10']);
   });
 });

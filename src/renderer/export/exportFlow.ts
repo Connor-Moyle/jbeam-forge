@@ -260,11 +260,13 @@ export function prepareExport(): PreparedExport | null {
   });
   for (const e of scripts.errors) report.errors.push({ code: 'SCRIPT', message: e });
   // A suspension that is the whole running gear (four wheels: a box trailer's) on one axle, and
-  // another on the other: two sets of wheels in the same place.
+  // another on the other: two sets of wheels in the same place. A tandem (the dump truck's two rear
+  // axles, RR1…RL2) is all one end, and fine with a front suspension.
   const fittedAxles = (doc.axles ?? []).filter((a) => a.fitted);
   for (const a of fittedAxles) {
     const wheels = wheelNames(useSetData.getState().data[a.fitted!.setId]?.parts ?? {});
-    if (wheels.length > 2 && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '')} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
+    const bothEnds = wheels.some((w) => /^F/i.test(w)) && wheels.some((w) => /^R/i.test(w));
+    if (bothEnds && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '')} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
   }
   // An electric motor through a gearbox with a clutch: the game's clutch needs a combustion engine's
   // inertia, and the car can't start (it came apart in testing).
