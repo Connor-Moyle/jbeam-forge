@@ -18,6 +18,10 @@ JBeam Forge is a Windows desktop app I built because I was sick of the gap betwe
 - [Finding your way around](#finding-your-way-around)
 - [Your first mod, start to finish](#your-first-mod-start-to-finish)
 - [The features in detail](#the-features-in-detail)
+  - [Forge inside BeamNG (F10)](#forge-inside-beamng-f10)
+  - [AI mode (optional)](#ai-mode-optional)
+  - [Downloads](#downloads)
+  - [Updating](#updating)
 - [Testing in-game](#testing-in-game)
 - [File formats](#file-formats)
 - [Keyboard shortcuts](#keyboard-shortcuts)
@@ -69,6 +73,10 @@ The short version:
 | **Live model** | Save the model again in Blender and Forge reloads it, keeping your parts, materials and structure. |
 | **Help** | A first-run tour on a practice car, and a help centre with worked examples. |
 | **Extensions** | Add your own commands and importers (docs/extensions.md); a BeamNG vehicle importer and a CMS 2021 importer come as examples. Ported mods must credit the game and be free. |
+| **Inside the game** | Press **F10** in BeamNG and Forge opens over the game, on the car you're driving with its current configuration. Draw your structure on the car, and drive your edit in the game's own physics. |
+| **Advanced mode** | Every number the game's engine, gearbox and suspension parts have (cooling, oil, damage limits, brakes, tyre pressures…), any of them adjustable in game, and your own versions of a part, like a race radiator next to the standard one. |
+| **AI mode** | Optional. Hand the finishing work (names, prices, weights, hinges, configs, engine tune) to whatever AI you already use, by copy and paste with no account. Every change is checked and shown before it's applied. |
+| **Downloads** | Hundreds of materials, ready-made meshes and vehicle scripts, downloaded from inside the app and kept up to date. |
 
 ---
 
@@ -379,7 +387,11 @@ Drag the preview slider to check it moves right before you commit.
 - **Global controls.** Set a target total weight and everything scales proportionally, apart from parts you've locked. There are also global multipliers for stiffness, springs, damping, deformation and strength. None of this touches your actual values; it's applied at export, and you can see the effective numbers and reset any time.
 
 ### In-game tuning sliders
-Most number fields have a small **tunable** toggle. Turn it on and that value becomes a slider in BeamNG's Tuning menu, with a sensible range, units and category worked out for you. The suspension and turbo wizards switch on the usual suspects by default, so every mod you export is tuner-friendly out of the box. Rename them, adjust ranges or turn them off in the **Variables** panel.
+Every setting in the engine and gearbox builders has a little game-pad button. Press it and that value becomes a slider in BeamNG's Tuning menu: you pick the lowest and highest a player can set, and it starts where you left it. Parts get the same for their weight, stiffness and strength (and downforce on wings) in the Inspector, and fitted suspensions bring the game's own spring, damper and ride-height sliders with them.
+
+**Versions of a part.** Next to every part of a fitted engine or gearbox there's **Make a version**: a copy with its own values, name and price that shows up in the parts menu next to the original. A race radiator with a bigger core and more coolant, a sport oil pan, a short-ratio gearbox, all without touching the standard one.
+
+**Advanced mode** (Settings → General) lists every number the game's parts have instead of the usual ones: thermal and damage limits, sound mixing, controller tuning, the lot. Axles have their own **Brakes & diff** page for brake torque, handbrake, brake cooling, tyre pressure, ABS and the differentials.
 
 ### Configs
 ![Config manager](docs/images/configs.png)
@@ -413,6 +425,29 @@ Most number fields have a small **tunable** toggle. Turn it on and that value be
 **The validator** won't let you export things that are guaranteed to break in-game, like a part without a flexbody (invisible part), a flexbody pointing at a mesh that isn't in the DAE, nodes without a group, slots pointing at nothing, missing reference nodes or missing textures. Everything else comes up as a warning you can choose to ignore. It'll also offer to run a quick settle test before exporting.
 
 **Publish panel.** Set tags, version and changelog, manage the icon, and bump the version into the info file. Then run the pre-publish checklist (validation passed, every config has a preview, no placeholder parts left, zip size OK, the final zip actually parses) and get a repository-ready zip plus a description you can paste straight into the upload page.
+
+### Forge inside BeamNG (F10)
+Forge also runs inside the game, the way the World Editor does on F11. Install it once from **Settings → BeamNG.drive → JBeam Forge in the game** (it updates itself whenever the app does), start the game, get in a car and press **F10**.
+
+- **The car I'm driving** opens that car as a project with its current configuration: every part, node and beam exactly as the game built it, with its own models and materials.
+- **On the car** draws your project's nodes and beams on the car you're sitting in.
+- **Drive it** installs the mod as it is right now and spawns it, so you're testing in BeamNG's real physics, not an approximation.
+- Press **F10** again to get back to driving.
+
+Mods made from the game's own cars have to credit BeamNG and stay free; Forge says so in the mod for you.
+
+### AI mode (optional)
+If you already use an AI for anything, you can hand it the boring finishing work: parts-menu names and descriptions, prices, weights, structure settings, material looks, hinges and handles, scripts like electric windows or moving seats, configurations, vehicle details, engine and gearbox tune, tuning options.
+
+Tick the jobs, copy the request, paste it into ChatGPT, Copilot, Gemini, Claude or whatever you use (free accounts are fine), and paste the answer back. Forge checks every change (the part exists, the numbers are sane, it's one of the jobs you picked), shows you the list, and applies what you keep as a single undo step. Not happy? **Iterate**, say what's wrong, and go again.
+
+There's no account and nothing to sign in to. If you'd rather not copy and paste, **Settings → AI mode → Connected** sends it for you with your own key (OpenAI, Anthropic, Google, OpenRouter or any OpenAI-compatible service), or to a free model running on your own PC with Ollama or LM Studio. How it works under the hood is in [docs/ai-mode.md](docs/ai-mode.md).
+
+### Downloads
+Materials (paints, metals, carbon, leather, glass…), ready-made meshes (calipers, discs, gauges, seats, suspension bits) and vehicle scripts live in the [download library](https://github.com/Connor-Moyle/jbeam-forge-content) and come down from inside the app (**Ctrl+Shift+D**). Grab single items or everything; afterwards Forge only fetches what changed, and you can go back to any earlier version of the library. How the library is put together and how content gets added is in [docs/content-repos.md](docs/content-repos.md).
+
+### Updating
+Forge tells you at startup when there's a new version. **Downloads → Application** installs it (or any older one if a new version breaks something for you). Your settings, projects and downloads stay put, and the in-game version is brought up to date the next time Forge starts.
 
 ### Bringing in existing mods
 **Open → Import from mod folder** reads an existing BeamNG mod back into a Forge project. It's best-effort. The format is loose and people do creative things with it, so you'll get warnings for anything it couldn't understand. Anything exported from Forge comes back in fully editable.
@@ -544,6 +579,10 @@ Bug reports, feature requests and pull requests are all welcome. For bigger chan
 Built on the shoulders of some great open-source projects:
 [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh), [meshoptimizer](https://github.com/zeux/meshoptimizer), [xatlas](https://github.com/jpcy/xatlas), [dockview](https://dockview.dev), [Zustand](https://github.com/pmndrs/zustand), [electron-log](https://github.com/megahertz/electron-log), [Lucide](https://lucide.dev) and the [Inter](https://rsms.me/inter/) typeface.
 
+The tutorial's practice car is based on "[1982 BMW 3 Series E30](https://sketchfab.com/3d-models/1982-bmw-3-series-e30-8d8b44242a52400aae216f7e05b92b36)" by [zairiq-zairiq-123-pixar-cars-bfdi](https://sketchfab.com/zairiq-zairiq-123-pixar-cars-bfdi), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: smoothed, split into parts, the driver removed, an engine bay and engine added (`scripts/dev/buildDemoCar.mts`). Mods made from it carry this credit in a `credits.txt`.
+
+Every credit is also in the app: Help → Credits.
+
 Massive thanks to BeamNG for making a game where cars crumple properly, and to the modding community for years of forum threads I've read at 2am.
 
 BeamNG.drive is a trademark of BeamNG GmbH. This project isn't affiliated with or endorsed by BeamNG.
@@ -551,9 +590,3 @@ BeamNG.drive is a trademark of BeamNG GmbH. This project isn't affiliated with o
 ---
 
 Made by **Fatkiwi**. If you make something cool with it, I'd love to see it.
-
-## Credits
-
-- The tutorial's practice car is based on "[1982 BMW 3 Series E30](https://sketchfab.com/3d-models/1982-bmw-3-series-e30-8d8b44242a52400aae216f7e05b92b36)" by [zairiq-zairiq-123-pixar-cars-bfdi](https://sketchfab.com/zairiq-zairiq-123-pixar-cars-bfdi), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Changes: smoothed, split into parts, the driver removed, an engine bay and engine added (`scripts/dev/buildDemoCar.mts`). Mods made from it carry this credit in a `credits.txt`.
-- Built with Electron, three.js, three-mesh-bvh, React, Dockview, Zustand, Immer, Zod, Lucide and fflate (MIT / ISC licences).
-- Every credit is also in the app: Help → Credits.
