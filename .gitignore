@@ -6,13 +6,11 @@ coverage/
 *.tsbuildinfo
 *.log
 .DS_Store
-.claude/settings.local.json
 scratch/
 
 # Local-only notes and editor settings (never published)
 SPEC.md
 docs/SPEC.md
-.claude/
 
 # packaged builds
 release/
