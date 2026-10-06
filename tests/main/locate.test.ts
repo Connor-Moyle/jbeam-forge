@@ -78,7 +78,7 @@ describe('parsers', () => {
   });
 
   it('defaultRoots derives unique Steam roots', () => {
-    const roots = defaultRoots({ 'ProgramFiles(x86)': 'C:\\Program Files (x86)', ProgramFiles: 'C:\\Program Files', LOCALAPPDATA: 'L' });
+    const roots = defaultRoots({ 'ProgramFiles(x86)': 'C:\\Program Files (x86)', ProgramFiles: 'C:\\Program Files', LOCALAPPDATA: 'L' }, 'win32');
     expect(roots.localAppData).toBe('L');
     expect(roots.steamRoots).toHaveLength(2);
     expect(roots.steamRoots.every((r) => r.endsWith('Steam'))).toBe(true);
