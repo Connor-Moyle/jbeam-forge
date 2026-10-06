@@ -124,10 +124,12 @@ function HelpBody() {
     <Modal open onOpenChange={setOpen} title="Help and guides" size="lg">
       <div className={styles.layout} data-testid="help-centre">
         <nav className={styles.nav} aria-label="Guides">
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the guides" aria-label="Search the guides" data-testid="help-search" />
-          <Button variant="primary" icon={Compass} onClick={() => void startTutorial()} className={styles.tourButton}>
-            Take the tour
-          </Button>
+          <div className={styles.navTop}>
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the guides and tutorials" aria-label="Search the guides" data-testid="help-search" />
+            <Button variant="primary" icon={Compass} onClick={() => void startTutorial()}>
+              Take the tour
+            </Button>
+          </div>
           {GUIDE_GROUPS.map((group) => {
             const list = shown.filter((g) => g.group === group);
             if (!list.length) return null;

@@ -966,7 +966,8 @@ const scenarios = [
       await page.getByTestId('material-row').filter({ hasText: 'chrome' }).dragTo(page.getByTestId('scene-tree').getByText('Engine', { exact: true }));
       const mm = await hook(page, 'meshMaterials');
       const engineKeys = Object.keys(mm).filter((k) => /engine/i.test(k) || mm[k].includes('chrome'));
-      assert(Object.values(mm).filter((names) => names.includes('chrome')).length >= 2, `dropped material applied to the engine too (${JSON.stringify(mm)} ${engineKeys})`);
+      // Any chrome preset (the search lists Black chrome first since the presets grew).
+      assert(Object.values(mm).filter((names) => names.some((n) => /chrome/.test(n))).length >= 2, `dropped material applied to the engine too (${JSON.stringify(mm)} ${engineKeys})`);
       await hook(page, 'applyPreset', 'modelling');
 
       // Channel views: every material seen as base colour, roughness, metallic, AO, normals and a UV checker (shader errors fail the run).
@@ -1059,7 +1060,7 @@ const scenarios = [
       cpSync(join(fakeUserDir, 'mods', 'unpacked', 'generate_test'), join(outDir, 'exported-mod'), { recursive: true });
       const matsJson = JSON.parse(readFileSync(join(vdir, 'main.materials.json'), 'utf8'));
       assert(Object.values(matsJson).some((m) => m.Stages?.[0]?.roughnessFactor === 0.27 && m.version === 1.5), `edited material exported (${JSON.stringify(matsJson).slice(0, 300)})`);
-      assert(matsJson.generate_test_chrome?.Stages?.[0]?.metallicFactor === 1, `library preset exported (${Object.keys(matsJson)})`);
+      assert(Object.entries(matsJson).some(([k, m]) => /^generate_test_.*chrome$/.test(k) && m.Stages?.[0]?.metallicFactor === 1),`library preset exported (${Object.keys(matsJson)})`);
 
       await shot(page, 'export-done');
       await page.getByRole('button', { name: 'Done' }).click();

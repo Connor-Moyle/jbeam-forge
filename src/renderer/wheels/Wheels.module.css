@@ -13,9 +13,20 @@
   color: var(--accent);
 }
 
+/* Four number columns share the panel's width (they overflowed a narrow panel). */
 .sizes {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.sizes th:last-child {
+  width: var(--size-control);
+}
+
+.sizes td > * {
+  width: 100%;
+  min-width: 0;
 }
 
 .sizes th {
