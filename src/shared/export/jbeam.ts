@@ -496,7 +496,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const engineTransmissionSlots = pt?.engine ? rewritesFor(pt.engine.setId).slots : [];
   // An engine's mounts often sit on the gearbox's nodes: point them at the gearbox's renamed ones (its prefix is g_).
   const gearboxNodes: Record<string, string> = engineTransmissionSlots.length && box ? Object.fromEntries(Object.values(box.parts).flatMap((p) => [...definedNodes(p).keys()].map((id) => [id, `g_${id}`]))) : {};
-  let engineNodes: { id: string; pos: [number, number, number]; weight?: number }[] = [];
+  let engineNodes: { id: string; pos: [number, number, number]; weight?: number; structural?: boolean }[] = [];
   let engineParts: Record<string, JbeamObject> | null = null;
   let gearboxParts: Record<string, JbeamObject> | null = null;
   if (pt?.engine) {
@@ -515,7 +515,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       extraSlots.push([engineSlot, [engineSlot], [], t.rootPart, 'Engine']);
       engineNodes = Object.values(t.parts).flatMap((p) => {
         const weights = definedWeights(p);
-        return [...definedNodes(p)].map(([id, pos]) => ({ id, pos, weight: weights.get(id) }));
+        return [...definedNodes(p)].map(([id, pos]) => ({ id, pos, weight: weights.get(id), structural: false }));
       });
       engineParts = t.parts;
       // The engine designer's own model rides on the engine's nodes, on the groups the game engine's meshes used.

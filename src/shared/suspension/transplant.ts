@@ -134,7 +134,7 @@ export interface TransplantInput {
    * The new car's nodes the suspension can attach to. With a weight, a node too light for the
    * beams that would land on it is passed over for the next nearest.
    */
-  target: readonly { id: string; pos: V3; weight?: number }[];
+  target: readonly { id: string; pos: V3; weight?: number; /** false: another set's node (an engine's), never bolted to. */ structural?: boolean }[];
   /** Original mesh name → exported mesh name (meshes not exported are dropped from flexbodies). */
   meshNames: Readonly<Record<string, string>>;
   /** Variable name ($springheight_F…) → value to use as its default. */
@@ -361,8 +361,11 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     } else if (best) {
       const kept = `${input.nodePrefix}${id}`;
       nodeIds.set(id, kept);
+      // Bolted to the body's structure only (a gearbox's points went onto the engine's 1 kg exhaust
+      // nodes, and the exhaust fell off), and to nodes heavy enough for the bolt.
+      const holds = (t: { weight?: number; structural?: boolean }) => t.structural !== false && (t.weight === undefined || Math.sqrt(MOUNT.beamSpring / t.weight) * STABILITY_DT <= MOUNT_RATIO);
       const near = input.target
-        .filter(carries)
+        .filter(holds)
         .map((t) => ({ id: t.id, d: dist2(at, t.pos) }))
         .sort((a, b) => a.d - b.d)
         .slice(0, MOUNT_LINKS);
