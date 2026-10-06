@@ -290,7 +290,8 @@ export interface InvokeContract {
   /** Replace the user layer; rejects when the merged taxonomy would be invalid. */
   'taxonomy:saveUser': { req: { entries: TaxonomyEntry[] }; res: TaxonomyEntry[] };
   /** Install the exported mod unpacked into BeamNG's mods/unpacked/<slug> (replaces only our own previous export). */
-  'export:install': { req: ExportBundle; res: { path: string; bytes: number } };
+  /** clashes: other mods that also carry vehicles/<slug> (the game mixes them in). */
+  'export:install': { req: ExportBundle; res: { path: string; bytes: number; clashes?: string[] } };
   /** Save the exported mod as a zip (save dialog); null when cancelled. */
   'export:zip': { req: ExportBundle; res: { path: string; bytes: number } | null };
   /** A folder ready to upload to the BeamNG repository: the mod zip, README, description, pictures and the checklist. */

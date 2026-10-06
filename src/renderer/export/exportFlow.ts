@@ -59,7 +59,7 @@ interface ExportUiState {
   open: boolean;
   prepared: PreparedExport | null;
   busy: string | null;
-  result: { path: string; bytes: number; mode: 'install' | 'zip' | 'publish' } | null;
+  result: { path: string; bytes: number; mode: 'install' | 'zip' | 'publish'; clashes?: string[] } | null;
   error: string | null;
   /** The short, copyable report for `error` (where it happened). */
   errorDetail: string | null;

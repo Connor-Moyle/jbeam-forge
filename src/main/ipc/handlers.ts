@@ -19,6 +19,7 @@ import type { BeamngService } from '../beamng/service';
 import type { Packs } from '../content/packs';
 import { gameMaterialDefinitions, scanGameMaterials } from '../beamng/gameMaterials';
 import { vehicleLogReport } from '@shared/beamng/logReport';
+import { vehicleClashes } from '../export/clashes';
 import { engineSoundSamples, readSoundFile, scanEngineSounds } from '../beamng/engineSounds';
 import type { SetOptions } from '@shared/suspension/options';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
@@ -178,10 +179,13 @@ export function registerIpcHandlers(services: HandlerServices): void {
     'export:install',
     async (bundle) => {
       checkBundle(bundle, (p) => projects.isUnderGrantedRoot(p));
-      const r = await installUnpacked(await modsDir(), bundle);
+      const mods = await modsDir();
+      const r = await installUnpacked(mods, bundle);
       lastExport = r.path;
+      const clashes = await vehicleClashes(mods, bundle.slug, r.path).catch(() => []);
+      if (clashes.length) logger.warn(`other mods also carry vehicles/${bundle.slug}: ${clashes.join(', ')}`);
       logger.info(`exported ${bundle.slug} unpacked to ${r.path} (${bundle.files.length} files, ${bundle.copies.length} textures, ${r.bytes} bytes)`);
-      return r;
+      return { ...r, clashes };
     },
     ExportBundleSchema,
   );

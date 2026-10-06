@@ -115,6 +115,14 @@ export function ExportDialog() {
             <Callout tone="success">
               {result.mode === 'install' ? 'Installed as an unpacked mod' : result.mode === 'publish' ? 'Repository package written' : 'Saved'}: <span className={styles.path}>{result.path}</span> ({mb(result.bytes)})
             </Callout>
+            {!!result.clashes?.length && (
+              <Callout tone="danger" data-testid="export-clashes">
+                Other mods in your mods folder also have a <code>vehicles/{prepared?.bundle.slug}</code> folder: {result.clashes.join(', ')}. The game mixes them all into one car, which can come apart when it spawns. Remove those (or move them out of the mods folder), then spawn the car again.
+                <Button size="sm" onClick={() => void call('export:reveal').catch(() => undefined)}>
+                  Show the mods folder
+                </Button>
+              </Callout>
+            )}
             {result.mode === 'publish' && <p className={styles.note}>Upload the zip and the pictures on beamng.com/resources, pasting description.txt as the listing text. Test the zip in game first.</p>}
             <p className={styles.heading}>Test it in BeamNG (docs/testing-in-beamng.md)</p>
             <ol className={styles.steps}>
