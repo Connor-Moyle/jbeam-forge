@@ -378,7 +378,7 @@ export function panelCategory(slotType: string): string | null {
 }
 
 /** A suspension as the game fits it: the part plus the defaults of its slots, all the way down. */
-export function suspensionClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 40, sharedSlots?: ReadonlySet<string>): string[] {
+export function suspensionClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 120, sharedSlots?: ReadonlySet<string>): string[] {
   // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension. Except a wheel
   // only this car has (the Covet 3-wheel's tractor wheel): nothing in common fits its slot, so the
   // set brings it along or the hub's slot is left pointing at a part the mod doesn't have.
@@ -386,12 +386,12 @@ export function suspensionClosure(start: string, find: (name: string) => JbeamOb
 }
 
 /** An engine without its gearbox (that belongs to the gearbox workshop), wheels or body parts. */
-export function engineClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 60): string[] {
+export function engineClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 120): string[] {
   return partClosure(start, find, (b) => isGearboxPart(b) || (typeof b.slotType === 'string' && /transmission|transaxle|gearbox|^wheel|^tire/i.test(b.slotType)), max);
 }
 
 /** A part and the defaults of its slots, all the way down; `skip` leaves out branches (not the start). */
-export function partClosure(start: string, find: (name: string) => JbeamObject | undefined, skip: (body: JbeamObject) => boolean, max = 40): string[] {
+export function partClosure(start: string, find: (name: string) => JbeamObject | undefined, skip: (body: JbeamObject) => boolean, max = 120): string[] {
   const seen: string[] = [];
   const queue = [start];
   while (queue.length && seen.length < max) {
@@ -519,7 +519,7 @@ async function writeSets(
     const slotType = typeof body.slotType === 'string' ? body.slotType : '';
     const category = categoryOf(slotType);
     // A set starts at the suspension itself (not a hub or subframe on its own).
-    if (category && SET_CATEGORIES.has(category) && /suspension|axle/i.test(slotType)) roots.push({ kind: 'suspension', part: partName, parts: suspensionClosure(partName, find, 40, sharedSlots) });
+    if (category && SET_CATEGORIES.has(category) && /suspension|axle/i.test(slotType)) roots.push({ kind: 'suspension', part: partName, parts: suspensionClosure(partName, find, 120, sharedSlots) });
     // Body panels (fork): the stock part alone; its own slots (glass, handles) stay the game's.
     else if (panelCategory(slotType) && flexMeshes(body).length) roots.push({ kind: 'panel', part: partName, parts: [partName] });
   }

@@ -34,7 +34,7 @@ import { textureToDds, toBase64 } from './textureConvert';
 import { portedIssues, portedText } from '@shared/export/ported';
 import { installProblems } from '@shared/export/installCheck';
 import { stampGameVersion } from './gameVersion';
-import { wheelNames } from '@shared/suspension/wheels';
+import { wheelNames, wheelSlotEnds } from '@shared/suspension/wheels';
 import { powertrainDevices } from '@shared/powertrain/specs';
 import { commonRoot, engineModFiles, panelModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
@@ -282,8 +282,15 @@ export function prepareExport(): PreparedExport | null {
   // the car comes apart at the hubs.
   for (const [i, a] of fittedAxles.entries())
     for (const b of fittedAxles.slice(i + 1)) {
-      const wa = wheelNames(useSetData.getState().data[a.fitted!.setId]?.parts ?? {});
-      const shared = wheelNames(useSetData.getState().data[b.fitted!.setId]?.parts ?? {}).filter((w) => wa.includes(w));
+      const pa = useSetData.getState().data[a.fitted!.setId]?.parts ?? {};
+      const pb = useSetData.getState().data[b.fitted!.setId]?.parts ?? {};
+      const wa = wheelNames(pa);
+      let shared = wheelNames(pb).filter((w) => wa.includes(w));
+      // Or both take the same end's wheel parts, which make the same wheel nodes.
+      if (!shared.length) {
+        const ea = wheelSlotEnds(pa);
+        shared = wheelSlotEnds(pb).filter((e) => ea.includes(e)).map((e) => (e === 'F' ? 'FR, FL' : 'RR, RL'));
+      }
       if (!shared.length) continue;
       const end = (x: typeof a) => x.name.replace(/ axle$/i, '').toLowerCase();
       // Rear wheel names on both: the front one is the odd one out; front names: the rear one.

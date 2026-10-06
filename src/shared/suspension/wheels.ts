@@ -103,6 +103,27 @@ export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0
  * The wheels a set brings, by name (FL, FR, RL…): more than two and the set is the whole running
  * gear (a box trailer's or a utility frame's), covering both axles.
  */
+/**
+ * Which end's wheel parts a set takes (its wheel_F_… / wheel_R_… slots). Wheel parts make the axle's
+ * wheel nodes (fw1r… or rw1r…), so two sets taking the same end's wheels clash even when their own
+ * wheel names differ (a pickup's front axle and a caravan's, which takes front wheels).
+ */
+export function wheelSlotEnds(parts: Readonly<Record<string, JbeamObject>>): ('F' | 'R')[] {
+  const ends = new Set<'F' | 'R'>();
+  for (const p of Object.values(parts))
+    for (const key of ['slots', 'slots2'] as const) {
+      const t = p[key];
+      if (!Array.isArray(t) || !Array.isArray(t[0])) continue;
+      const h = t[0].map(String);
+      const col = h.includes('name') ? h.indexOf('name') : h.indexOf('type');
+      for (const row of t.slice(1)) {
+        const m = Array.isArray(row) && typeof row[col] === 'string' ? /^wheel_([FR])(?:_|$)/i.exec(row[col]) : null;
+        if (m) ends.add(m[1]!.toUpperCase() as 'F' | 'R');
+      }
+    }
+  return [...ends];
+}
+
 export function wheelNames(parts: Readonly<Record<string, JbeamObject>>): string[] {
   const names = new Set<string>();
   for (const p of Object.values(parts))
