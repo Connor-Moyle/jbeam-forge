@@ -288,6 +288,11 @@ function M.onTelemetry(t)
   if type(t) == 'table' then t.at = os.time() end
 end
 
+function M.onDriveReport(d)
+  local car = getPlayerVehicle(0)
+  log('I', logTag, 'self-test: drive ' .. tostring(car and car:getJBeamFilename() or '?') .. ' ' .. jsonEncode(d or {}))
+end
+
 -- The self-test's look at what came apart on a car (jbeamForgeProbe.diagnose), into the log.
 function M.onDiagnose(d)
   local car = getPlayerVehicle(0)
@@ -577,7 +582,7 @@ end
 local function startSelftest()
   if not selftest and FS:fileExists(STORE .. 'selftest.json') then
     local plan = jsonReadFile(STORE .. 'selftest.json') or {}
-    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles, measure = plan.measure, measured = {}}
+    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles, measure = plan.measure, drive = plan.drive, measured = {}}
     log('I', logTag, 'self-test: starting')
   end
 end
@@ -635,8 +640,21 @@ function M.onUpdate(dtReal)
       local car = getPlayerVehicle(0)
       if car then car:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe.diagnose()") end
     end
-    if selftest.t > (selftest.vi and 15 or 8) then
+    -- With "drive": full throttle for a few seconds after the look, then what the car did.
+    if selftest.drive and selftest.vi and not selftest.throttled and selftest.t > 11 then
+      selftest.throttled = true
+      local car = getPlayerVehicle(0)
+      if car then car:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe.driveStart()") end
+    end
+    if selftest.drive and selftest.vi and not selftest.drove and selftest.t > 18 then
+      selftest.drove = true
+      local car = getPlayerVehicle(0)
+      if car then car:queueLuaCommand('jbeamForgeProbe.driveReport()') end
+    end
+    if selftest.t > (selftest.vi and (selftest.drive and 21 or 15) or 8) then
       selftest.diagnosed = false
+      selftest.throttled = false
+      selftest.drove = false
       selftest.vi = (selftest.vi or 0) + 1
       local v = selftest.vehicles[selftest.vi]
       selftest.t = 0

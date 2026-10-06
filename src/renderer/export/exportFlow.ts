@@ -36,6 +36,8 @@ import { installProblems } from '@shared/export/installCheck';
 import { stampGameVersion } from './gameVersion';
 import { wheelNames, wheelSlotEnds } from '@shared/suspension/wheels';
 import { powertrainDevices } from '@shared/powertrain/specs';
+import { powertrainChain } from '@shared/powertrain/chain';
+import { isJbeamObject, parseJbeam } from '@shared/jbeam/parse';
 import { commonRoot, engineModFiles, panelModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
@@ -311,6 +313,21 @@ export function prepareExport(): PreparedExport | null {
     const box = devices(pt.gearbox.setId);
     if (engine.includes('electricMotor') && !engine.includes('combustionEngine') && (box.includes('frictionClutch') || box.includes('dctGearbox')))
       report.errors.push({ code: 'ELECTRIC_WITH_CLUTCH', message: `${pt.engine.name} is electric, and ${pt.gearbox.name} has a clutch made for a combustion engine: the game can't run the two together. Choose an electric car's gearbox (a single reduction), or no gearbox.` });
+  }
+  // The engine's power has to reach a wheel: a front-engined car's driveshaft behind a rear-engined
+  // buggy's axle (no differential of its own) turned nothing, and the car sat still at full revs.
+  if (pt?.engine) {
+    const parsed = jbeams.flatMap((j) => {
+      try {
+        const v = parseJbeam(j.text).value;
+        return isJbeamObject(v) ? Object.values(v).filter(isJbeamObject) : [];
+      } catch {
+        return [];
+      }
+    });
+    const chain = powertrainChain(parsed);
+    if (!chain.wheels.length && chain.endsAt)
+      report.errors.push({ code: 'DRIVETRAIN_NO_WHEELS', message: `The engine's power stops at ${chain.endsAt} and never reaches a wheel: the axle there has no differential or half-shafts for it. Fit a suspension that brings its own differential on the driven axle, a gearbox that has one (a transaxle), or add one in the axle's Brakes & diff page.` });
   }
   // The jbeam as the game will assemble it, configuration by configuration.
   if (kind === 'vehicle') {

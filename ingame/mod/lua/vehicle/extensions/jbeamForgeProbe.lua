@@ -93,6 +93,33 @@ M.diagnose = function()
   if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDiagnose(' .. serialize({error = tostring(err)}) .. ') end') end
 end
 
+-- A drive check for the self-test: brake off and full throttle, then what the car did.
+M.driveStart = function()
+  pcall(function()
+    -- As the game's own tester does: arcade shifting, so throttle from a standstill selects a gear.
+    if controller.mainController.setGearboxMode then controller.mainController.setGearboxMode('arcade') end
+    if controller.mainController.setFreeze then controller.mainController.setFreeze(0) end
+    input.event('parkingbrake', 0, 1)
+    input.event('brake', 0, 1)
+    input.event('throttle', 1, 1)
+  end)
+end
+
+M.driveReport = function()
+  local done, err = pcall(function()
+    local e = electrics.values
+    local out = {speed = e.wheelspeed or e.airspeed, rpm = e.rpm, gear = e.gear, gearIndex = e.gearIndex, running = e.running, ignition = e.ignitionLevel, throttle = e.throttle, parkingbrake = e.parkingbrake, clutch = e.clutchRatio}
+    local eng = powertrain and powertrain.getDevice and powertrain.getDevice('mainEngine')
+    if eng then out.engine = {disabled = eng.isDisabled, stalled = eng.isStalled, starter = eng.starterEngagedCoef, av = eng.outputAV1, ignition = eng.ignitionCoef} end
+    local gb = powertrain and powertrain.getDevice and powertrain.getDevice('gearbox')
+    if gb then out.gearbox = {gear = gb.gearIndex, type = gb.type, mode = gb.mode} end
+    out.controller = controller and controller.mainController and controller.mainController.typeName or tostring(controller and controller.mainController ~= nil)
+    input.event('throttle', 0, 1)
+    obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDriveReport(' .. serialize(out) .. ') end')
+  end)
+  if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDriveReport(' .. serialize({error = tostring(err)}) .. ') end') end
+end
+
 M.telemetry = function()
   local done, err = pcall(telemetry)
   if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onTelemetry(' .. serialize({error = tostring(err)}) .. ') end') end

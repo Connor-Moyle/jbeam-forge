@@ -32,6 +32,8 @@ const batchEntry = (v) => {
 };
 const ingame = resolve(ROOT, arg('ingame', 'release/jbeam_forge_ingame.zip'));
 const measure = process.argv.includes('--measure');
+// --drive: full throttle for a few seconds after each car spawns, then what it did (speed, revs, gear).
+const drive = process.argv.includes('--drive');
 const level = arg('level', measure ? 'autotest' : 'gridmap_v2');
 const timeoutS = Number(arg('timeout', '600'));
 const out = resolve(ROOT, arg('out', join('artifacts', 'game-test', new Date().toISOString().replace(/[:.]/g, '-'))));
@@ -149,7 +151,7 @@ async function main() {
 
     // 3. The self-test plan, then the game.
     rmSync(join(store, 'selftest-result.json'), { force: true });
-    writeFileSync(join(store, 'selftest.json'), JSON.stringify({ level, steps: [], ...(measure ? { measure: true } : {}), ...(vehicle ? { vehicle } : {}), ...(config ? { config } : {}), ...(batch ? { vehicles: batch.map(batchEntry) } : {}) }));
+    writeFileSync(join(store, 'selftest.json'), JSON.stringify({ level, steps: [], ...(measure ? { measure: true } : {}), ...(drive ? { drive: true } : {}), ...(vehicle ? { vehicle } : {}), ...(config ? { config } : {}), ...(batch ? { vehicles: batch.map(batchEntry) } : {}) }));
     say(`starting BeamNG.drive (${level}${vehicle ? `, ${vehicle}` : ''})`);
     const game = spawn(exe, [], { cwd: install, detached: true, stdio: 'ignore' });
     game.unref();
@@ -221,6 +223,14 @@ async function main() {
           duplicatedBeams: has(/duplicated beam/).length,
           missingMaterials: [...new Set(has(/NO-MATERIAL/).map((l) => /mapping to: (\S+)/.exec(l)?.[1]))],
           luaErrors: has(/expressionParser|attempt to|stack traceback/).length,
+          drove: (() => {
+            const line = has(/self-test: drive /)[0];
+            try {
+              return line ? JSON.parse(line.slice(line.indexOf('{'))) : null;
+            } catch {
+              return null;
+            }
+          })(),
           // What came apart, from the self-test's probe: broken beams and the most strained ones.
           diagnose: (() => {
             const line = has(/self-test: diagnose /)[0];
@@ -234,6 +244,7 @@ async function main() {
         };
       });
       for (const c of summary.cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}${c.diagnose ? ` · broken ${c.diagnose.broken}/${c.diagnose.beams}` : ''}`);
+      for (const c of summary.cars) if (c.drove) say(`  ${c.vehicle} drive: ${JSON.stringify(c.drove)}`);
       for (const c of summary.cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken at spawn: ${Object.entries(c.diagnose.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${p.replace(/^forge_[a-z0-9]+_/, '')} ${n}`).join(', ')}`);
       for (const c of summary.cars) if (c.instability && c.diagnose?.worst) say(`  ${c.vehicle} most strained: ${c.diagnose.worst.slice(0, 6).map(([a, b, s, part]) => `${a}-${b} ${s} (${String(part ?? '').replace(/^forge_[a-z0-9]+_/, '')})`).join(', ')}`);
     }
