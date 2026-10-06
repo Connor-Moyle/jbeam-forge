@@ -4,7 +4,9 @@
  * Settings → Keymap.
  */
 
-export type GuideGroup = 'Start here' | 'Building a car' | 'Making it work' | 'Going further' | 'Examples';
+import { REFERENCE } from './reference';
+
+export type GuideGroup = 'Start here' | 'Building a car' | 'Making it work' | 'Going further' | 'Reference' | 'Examples';
 
 export interface GuideSection {
   heading?: string;
@@ -25,7 +27,7 @@ export interface Guide {
   actions?: ('tutorial' | 'newMod' | 'import' | 'shortcuts' | 'settings' | 'extensionsFolder')[];
 }
 
-export const GUIDE_GROUPS: GuideGroup[] = ['Start here', 'Building a car', 'Making it work', 'Going further', 'Examples'];
+export const GUIDE_GROUPS: GuideGroup[] = ['Start here', 'Building a car', 'Making it work', 'Going further', 'Reference', 'Examples'];
 
 export const GUIDES: Guide[] = [
   {
@@ -385,4 +387,5 @@ export const GUIDES: Guide[] = [
       { text: 'The Configurations manager writes these for you: each is a list of slot → part choices and paints, with its own picture and info (price, power, weight).' },
     ],
   },
+  ...REFERENCE,
 ];
