@@ -37,4 +37,20 @@ nsis:
   uninstallDisplayName: JBeam Forge
 portable:
   artifactName: JBeam-Forge-${version}-portable.exe
+linux:
+  icon: build/icon.png
+  category: Development
+  synopsis: Turn a 3D vehicle model into a BeamNG.drive mod
+  description: JBeam Forge turns a 3D car model into an installable BeamNG.drive mod, and runs inside the game on F10.
+  maintainer: Connor Moyle <74651514+Connor-Moyle@users.noreply.github.com>
+  executableName: jbeam-forge
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+appImage:
+  artifactName: JBeam-Forge-${version}.AppImage
+deb:
+  artifactName: jbeam-forge_${version}_amd64.deb
 publish: null

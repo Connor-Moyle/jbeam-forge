@@ -93,7 +93,8 @@ let shotIndex = 0;
 async function launch() {
   const app = await _electron.launch({
     // JBFORGE_SWIFTSHADER=1: software WebGL, for machines without a usable GPU (CI containers, VMs).
-    args: ['.', ...(process.env.JBFORGE_SWIFTSHADER ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : [])],
+    // Linux CI has no root to set up Chromium's sandbox helper.
+    args: ['.', ...(process.env.JBFORGE_SWIFTSHADER ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []), ...(process.platform === 'linux' ? ['--no-sandbox'] : [])],
     cwd: ROOT,
     env: {
       ...process.env,

@@ -23,7 +23,7 @@ export const SettingsSchema = z.object({
   debugLogging: z.boolean(),
   /** Advanced mode: every number the game has, not just the usual ones (engine, gearbox, cooling, suspension…). */
   advancedMode: z.boolean(),
-  /** BeamNG.drive install folder (contains BeamNG.drive.exe and content/vehicles). */
+  /** BeamNG.drive install folder (contains content/vehicles and the game: BeamNG.drive.exe, Bin64 or BinLinux). */
   beamngInstallDir: z.string().min(1).nullable(),
   /** BeamNG user folder (…/BeamNG.drive/current); mods are installed under it. */
   beamngUserDir: z.string().min(1).nullable(),

@@ -82,12 +82,16 @@ The short version:
 
 ## Installing
 
-1. Grab the latest installer (or the portable exe if you don't want to install anything) from the [Releases](../../releases) page.
-2. Run it. Windows SmartScreen may complain because the exe isn't signed. Click **More info → Run anyway**.
-3. That's it. No Python, no Blender, no extra runtimes.
+Grab the latest version from the [Releases](../../releases) page.
+
+**Windows:** the installer (or the portable exe if you don't want to install anything). Windows SmartScreen may complain because the exe isn't signed: click **More info → Run anyway**.
+
+**Linux:** the `.deb` for Ubuntu, Mint, Pop!_OS and friends (`sudo apt install ./jbeam-forge_*_amd64.deb`), or the AppImage for anything else (make it executable and run it). Forge finds BeamNG whether you run the native Linux build or the Windows one through Steam's Proton.
+
+That's it. No Python, no Blender, no extra runtimes.
 
 **Requirements**
-- Windows 10 or 11, 64-bit
+- Windows 10 or 11, or a 64-bit Linux desktop
 - A GPU that can handle WebGL 2 (anything from the last ten years is fine)
 - BeamNG.drive installed. Forge reads the game's own content for reference formats, shared materials, wheels and engine sounds. It never modifies your game files.
 
@@ -97,7 +101,7 @@ The short version:
 
 Forge asks you two things the first time you open it, and then never again:
 
-1. **Your BeamNG install folder.** This is the folder with `BeamNG.drive.exe` in it. If you own it on Steam, it's usually under `steamapps\common\BeamNG.drive`.
+1. **Your BeamNG install folder.** This is the game folder, the one with `content/vehicles` in it. If you own it on Steam, it's usually under `steamapps/common/BeamNG.drive`. Forge looks for it (and for the game's user folder, where mods go) by itself, so usually you just confirm it.
 2. **Your author name.** This goes into every mod's info file. Put your modding username here, not your real name, unless you want your real name on the repo.
 
 You can change both later in **Settings**.

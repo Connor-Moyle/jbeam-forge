@@ -15,16 +15,24 @@ import { apiUrl, assertRepo, downloadFile, endpoints, getJson, GithubError, type
  * downloaded, checked against the size GitHub lists, and then run or shown.
  */
 
-export function assetRole(name: string): ReleaseAsset['role'] {
-  if (/setup.*\.exe$/i.test(name)) return 'installer';
-  if (/portable.*\.exe$/i.test(name)) return 'portable';
+/**
+ * What a release file is for this computer: Windows gets the installer and portable exe, Linux the
+ * .deb (its installer) and the AppImage (its portable). The other system's files are 'other', so
+ * only the right ones are offered.
+ */
+export function assetRole(name: string, platform: NodeJS.Platform = process.platform): ReleaseAsset['role'] {
+  const linux = platform === 'linux';
+  if (/setup.*\.exe$/i.test(name)) return linux ? 'other' : 'installer';
+  if (/portable.*\.exe$/i.test(name)) return linux ? 'other' : 'portable';
+  if (/\.deb$/i.test(name)) return linux ? 'installer' : 'other';
+  if (/\.AppImage$/i.test(name)) return linux ? 'portable' : 'other';
   if (/materials.*\.zip$/i.test(name)) return 'textures';
   if (/objects.*\.zip$/i.test(name)) return 'meshes';
   return 'other';
 }
 
 /** GitHub's releases list → our releases, newest first (drafts dropped; pre-releases only when asked). */
-export function toReleases(raw: unknown, includePrereleases: boolean): AppRelease[] {
+export function toReleases(raw: unknown, includePrereleases: boolean, platform: NodeJS.Platform = process.platform): AppRelease[] {
   if (!Array.isArray(raw)) throw new GithubError('GitHub sent an unexpected releases list', 'HTTP');
   const out: AppRelease[] = [];
   for (const r of raw as Record<string, unknown>[]) {
@@ -35,7 +43,7 @@ export function toReleases(raw: unknown, includePrereleases: boolean): AppReleas
     if (prerelease && !includePrereleases) continue;
     const assets = (Array.isArray(r.assets) ? (r.assets as Record<string, unknown>[]) : []).flatMap((a) =>
       a && typeof a.name === 'string' && typeof a.browser_download_url === 'string' && typeof a.size === 'number'
-        ? [{ name: a.name, size: a.size, url: a.browser_download_url, sha256: typeof a.digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(a.digest) ? a.digest.slice(7) : null, role: assetRole(a.name) }]
+        ? [{ name: a.name, size: a.size, url: a.browser_download_url, sha256: typeof a.digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(a.digest) ? a.digest.slice(7) : null, role: assetRole(a.name, platform) }]
         : [],
     );
     out.push({

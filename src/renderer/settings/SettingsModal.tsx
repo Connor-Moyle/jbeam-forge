@@ -185,7 +185,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
           changeDir(found.dir);
           setNotice(installs.filter((i) => i.ok).length > 1 ? 'Several installs found; picked the one BeamNG last ran from.' : null);
         } else {
-          setNotice('No BeamNG.drive install was found automatically. Use Browse to pick the folder that contains BeamNG.drive.exe.');
+          setNotice('No BeamNG.drive install was found automatically. Use Browse to pick the game folder (the one with content/vehicles in it).');
         }
       })
       .catch(() => undefined);
@@ -295,7 +295,7 @@ export function SettingsModal({ settings, onClose }: SettingsModalProps) {
               <Field
                 label="Install folder"
                 htmlFor={dirId}
-                hint="The game folder containing BeamNG.drive.exe. Official vehicles are read from here (never modified) to verify every exported format."
+                hint="The game folder (with content/vehicles in it; on Linux the Steam or native install). Official vehicles are read from here (never modified) to verify every exported format."
               >
                 <Input id={dirId} mono value={dir} onChange={(e) => changeDir(e.target.value)} placeholder="e.g. C:\Program Files (x86)\Steam\steamapps\common\BeamNG.drive" data-testid="beamng-dir" />
                 <Button icon={FolderOpen} onClick={browse}>

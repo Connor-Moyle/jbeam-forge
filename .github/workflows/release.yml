@@ -1,7 +1,7 @@
-# Builds the Windows installer and portable exe on GitHub and publishes them
-# as a release, tagged v<package.json version>. Runs when that tag is pushed,
-# or by hand (Actions → Release → Run workflow), which tags the commit it
-# builds. Same result as `npm run release` on a Windows machine. Never
+# Builds JBeam Forge for Windows (installer, portable exe) and Linux (AppImage, .deb), plus the
+# in-game mod zip, and publishes them together as one release tagged v<package.json version>.
+# Runs when that tag is pushed, or by hand (Actions → Release → Run workflow), which tags the
+# commit it builds. A version with a suffix (0.16.0-test.1) is published as a pre-release. Never
 # replaces an existing release.
 name: Release
 
@@ -14,65 +14,108 @@ permissions:
   contents: write
 
 jobs:
-  windows:
-    runs-on: windows-latest
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
       - name: The version has release notes (and matches the tag, if one was pushed)
-        shell: bash
+        id: tag
         run: |
           tag="v$(node -p "require('./package.json').version")"
           if [ "$GITHUB_REF_TYPE" = tag ] && [ "$tag" != "$GITHUB_REF_NAME" ]; then echo "Tag $GITHUB_REF_NAME but package.json says $tag"; exit 1; fi
           test -f "docs/releases/$tag.md" || { echo "No docs/releases/$tag.md"; exit 1; }
-          echo "TAG=$tag" >> "$GITHUB_ENV"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Refuse to replace an existing release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then echo "Release $TAG already exists; leaving it alone."; exit 1; fi
 
       - name: Each release is the next version number
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           latest="$(gh release view --json tagName -q .tagName 2>/dev/null || echo v0.0.0)"
           newest="$(printf '%s\n%s\n' "${latest#v}" "${TAG#v}" | sort -V | tail -n 1)"
           if [ "$newest" != "${TAG#v}" ]; then echo "$TAG is not newer than the latest release $latest: bump package.json's version."; exit 1; fi
           echo "Releasing $TAG after $latest"
 
+  windows:
+    needs: check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
       - run: npm ci
-
       - run: npm run typecheck
-
-      - name: Build the installer and portable exe
+      - name: Build the installer, the portable exe and the in-game zip
         run: npm run dist
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            release/*.exe
+            release/jbeam_forge_ingame.zip
+          if-no-files-found: error
 
+  linux:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the AppImage and the .deb
+        run: npm run dist:linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          if-no-files-found: error
+
+  publish:
+    needs: [check, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - name: Publish the release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
         run: |
           version="${TAG#v}"
           notes="docs/releases/$TAG.md"
           title="$(head -n 1 "$notes" | sed 's/^#[[:space:]]*//')"
-          tail -n +2 "$notes" > release/notes.md
+          tail -n +2 "$notes" > notes.md
           # A version with a suffix (0.16.0-test.1) is a test build: a pre-release, never "latest".
           kind="--latest"
           case "$version" in *-*) kind="--prerelease" ;; esac
+          ls -la dist
           # Creates the tag on the commit just built when it doesn't exist yet.
           gh release create "$TAG" \
-            "release/JBeam-Forge-Setup-$version.exe" \
-            "release/JBeam-Forge-$version-portable.exe" \
-            "release/jbeam_forge_ingame.zip#JBeam Forge in BeamNG.drive (mod zip)" \
-            --target "$GITHUB_SHA" --title "$title" --notes-file release/notes.md "$kind"
+            "dist/JBeam-Forge-Setup-$version.exe" \
+            "dist/JBeam-Forge-$version-portable.exe" \
+            "dist/JBeam-Forge-$version.AppImage" \
+            "dist/jbeam-forge_${version}_amd64.deb" \
+            "dist/jbeam_forge_ingame.zip#JBeam Forge in BeamNG.drive (mod zip)" \
+            --target "$GITHUB_SHA" --title "$title" --notes-file notes.md "$kind"

@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { app, dialog, net, type BrowserWindow } from 'electron';
 import { initLogging, scoped, setDebugLogging } from './log';
 import { installMainCrashHandlers } from './crash';
@@ -35,6 +35,10 @@ const userDataOverride = process.env.JBFORGE_USER_DATA;
 if (userDataOverride) app.setPath('userData', userDataOverride);
 const harness = process.env.JBFORGE_HARNESS === '1';
 const devServerUrl = process.env.ELECTRON_RENDERER_URL;
+// An AppImage can't set up Chromium's sandbox helper (it needs root), and recent Ubuntu blocks the
+// fallback, so it wouldn't start at all. The window only ever shows the app's own pages. The .deb
+// installs the helper properly and keeps the sandbox.
+if (process.platform === 'linux' && process.env.APPIMAGE) app.commandLine.appendSwitch('no-sandbox');
 
 initLogging({ debug: false });
 installMainCrashHandlers();
@@ -73,7 +77,8 @@ async function start(): Promise<void> {
   projects.grantRoot(packDir);
   projects.grantRoot(objectsDir);
   // Downloaded textures and meshes: beside the program (Settings → Downloads can move them).
-  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR || undefined;
+  // The portable exe's folder, or the AppImage's on Linux (where a new version is put beside it).
+  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR || (process.env.APPIMAGE ? dirname(process.env.APPIMAGE) : undefined);
   // The harness keeps downloads in its temp folder (JBFORGE_CONTENT_DIR), never in the repository.
   const contentPaths = (override: string | null) => ({ override: process.env.JBFORGE_CONTENT_DIR || override, isPackaged: app.isPackaged, portableDir, execPath: process.execPath, appPath: app.getAppPath(), userData });
   let where = await resolveContentRoot(contentPaths(loaded.contentDir));

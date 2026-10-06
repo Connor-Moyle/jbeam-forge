@@ -1,4 +1,4 @@
-import { copyFile, mkdir } from 'node:fs/promises';
+import { chmod, copyFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app, shell, type BrowserWindow } from 'electron';
 import { z } from 'zod';
@@ -139,12 +139,20 @@ export function registerContentHandlers(ctx: ContentContext): void {
         setTimeout(() => app.quit(), 1500);
         return 'installing' as const;
       }
-      // A portable exe goes next to the one running, when that folder can be written; then it's shown.
+      // Linux: a .deb opens in the system's package installer; an AppImage is made runnable.
+      if (role === 'installer' && process.platform === 'linux') {
+        const err = await shell.openPath(path);
+        if (err) throw new Error(err);
+        return 'shown' as const;
+      }
+      if (role === 'portable' && process.platform === 'linux') await chmod(path, 0o755);
+      // A portable exe (or AppImage) goes next to the one running, when that folder can be written; then it's shown.
       let shown = path;
       if (role === 'portable' && ctx.portableDir) {
         const beside = join(ctx.portableDir, asset);
         try {
           await copyFile(path, beside);
+          if (process.platform === 'linux') await chmod(beside, 0o755);
           shown = beside;
         } catch {
           // read-only folder: show the downloaded copy instead

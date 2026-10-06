@@ -4,6 +4,7 @@
   "private": true,
   "description": "Turn a 3D vehicle model into an installable BeamNG.drive mod",
   "author": "Fatkiwi",
+  "homepage": "https://github.com/Connor-Moyle/jbeam-forge",
   "main": "out/main/index.js",
   "type": "module",
   "scripts": {
@@ -28,6 +29,7 @@
     "bench:solver": "tsx --tsconfig tsconfig.node.json scripts/bench-solver.ts",
     "make-icon": "node scripts/make-icon.mjs",
     "dist": "node scripts/build-ingame.mjs && electron-vite build && electron-builder --win --publish never",
+    "dist:linux": "node scripts/build-ingame.mjs && electron-vite build && electron-builder --linux --publish never",
     "release": "node scripts/release.mjs",
     "regress": "node scripts/regress.mjs",
     "study-prices": "tsx --tsconfig tsconfig.node.json scripts/study-prices.ts",

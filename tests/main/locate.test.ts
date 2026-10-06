@@ -8,6 +8,7 @@ import {
   detectUserDir,
   parseBeamngIni,
   parseLibraryFolders,
+  protonPath,
   samePath,
   validateInstallDir,
   type LocateRoots,
@@ -45,8 +46,9 @@ async function writeIni(localAppData: string, installPath: string, version = '0.
 describe('parsers', () => {
   it('parseBeamngIni reads version and installPath (BOM, CRLF, trailing backslash)', () => {
     const ini = '\uFEFFversion = 0.39.1.0\r\ninstallPath = I:\\SteamLibrary\\steamapps\\common\\BeamNG.drive\\\r\nother = 1\r\n';
-    expect(parseBeamngIni(ini)).toEqual({ version: '0.39.1.0', installPath: 'I:\\SteamLibrary\\steamapps\\common\\BeamNG.drive\\' });
-    expect(parseBeamngIni('')).toEqual({ version: null, installPath: null });
+    expect(parseBeamngIni(ini)).toEqual({ version: '0.39.1.0', installPath: 'I:\\SteamLibrary\\steamapps\\common\\BeamNG.drive\\', userFolder: null });
+    expect(parseBeamngIni('')).toEqual({ version: null, installPath: null, userFolder: null });
+    expect(parseBeamngIni('userFolder = D:\\BeamNG User Data\r\n').userFolder).toBe('D:\\BeamNG User Data');
   });
 
   it('parseLibraryFolders unescapes doubled backslashes', () => {
@@ -58,6 +60,21 @@ describe('parsers', () => {
     expect(samePath(join(tmp, 'a'), join(tmp, 'a') + '/')).toBe(true);
     expect(samePath(join(tmp, 'a'), join(tmp, 'b'))).toBe(false);
     if (process.platform === 'win32') expect(samePath(join(tmp, 'A'), join(tmp, 'a'))).toBe(true);
+  });
+
+  it('maps a Proton prefix’s Windows paths to Linux ones', () => {
+    expect(protonPath('/pfx', 'C:\\users\\steamuser\\AppData\\Local\\BeamNG')).toBe(join('/pfx', 'drive_c', 'users', 'steamuser', 'AppData', 'Local', 'BeamNG'));
+    expect(protonPath('/pfx', 'Z:\\home\\me\\.local\\share\\Steam\\steamapps\\common\\BeamNG.drive\\')).toBe('/home/me/.local/share/Steam/steamapps/common/BeamNG.drive');
+    expect(protonPath('/pfx', '/already/linux')).toBe('/already/linux');
+  });
+
+  it('defaultRoots on Linux: the native data folder and Steam’s usual homes', () => {
+    const roots = defaultRoots({ HOME: '/home/me' }, 'linux');
+    expect(roots.localAppData).toBeUndefined();
+    expect(roots.dataHome).toBe(join('/home/me', '.local', 'share'));
+    expect(roots.steamRoots).toContain(join('/home/me', '.local', 'share', 'Steam'));
+    expect(roots.steamRoots).toContain(join('/home/me', '.var', 'app', 'com.valvesoftware.Steam', '.local', 'share', 'Steam'));
+    expect(defaultRoots({ HOME: '/home/me', XDG_DATA_HOME: '/data' }, 'linux').dataHome).toBe('/data');
   });
 
   it('defaultRoots derives unique Steam roots', () => {
@@ -139,7 +156,41 @@ describe('validateInstallDir', () => {
   });
 });
 
+describe('Linux', () => {
+  it('finds a Proton install and its user folder inside the prefix', async () => {
+    const steam = join(tmp, 'Steam');
+    const game = await fakeInstall(join(steam, 'steamapps', 'common', 'BeamNG.drive'), { zips: ['pickup.zip'] });
+    const local = join(steam, 'steamapps', 'compatdata', '284160', 'pfx', 'drive_c', 'users', 'steamuser', 'AppData', 'Local', 'BeamNG');
+    await put(join(local, 'BeamNG.drive.ini'), 'version = 0.39.4.0\ninstallPath = Z:' + game.replace(/\//g, '\\') + '\\\nuserFolder = C:\\users\\steamuser\\BeamNG Data\n');
+    const userDir = join(steam, 'steamapps', 'compatdata', '284160', 'pfx', 'drive_c', 'users', 'steamuser', 'BeamNG Data', 'current');
+    await mkdir(userDir, { recursive: true });
+    const roots = { localAppData: undefined, steamRoots: [steam], dataHome: undefined };
+    // Z: is / only on Linux; on Windows the Steam library still finds it.
+    if (process.platform === 'win32') expect(await detectInstallDirs(roots)).toContain(resolve(game));
+    else expect(await detectInstallDirs(roots)).toEqual([resolve(game)]);
+    expect(await detectUserDir(roots)).toBe(userDir);
+  });
+
+  it('finds the native build’s user folder and accepts its Linux binary', async () => {
+    const dataHome = join(tmp, 'share');
+    const current = join(dataHome, 'BeamNG', 'BeamNG.drive', 'current');
+    await mkdir(current, { recursive: true });
+    expect(await detectUserDir({ localAppData: undefined, steamRoots: [], dataHome })).toBe(current);
+    const game = join(tmp, 'native');
+    await put(join(game, 'BinLinux', 'BeamNG.drive.x64'));
+    await put(join(game, 'content', 'vehicles', 'pickup.zip'));
+    expect((await validateInstallDir(game, { localAppData: undefined, steamRoots: [] })).ok).toBe(true);
+  });
+});
+
 describe('detectUserDir', () => {
+  it('follows the ini’s userFolder (the game’s moved user folder)', async () => {
+    const moved = join(tmp, 'BeamNG User Data', 'current');
+    await mkdir(moved, { recursive: true });
+    await put(join(tmp, 'BeamNG', 'BeamNG.drive.ini'), 'version = 0.39.4.0\r\nuserFolder = ' + join(tmp, 'BeamNG User Data') + '\r\n');
+    expect(await detectUserDir({ localAppData: tmp, steamRoots: [] })).toBe(moved);
+  });
+
   it('finds %LOCALAPPDATA%/BeamNG/BeamNG.drive/current', async () => {
     const current = join(tmp, 'BeamNG', 'BeamNG.drive', 'current');
     await mkdir(current, { recursive: true });

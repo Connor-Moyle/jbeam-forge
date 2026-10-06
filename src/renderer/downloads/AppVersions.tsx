@@ -99,7 +99,7 @@ export function AppVersions() {
     return assets.map((a) =>
       isDownloaded(a) ? (
         <Button key={a.name} size="sm" icon={a.role === 'installer' ? Rocket : FolderOpen} variant={a === pick(r) ? 'primary' : 'default'} onClick={() => void run(a.name)} data-testid="update-run">
-          {a.role === 'installer' ? (rollback ? 'Install this version' : 'Install') : 'Show portable exe'}
+          {a.role === 'installer' ? (rollback ? 'Install this version' : 'Install') : info?.platform === 'linux' ? 'Show the AppImage' : 'Show portable exe'}
         </Button>
       ) : (
         <Button key={a.name} size="sm" icon={rollback ? History : Download} variant={a === pick(r) && !rollback ? 'primary' : 'default'} disabled={!!job} onClick={() => void download(r, a)} data-testid={rollback ? 'update-rollback' : 'update-download'}>

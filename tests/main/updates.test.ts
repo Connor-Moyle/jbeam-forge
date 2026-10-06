@@ -33,12 +33,18 @@ describe('versions', () => {
       { tag_name: 'v9.9.9', draft: true, assets: [] },
       { tag_name: 'not-a-version', assets: [] },
     ];
-    const r = toReleases(raw, false);
+    const r = toReleases(raw, false, 'win32');
     expect(r.map((x) => x.tag)).toEqual(['v0.12.0', 'v0.11.0']);
     expect(r[1]!.assets[0]).toMatchObject({ role: 'installer', sha256: 'a'.repeat(64) });
     expect(r[0]!.assets[0]).toMatchObject({ role: 'portable', sha256: null });
     expect(toReleases(raw, true)[0]!.tag).toBe('v0.13.0-beta.1');
     expect(assetRole('JBeam-Forge-Materials-0.12.0.zip')).toBe('textures');
+  });
+
+  it('offers each system its own files', () => {
+    const names = ['JBeam-Forge-Setup-0.16.0.exe', 'JBeam-Forge-0.16.0-portable.exe', 'JBeam-Forge-0.16.0.AppImage', 'jbeam-forge_0.16.0_amd64.deb', 'jbeam_forge_ingame.zip'];
+    expect(names.map((n) => assetRole(n, 'win32'))).toEqual(['installer', 'portable', 'other', 'other', 'other']);
+    expect(names.map((n) => assetRole(n, 'linux'))).toEqual(['other', 'other', 'portable', 'installer', 'other']);
   });
 });
 

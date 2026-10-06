@@ -24,7 +24,7 @@ export interface IngameStatus {
 export interface BeamngDetection {
   /** Validated candidates, most trustworthy first. */
   installs: InstallValidation[];
-  /** %LOCALAPPDATA%/BeamNG/BeamNG.drive/current when present. */
+  /** The game's user folder (mods, logs): its ini's userFolder/current, else the default (see locate.ts). */
   userDir: string | null;
 }
 

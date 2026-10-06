@@ -1,0 +1,52 @@
+# Every push and pull request: typecheck, lint and the tests on Windows and Linux, and the
+# desktop scenarios (the whole app, driven like a user) on Linux with a virtual display and
+# software graphics.
+name: Checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npx vitest run
+
+  desktop-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Libraries Electron needs on a bare runner
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgbm1 libnss3 libasound2t64 libgtk-3-0
+      - run: npx electron-vite build
+      - name: The desktop scenarios
+        run: xvfb-run -a --server-args="-screen 0 1600x1000x24" node scripts/run-desktop.mjs
+        env:
+          JBFORGE_SWIFTSHADER: '1'
+          ELECTRON_DISABLE_SANDBOX: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-linux-screenshots
+          path: artifacts/run-desktop
+          if-no-files-found: ignore

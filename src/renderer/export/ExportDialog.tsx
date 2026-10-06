@@ -120,7 +120,7 @@ export function ExportDialog() {
               <li>Fully quit BeamNG if it is running, then launch it (a fresh beamng.log).</li>
               <li>Load Gridmap, open the vehicle selector and pick “{prepared?.bundle.projectName}”.</li>
               <li>Check: it spawns without an error popup, the body is visible, the parts menu (Ctrl+W) lists the slots, and it sits or rolls without falling apart.</li>
-              <li>Send back which checks passed and beamng.log (from %LOCALAPPDATA%\BeamNG\BeamNG.drive\current).</li>
+              <li>Send back which checks passed and beamng.log (in the game’s user folder, shown in Settings → BeamNG.drive).</li>
             </ol>
           </div>
         ) : publishing && prepared ? (
