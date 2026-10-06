@@ -385,3 +385,31 @@ describe('an attachment point with no body node close by', () => {
     expect(beams.slice(2).filter(([a]) => a === 'f_fx1r').map(([, b]) => b).sort()).toEqual(['b13r', 'b31r', 'b8r']);
   });
 });
+
+describe('a node its own car’s body also held', () => {
+  it('is bolted to the new body with springs its weight can carry', () => {
+    const r = transplantSuspension({
+      parts: { s: { slotType: 's', nodes: [['id', 'posX', 'posY', 'posZ'], { nodeWeight: 0.5 }, ['fx0', 0, -1.1, 0.3], { nodeWeight: 5 }, ['fh5r', -0.6, -1.2, 0.3]], beams: [['id1:', 'id2:'], ['fx0', 'fh5r']] } },
+      root: 's',
+      anchors: {},
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'f_',
+      target: [
+        { id: 'b1', pos: [0, -1, 0.3] },
+        { id: 'b2', pos: [0.3, -1, 0.3] },
+        { id: 'b3', pos: [-0.3, -1, 0.3] },
+        { id: 'e1', pos: [0, -1.1, 0.35], structural: false },
+      ],
+      meshNames: {},
+      tuning: {},
+      held: ['fx0'],
+    });
+    const rows = r.parts.m_s!.beams as unknown[];
+    const pairs = rows.filter(Array.isArray).slice(1) as string[][];
+    // To the body's structure only (not the engine's e1), besides its own beam to the hub.
+    expect(pairs.filter(([a]) => a === 'f_fx0').map(([, b]) => b).sort()).toEqual(['b1', 'b2', 'b3', 'f_fh5r']);
+    const spring = (rows.find((x) => typeof x === 'object' && !Array.isArray(x) && (x as { beamSpring?: number }).beamSpring !== undefined && (x as { beamSpring: number }).beamSpring < 6_000_000) as { beamSpring: number }).beamSpring;
+    expect(Math.sqrt((3 * spring) / 0.5) / 2000).toBeLessThanOrEqual(1.5 + 1e-9);
+  });
+});

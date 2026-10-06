@@ -598,7 +598,13 @@ export function registerIpcHandlers(services: HandlerServices): void {
       } catch {
         // cut before options were recorded, or none: rescan the game to offer its other parts
       }
-      return { parts, anchors, root: set.part, ...(options ? { options } : {}) };
+      let held: string[] = [];
+      try {
+        held = JSON.parse(await readFile(join(dirname(set.jbeam), 'held.json'), 'utf8')) as string[];
+      } catch {
+        // cut before these were recorded
+      }
+      return { parts, anchors, root: set.part, held, ...(options ? { options } : {}) };
     },
     z.object({ id: z.string().min(1).max(300) }),
   );

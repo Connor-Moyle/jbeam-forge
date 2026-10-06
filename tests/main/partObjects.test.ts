@@ -84,3 +84,19 @@ describe('what a suspension brings along', () => {
     expect(suspensionClosure('covet_hub_R_3wheel', find, 40, new Set(['wheel_R_4']))).toEqual(['covet_hub_R_3wheel', 'tractor_wheel_35x10']);
   });
 });
+
+describe('nodes of a suspension its car’s body also holds', () => {
+  it('are found from the body’s beams, not from parts that go in the set’s own slots or replace it', async () => {
+    const { heldByBody } = await import('../../src/main/beamng/partObjects');
+    const closure = {
+      susp_F: { slotType: 'susp_F', slots2: [['name', 'allowTypes', 'default'], ['spring_F', ['spring_F'], 'spring_F']], nodes: [['id', 'posX', 'posY', 'posZ'], ['fx0', 0, -1.1, 0.3], ['fh5r', -0.6, -1.2, 0.3]], beams: [['id1:', 'id2:'], ['fx0', 'fh5r']] },
+    };
+    const car = new Map<string, Record<string, unknown>>([
+      ['susp_F', closure.susp_F],
+      ['body', { slotType: 'body', nodes: [['id', 'posX', 'posY', 'posZ'], ['b1', 0, -1, 0.3]], beams: [['id1:', 'id2:'], ['b1', 'fx0']] }],
+      ['spring_F_sport', { slotType: 'spring_F', beams: [['id1:', 'id2:'], ['fh5r', 'b1']] }],
+      ['susp_F_wide', { slotType: 'susp_F', nodes: [['id', 'posX', 'posY', 'posZ'], ['fh5r', -0.7, -1.2, 0.3]], beams: [['id1:', 'id2:'], ['fh5r', 'b1']] }],
+    ]);
+    expect(heldByBody(closure as never, car as never)).toEqual(['fx0']);
+  });
+});

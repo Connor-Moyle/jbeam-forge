@@ -406,6 +406,30 @@ export function partClosure(start: string, find: (name: string) => JbeamObject |
   return seen;
 }
 
+/**
+ * The set's own nodes that the rest of its car also holds with beams: the Autobello's front
+ * crossmember node fx0 hangs from the body as well as from the hubs, and without the body it swung
+ * free. Parts that go in the set's own slots, or replace it, don't count (they come and go with it).
+ */
+export function heldByBody(closure: Record<string, JbeamObject>, carParts: ReadonlyMap<string, JbeamObject>): string[] {
+  const own = new Set<string>();
+  for (const p of Object.values(closure)) for (const id of definedNodes(p).keys()) own.add(id);
+  const setSlots = declaredSlotTypes(Object.values(closure));
+  for (const p of Object.values(closure)) if (typeof p.slotType === 'string') setSlots.add(p.slotType);
+  const held = new Set<string>();
+  for (const [name, p] of carParts) {
+    if (closure[name] || (typeof p.slotType === 'string' && setSlots.has(p.slotType)) || !Array.isArray(p.beams)) continue;
+    const defines = definedNodes(p);
+    for (const row of p.beams) {
+      if (!Array.isArray(row)) continue;
+      const [a, b] = row;
+      if (typeof a !== 'string' || typeof b !== 'string') continue;
+      for (const [x, y] of [[a, b], [b, a]] as const) if (own.has(x) && !defines.has(x) && !own.has(y)) held.add(x);
+    }
+  }
+  return [...held].sort();
+}
+
 /** Every slot type a set of parts declares (the type/name column and allowTypes). */
 export function declaredSlotTypes(parts: Iterable<JbeamObject>): Set<string> {
   const out = new Set<string>();
@@ -553,6 +577,7 @@ async function writeSets(
     writeFileSync(join(dir, meshFile), dae);
     writeFileSync(join(dir, 'jbeam.json'), JSON.stringify(closure, null, 1));
     writeFileSync(join(dir, 'anchors.json'), JSON.stringify(externalNodeRefs(closure, vehicleNodes)));
+    writeFileSync(join(dir, 'held.json'), JSON.stringify(heldByBody(closure, own)));
     // The game's other parts for the set's slots (brakes, racks, turbos…), offered as choices.
     const options = findOptions(parts, find, pool);
     if (options.slots.length) writeFileSync(join(dir, 'options.json'), JSON.stringify({ ...options, anchors: externalNodeRefs(options.parts, vehicleNodes) }));

@@ -72,6 +72,8 @@ export interface SuspensionSetData {
   root: string;
   /** The game's other parts for its slots (absent for sets cut before 0.12). */
   options?: SetOptions;
+  /** Its own nodes its car's body also held: bolted to the new body (absent for sets cut before 0.16). */
+  held?: string[];
 }
 
 /** A part's slots: type and default (both slot table formats). */
@@ -455,7 +457,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     for (const [key, name] of opts.meshNames) if (key.startsWith(`${sourceId}:`) && !key.includes('/')) meshNames[key.slice(sourceId.length + 1)] = name;
     const offset = fullDoc.sources?.find((s) => s.id === sourceId)?.placement.position ?? [0, 0, 0];
     // Every engine shares the e_ node names (only one is fitted at a time), so the gearbox fits whichever is chosen.
-    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.startsWith('E') ? 'e' : tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites, linkedNodes, fallbackGroup: bodyGroup });
+    const t = transplantSuspension({ parts: data.parts, root: data.root, anchors: data.anchors, offset, partPrefix: `${slug}_${tag}_`, nodePrefix: `${tag.startsWith('E') ? 'e' : tag.toLowerCase()}_`, target, meshNames, tuning, slotRewrites, linkedNodes, fallbackGroup: bodyGroup, held: found.held });
     for (const [name, content] of Object.entries(t.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
     foreign.push(...Object.values(t.parts));
     return t;

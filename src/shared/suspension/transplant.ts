@@ -154,6 +154,8 @@ export interface TransplantInput {
    * body, its radiator…). Without one, such groups are left as they were.
    */
   fallbackGroup?: string;
+  /** The set's own nodes its car's body also held (the Autobello's fx0): bolted to the new body. */
+  held?: readonly string[];
 }
 
 /** Node groups a set makes: groups in its nodes tables, and the wheel groups its wheels create at spawn. */
@@ -382,6 +384,24 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       extra.push([`${input.nodePrefix}${id}`, at]);
     }
   }
+  // Nodes the old body also held: bolted to the new one, with springs their weight can carry.
+  const heldMounts: { node: string; to: string[]; spring: number }[] = [];
+  const weights = new Map<string, number>();
+  for (const body of Object.values(input.parts)) for (const [id, w] of definedWeights(body, vars)) if (!weights.has(id)) weights.set(id, w);
+  for (const id of input.held ?? []) {
+    const at = setPositions.get(id);
+    if (!at || !own.has(id)) continue;
+    const to = input.target
+      .filter((t) => t.structural !== false)
+      .map((t) => ({ id: t.id, d: dist2(add(at, input.offset), t.pos) }))
+      .sort((a, b) => a.d - b.d)
+      .slice(0, MOUNT_LINKS)
+      .map((t) => t.id);
+    if (!to.length) continue;
+    const w = weights.get(id) ?? 25;
+    const spring = Math.round(Math.min(MOUNT.beamSpring, (w * (MOUNT_RATIO / STABILITY_DT) ** 2) / to.length));
+    heldMounts.push({ node: `${input.nodePrefix}${id}`, to, spring });
+  }
   if (extra.length && !mounts.length) warnings.push(`The body has no structure yet, so ${extra.length} attachment points were kept on the suspension. Generate the body, then export again.`);
 
   const out: Record<string, JbeamObject> = {};
@@ -453,9 +473,15 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     const nodes = Array.isArray(root.nodes) ? root.nodes : [['id', 'posX', 'posY', 'posZ']];
     root.nodes = [...nodes, ...extra.map(([id, p, w]) => [id, ...p, ...(w ? [{ nodeWeight: w, collision: false, selfCollision: false, group: '' }] : [])] as JbeamValue[])];
   }
-  if (root && mounts.length) {
+  if (root && (mounts.length || heldMounts.length)) {
     const beams = Array.isArray(root.beams) ? root.beams : [['id1:', 'id2:']];
-    root.beams = [...beams, { ...MOUNT, beamType: '|NORMAL', breakGroup: '', deformGroup: '' }, ...mounts.map(([a, b]) => [a, b] as JbeamValue[])];
+    root.beams = [
+      ...beams,
+      { ...MOUNT, beamType: '|NORMAL', breakGroup: '', deformGroup: '' },
+      ...mounts.map(([a, b]) => [a, b] as JbeamValue[]),
+      ...heldMounts.flatMap((h): JbeamValue[] => [{ beamSpring: h.spring }, ...h.to.map((b) => [h.node, b])]),
+      { beamSpring: MOUNT.beamSpring },
+    ];
   }
   const rootSlot = typeof input.parts[input.root]?.slotType === 'string' ? (input.parts[input.root]!.slotType as string) : input.root;
   return { parts: out, rootPart: rootName, rootSlotType: slotTypes.get(rootSlot) ?? rootSlot, attached, warnings };
