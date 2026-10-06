@@ -13,6 +13,7 @@ import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, definedWeights, setGroups, transplantSuspension } from '../suspension/transplant';
+import { nodesTouchingOtherParts } from './contact';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
 import type { PartScripts } from '../lua/export';
@@ -298,11 +299,12 @@ function variablesSection(part: Part, vars: readonly TuningVar[]): WritableValue
   ];
 }
 
-function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamPresetId, vars: PartVars = {}, soft?: Softening): WritableValue[] {
+function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamPresetId, vars: PartVars = {}, soft?: Softening, touching?: ReadonlySet<string>): WritableValue[] {
   const p = BEAM_PRESET_VALUES[preset];
   const records: WritableRecord[] = [...nodes].sort(nodeOrder).map((n) => ({
     values: { id: n.id, posX: num(n.pos[0]), posY: num(n.pos[1]), posZ: num(n.pos[2]) },
-    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: true, group, nodeWeight: scaled(soft?.weights.get(n.id) ?? n.weight, vars.mass), ...rowOptions(n.options, 'node') },
+    // A node that starts against another part's surface stays out of self-collision (contact.ts).
+    options: { nodeMaterial: p.nodeMaterial, frictionCoef: 0.5, collision: true, selfCollision: !touching?.has(n.id), group, nodeWeight: scaled(soft?.weights.get(n.id) ?? n.weight, vars.mass), ...rowOptions(n.options, 'node') },
     ...inline(n.options, 'node'),
   }));
   const table = writeTable(['id', 'posX', 'posY', 'posZ'], records, { resetValues: { group: '' } });
@@ -633,6 +635,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const nodePos = new Map<string, [number, number, number]>();
   for (const n of doc.nodes) if (!nodePos.has(n.id)) nodePos.set(n.id, n.pos);
   opts.onStability?.({ softened: softening.softened, addedKg: softening.addedKg, heavier: softening.weights.size });
+  // A part and its variants are never fitted together: they count as one part here.
+  const baseOf = new Map(doc.parts.map((p) => [p.id, p.variantOf ?? p.id]));
+  const touching = nodesTouchingOtherParts(
+    doc.nodes.map((n) => ({ id: n.id, pos: n.pos, partId: baseOf.get(n.partId) ?? n.partId })),
+    doc.tris.map((t) => ({ ids: t.ids, partId: baseOf.get(t.partId) ?? t.partId })),
+  );
 
   for (const part of doc.parts) {
     const entry = tax.entry(part.taxonomyId);
@@ -686,7 +694,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const tuningVars = (fullDoc.variables ?? []).filter((v) => v.partId === part.id);
     const partVars: PartVars = Object.fromEntries(tuningVars.map((v) => [v.setting, variableName(part, v.setting)]));
     if (tuningVars.length && nodes.length) content.variables = variablesSection(part, tuningVars);
-    if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars, softening);
+    if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars, softening, touching);
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
     const posOf = (id: string) => nodePos.get(id);
     if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass, softening);
