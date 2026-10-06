@@ -250,10 +250,11 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     if (!Array.isArray(body.nodes)) continue;
     for (const r of readTable(body.nodes).records) {
       const g = r.options.group;
-      for (const name of Array.isArray(g) ? g : typeof g === 'string' && g ? [g] : []) {
-        const set = groupNodes.get(String(name)) ?? new Set<string>();
-        set.add(String(r.values.id));
-        groupNodes.set(String(name), set);
+      const id = typeof r.values.id === 'string' ? r.values.id : '';
+      for (const name of (Array.isArray(g) ? g : [g]).filter((x): x is string => typeof x === 'string' && x !== '')) {
+        const set = groupNodes.get(name) ?? new Set<string>();
+        set.add(id);
+        groupNodes.set(name, set);
       }
     }
   }
@@ -312,7 +313,7 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
             // nodes left, the mesh also binds to the new car's body (where those mounts now are),
             // or the game can't place it and it stretches ("VY node not found").
             if (Array.isArray(regrouped) && input.fallbackGroup && !regrouped.includes(input.fallbackGroup)) {
-              const held = new Set(regrouped.flatMap((g) => [...(groupNodes.get(String(g)) ?? [])]));
+              const held = new Set(regrouped.flatMap((g) => (typeof g === 'string' ? [...(groupNodes.get(g) ?? [])] : [])));
               if (held.size < 3) regrouped = [...regrouped, input.fallbackGroup];
             }
             return [input.meshNames[row[0]]!, regrouped as JbeamValue, ...rest];
