@@ -294,13 +294,14 @@ async function vehicleName(zip: ZipReader, vehicle: string, t: Translate): Promi
   return (await vehicleInfo(zip, vehicle, t)).name;
 }
 
-async function vehicleInfo(zip: ZipReader, vehicle: string, t: Translate): Promise<{ name: string; brand: string }> {
+async function vehicleInfo(zip: ZipReader, vehicle: string, t: Translate): Promise<{ name: string; brand: string; type?: string }> {
   try {
     const info = parseJbeam(await zip.readText(`vehicles/${vehicle}/info.json`)).value;
     if (isJbeamObject(info) && typeof info.Name === 'string') {
       const name = t(info.Name);
       const brand = typeof info.Brand === 'string' ? info.Brand : '';
-      if (!name.startsWith('vehiclesData.')) return { name: brand && !name.startsWith(brand) ? `${brand} ${name}` : name, brand };
+      const type = typeof info.Type === 'string' ? info.Type : undefined;
+      if (!name.startsWith('vehiclesData.')) return { name: brand && !name.startsWith(brand) ? `${brand} ${name}` : name, brand, ...(type ? { type } : {}) };
     }
   } catch {
     // no info.json (common parts, props)
@@ -461,7 +462,7 @@ async function allParts(zip: ZipReader): Promise<Map<string, JbeamObject>> {
 async function writeSets(
   zip: ZipReader,
   vehicle: string,
-  info: { name: string; brand: string },
+  info: { name: string; brand: string; type?: string },
   commonParts: ReadonlyMap<string, JbeamObject>,
   brandLogos: ReadonlyMap<string, Buffer>,
   locate: (mesh: string) => DaeDoc | undefined,
@@ -498,11 +499,13 @@ async function writeSets(
   const pool = new Map([...commonParts, ...own]);
   const carSlots = declaredSlotTypes(own.values());
   // Landing gear and the like have motors too; they aren't engines.
-  const engines = [...pool].filter(([n, b]) => typeof b.slotType === 'string' && carSlots.has(b.slotType) && isEnginePart(b) && !/landing|winch|crane|ramp/i.test(`${n} ${partTitle(b, n)}`));
+  // Props (the cannon) run motors that aren't a car's engine.
+  const isProp = info.type === 'Prop';
+  const engines = isProp ? [] : [...pool].filter(([n, b]) => typeof b.slotType === 'string' && carSlots.has(b.slotType) && isEnginePart(b) && !/landing|winch|crane|ramp/i.test(`${n} ${partTitle(b, n)}`));
   for (const [name] of engines) roots.push({ kind: 'engine', part: name, parts: engineClosure(name, find) });
   const engineSlots = declaredSlotTypes(engines.map(([, b]) => b));
   for (const [name, b] of pool) {
-    if (typeof b.slotType === 'string' && (carSlots.has(b.slotType) || engineSlots.has(b.slotType)) && isGearboxPart(b)) {
+    if (!isProp && typeof b.slotType === 'string' && (carSlots.has(b.slotType) || engineSlots.has(b.slotType)) && isGearboxPart(b)) {
       roots.push({ kind: 'gearbox', part: name, parts: partClosure(name, find, (x) => typeof x.slotType === 'string' && /^wheel|^tire/i.test(x.slotType)) });
     }
   }
@@ -690,7 +693,7 @@ export async function importModSets(modZip: string, installDir: string | null, o
       const materialIndex = new Map([...commonMaterials, ...(await materialTextures(zip))]);
       for (const vehicle of vehicles) {
         const info = await vehicleInfo(zip, vehicle, t);
-        await writeSets(zip, vehicle, { name: info.name || vehicle, brand: info.brand && info.brand !== 'Other' ? info.brand : fallbackBrand }, commonParts, new Map(), locate, join(out, 'sets'), textures, materialIndex);
+        await writeSets(zip, vehicle, { name: info.name || vehicle, brand: info.brand && info.brand !== 'Other' ? info.brand : fallbackBrand, ...(info.type ? { type: info.type } : {}) }, commonParts, new Map(), locate, join(out, 'sets'), textures, materialIndex);
         found.push(vehicle);
       }
     });

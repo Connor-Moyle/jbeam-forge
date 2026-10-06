@@ -2738,7 +2738,7 @@ const scenarios = [
       }
       writeFileSync(join(outDir, 'matrix-report.json'), JSON.stringify(report, null, 2));
       // Refused for a reason the app gives on purpose (a whole-running-gear suspension next to another axle's): right.
-      for (const r of report) if (!r.exported && r.problems.length === 1 && /is the whole running gear/.test(r.problems[0]) && !/both define node|isn.t in the mod/.test(r.problems[0])) r.refusedAsExpected = true;
+      for (const r of report) if (!r.exported && r.problems.length === 1 && /is the whole running gear|is electric, and/.test(r.problems[0]) && !/both define node|isn.t in the mod/.test(r.problems[0])) r.refusedAsExpected = true;
       const bad = report.filter((r) => !r.refusedAsExpected && (!r.exported || !r.lintOk || r.problems.length));
       assert(bad.length === 0, `${bad.length} of ${report.length} cars have problems (matrix-report.json):\n${bad.map((r) => `${r.slug}: ${[...r.problems, ...(r.lintErrors ?? [])].slice(0, 4).join(' | ').slice(0, 400)}`).join('\n')}`);
     },

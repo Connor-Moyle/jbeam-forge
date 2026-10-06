@@ -34,6 +34,7 @@ import { portedIssues, portedText } from '@shared/export/ported';
 import { installProblems } from '@shared/export/installCheck';
 import { stampGameVersion } from './gameVersion';
 import { wheelNames } from '@shared/suspension/wheels';
+import { powertrainDevices } from '@shared/powertrain/specs';
 import { commonRoot, engineModFiles, panelModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
@@ -263,7 +264,17 @@ export function prepareExport(): PreparedExport | null {
   const fittedAxles = (doc.axles ?? []).filter((a) => a.fitted);
   for (const a of fittedAxles) {
     const wheels = wheelNames(useSetData.getState().data[a.fitted!.setId]?.parts ?? {});
-    if (wheels.length > 2 && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
+    if (wheels.length > 2 && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '')} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
+  }
+  // An electric motor through a gearbox with a clutch: the game's clutch needs a combustion engine's
+  // inertia, and the car can't start (it came apart in testing).
+  const pt = doc.powertrain;
+  const setData = useSetData.getState().data;
+  const devices = (setId: string | undefined) => (setId ? Object.values(setData[setId]?.parts ?? {}).flatMap(powertrainDevices) : []);
+  if (pt?.engine && pt.gearbox) {
+    const engine = devices(pt.engine.setId);
+    if (engine.includes('electricMotor') && !engine.includes('combustionEngine') && devices(pt.gearbox.setId).includes('frictionClutch'))
+      report.errors.push({ code: 'ELECTRIC_WITH_CLUTCH', message: `${pt.engine.name} is electric, and ${pt.gearbox.name} has a clutch made for a combustion engine: the game can't run the two together. Choose an electric car's gearbox (a single reduction), or no gearbox.` });
   }
   // The jbeam as the game will assemble it, configuration by configuration.
   if (kind === 'vehicle') {
