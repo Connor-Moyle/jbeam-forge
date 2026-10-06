@@ -190,6 +190,27 @@ export interface TransplantResult {
   warnings: string[];
 }
 
+/**
+ * How far points spread out of their best-fitting plane (m): the root of the covariance's smallest
+ * eigenvalue. Meshes on groups under FLAT failed to load in the game ("VY node not found"); the
+ * ones that loaded were about 5 cm or more.
+ */
+export function thickness(points: readonly V3[]): number {
+  if (points.length < 4) return 0;
+  const c = [0, 1, 2].map((k) => points.reduce((s, p) => s + p[k]!, 0) / points.length);
+  const m = [0, 1, 2].map((a) => [0, 1, 2].map((b) => points.reduce((s, p) => s + (p[a]! - c[a]!) * (p[b]! - c[b]!), 0) / points.length));
+  const off = m[0]![1]! ** 2 + m[0]![2]! ** 2 + m[1]![2]! ** 2;
+  const q = (m[0]![0]! + m[1]![1]! + m[2]![2]!) / 3;
+  const p = Math.sqrt(((m[0]![0]! - q) ** 2 + (m[1]![1]! - q) ** 2 + (m[2]![2]! - q) ** 2 + 2 * off) / 6);
+  if (p < 1e-12) return Math.sqrt(Math.max(0, q));
+  const b = m.map((row, i) => row.map((v, j) => (v - (i === j ? q : 0)) / p));
+  const det = b[0]![0]! * (b[1]![1]! * b[2]![2]! - b[1]![2]! * b[2]![1]!) - b[0]![1]! * (b[1]![0]! * b[2]![2]! - b[1]![2]! * b[2]![0]!) + b[0]![2]! * (b[1]![0]! * b[2]![1]! - b[1]![1]! * b[2]![0]!);
+  const phi = Math.acos(Math.max(-1, Math.min(1, det / 2))) / 3;
+  return Math.sqrt(Math.max(0, q + 2 * p * Math.cos(phi + (2 * Math.PI) / 3)));
+}
+
+const FLAT = 0.025;
+
 const dist2 = (a: V3, b: V3) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
@@ -258,6 +279,8 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       }
     }
   }
+  const setPositions = new Map<string, V3>();
+  for (const body of Object.values(input.parts)) for (const [id, pos] of definedNodes(body)) if (!setPositions.has(id)) setPositions.set(id, pos);
   const keepGroup = (g: JbeamValue): JbeamValue => (typeof g === 'string' && input.fallbackGroup && !groups.has(g) ? input.fallbackGroup : g);
 
   // The original car's body nodes → the new car's nearest node.
@@ -308,13 +331,15 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
             if (i === 0 || !Array.isArray(row) || typeof row[0] !== 'string') return row;
             const [, bound, ...rest] = row;
             let regrouped = Array.isArray(bound) ? [...new Set(bound.map(keepGroup))] : bound;
-            // A mesh needs three nodes around it to sit right. On its own car an arm's group also
-            // took the frame's mount nodes, which stay behind: with fewer than three of the set's
-            // nodes left, the mesh also binds to the new car's body (where those mounts now are),
-            // or the game can't place it and it stretches ("VY node not found").
+            // A mesh needs nodes around it in three dimensions to sit right. On its own car an arm's
+            // group also took the frame's mount nodes (the Autobello's tie rods take body node b2),
+            // which stay behind: when the set's own nodes are fewer than three or lie flat, the mesh
+            // also binds to the new car's body (where those mounts now are), or the game can't
+            // place it and it stretches ("VY node not found").
             if (Array.isArray(regrouped) && input.fallbackGroup && !regrouped.includes(input.fallbackGroup)) {
               const held = new Set(regrouped.flatMap((g) => (typeof g === 'string' ? [...(groupNodes.get(g) ?? [])] : [])));
-              if (held.size < 3) regrouped = [...regrouped, input.fallbackGroup];
+              const pts = [...held].flatMap((id) => (setPositions.has(id) ? [setPositions.get(id)!] : []));
+              if (held.size < 3 || (pts.length >= 4 && thickness(pts) < FLAT)) regrouped = [...regrouped, input.fallbackGroup];
             }
             return [input.meshNames[row[0]]!, regrouped as JbeamValue, ...rest];
           });

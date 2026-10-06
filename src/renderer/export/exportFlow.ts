@@ -19,6 +19,7 @@ import type { Project } from '@shared/project/schema';
 import { buildGlowMap, lightFunction, onMaterialName } from '@shared/export/lights';
 import { loadFittedSets, useSetData } from '@renderer/suspension/commands';
 import { exportMeshNames, infoJson, materialsJson } from '@shared/export/files';
+import { withMeasured } from '@shared/export/performance';
 import { configFileName, configInfoJson, includedParts, resolveConfig } from '@shared/export/configs';
 import { configLabels, configStats } from '@shared/export/configStats';
 import { exportScripts } from '@shared/lua/export';
@@ -422,6 +423,17 @@ export async function finalBundle(prepared: PreparedExport['bundle'], progress: 
   if (gameMaterials?.length) {
     const defs = await call('beamng:gameMaterialDefs', { names: gameMaterials }).catch(() => ({}));
     if (Object.keys(defs).length) bundle.files = bundle.files.map((f) => (f.text !== undefined && f.path.endsWith('/main.materials.json') ? { ...f, text: `${JSON.stringify({ ...defs, ...(JSON.parse(f.text) as object) }, null, 2)}\n` } : f));
+  }
+  // What the game measured when the car was last put through its tests in JBeam Forge in the game
+  // (0-100, top speed, braking…): into each configuration's info file, for the vehicle selector.
+  const slug = /^vehicles\/([^/]+)\/info\.json$/.exec(bundle.files.find((f) => /^vehicles\/[^/]+\/info\.json$/.test(f.path))?.path ?? '')?.[1];
+  if (slug) {
+    const measured = await call('beamng:measuredFigures', { vehicle: slug }).catch((): Record<string, Record<string, unknown>> => ({}));
+    bundle.files = bundle.files.map((f) => {
+      const config = new RegExp(`^vehicles/${slug}/info_(.+)\\.json$`).exec(f.path)?.[1];
+      const figures = config ? measured[config] : undefined;
+      return figures && f.text !== undefined ? { ...f, text: withMeasured(f.text, figures) } : f;
+    });
   }
   const todo = bundle.copies.filter((c) => c.convert);
   if (!todo.length) return { ...bundle, copies: bundle.copies.map(({ from, to }) => ({ from, to })) };

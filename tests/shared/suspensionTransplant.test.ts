@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JbeamObject } from '@shared/jbeam/parse';
-import { definedNodes, externalNodeRefs, setGroups, shiftOffset, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
+import { definedNodes, externalNodeRefs, setGroups, shiftOffset, thickness, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
 
 const PARTS: Record<string, JbeamObject> = {
   car_suspension_F: {
@@ -269,6 +269,48 @@ describe('props of a borrowed set', () => {
       tuning: {},
     });
     expect(r.parts.m_e!.props).toEqual([['func', 'mesh', 'idRef:', 'idX:', 'idY:'], ['rpmspin', 'm_pulley', 'e_e1', 'e_e2', 'e_e3'], ['lowhighbeam', 'SPOTLIGHT', 'e_e1', 'e_e2', 'e_e3']]);
+  });
+});
+
+describe('a borrowed mesh whose own nodes lie flat (the Autobello’s tie rods, all at one height)', () => {
+  it('also binds to the new car’s body, as it took a body node on its own car; one with depth stays as it was', () => {
+    const r = transplantSuspension({
+      parts: {
+        s: {
+          slotType: 's',
+          nodes: [
+            ['id', 'posX', 'posY', 'posZ'],
+            { group: 'tierod_F' },
+            ['fh3r', -0.53, -1.025, 0.31],
+            ['fh3l', 0.53, -1.025, 0.31],
+            ['st1r', -0.19, -1.126, 0.31],
+            ['st1l', 0.19, -1.126, 0.31],
+            { group: 'tierod_M' },
+            ['st1rr', -0.295, -1.126, 0.31],
+            ['st2r', -0.295, -1.254, 0.24],
+            ['st3r', -0.295, -1.283, 0.395],
+            ['st3l', 0.295, -1.283, 0.395],
+            { group: '' },
+          ],
+          flexbodies: [['mesh', '[group]:'], ['tierod_F', ['tierod_F']], ['tierod_M', ['tierod_M']]],
+        },
+      },
+      root: 's',
+      anchors: {},
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'f_',
+      target: [],
+      meshNames: { tierod_F: 'rod', tierod_M: 'rack' },
+      tuning: {},
+      fallbackGroup: 'm_body',
+    });
+    expect(r.parts.m_s!.flexbodies).toEqual([['mesh', '[group]:'], ['rod', ['tierod_F', 'm_body']], ['rack', ['tierod_M']]]);
+  });
+
+  it('measures how far points spread out of their plane', () => {
+    expect(thickness([[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]])).toBeLessThan(1e-6);
+    expect(thickness([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]])).toBeGreaterThan(0.1);
   });
 });
 

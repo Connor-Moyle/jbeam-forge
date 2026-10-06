@@ -278,6 +278,109 @@ channels['vehicle:spawn'] = function(req)
   return nil
 end
 
+-- ---------------------------------------------------------------- telemetry and performance
+
+-- The last reading from the car's side (jbeamForgeProbe), and when it came.
+local telemetry = nil
+
+function M.onTelemetry(t)
+  telemetry = t
+  if type(t) == 'table' then t.at = os.time() end
+end
+
+local function askTelemetry()
+  local veh = getPlayerVehicle(0)
+  if veh then veh:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe.telemetry()") end
+end
+
+-- The driven car as it is: weight, centre of gravity, wheelbase, wheel loads, speed, revs. The
+-- reading is a frame behind (the car's side answers on its next update), so this returns the last
+-- one and asks for a new one.
+channels['vehicle:telemetry'] = function()
+  askTelemetry()
+  return telemetry
+end
+
+-- The game's own performance tests (what fills in the vehicle selector's figures for its cars):
+-- 0-100 km/h, top speed, braking and off-road, on the flat test map. They write the figures into
+-- the configuration's info file in the user folder, so the selector shows them straight away.
+local measure = nil
+
+local function configKey(file)
+  return type(file) == 'string' and file:match('([^/]+)%.pc$') or 'default'
+end
+
+function M.measured(reason)
+  if not measure then return end
+  local info = jsonReadFile('/vehicles/' .. measure.model .. '/info_' .. measure.config .. '.json') or {}
+  local result = {model = measure.model, config = measure.config, finished = reason or 'done', info = info, telemetry = telemetry}
+  jsonWriteFile(STORE .. 'measured/' .. measure.model .. '_' .. measure.config .. '.json', result, true)
+  log('I', logTag, 'measured ' .. measure.model .. '/' .. measure.config .. ': ' .. dumps(info['0-100 km/h']) .. ' s to 100, ' .. dumps(info['Top Speed']) .. ' m/s')
+  -- On screen too: the player is watching the car, not JBeam Forge.
+  local said = {}
+  if info['0-100 km/h'] then said[#said + 1] = string.format('0-100 km/h in %.1f s', info['0-100 km/h']) end
+  if info['Top Speed'] then said[#said + 1] = string.format('top speed %d km/h', math.floor(info['Top Speed'] * 3.6 + 0.5)) end
+  if info['100-0 km/h'] then said[#said + 1] = string.format('100-0 in %.1f m', info['100-0 km/h']) end
+  if ui_message then ui_message('JBeam Forge: ' .. (#said > 0 and table.concat(said, ', ') .. '. Export again to put the figures in the mod.' or ('measuring stopped: ' .. tostring(reason))), 15, 'jbeamForge') end
+  guihooks.trigger('JBeamForgeEvent', {event = 'measured', payload = result})
+  measure.result = result
+  measure.stage = 'done'
+  -- The game's tester calls this as its own script does; ours takes its place only while measuring.
+  local shim = rawget(_G, 'util_saveDynamicData')
+  if shim and shim.jbeamForgeShim then rawset(_G, 'util_saveDynamicData', nil) end
+end
+
+local function startMeasuring()
+  local veh = getPlayerVehicle(0)
+  if not veh then return end
+  if not rawget(_G, 'util_saveDynamicData') then
+    rawset(_G, 'util_saveDynamicData', {jbeamForgeShim = true, heartbeat = function() if measure then measure.beat = 0 end end, vehicleDone = function() M.measured('done') end})
+  end
+  veh:setPositionRotation(0, 0, 0.5, 0, 0, 0, 1)
+  askTelemetry()
+  veh:queueLuaCommand("extensions.load('dynamicVehicleData'); dynamicVehicleData.performTests(" .. serialize(measure.model) .. ', ' .. serialize(measure.config) .. ')')
+  measure.stage = 'run'
+  measure.t = 0
+  measure.beat = 0
+end
+
+local function measureUpdate(dt)
+  if not measure or measure.stage == 'done' then return end
+  measure.t = measure.t + (dt or 0)
+  measure.beat = (measure.beat or 0) + (dt or 0)
+  if measure.stage == 'level' and getMissionFilename():find('/autotest/') and measure.t > 5 then
+    measure.stage = 'spawn'
+    measure.t = 0
+    core_vehicles.replaceVehicle(measure.model, {config = measure.file})
+  elseif measure.stage == 'level' and measure.t > 120 then
+    M.measured('the test map never loaded')
+  elseif measure.stage == 'spawn' and measure.t > 6 then
+    startMeasuring()
+  elseif measure.stage == 'run' and (measure.beat > 30 or measure.t > 600) then
+    M.measured(measure.beat > 30 and 'the car stopped answering' or 'took too long')
+  end
+end
+
+channels['vehicle:measure'] = function(req)
+  local car = currentVehicle()
+  local model = type(req.model) == 'string' and req.model or (car and car.model)
+  if not model then error('No car to measure: spawn one first') end
+  local file = type(req.config) == 'string' and req.config or (car and car.config.file)
+  measure = {model = model, file = file, config = configKey(file), stage = 'level', t = 0}
+  if getMissionFilename():find('/autotest/') then
+    measure.stage = 'spawn'
+    core_vehicles.replaceVehicle(model, {config = file})
+  else
+    freeroam_freeroam.startFreeroamByName('autotest')
+  end
+  return {model = model, config = measure.config}
+end
+
+channels['vehicle:measureStatus'] = function()
+  if not measure then return nil end
+  return {stage = measure.stage, seconds = measure.t, result = measure.result}
+end
+
 channels['world:draw'] = function(req)
   overlay = req
   return nil
@@ -468,7 +571,7 @@ end
 local function startSelftest()
   if not selftest and FS:fileExists(STORE .. 'selftest.json') then
     local plan = jsonReadFile(STORE .. 'selftest.json') or {}
-    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles}
+    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles, measure = plan.measure, measured = {}}
     log('I', logTag, 'self-test: starting')
   end
 end
@@ -485,6 +588,7 @@ end
 
 function M.onUpdate(dtReal)
   trySpawn(dtReal)
+  measureUpdate(dtReal)
   checkBinding(dtReal)
   checkOpened(dtReal)
   if not selftest then return end
@@ -498,6 +602,26 @@ function M.onUpdate(dtReal)
     selftest.stage = 'level'
     selftest.t = 0
     freeroam_freeroam.startFreeroamByName(selftest.level)
+  elseif selftest.stage == 'drive' and selftest.measure and selftest.vehicles then
+    -- Each car through the game's performance tests, one after another.
+    if not measure or measure.stage == 'done' then
+      if measure and measure.result then
+        selftest.measured[#selftest.measured + 1] = measure.result
+        jsonWriteFile(STORE .. 'selftest-measured.json', selftest.measured, true)
+      end
+      selftest.vi = (selftest.vi or 0) + 1
+      local v = selftest.vehicles[selftest.vi]
+      if v then
+        log('I', logTag, 'self-test: measuring ' .. tostring(v.vehicle) .. ' ' .. tostring(v.config or ''))
+        measure = nil
+        local done, err = pcall(channels['vehicle:measure'], {model = v.vehicle, config = v.config})
+        if not done then log('E', logTag, 'self-test: could not measure ' .. tostring(v.vehicle) .. ': ' .. tostring(err)) end
+      else
+        selftest.vehicles = nil
+        selftest.measure = nil
+        measure = nil
+      end
+    end
   elseif selftest.stage == 'drive' and selftest.vehicles and (selftest.vi or 0) < #selftest.vehicles then
     -- A batch of cars, one after another: each gets a while to load and settle (its log lines are what count).
     if selftest.t > (selftest.vi and 15 or 8) then
@@ -543,6 +667,7 @@ function M.onUpdate(dtReal)
       route = type(current) == 'table' and (current.name or current.routeName or dumps(current):sub(1, 400)) or tostring(current),
       ui = uiReport,
       spawned = selftest.vehicle,
+      measured = #selftest.measured > 0 and selftest.measured or nil,
       vehicle = car and {model = car.model, nodes = #car.nodes, beams = #car.beams, flexbodies = #car.flexbodies, models = car.models, configFile = car.config.file} or nil,
     }, true)
     log('I', logTag, 'self-test: done')

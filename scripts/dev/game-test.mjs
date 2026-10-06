@@ -7,7 +7,10 @@
  *
  *   node scripts/dev/game-test.mjs [--vehicle-mod=<folder with vehicles/ or a .zip>] [--vehicle=practice_car]
  *        [--config=vehicles/practice_car/default.pc] [--ingame=release/jbeam_forge_ingame.zip] [--level=gridmap_v2]
- *        [--timeout=600] [--out=artifacts/game-test]
+ *        [--timeout=600] [--out=artifacts/game-test] [--measure]
+ *
+ * --measure: run each car through the game's own performance tests (0-100, top speed, braking,
+ * off-road) on the autotest map and report the figures.
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
@@ -22,8 +25,14 @@ const vehicle = arg('vehicle');
 const vehiclesArg = arg('vehicles');
 const batch = !vehiclesArg ? null : vehiclesArg === 'all' ? readdirSync(join(resolve(vehicleMod), 'vehicles')).filter((d) => statSync(join(resolve(vehicleMod), 'vehicles', d)).isDirectory()) : vehiclesArg.split(',');
 const config = arg('config');
+// "car" (an exported mod's default.pc, or the game's own default for a stock car) or "car:vehicles/car/x.pc".
+const batchEntry = (v) => {
+  const [name, pc] = v.split(':');
+  return { vehicle: name, ...(pc ? { config: pc } : vehicleMod ? { config: `vehicles/${name}/default.pc` } : {}) };
+};
 const ingame = resolve(ROOT, arg('ingame', 'release/jbeam_forge_ingame.zip'));
-const level = arg('level', 'gridmap_v2');
+const measure = process.argv.includes('--measure');
+const level = arg('level', measure ? 'autotest' : 'gridmap_v2');
 const timeoutS = Number(arg('timeout', '600'));
 const out = resolve(ROOT, arg('out', join('artifacts', 'game-test', new Date().toISOString().replace(/[:.]/g, '-'))));
 const EXE = 'BeamNG.drive.x64.exe';
@@ -102,11 +111,16 @@ async function main() {
     say(`moved aside: ${path.slice(mods.length + 1)}`);
   };
   const installed = [];
+  const userVehicles = join(user, 'vehicles');
+  const before = new Set(existsSync(userVehicles) ? readdirSync(userVehicles) : []);
+  const madeVehicleDirs = () => (existsSync(userVehicles) ? readdirSync(userVehicles).filter((d) => !before.has(d)).map((d) => join(userVehicles, d)) : []);
   const restore = () => {
     for (const p of installed) rmSync(p, { recursive: true, force: true });
     for (const m of moved.reverse()) if (existsSync(m.to)) renameSync(m.to, m.from);
     rmSync(backup, { recursive: true, force: true });
     rmSync(join(store, 'selftest.json'), { force: true });
+    // The game's tests write each car's figures into the user folder (vehicles/<car>/info_*.json).
+    for (const d of madeVehicleDirs()) rmSync(d, { recursive: true, force: true });
     say('mods folder put back as it was');
   };
 
@@ -135,7 +149,7 @@ async function main() {
 
     // 3. The self-test plan, then the game.
     rmSync(join(store, 'selftest-result.json'), { force: true });
-    writeFileSync(join(store, 'selftest.json'), JSON.stringify({ level, steps: [], ...(vehicle ? { vehicle } : {}), ...(config ? { config } : {}), ...(batch ? { vehicles: batch.map((v) => ({ vehicle: v, config: `vehicles/${v}/default.pc` })) } : {}) }));
+    writeFileSync(join(store, 'selftest.json'), JSON.stringify({ level, steps: [], ...(measure ? { measure: true } : {}), ...(vehicle ? { vehicle } : {}), ...(config ? { config } : {}), ...(batch ? { vehicles: batch.map(batchEntry) } : {}) }));
     say(`starting BeamNG.drive (${level}${vehicle ? `, ${vehicle}` : ''})`);
     const game = spawn(exe, [], { cwd: install, detached: true, stdio: 'ignore' });
     game.unref();
@@ -191,7 +205,7 @@ async function main() {
     };
     // A batch: each car's lines, from its spawn to the next.
     if (batch) {
-      const marks = lines.map((l, i) => [i, /self-test: spawning (\S+)/.exec(l)?.[1]]).filter(([, v]) => v);
+      const marks = lines.map((l, i) => [i, /self-test: (?:spawning|measuring) (\S+)/.exec(l)?.[1]]).filter(([, v]) => v);
       summary.cars = marks.map(([at, v], k) => {
         const seg = lines.slice(at, marks[k + 1]?.[0] ?? lines.length);
         const has = (re) => seg.filter((l) => re.test(l));
@@ -211,6 +225,18 @@ async function main() {
         };
       });
       for (const c of summary.cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}`);
+    }
+    if (measure) {
+      const store2 = join(store, 'selftest-measured.json');
+      const measured = result?.measured ?? (existsSync(store2) ? JSON.parse(readFileSync(store2, 'utf8')) : []);
+      summary.measured = measured;
+      for (const m of measured) {
+        const i = m.info ?? {};
+        const t = m.telemetry ?? {};
+        const top = i['Top Speed'] ? Math.round(i['Top Speed'] * 3.6) : '-';
+        say(`${m.model}: ${m.finished} · 0-100 ${i['0-100 km/h'] ?? '-'} s · top ${top} km/h · 100-0 ${i['100-0 km/h'] ?? '-'} m · ${i.Weight ?? '-'} kg · ${i.Power ?? '-'} power · wheelbase ${t.wheelbase?.toFixed(2) ?? '-'} m · CoG height ${t.cogHeight?.toFixed(2) ?? '-'} m`);
+      }
+      rmSync(store2, { force: true });
     }
     writeFileSync(join(out, 'summary.json'), JSON.stringify(summary, null, 2));
     say(`results in ${out}`);

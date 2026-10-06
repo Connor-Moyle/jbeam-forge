@@ -11,6 +11,7 @@ import { createPart } from '@shared/parts/ops';
 import type { Project } from '@shared/project/schema';
 import { call } from '@renderer/diagnostics/ipc';
 import { finalBundle, openExport, prepareExport } from '@renderer/export/exportFlow';
+import { configFileName } from '@shared/export/configs';
 import { loadFittedSets } from '@renderer/suspension/commands';
 import type { GameVehicle } from './platform';
 
@@ -135,31 +136,54 @@ export async function openCurrentCar(): Promise<void> {
   ui.pushStatus(`${car.model}: ${doc?.parts.length ?? 0} parts, ${doc?.nodes.length ?? 0} nodes, ${doc?.beams.length ?? 0} beams, as the game has it.`, 'success', 9000);
 }
 
-type Game = { spawn: (model: string, config?: string) => Promise<void>; close: () => Promise<void>; draw: (s: { nodes: [number, number, number][]; beams: [number, number][] } | null) => Promise<void> };
+type Game = { spawn: (model: string, config?: string) => Promise<void>; measure: (model: string, config?: string) => Promise<unknown>; close: () => Promise<void>; draw: (s: { nodes: [number, number, number][]; beams: [number, number][] } | null) => Promise<void> };
 const game = () => (window.forge as GameForge & { game?: Game }).game as Game | undefined;
 
-/** In the game: install the mod as it is now and drive it, in the game's own physics. */
-export async function testInGame(): Promise<void> {
+/**
+ * In the game: install the mod as it is now and put it through the game's own performance tests
+ * (0-100, top speed, braking, off-road) on the flat test map. The figures go in the vehicle selector
+ * at once, and into the mod's files on the next export.
+ */
+export async function measureInGame(): Promise<void> {
   const ui = useUiStore.getState();
   const g = game();
   const doc = projectStore.getState().doc;
   if (!g || !doc) return;
+  if ((doc.meta.modKind ?? 'vehicle') !== 'vehicle') {
+    ui.pushStatus('Only a whole car can be measured.', 'warning', 6000);
+    return;
+  }
+  if (!(await testInGame({ spawn: false }))) return;
+  const pc = doc.configs.find((c) => c.id === doc.defaultConfigId);
+  await g.measure(doc.meta.slug, `vehicles/${doc.meta.slug}/${pc ? configFileName(pc) : 'default'}.pc`);
+  ui.pushStatus('Measuring on the test map: the figures show on screen when it’s done (a minute or two).', 'info', 9000);
+  await g.close();
+}
+
+/** In the game: install the mod as it is now and drive it, in the game's own physics. */
+export async function testInGame(opts: { spawn?: boolean } = {}): Promise<boolean> {
+  const ui = useUiStore.getState();
+  const g = game();
+  const doc = projectStore.getState().doc;
+  if (!g || !doc) return false;
   await loadFittedSets();
   const prepared = prepareExport();
-  if (!prepared) return;
+  if (!prepared) return false;
   if (prepared.report.errors.length) {
     ui.pushStatus(`${prepared.report.errors.length} thing${prepared.report.errors.length === 1 ? '' : 's'} to fix before it can be driven: Export lists them.`, 'warning', 8000);
     void openExport();
-    return;
+    return false;
   }
   const bundle = await finalBundle(prepared.bundle, (text) => ui.pushStatus(text, 'info', 4000));
   const r = await call('export:install', bundle);
   if ((doc.meta.modKind ?? 'vehicle') !== 'vehicle') {
     ui.pushStatus(`Installed to ${r.path}. Spawn the car it's for and pick it in the parts menu.`, 'success', 9000);
-    return;
+    return true;
   }
+  if (opts.spawn === false) return true;
   await g.spawn(doc.meta.slug);
   await g.close();
+  return true;
 }
 
 let drawn = false;

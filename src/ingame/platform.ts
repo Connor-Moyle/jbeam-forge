@@ -1,4 +1,5 @@
 import type { EventChannel, ExportBundle, ForgeApi, InvokeChannel, IpcResult, RecentProject } from '@shared/ipc-contract';
+import { measuredFigures } from '@shared/export/performance';
 import { LAYOUT_VERSION, StoredLayoutSchema } from '@shared/layout-schema';
 import { DEFAULT_SETTINGS, mergeSettings, SettingsPatchSchema, type Settings } from '@shared/settings-schema';
 
@@ -161,6 +162,21 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
     'project:writeHistory': (req: { path: string; text: string }) => lua('fs:writeMany', { files: [{ path: `${req.path}.history`, text: req.text }] }).then(() => undefined),
     // The game is the install: its file system is the one being read.
     'beamng:detect': () => ({ installs: [], userDir: null }),
+    // What the game's performance tests wrote for the car (its info files, as the game sees them).
+    'beamng:measuredFigures': async (req: { vehicle: string }) => {
+      const out: Record<string, Record<string, unknown>> = {};
+      for (const path of list<string>(await lua<string[]>('fs:list', { dir: `/vehicles/${req.vehicle}/`, pattern: 'info_*.json' }))) {
+        const config = /info_(.+)\.json$/i.exec(path)?.[1];
+        if (!config) continue;
+        try {
+          const figures = measuredFigures(JSON.parse(await lua<string>('fs:read', { path })));
+          if (Object.keys(figures).length) out[config] = figures;
+        } catch {
+          // not readable: skip
+        }
+      }
+      return out;
+    },
     'tutorial:demoModel': () => ({ path: `${bridge.base}demo-car/demo_car.obj` }),
     'import:readFile': async (req: { path: string }) => bytesOf(await lua<string>('fs:read', { path: req.path, binary: true })),
     'import:resolveTextures': async (req: { sourcePath: string; refs: string[]; textureDirs: string[] }) => {
@@ -201,6 +217,8 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
   const game = {
     vehicle: () => lua<GameVehicle | null>('vehicle:current').then(gameVehicle),
     spawn: (model: string, config?: string) => lua<void>('vehicle:spawn', { model, ...(config ? { config } : {}) }),
+    measure: (model: string, config?: string) => lua<{ model: string; config: string }>('vehicle:measure', { model, ...(config ? { config } : {}) }),
+    telemetry: () => lua<Record<string, unknown> | null>('vehicle:telemetry'),
     close: () => lua<void>('ui:close'),
     draw: (structure: { nodes: [number, number, number][]; beams: [number, number][] } | null) => lua<void>('world:draw', structure),
   };
@@ -208,6 +226,7 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
   bridge.on('JBeamForgeEvent', (payload) => {
     const p = payload as { event?: string } | null;
     if (p?.event === 'vehicle:changed') emit('status:message', { text: 'The car in the game changed.', tone: 'info' });
+    if (p?.event === 'measured') emit('status:message', { text: 'The game measured the car: export again to put its figures in the mod.', tone: 'success' });
   });
 
   return {

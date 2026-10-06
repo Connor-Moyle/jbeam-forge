@@ -1,0 +1,60 @@
+-- JBeam Forge, on the car's side: what the car really is once the game has built it (weight,
+-- centre of gravity, wheelbase, what each wheel carries) and what it's doing (speed, revs, gear).
+-- The game engine side asks with jbeamForgeProbe.telemetry() and hears back through
+-- jbeamForge.onTelemetry(<table>).
+
+local M = {}
+
+local function dot(a, b)
+  return a.x * b.x + a.y * b.y + a.z * b.z
+end
+
+local function telemetry()
+  local out = {}
+  local stats = obj:calcBeamStats()
+  out.weight = stats and stats.total_weight or nil
+  out.nodes = stats and stats.node_count or nil
+  out.beams = stats and stats.beam_count or nil
+
+  -- Positions relative to the car, measured along its own axes (it may be parked at any angle).
+  local fwd = obj:getDirectionVector()
+  local up = obj:getDirectionVectorUp()
+  local right = fwd:cross(up)
+  local cog = obj:calcCenterOfGravityRel(false)
+  out.cog = {forward = dot(cog, fwd), right = dot(cog, right), up = dot(cog, up)}
+
+  local wheelList, minF, maxF, lowest = {}, math.huge, -math.huge, math.huge
+  for i = 0, (wheels.wheelRotatorCount or 0) - 1 do
+    local wd = wheels.wheelRotators[i]
+    if wd and wd.node1 then
+      local p = obj:getNodePosition(wd.node1)
+      local f = dot(p, fwd)
+      minF, maxF = math.min(minF, f), math.max(maxF, f)
+      local bottom = dot(p, up) - (wd.radius or 0)
+      lowest = math.min(lowest, bottom)
+      wheelList[#wheelList + 1] = {name = wd.name, load = wd.downForceRaw, radius = wd.radius, forward = f}
+    end
+  end
+  out.wheels = wheelList
+  if #wheelList >= 2 then out.wheelbase = maxF - minF end
+  -- The centre of gravity's height above where the tyres touch the ground.
+  if lowest < math.huge then out.cogHeight = out.cog.up - lowest end
+
+  local e = electrics.values
+  out.speed = e.airspeed
+  out.rpm = e.rpm
+  out.gear = e.gear
+  out.throttle = e.throttle
+  out.brake = e.brake
+  out.fuel = e.fuel
+  out.running = e.running
+  out.ignition = e.ignitionLevel
+  obj:queueGameEngineLua('if jbeamForge then jbeamForge.onTelemetry(' .. serialize(out) .. ') end')
+end
+
+M.telemetry = function()
+  local done, err = pcall(telemetry)
+  if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onTelemetry(' .. serialize({error = tostring(err)}) .. ') end') end
+end
+
+return M

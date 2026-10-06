@@ -19,6 +19,7 @@ import type { BeamngService } from '../beamng/service';
 import type { Packs } from '../content/packs';
 import { gameMaterialDefinitions, scanGameMaterials } from '../beamng/gameMaterials';
 import { vehicleLogReport } from '@shared/beamng/logReport';
+import { measuredFigures } from '@shared/export/performance';
 import { vehicleClashes } from '../export/clashes';
 import { engineSoundSamples, readSoundFile, scanEngineSounds } from '../beamng/engineSounds';
 import type { SetOptions } from '@shared/suspension/options';
@@ -310,6 +311,28 @@ export function registerIpcHandlers(services: HandlerServices): void {
       return dir ? gameMaterialDefinitions(dir, names) : {};
     },
     z.object({ names: z.array(z.string().min(1).max(256)).max(5000) }),
+  );
+  registerInvoke(
+    'beamng:measuredFigures',
+    async ({ vehicle }) => {
+      const dir = settings.get().beamngUserDir;
+      const out: Record<string, Record<string, unknown>> = {};
+      if (!dir) return out;
+      const folder = join(dir, 'vehicles', vehicle);
+      const names = await readdir(folder).catch(() => [] as string[]);
+      for (const name of names) {
+        const m = /^info_(.+)\.json$/i.exec(name);
+        if (!m) continue;
+        try {
+          const figures = measuredFigures(JSON.parse(await readFile(join(folder, name), 'utf8')));
+          if (Object.keys(figures).length) out[m[1]!] = figures;
+        } catch {
+          // half-written or not JSON: skip
+        }
+      }
+      return out;
+    },
+    z.object({ vehicle: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/) }),
   );
 
   registerInvoke(

@@ -1,4 +1,4 @@
-import { Car, CircleHelp, CloudDownload, LogOut, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Sparkles, Square, Undo2 } from 'lucide-react';
+import { Car, CircleHelp, CloudDownload, Gauge, LogOut, Download, FileCode, FileInput, FilePlus, FlaskConical, FolderOpen, LayoutGrid, ListTree, Play, Redo2, Save, Settings, Sparkles, Square, Undo2 } from 'lucide-react';
 import { useAiMode } from '@renderer/ai/AiModeDialog';
 import { keyFor } from '@renderer/app/keys';
 import { useSettingsStore } from '@renderer/app/stores/settings';
@@ -16,7 +16,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { useShell } from './ShellContext';
 import { PRESET_LABELS, workspacesFor } from './presets';
-import { backToDriving, isInGame, testInGame, toggleShowOnCar } from '@ingame/currentCar';
+import { backToDriving, isInGame, measureInGame, testInGame, toggleShowOnCar } from '@ingame/currentCar';
 import { useState } from 'react';
 import styles from './Toolbar.module.css';
 
@@ -111,6 +111,11 @@ export function Toolbar() {
           {ingame && (
             <Button icon={Play} title="Install it as it is now and drive it, in the game's own physics" onClick={() => void testInGame()} disabled={!canExport} data-testid="toolbar-test-in-game">
               Drive it
+            </Button>
+          )}
+          {ingame && (
+            <Button icon={Gauge} title="Put it through the game's own performance tests (0-100, top speed, braking) on the test map: the figures go in the vehicle selector, and in the mod on the next export" onClick={() => void measureInGame()} disabled={!canExport} data-testid="toolbar-measure-in-game">
+              Measure
             </Button>
           )}
           <Button variant="primary" icon={Download} onClick={() => void openExport()} disabled={!canExport} data-testid="toolbar-export">

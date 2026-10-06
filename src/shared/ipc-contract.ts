@@ -318,6 +318,8 @@ export interface InvokeContract {
   'beamng:logReport': { req: { vehicle: string }; res: (LogReport & { logTime: number }) | null };
   /** The game's definitions of other cars' materials a mod uses (by name), for its materials file. */
   'beamng:gameMaterialDefs': { req: { names: string[] }; res: Record<string, unknown> };
+  /** Figures the game's performance tests measured for a car, by configuration (from the user folder). */
+  'beamng:measuredFigures': { req: { vehicle: string }; res: Record<string, Record<string, unknown>> };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
   /** Downloads: the content folder and what's installed of textures and meshes. */
   'content:info': { req: undefined; res: ContentInfo };
@@ -412,6 +414,7 @@ export const INVOKE_CHANNELS = [
   'beamng:validate',
   'beamng:gameMaterials',
   'beamng:gameMaterialDefs',
+  'beamng:measuredFigures',
   'beamng:logReport',
   'beamng:engineSounds',
   'beamng:soundSamples',
