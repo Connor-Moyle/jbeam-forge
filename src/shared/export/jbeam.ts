@@ -424,6 +424,15 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const doc: Doc = { ...fullDoc, parts: fullDoc.parts.filter((p) => !SET_KINDS.has(p.taxonomyId)) };
   const setParts = new Set(fullDoc.parts.filter((p) => SET_KINDS.has(p.taxonomyId)).map((p) => p.id));
   const bodyNodes = fullDoc.nodes.filter((n) => !setParts.has(n.partId));
+  // Where a borrowed suspension, engine or gearbox bolts on: the body and its structure (frame,
+  // floor, subframes…). Not the doors, hood or an engine block of ours: a suspension tied to the
+  // doors and the hood pulled the car apart as it settled.
+  const mountNodes = (() => {
+    const body = bodyPart(doc, tax);
+    const structural = new Set(doc.parts.filter((p) => p.id === body?.id || (tax.entry(p.taxonomyId)?.beamPreset === 'structure_stiff' && !tax.entry(p.taxonomyId)?.openable)).map((p) => p.id));
+    const nodes = bodyNodes.filter((n) => structural.has(n.partId));
+    return nodes.length ? nodes : bodyNodes;
+  })();
   const extraSlots: WritableValue[] = [];
   // Parts not built from our structure (the game's sets, plates, the hitch): their beams load our nodes.
   const foreign: JbeamObject[] = [];
@@ -452,7 +461,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const axleSets: { index: number; t: ReturnType<typeof transplantSuspension> }[] = [];
   (fullDoc.axles ?? []).forEach((axle, i) => {
     if (!axle.fitted) return;
-    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), bodyNodes, axle.tuning, undefined, undefined, axle.fitted.choices, axle.edits);
+    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), mountNodes, axle.tuning, undefined, undefined, axle.fitted.choices, axle.edits);
     if (!t) return;
     axleSets.push({ index: i, t });
     extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
@@ -490,7 +499,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   let gearboxParts: Record<string, JbeamObject> | null = null;
   if (pt?.engine) {
     const tags = engineTags(pt);
-    const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', bodyNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices, undefined, gearboxNodes);
+    const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', mountNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices, undefined, gearboxNodes);
     if (t) {
       // One engine slot name whichever engine is the default (engines from different cars name theirs differently), so configurations keep working.
       const engineSlot = engineSlotType(slug);
@@ -526,13 +535,13 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       }
       // The other engines fill the same slot: the player (or a configuration) picks one.
       for (const alt of pt.alternates ?? []) {
-        const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', bodyNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices, undefined, rewritesFor(alt.setId).slots.length ? gearboxNodes : undefined);
+        const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', mountNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices, undefined, rewritesFor(alt.setId).slots.length ? gearboxNodes : undefined);
         if (a) setSlot(a.rootPart, a.parts[a.rootPart]);
       }
     }
   }
   if (pt?.gearbox) {
-    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...bodyNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits, pt.gearbox.choices);
+    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...mountNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits, pt.gearbox.choices);
     // Without an engine of ours to plug into, the gearbox hangs off the body.
     if (t && !engineTransmissionSlots.length) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Transmission']);
     if (t) gearboxParts = t.parts;

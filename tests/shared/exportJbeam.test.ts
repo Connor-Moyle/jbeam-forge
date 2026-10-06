@@ -8,7 +8,7 @@ import type { Project } from '../../src/shared/project/schema';
 import { meshoptReady } from '../../src/shared/proxy/shapes';
 import type { ProxyMesh } from '../../src/shared/proxy/mesh';
 import { generateStructure } from '../../src/shared/proxy/generate';
-import { buildJbeamFiles, flexGroupOf, flexGroupsOf, holdsMesh, slotTypeOf } from '../../src/shared/export/jbeam';
+import { bodyPart, buildJbeamFiles, flexGroupOf, flexGroupsOf, holdsMesh, slotTypeOf } from '../../src/shared/export/jbeam';
 import { defaultConfig, exportMeshNames, infoJson, materialsJson } from '../../src/shared/export/files';
 import { configFileName, configInfoJson, includedParts, resolveConfig, slotChoices } from '../../src/shared/export/configs';
 import { validateExport } from '../../src/shared/export/validate';
@@ -256,6 +256,22 @@ describe('jbeam export', () => {
     expect(groupsOf(tyre.name)).toEqual(['tire_FL']);
     expect(groupsOf(caliper.name)).toEqual(['car_hub_FL']); // steers with the knuckle, doesn't spin
     expect(groupsOf(rearRim.name)).not.toEqual(['wheel_RL']); // no suspension on that axle: unchanged
+  });
+
+  it('bolts a game suspension to the body, never to the hood or a door next to it', () => {
+    const { doc, meshes } = carProject();
+    const body = bodyPart(doc, tax)!;
+    const hood = doc.parts.find((p) => p.taxonomyId === 'hood')!;
+    doc.nodes.push({ id: 'b1', partId: body.id, pos: [0.5, -1.0, 0.5], weight: 20 }, { id: 'h1', partId: hood.id, pos: [0.75, -1.3, 0.35], weight: 1 });
+    createPart(doc, tax, { taxonomyId: 'suspension_set', id: 'p_front_set' });
+    doc.axles = [{ id: 'a1', name: 'Front', y: -1.3, track: 1.5, steered: true, tuning: {}, ownMeshes: [], fitted: { setId: 'car/front', name: 'Strut', vehicle: 'Car', type: 'strut', sourceId: 'susp' } }];
+    doc.sources.push({ id: 'susp', placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 } } as never);
+    const arm = { slotType: 'car_suspension_F', nodes: [['id', 'posX', 'posY', 'posZ'], ['fx1l', 0.7, -1.3, 0.3]], beams: [['id1:', 'id2:'], ['fx1l', 'chassis1']] };
+    const files = new Map(buildJbeamFiles(doc, tax, { meshNames: exportMeshNames(doc, meshes), author: 'x', suspensions: { 'car/front': { root: 'car_suspension_F', anchors: { chassis1: [0.75, -1.3, 0.35] }, parts: { car_suspension_F: arm } } } }).map((f) => [f.part, parsePart(f.text)[1]]));
+    const set = [...files.entries()].find(([n]) => n.endsWith('_F_car_suspension_F'))![1];
+    const to = readTable(set.beams!).records.map((r) => r.values['id2:']);
+    expect(to).not.toContain('h1');
+    expect(doc.nodes.find((n) => n.id === to[0])?.partId).toBe(body.id);
   });
 
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {
