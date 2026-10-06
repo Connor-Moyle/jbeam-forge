@@ -2908,6 +2908,35 @@ const scenarios = [
       const engineEdits = (await hook(page, 'projectDoc')).powertrain.engine.edits;
       assert(Object.keys(engineEdits.tunable ?? {}).some((k) => k.endsWith('/oilVolume')), 'oil volume adjustable in game');
       assert(engineEdits.versions?.length === 1, 'a version of an engine part');
+      // Set the figures: the game engine's curve reshaped to typed peaks, exported below.
+      const figs = page.getByTestId('engine-figures');
+      if (!(await figs.isVisible().catch(() => false))) await page.getByText('Set the figures (advanced)').click();
+      await figs.scrollIntoViewIfNeeded();
+      const typeFig = async (name, v) => {
+        const input = page.getByRole('spinbutton', { name, exact: true });
+        await input.fill(String(v));
+        await input.press('Enter');
+      };
+      await typeFig('Peak torque', 380);
+      await typeFig('Peak torque rpm', 4500);
+      await typeFig('Peak power', 300);
+      await typeFig('Peak power rpm', 6800);
+      await typeFig('Figures rev limit', 7500);
+      await page.getByTestId('engine-figures-apply').click();
+      await page.waitForTimeout(300);
+      await shot(page, 'practice-real-engine-figures');
+      const shaped = (await hook(page, 'projectDoc')).powertrain.engine.edits.torque;
+      let pk = { nm: 0, nmRpm: 0, kw: 0, kwRpm: 0 };
+      for (const [r, t] of shaped) {
+        if (r > 7500) continue;
+        if (t > pk.nm) pk = { ...pk, nm: t, nmRpm: r };
+        const kw = (t * r * 2 * Math.PI) / 60000;
+        if (kw > pk.kw) pk = { ...pk, kw, kwRpm: r };
+      }
+      const u = (await page.evaluate(async () => (await window.forge.invoke('settings:get')).value)) ?? {};
+      const want = u.powerUnit === 'kw' ? 300 : u.powerUnit === 'ps' ? 300 / 1.359622 : 300 / 1.341022;
+      const wantNm = u.torqueUnit === 'lbft' ? 380 / 0.737562 : 380;
+      assert(Math.abs(pk.nm - wantNm) < 1 && pk.nmRpm === 4500 && Math.abs(pk.kw - want) < 1 && pk.kwRpm === 6800, `the curve hits the typed figures (${JSON.stringify(pk)})`);
       await page.getByRole('button', { name: 'Back' }).first().click();
       // The rest of a finished car: every opening part hinged, plates, a hitch and nitrous, folding mirrors, a second configuration.
       await page.getByTestId('workspace-moving').click();

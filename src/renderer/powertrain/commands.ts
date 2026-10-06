@@ -358,6 +358,19 @@ export function setTorqueCurve(curve: [number, number][] | null, coalesce?: stri
   });
 }
 
+/** The engine set by its figures: the reshaped curve and the rev limits, as one undo step. */
+export function setEngineFigures(curve: [number, number][], fields: Record<string, number>): void {
+  projectStore.getState().execute({
+    label: 'Set engine figures',
+    apply: (d) => {
+      const f = d.powertrain.engine;
+      if (!f) return;
+      f.edits.torque = curve;
+      Object.assign(f.edits.fields, fields);
+    },
+  });
+}
+
 /** The gearbox's ratios (null: the game's). */
 export function setGearRatios(ratios: number[] | null, coalesce?: string): void {
   projectStore.getState().execute({

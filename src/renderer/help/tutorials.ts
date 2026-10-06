@@ -186,7 +186,7 @@ const WRITTEN: Guide[] = [
     title: 'An engine from the game, made your own',
     summary: 'Pick an engine from one of the game’s cars and change anything about it.',
     sections: [
-      { steps: ['Engine panel → Choose engine: type, brand, car. Fit.', 'Build: the engine builder opens.', 'Drag the torque curve, or scale or stretch it to a new rev limit. Power is drawn with it.', 'Change idle, rev limit, inertia, cooling (radiator, coolant, oil), damage limits, turbo and sound in the list.', 'Press the game-pad button next to any setting to let players change it in the game’s tuning menu, and set its range.', 'Make a version of a part (a race radiator): the copy button next to its name, then change its numbers. It shows next to the original in the parts menu.', 'Choose a gearbox the same way.'] },
+      { steps: ['Engine panel → Choose engine: type, brand, car. Fit.', 'Build: the engine builder opens.', 'Drag the torque curve, or scale or stretch it to a new rev limit. Power is drawn with it.', 'Or open Set the figures (advanced) and type the peak torque and power you want, each at its rpm, and the rev limit; Shape the curve to these.', 'Change idle, rev limit, inertia, cooling (radiator, coolant, oil), damage limits, turbo and sound in the list.', 'Press the game-pad button next to any setting to let players change it in the game’s tuning menu, and set its range.', 'Make a version of a part (a race radiator): the copy button next to its name, then change its numbers. It shows next to the original in the parts menu.', 'Choose a gearbox the same way.'] },
       { tip: 'Settings → General → Advanced mode lists every number the game has, not just the usual ones.' },
     ],
   },
@@ -195,7 +195,7 @@ const WRITTEN: Guide[] = [
     group: 'Tutorials: engine, gearbox and wheels',
     title: 'Designing your own engine',
     summary: 'Cylinders, layout, displacement and induction, with its own 3D model.',
-    sections: [{ steps: ['Engine workspace → Designer.', 'Start from a preset (kei three to W16, diesels, rotary, electric) or the default.', 'Change layout and cylinders, bore and stroke, valvetrain, cams, compression, induction and boost, fuel, intake and exhaust, redline.', 'Watch the power, torque and weight update.', 'Fit it with my design: it takes a matching game engine’s physics and your design’s curve and weight.', 'Build its own 3D model: an engine made from your design, one cylinder repeated per cylinder.'] }],
+    sections: [{ steps: ['Engine workspace → Designer.', 'Start from a preset (kei three to W16, diesels, rotary, electric) or the default.', 'Change layout and cylinders, bore and stroke, valvetrain, cams, compression, induction and boost, fuel, intake and exhaust, redline.', 'Watch the power, torque and weight update.', 'Fit it with my design: it takes a matching game engine’s physics and your design’s curve and weight.', 'Want exact figures? Back on the Engine panel press Build, then Set the figures (advanced).', 'Build its own 3D model: an engine made from your design, one cylinder repeated per cylinder.'] }],
   },
   {
     id: 'tutorial-gearbox',

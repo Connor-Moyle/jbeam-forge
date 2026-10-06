@@ -255,3 +255,10 @@
 .rangeRow {
   padding-left: var(--space-4);
 }
+
+/* Advanced figures: each peak beside its rpm, the rev limit under them. */
+.figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 var(--space-2);
+}

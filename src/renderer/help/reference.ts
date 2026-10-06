@@ -179,6 +179,7 @@ export const REFERENCE: Guide[] = [
         heading: 'The engine builder',
         steps: [
           'Torque curve: drag the points, scale it, or stretch it to a new rev limit. Power is drawn with it.',
+          'Set the figures (advanced, under the curve): type peak torque and peak power, each at its rpm, and the rev limit. The curve is reshaped to hit them exactly and keeps the engine’s character; figures that can’t all be true (more power at the torque peak than the peak power, say) are explained before anything changes. One undo step.',
           'Rev limit, idle, inertia (how fast it revs), friction, engine braking.',
           'Cooling: radiator area and effectiveness, coolant volume, thermostat, fan; oil volume and oil cooler.',
           'Damage: the torque rating (above it, it breaks), block and cylinder wall temperatures, head gasket and piston rings.',

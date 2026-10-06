@@ -15,8 +15,11 @@ import { Input } from '@renderer/ui/components/Input';
 import { NumberInput } from '@renderer/ui/components/NumberInput';
 import { ScrollArea } from '@renderer/ui/components/ScrollArea';
 import { Slider } from '@renderer/ui/components/Slider';
-import { addPartVersion, removePartVersion, resetPowertrainEdits, setGearRatios, setPowertrainField, setPowertrainText, setPowertrainTunable, setTorqueCurve, updatePartVersion, usePowertrainUi, type PowertrainKind } from './commands';
+import { addPartVersion, removePartVersion, setEngineFigures, resetPowertrainEdits, setGearRatios, setPowertrainField, setPowertrainText, setPowertrainTunable, setTorqueCurve, updatePartVersion, usePowertrainUi, type PowertrainKind } from './commands';
 import { RevPreview } from './revPreview';
+import { figureProblems, shapeToFigures, type EngineFigures as Figures } from '@shared/powertrain/figures';
+import { Callout } from '@renderer/ui/components/Callout';
+import { CollapsibleSection } from '@renderer/ui/components/CollapsibleSection';
 import { call } from '@renderer/diagnostics/ipc';
 import { useUnits } from '@renderer/settings/useUnits';
 import styles from './Builder.module.css';
@@ -330,6 +333,20 @@ export function EngineBuilder() {
         ) : (
           <p className={styles.note}>This engine&rsquo;s torque comes from a formula or a variable, so there&rsquo;s no curve to draw; its other numbers are below.</p>
         )}
+        <EngineFigures
+          curve={curve}
+          limit={limit}
+          peaks={peaks}
+          limiter={valueOf(limiterKey)}
+          onApply={(next, newLimit) => {
+            const fields: Record<string, number> = {};
+            const k = newLimit / limit;
+            if (maxKey && field(maxKey)) fields[maxKey] = Math.round(newLimit);
+            const lim = valueOf(limiterKey);
+            if (limiterKey && lim !== null && field(limiterKey)) fields[limiterKey] = Math.round(lim * k);
+            setEngineFigures(next, fields);
+          }}
+        />
         <FieldGroup title="Weight">
           <Field label="Engine weight" hint="Every node of the engine and its parts, scaled">
             <Slider value={massScale} min={0.3} max={2} step={0.01} format={(v) => `× ${v.toFixed(2)}`} onChange={(v) => setPowertrainField('engine', MASS_SCALE, Math.abs(v - 1) < 0.005 ? null : v)} aria-label="Engine weight" />
@@ -584,5 +601,70 @@ function EngineSound({ parts, fitted, idle, limit }: { parts: Record<string, Jbe
         <Slider value={load} onChange={setLoad} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} aria-label="Preview throttle" />
       </Field>
     </FieldGroup>
+  );
+}
+
+/**
+ * Advanced: type the figures and the curve is reshaped to them (its character kept): peak torque
+ * and power each at an rpm, and the rev limit.
+ */
+function EngineFigures({ curve, limit, peaks, limiter, onApply }: { curve: [number, number][]; limit: number; peaks: ReturnType<typeof curvePeaks>; limiter: number | null; onApply: (curve: [number, number][], limit: number) => void }) {
+  const units = useUnits();
+  const current = (): Figures => ({
+    torqueNm: peaks.torque?.nm ?? 200,
+    torqueRpm: peaks.torque?.rpm ?? Math.round(limit * 0.6),
+    powerKw: peaks.power?.kw ?? 100,
+    powerRpm: peaks.power?.rpm ?? Math.round(limit * 0.85),
+    limitRpm: Math.round(limit),
+  });
+  const [draft, setDraft] = useState<Figures>(current);
+  // Follow the engine while nothing has been typed (an undo, another engine).
+  const [touched, setTouched] = useState(false);
+  const live = touched ? draft : current();
+  const set = (patch: Partial<Figures>) => {
+    setTouched(true);
+    setDraft({ ...live, ...patch });
+  };
+  const problems = figureProblems(live);
+  const round = (v: number) => Math.round(v);
+  return (
+    <CollapsibleSection id="engine-figures" title="Set the figures (advanced)" defaultOpen={false}>
+      <p className={styles.note}>Type the figures you want; the curve is reshaped to hit them exactly and keeps the game engine&rsquo;s character. The rev limit moves the limiter{limiter !== null ? ' with it' : ''}.</p>
+      <div className={styles.figures} data-testid="engine-figures">
+        <Field label={`Peak torque (${units.torqueLabel})`}>
+          <NumberInput value={round(units.torqueValue(live.torqueNm))} precision={0} step={5} min={1} max={50000} onChange={(v) => set({ torqueNm: units.torqueFrom(v) })} aria-label="Peak torque" />
+        </Field>
+        <Field label="at">
+          <NumberInput value={round(live.torqueRpm)} precision={0} step={100} min={100} max={30000} unit="rpm" onChange={(torqueRpm) => set({ torqueRpm })} aria-label="Peak torque rpm" />
+        </Field>
+        <Field label={`Peak power (${units.powerLabel})`}>
+          <NumberInput value={round(units.powerValue(live.powerKw))} precision={0} step={5} min={1} max={20000} onChange={(v) => set({ powerKw: units.powerFrom(v) })} aria-label="Peak power" />
+        </Field>
+        <Field label="at">
+          <NumberInput value={round(live.powerRpm)} precision={0} step={100} min={100} max={30000} unit="rpm" onChange={(powerRpm) => set({ powerRpm })} aria-label="Peak power rpm" />
+        </Field>
+        <Field label="Rev limit">
+          <NumberInput value={round(live.limitRpm)} precision={0} step={100} min={1000} max={30000} unit="rpm" onChange={(limitRpm) => set({ limitRpm })} aria-label="Figures rev limit" />
+        </Field>
+      </div>
+      {problems.length > 0 && <Callout tone="warning">{problems.join(' ')}</Callout>}
+      <div className={styles.row}>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={problems.length > 0 || !touched}
+          onClick={() => {
+            onApply(shapeToFigures(curve, limit, live), live.limitRpm);
+            setTouched(false);
+          }}
+          data-testid="engine-figures-apply"
+        >
+          Shape the curve to these
+        </Button>
+        <Button size="sm" variant="ghost" disabled={!touched} onClick={() => setTouched(false)}>
+          Back to the current figures
+        </Button>
+      </div>
+    </CollapsibleSection>
   );
 }

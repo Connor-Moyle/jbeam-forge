@@ -6,6 +6,8 @@ import { projectStore } from '../../src/renderer/app/stores/project';
 import { useSetData } from '../../src/renderer/suspension/commands';
 import { EngineBuilder, GearboxBuilder } from '../../src/renderer/powertrain/Builder';
 import { TooltipProvider } from '../../src/renderer/ui/components/Tooltip';
+import { curvePeaks } from '../../src/shared/powertrain/edits';
+import { useSettingsStore } from '../../src/renderer/app/stores/settings';
 
 const ENGINE = {
   v6_engine: {
@@ -53,6 +55,45 @@ describe('engine builder', () => {
     const edits = projectStore.getState().doc!.powertrain.engine!.edits;
     expect(edits.torque!.at(-1)).toEqual([9000, 380]);
     expect(edits.fields['v6_engine/mainEngine/maxRPM']).toBe(9750);
+  });
+});
+
+describe('engine builder: set the figures', () => {
+  it('reshapes the curve to typed peaks and rev limit, as one undo step', () => {
+    void useSettingsStore.getState(); // units: the defaults (hp, Nm)
+    wrap(<EngineBuilder />);
+    if (!screen.queryByTestId('engine-figures')) fireEvent.click(screen.getByText('Set the figures (advanced)'));
+    const type = (name: string, value: number) => {
+      const input = screen.getByRole('spinbutton', { name });
+      fireEvent.change(input, { target: { value: String(value) } });
+      fireEvent.blur(input);
+    };
+    type('Peak torque', 450);
+    type('Peak torque rpm', 4200);
+    type('Peak power', 300); // hp
+    type('Peak power rpm', 6300);
+    type('Figures rev limit', 7000);
+    fireEvent.click(screen.getByTestId('engine-figures-apply'));
+    const edits = projectStore.getState().doc!.powertrain.engine!.edits;
+    const p = curvePeaks(edits.torque!, 7000);
+    expect(p.torque!.nm).toBeCloseTo(450, 0);
+    expect(p.torque!.rpm).toBe(4200);
+    expect(p.power!.kw * 1.341022).toBeCloseTo(300, 0);
+    expect(p.power!.rpm).toBe(6300);
+    expect(edits.fields['v6_engine/mainEngine/maxRPM']).toBe(7000);
+    projectStore.getState().undo();
+    expect(projectStore.getState().doc!.powertrain.engine!.edits.torque).toBeNull();
+    expect(projectStore.getState().doc!.powertrain.engine!.edits.fields['v6_engine/mainEngine/maxRPM']).toBeUndefined();
+  });
+
+  it('says why impossible figures can’t be applied', () => {
+    wrap(<EngineBuilder />);
+    if (!screen.queryByTestId('engine-figures')) fireEvent.click(screen.getByText('Set the figures (advanced)'));
+    const input = screen.getByRole('spinbutton', { name: 'Peak power' });
+    fireEvent.change(input, { target: { value: '50' } });
+    fireEvent.blur(input);
+    expect(screen.getByText(/already makes/)).toBeInTheDocument();
+    expect(screen.getByTestId('engine-figures-apply')).toBeDisabled();
   });
 });
 
