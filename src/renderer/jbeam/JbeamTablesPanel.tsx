@@ -386,15 +386,16 @@ function Checks({ issues, query }: { issues: readonly Issue[]; query: string }) 
                 <Icon className={cx(styles.icon, worst === 'error' ? styles.error : worst === 'warning' ? styles.warn : styles.info)} aria-hidden />
                 <span className={styles.checkTitle}>{ISSUE_TEXT[kind]}</span>
                 <Badge>{list.length}</Badge>
-                <span className={styles.spacer} />
-                <Button size="sm" variant="ghost" onClick={() => selectIssue({ ...list[0]!, nodes: list.flatMap((i) => i.nodes), beams: list.flatMap((i) => i.beams), tris: list.flatMap((i) => i.tris) })}>
-                  Select all
-                </Button>
-                {FIXABLE[kind] && (
-                  <Button size="sm" onClick={() => fixIssues(kind, list)} data-testid={`jbeam-fix-${kind}`}>
-                    {FIXABLE[kind]}
+                <span className={styles.checkActions}>
+                  <Button size="sm" variant="ghost" onClick={() => selectIssue({ ...list[0]!, nodes: list.flatMap((i) => i.nodes), beams: list.flatMap((i) => i.beams), tris: list.flatMap((i) => i.tris) })}>
+                    Select all
                   </Button>
-                )}
+                  {FIXABLE[kind] && (
+                    <Button size="sm" onClick={() => fixIssues(kind, list)} data-testid={`jbeam-fix-${kind}`}>
+                      {FIXABLE[kind]}
+                    </Button>
+                  )}
+                </span>
               </header>
               <ul className={styles.checkList}>
                 {list.slice(0, 50).map((i, n) => (

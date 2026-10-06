@@ -471,14 +471,16 @@ function NamingOptions() {
   const s = useSettingsStore((st) => st.settings);
   if (!s) return null;
   return (
-    <div className={styles.row2}>
-      <Field label="Numbers grow">
-        <Select value={s.jbeamNamingOrder} onChange={(jbeamNamingOrder) => void call('settings:update', { jbeamNamingOrder })} options={[{ value: 'front-back', label: 'Front to back' }, { value: 'bottom-top', label: 'Bottom to top' }]} aria-label="Numbers grow" />
-      </Field>
-      <Field label="Start at">
-        <NumberInput value={s.jbeamNamingStart} onChange={(jbeamNamingStart) => void call('settings:update', { jbeamNamingStart })} min={0} max={1000} step={1} precision={0} aria-label="Start at" />
-      </Field>
+    <>
+      <div className={styles.row2}>
+        <Field label="Numbers grow">
+          <Select value={s.jbeamNamingOrder} onChange={(jbeamNamingOrder) => void call('settings:update', { jbeamNamingOrder })} options={[{ value: 'front-back', label: 'Front to back' }, { value: 'bottom-top', label: 'Bottom to top' }]} aria-label="Numbers grow" />
+        </Field>
+        <Field label="Start at">
+          <NumberInput value={s.jbeamNamingStart} onChange={(jbeamNamingStart) => void call('settings:update', { jbeamNamingStart })} min={0} max={1000} step={1} precision={0} aria-label="Start at" />
+        </Field>
+      </div>
       <Toggle checked={s.jbeamNamingSides} onChange={(jbeamNamingSides) => void call('settings:update', { jbeamNamingSides })} label="l and r for the two sides" />
-    </div>
+    </>
   );
 }

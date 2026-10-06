@@ -142,11 +142,20 @@
   background: var(--bg-2);
 }
 
+/* In a narrow panel the buttons go under the title (they squeezed it to a word a line). */
 .checkHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-1) var(--space-2);
+}
+
+.checkActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: auto;
 }
 
 .icon {
@@ -156,6 +165,8 @@
 }
 
 .checkTitle {
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text-0);
   font-weight: var(--weight-semibold);
 }
@@ -237,6 +248,7 @@
 .buttons {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-1);
   margin: var(--space-1) 0;
 }

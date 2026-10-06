@@ -60,8 +60,8 @@ export function TriggersPanel() {
       </div>
       {doc.hinges.length > 0 && (
         <div className={own.add}>
-          <Button size="sm" icon={DoorOpen} onClick={handlesFromHinges} data-testid="trigger-handles">
-            A handle for every door, hood and trunk
+          <Button size="sm" icon={DoorOpen} onClick={handlesFromHinges} title="A handle for every door, hood and trunk that has a hinge" data-testid="trigger-handles">
+            Handles for every opening panel
           </Button>
         </div>
       )}
@@ -184,9 +184,10 @@ export function TriggerPanel() {
             </Field>
           ))}
         </div>
-        <div className={styles.buttons}>
+        <div className={styles.buttons} role="group" aria-label="Size of a common trigger">
+          <span className={own.meta}>Size of a…</span>
           {TRIGGER_PRESETS.map((p) => (
-            <Button key={p.id} size="sm" variant="ghost" onClick={() => set({ size: [...p.size] }, 'Resize trigger')}>
+            <Button key={p.id} size="sm" onClick={() => set({ size: [...p.size] }, 'Resize trigger')} title={`${Math.round(p.size[0] * 1000)} × ${Math.round(p.size[1] * 1000)} × ${Math.round(p.size[2] * 1000)} mm`}>
               {p.label}
             </Button>
           ))}
