@@ -363,7 +363,7 @@ end
 
 -- Stay loaded across maps and scenarios (the game unloads extensions on a map change otherwise).
 function M.onInit()
-  setExtensionUnloadMode(M, 'manual')
+  setExtensionUnloadMode('jbeamForge', 'manual')
 end
 
 -- ---------------------------------------------------------------- self-test
