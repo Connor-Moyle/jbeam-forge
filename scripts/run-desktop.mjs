@@ -3554,21 +3554,23 @@ const scenarios = [
     id: 'small-window',
     name: 'a 1366×768 laptop: every workspace and the main windows fit, nothing runs off the side',
     async run({ app, page }) {
+      // The practice car, whatever the scenario before left open (a tyre mod has other workspaces).
       await page.waitForSelector('[data-testid=app-ready]');
-      if (!(await page.locator('[data-view=editor]').count())) {
-        await page.getByTestId('home-tour').click();
-        await page.waitForSelector('[data-testid=tour-card]');
-        await page.getByRole('button', { name: 'Skip the tutorial' }).click();
-        for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
       }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
       // Parts and a structure, so every workspace and the export have something to show.
-      if (!((await hook(page, 'projectDoc')).nodes.length > 50)) {
-        await hook(page, 'applyPreset', 'modelling');
-        await page.getByTestId('scene-classify').click();
-        await page.getByTestId('classify-apply').click();
-        await page.getByTestId('toolbar-generate').click();
-        for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
-      }
+      await hook(page, 'applyPreset', 'modelling');
+      await page.getByTestId('scene-classify').click();
+      await page.getByTestId('classify-apply').click();
+      await page.getByTestId('toolbar-generate').click();
+      for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
       const before = await app.evaluate(({ BrowserWindow }) => {
         const w = BrowserWindow.getAllWindows()[0];
         const b = w.getBounds();
