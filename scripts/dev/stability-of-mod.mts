@@ -42,6 +42,17 @@ for (const dir of process.argv.slice(2)) {
       }
     }
   }
+  // Damping too: Σc·Δt/m past ~1 overshoots every step.
+  const damps = new Map<string, number>();
+  for (const p of parts.values()) {
+    if (!Array.isArray(p.beams)) continue;
+    for (const r of readTable(p.beams).records) {
+      const c = num(r.options.beamDamp, 580);
+      for (const end of [r.values['id1:'], r.values['id2:']]) if (typeof end === 'string' && c > 0) damps.set(end, (damps.get(end) ?? 0) + c);
+    }
+  }
+  const damped = [...weight].flatMap(([id, { w, part }]) => (damps.has(id) ? [{ id, part, w, r: (damps.get(id)! * STABILITY_DT) / w }] : [])).sort((a, b) => b.r - a.r);
+  console.log(`  damping worst: ${damped.slice(0, 5).map((d) => `${d.id} ${d.r.toFixed(2)} (${d.w} kg, ${d.part.replace(/^forge_[a-z0-9]+_/, '')})`).join(', ')}`);
   const rows = [...weight].flatMap(([id, { w, part }]) => {
     const s = springs.get(id);
     return s && w > 0 ? [{ id, w, part, k: s.k, ratio: Math.sqrt(s.k / w) * STABILITY_DT, beams: s.beams }] : [];

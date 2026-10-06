@@ -56,6 +56,7 @@ import { paintedCounts } from '@renderer/paint/facePaint';
 import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
 import { AiModeDialog } from '@renderer/ai/AiModeDialog';
 import { GameLogDialog } from '@renderer/export/GameLogDialog';
+import { ReadinessDialog } from '@renderer/export/ReadinessDialog';
 import { checkGameVersion } from '@renderer/export/gameVersion';
 import { useWorkspaceBridge } from '@renderer/shell/workspaceBridge';
 import { fitSuspension, setUpAxles } from '@renderer/suspension/commands';
@@ -481,6 +482,7 @@ export function App() {
       <HelpCentre />
       <AiModeDialog />
       <GameLogDialog />
+      <ReadinessDialog />
       <ImportHost />
     </TooltipProvider>
   );

@@ -234,6 +234,7 @@ async function main() {
         };
       });
       for (const c of summary.cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}${c.diagnose ? ` · broken ${c.diagnose.broken}/${c.diagnose.beams}` : ''}`);
+      for (const c of summary.cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken at spawn: ${Object.entries(c.diagnose.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${p.replace(/^forge_[a-z0-9]+_/, '')} ${n}`).join(', ')}`);
       for (const c of summary.cars) if (c.instability && c.diagnose?.worst) say(`  ${c.vehicle} most strained: ${c.diagnose.worst.slice(0, 6).map(([a, b, s, part]) => `${a}-${b} ${s} (${String(part ?? '').replace(/^forge_[a-z0-9]+_/, '')})`).join(', ')}`);
     }
     if (measure) {

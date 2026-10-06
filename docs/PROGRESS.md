@@ -10,13 +10,13 @@ Status values: `not started` · `in progress` · `awaiting in-game gate` · `don
 | 2 | Ground truth — install-dir setting, study-vehicle, docs/ format notes, lenient jbeam parser + serializer | — | done |
 | 3 | Import + taxonomy — multi-format import, splitting, auto-classification, hierarchical tree, part details/variants, project system + startup | — | done |
 | 4 | Proxy generation — proxy engine, nodes/beams/tris, bracing, presets, attachments, refNodes | — | done |
-| 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | awaiting in-game gate |
+| 5 | Export v1 — full mod export with flexbodies + validator + debug-loop docs | **in-game** | done (0.16.0: gate passed by the automated game test, `scripts/dev/game-test.mjs`, which spawns exported cars in BeamNG.drive 0.39 and reads its log) |
 | 6 | Physics sandbox — solver, pre-checks, predictor, scenarios, real-time mode | — | done |
 | 7 | Editing suite + Focus Mode + command palette + jbeam preview + mass overlay | — | done (0.7.0) |
 | 8 | Materials — studio, editor, library, merge, drag-drop, game materials/wheels, UV/AO | — | done (0.8.0; UV tools, AO baking, channel views and the game-materials list in 0.12.0) |
 | 9 | Hinges/latches wizard + sandbox hinge/yank tests | — | done (9a/9b in 0.8.5; hinge-all wizard, swing and wrench-off scenarios in 0.12.0) |
-| 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | awaiting in-game gate (10a/b in 0.9.0; the game's part options, driveline builder and suspension drop in 0.12.0) |
-| 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | awaiting in-game gate (11a in 0.10.0; builders, engine options, sound, props and cameras in 0.12.0) |
+| 10 | Suspension — detection + kits, multi-config/multi-axle, brakes/racks/subframes, suspension-drop scenario | **in-game** | done (0.16.0: the export matrix, the demo car with the game's suspensions on both axles, exported and spawned in the game; 10a/b in 0.9.0; the game's part options, driveline builder and suspension drop in 0.12.0) |
+| 11 | Powertrain — engine/dyno, devices, meshes/variants, audio, props tool, cameras | **in-game** | done (0.16.0: the export matrix fits the game's engines and gearboxes, spawns each car and measures it with the game's own performance tests; 11a in 0.10.0; builders, engine options, sound, props and cameras in 0.12.0) |
 | 12 | Capability layer — tuning vars, lights/electrics/plate, glass, aero, skins, hitch, nitrous, global controls | — | done (0.11.0: tuning vars, lights/electrics, glass; then plates, aero, paint designs, hitch, nitrous, global slots) |
 | 13 | Config Manager v2 + previews | — | done (0.11.0) |
 | 14 | Publish helper + `npm run dist` installer + full regression script | — | done (`npm run regress`) |

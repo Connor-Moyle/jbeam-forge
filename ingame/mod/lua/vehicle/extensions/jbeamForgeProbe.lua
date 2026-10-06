@@ -69,6 +69,14 @@ local function diagnose()
       list[#list + 1] = {strain = strain, a = n1 and n1.name or tostring(beam.id1), b = n2 and n2.name or tostring(beam.id2), part = beam.partOrigin, broken = obj:beamIsBroken(cid)}
     end
   end
+  -- Broken beams by the part they come from.
+  out.brokenByPart = {}
+  for _, b in ipairs(list) do
+    if b.broken then
+      local p = tostring(b.part or '?')
+      out.brokenByPart[p] = (out.brokenByPart[p] or 0) + 1
+    end
+  end
   table.sort(list, function(x, y) return x.strain > y.strain end)
   for i = 1, math.min(15, #list) do
     local b = list[i]

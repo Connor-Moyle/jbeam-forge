@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { openGameLog } from './GameLogDialog';
+import { openReadiness } from './ReadinessDialog';
 import { ArrowLeft, ClipboardCopy, Download, FolderOpen, PackageCheck, RefreshCw, Store, Wand2, ScrollText } from 'lucide-react';
 import type { PublishListing } from '@shared/ipc-contract';
 import { call } from '@renderer/diagnostics/ipc';
@@ -133,6 +134,9 @@ export function ExportDialog() {
             </ol>
             <Button icon={ScrollText} onClick={() => void openGameLog()} data-testid="export-game-log">
               What the game said
+            </Button>
+            <Button variant="ghost" onClick={() => void openReadiness()} data-testid="export-readiness">
+              Ready to share?
             </Button>
           </div>
         ) : publishing && prepared ? (
