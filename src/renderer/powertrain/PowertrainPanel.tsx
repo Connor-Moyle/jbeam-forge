@@ -99,7 +99,8 @@ function Card({ kind, fitted }: { kind: PowertrainKind; fitted: FittedSet | null
     <section className={styles.card} data-testid={`${kind}-card`}>
       <header className={styles.axleHead}>
         <strong>
-          <Icon aria-hidden className={styles.icon} /> {LABEL[kind]}
+          <Icon aria-hidden className={styles.icon} />
+          {LABEL[kind]}
         </strong>
       </header>
       {fitted ? (

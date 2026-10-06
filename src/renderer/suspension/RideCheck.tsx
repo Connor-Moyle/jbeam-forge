@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ArrowDownToLine, Ruler, Square } from 'lucide-react';
-import { projectStore } from '@renderer/app/stores/project';
+import { projectStore, useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { Badge } from '@renderer/ui/components/Badge';
 import { Button } from '@renderer/ui/components/Button';
@@ -36,15 +36,17 @@ export function RideCheck() {
   };
   const noWheels = split !== null && split.corners.length === 0;
   const worst = report?.gaps.reduce((a, b) => (b.distance < a.distance ? b : a), report.gaps[0]!);
-  const nameOf = (key: string | null) => (key ? (useSceneStore.getState().sources[key.slice(0, key.indexOf(':'))]?.meshes.find((m) => m.key === key)?.name ?? key) : '—');
+  // As the Scene tree names it (the mod's own name first); never the internal key.
+  const names = useProjectStore((s) => s.doc?.meshNames);
+  const nameOf = (key: string | null) => (key ? (names?.[key]?.name ?? useSceneStore.getState().sources[key.slice(0, key.indexOf(':'))]?.meshes.find((m) => m.key === key)?.name ?? key.slice(key.indexOf(':') + 1)) : '—');
 
   return (
     <FieldGroup title="Suspension check">
-      <p className={styles.note}>Drop the car on its wheels, or push the body down, to see that the tyres clear the arches and nothing hits the ground at full compression. A quick visual check, not the game&rsquo;s physics.</p>
+      <p className={`${styles.note} ${styles.spaced}`}>Drop the car on its wheels, or push the body down, to see that the tyres clear the arches and nothing hits the ground at full compression. A quick visual check, not the game&rsquo;s physics.</p>
       <Field label="Travel to the bump stop" hint="How far the wheels can go up into the body from where the car sits.">
         <NumberInput value={travel * 1000} onChange={(v) => useRideCheck.getState().set({ travel: v / 1000, report: null })} min={20} max={300} step={5} precision={0} unit="mm" aria-label="Suspension travel" />
       </Field>
-      <div className={styles.row}>
+      <div className={`${styles.row} ${styles.spaced}`}>
         <Button size="sm" variant="primary" icon={ArrowDownToLine} onClick={drop} disabled={playing} data-testid="ride-drop">
           Drop it
         </Button>

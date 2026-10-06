@@ -24,6 +24,11 @@
   gap: var(--space-2);
 }
 
+/* The space a Field leaves under itself, for notes and button rows between fields. */
+.spaced {
+  margin-bottom: var(--space-3);
+}
+
 .card {
   display: flex;
   flex-direction: column;
@@ -41,6 +46,13 @@
   justify-content: space-between;
   color: var(--text-0);
   font-size: var(--text-control);
+}
+
+/* An icon beside the title, centred on it (it sat on the text's baseline). */
+.axleHead > strong {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .axleFields {
