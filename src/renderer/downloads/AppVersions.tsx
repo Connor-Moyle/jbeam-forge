@@ -9,6 +9,7 @@ import { Badge } from '@renderer/ui/components/Badge';
 import { Button } from '@renderer/ui/components/Button';
 import { Callout } from '@renderer/ui/components/Callout';
 import { errorText, formatBytes, formatDate } from './format';
+import { IngameVersion } from '@renderer/settings/IngameVersion';
 import styles from './Downloads.module.css';
 
 interface Job {
@@ -163,6 +164,12 @@ export function AppVersions() {
           </div>
           <pre className={styles.notes}>{latest.notes || 'No release notes.'}</pre>
           <div className={styles.row}>{assetButtons(latest, false)}</div>
+        </section>
+      )}
+      {!(window.forge as { ingame?: boolean }).ingame && (
+        <section className={styles.card} data-testid="downloads-ingame">
+          <strong>JBeam Forge in BeamNG.drive</strong>
+          <IngameVersion />
         </section>
       )}
       {older.length > 0 && (

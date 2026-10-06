@@ -67,9 +67,12 @@ jobs:
           notes="docs/releases/$TAG.md"
           title="$(head -n 1 "$notes" | sed 's/^#[[:space:]]*//')"
           tail -n +2 "$notes" > release/notes.md
+          # A version with a suffix (0.16.0-test.1) is a test build: a pre-release, never "latest".
+          kind="--latest"
+          case "$version" in *-*) kind="--prerelease" ;; esac
           # Creates the tag on the commit just built when it doesn't exist yet.
           gh release create "$TAG" \
             "release/JBeam-Forge-Setup-$version.exe" \
             "release/JBeam-Forge-$version-portable.exe" \
             "release/jbeam_forge_ingame.zip#JBeam Forge in BeamNG.drive (mod zip)" \
-            --target "$GITHUB_SHA" --title "$title" --notes-file release/notes.md --latest
+            --target "$GITHUB_SHA" --title "$title" --notes-file release/notes.md "$kind"
