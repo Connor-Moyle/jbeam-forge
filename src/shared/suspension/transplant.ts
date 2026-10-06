@@ -241,6 +241,16 @@ const MOUNT_MIN_KG = 2;
 const MOUNT_RATIO = 1.5;
 const MOUNT = { beamSpring: 6_000_000, beamDamp: 150, beamDeform: 120_000, beamStrength: 400_000 };
 
+/** Distance from p to the plane through a, b and c (∞ when they're in a line). */
+export function planeDistance(p: V3, a: V3, b: V3, c: V3): number {
+  const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  const n = [u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!];
+  const len = Math.hypot(n[0]!, n[1]!, n[2]!);
+  if (len < 1e-9) return Infinity;
+  return Math.abs(n[0]! * (p[0] - a[0]) + n[1]! * (p[1] - a[1]) + n[2]! * (p[2] - a[2])) / len;
+}
+
 const dist2 = (a: V3, b: V3) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
@@ -313,13 +323,14 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   for (const body of Object.values(input.parts)) for (const [id, pos] of definedNodes(body)) if (!setPositions.has(id)) setPositions.set(id, pos);
   const keepGroup = (g: JbeamValue): JbeamValue => (typeof g === 'string' && input.fallbackGroup && !groups.has(g) ? input.fallbackGroup : g);
 
-  // How much spring the set's beams put on each node it doesn't define.
+  // How much spring the set's beams put on each node it doesn't define: hydros and torsion bars too
+  // (the Burnside's steering hydro pushes on its steering box points, and a light point flew off).
   const vars = variableDefaults(Object.values(input.parts));
   const anchorSpring = new Map<string, number>();
-  for (const body of Object.values(input.parts)) {
-    if (!Array.isArray(body.beams)) continue;
+  for (const body of Object.values(input.parts)) for (const section of ['beams', 'hydros', 'torsionbars'] as const) {
+    if (!Array.isArray(body[section])) continue;
     try {
-      for (const r of readTable(body.beams).records) {
+      for (const r of readTable(body[section]).records) {
         const k = coordinate(r.options.beamSpring ?? 4_300_000, vars);
         if (!(k > 0)) continue;
         for (const end of [r.values['id1:'], r.values['id2:']]) if (typeof end === 'string' && !own.has(end)) anchorSpring.set(end, (anchorSpring.get(end) ?? 0) + k);
@@ -366,11 +377,16 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       // Bolted to the body's structure only (a gearbox's points went onto the engine's 1 kg exhaust
       // nodes, and the exhaust fell off), and to nodes heavy enough for the bolt.
       const holds = (t: { weight?: number; structural?: boolean }) => t.structural !== false && (t.weight === undefined || Math.sqrt(MOUNT.beamSpring / t.weight) * STABILITY_DT <= MOUNT_RATIO);
-      const near = input.target
+      const ranked = input.target
         .filter(holds)
-        .map((t) => ({ id: t.id, d: dist2(at, t.pos) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, MOUNT_LINKS);
+        .map((t) => ({ id: t.id, pos: t.pos, d: dist2(at, t.pos) }))
+        .sort((a, b) => a.d - b.d);
+      const near = ranked.slice(0, MOUNT_LINKS);
+      // Three bolts in one plane with the point don't hold it across that plane: add one out of it.
+      if (near.length === 3 && planeDistance(at, near[0]!.pos, near[1]!.pos, near[2]!.pos) < 0.03) {
+        const off = ranked.slice(3).find((t) => planeDistance(t.pos, near[0]!.pos, near[1]!.pos, near[2]!.pos) > 0.05);
+        if (off) near.push(off);
+      }
       const links = near.length ? near : [best];
       for (const t of links) mounts.push([kept, t.id]);
       // Heavy enough for the set's own beams on it and the mount, inside the stability limit.
@@ -391,12 +407,17 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   for (const id of input.held ?? []) {
     const at = setPositions.get(id);
     if (!at || !own.has(id)) continue;
-    const to = input.target
+    const p = add(at, input.offset);
+    const ranked = input.target
       .filter((t) => t.structural !== false)
-      .map((t) => ({ id: t.id, d: dist2(add(at, input.offset), t.pos) }))
-      .sort((a, b) => a.d - b.d)
-      .slice(0, MOUNT_LINKS)
-      .map((t) => t.id);
+      .map((t) => ({ id: t.id, pos: t.pos, d: dist2(p, t.pos) }))
+      .sort((a, b) => a.d - b.d);
+    const near = ranked.slice(0, MOUNT_LINKS);
+    if (near.length === 3 && planeDistance(p, near[0]!.pos, near[1]!.pos, near[2]!.pos) < 0.03) {
+      const off = ranked.slice(3).find((t) => planeDistance(t.pos, near[0]!.pos, near[1]!.pos, near[2]!.pos) > 0.05);
+      if (off) near.push(off);
+    }
+    const to = near.map((t) => t.id);
     if (!to.length) continue;
     const w = weights.get(id) ?? 25;
     const spring = Math.round(Math.min(MOUNT.beamSpring, (w * (MOUNT_RATIO / STABILITY_DT) ** 2) / to.length));

@@ -76,14 +76,20 @@ export function mainAdditions(texts: readonly string[], hasEngine: boolean): Mai
   // Variables: every $name used, less those some part defines.
   const definedVars = new Set<string>();
   const used = new Set<string>();
+  // Variables a part asks "is it set at all" ($trackwidth_R == nil): they must stay unset, or the
+  // part takes the other branch (the Barstow's rear wheels went from 0.25 m out to 1 m).
+  const nilChecked = new Set<string>();
   for (const p of parts) {
     if (Array.isArray(p.variables)) for (const r of p.variables.slice(1)) if (Array.isArray(r) && typeof r[0] === 'string') definedVars.add(r[0]);
     walk(p, (key, value) => {
       // Slot-level variables ({"variables": {"$posX": …}}) are defined where they're used.
       if (key === 'variables' && isJbeamObject(value)) for (const k of Object.keys(value)) definedVars.add(k);
-      if (typeof value === 'string') for (const m of value.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)/g)) used.add(`$${m[1]}`);
+      if (typeof value !== 'string') return;
+      for (const m of value.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)/g)) used.add(`$${m[1]}`);
+      for (const m of value.matchAll(/\$([A-Za-z_][A-Za-z0-9_]*)\s*[=~]=\s*nil|nil\s*[=~]=\s*\$([A-Za-z_][A-Za-z0-9_]*)/g)) nilChecked.add(`$${m[1] ?? m[2]}`);
     });
   }
+  for (const name of nilChecked) used.delete(name);
   if (missing.length) used.add('$fuel');
   const variables: JbeamValue[][] = [];
   const unknownVariables: string[] = [];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JbeamObject } from '@shared/jbeam/parse';
-import { definedNodes, externalNodeRefs, setGroups, shiftOffset, thickness, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
+import { definedNodes, externalNodeRefs, planeDistance, setGroups, shiftOffset, thickness, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
 
 const PARTS: Record<string, JbeamObject> = {
   car_suspension_F: {
@@ -411,5 +411,30 @@ describe('a node its own car’s body also held', () => {
     expect(pairs.filter(([a]) => a === 'f_fx0').map(([, b]) => b).sort()).toEqual(['b1', 'b2', 'b3', 'f_fh5r']);
     const spring = (rows.find((x) => typeof x === 'object' && !Array.isArray(x) && (x as { beamSpring?: number }).beamSpring !== undefined && (x as { beamSpring: number }).beamSpring < 6_000_000) as { beamSpring: number }).beamSpring;
     expect(Math.sqrt((3 * spring) / 0.5) / 2000).toBeLessThanOrEqual(1.5 + 1e-9);
+  });
+});
+
+describe('bolting a point to the body', () => {
+  it('adds a fourth bolt out of the plane when the nearest three lie flat with the point', () => {
+    const r = transplantSuspension({
+      parts: { s: { slotType: 's', nodes: [['id', 'posX', 'posY', 'posZ'], ['h1', 0, 0, 0.5]], beams: [['id1:', 'id2:'], ['h1', 'st3r']] } },
+      root: 's',
+      anchors: { st3r: [0, 0, 0] },
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'f_',
+      target: [
+        { id: 'b1', pos: [0.2, 0, 0] },
+        { id: 'b2', pos: [-0.2, 0.1, 0] },
+        { id: 'b3', pos: [0, -0.2, 0] },
+        { id: 'b4', pos: [0.1, 0.3, 0.01] },
+        { id: 'b5', pos: [0, 0.2, 0.4] },
+      ],
+      meshNames: {},
+      tuning: {},
+    });
+    const bolts = ((r.parts.m_s!.beams as unknown[]).filter(Array.isArray) as string[][]).filter(([a]) => a === 'f_st3r').map(([, b]) => b);
+    expect(bolts.sort()).toEqual(['b1', 'b2', 'b3', 'b5']);
+    expect(planeDistance([0, 0, 1], [0, 0, 0], [1, 0, 0], [0, 1, 0])).toBeCloseTo(1);
   });
 });

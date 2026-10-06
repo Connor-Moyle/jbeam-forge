@@ -30,6 +30,13 @@ describe('what a car’s main part must provide for borrowed game parts', () => 
     expect(a.variables).toEqual([]);
   });
 
+  it('leaves unset a variable a part checks for being unset (the Barstow’s $trackwidth_R)', () => {
+    const axle = t({ slotType: 'axle_R', slots2: [['name', 'allowTypes', 'default', 'description'], ['wheel_R_5', ['wheel_R_5'], 'steelwheel', 'Rear Wheels', { nodeOffset: { x: '$=case($trackwidth_R == nil, $trackoffset_R+0.25, $trackwidth_R)', y: 1.4, z: 0.29 } }]] });
+    const names = mainAdditions([axle], false).variables.map((r) => r[0]);
+    expect(names).toContain('$trackoffset_R');
+    expect(names).not.toContain('$trackwidth_R');
+  });
+
   it('gives an electric motor a battery, and a car without an engine no controller', () => {
     const motor = t({ slotType: 'motor', rearMotor: { requiredEnergyType: 'electricEnergy', energyStorage: 'mainBattery' } });
     const a = mainAdditions([motor], true);
