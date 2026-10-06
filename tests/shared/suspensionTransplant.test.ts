@@ -357,3 +357,31 @@ describe('attaching to the new car', () => {
     expect(r.attached).toEqual({ ex1r: 'e_e1r' });
   });
 });
+
+describe('an attachment point with no body node close by', () => {
+  it('stays where the set needs it, bolted to the nearest body nodes and heavy enough for them', () => {
+    const r = transplantSuspension({
+      parts: { s: { slotType: 's', nodes: [['id', 'posX', 'posY', 'posZ'], ['fh1r', -0.6, -1.3, 0.3]], beams: [['id1:', 'id2:'], ['fh1r', 'fx1r'], ['fh1r', 'fx2r']] } },
+      root: 's',
+      anchors: { fx1r: [-0.3, -1.45, 0.33], fx2r: [-0.3, -1.42, 0.47] },
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'f_',
+      target: [
+        { id: 'b8r', pos: [-0.3, -1.8, 0.17], weight: 2 },
+        { id: 'b13r', pos: [-0.55, -1.6, 0.58], weight: 2 },
+        { id: 'b31r', pos: [-0.58, -0.93, 0.17], weight: 2 },
+      ],
+      meshNames: {},
+      tuning: {},
+    });
+    const nodes = r.parts.m_s!.nodes as unknown[][];
+    // Two points, two nodes: they no longer fall onto the same body node.
+    expect(nodes.map((n) => n[0])).toEqual(['id', 'f_fh1r', 'f_fx1r', 'f_fx2r']);
+    expect(nodes[2]!.slice(1, 4)).toEqual([-0.3, -1.45, 0.33]);
+    expect((nodes[2]![4] as { nodeWeight: number }).nodeWeight).toBeGreaterThanOrEqual(2);
+    const beams = (r.parts.m_s!.beams as unknown[]).filter(Array.isArray).slice(1) as string[][];
+    expect(beams.slice(0, 2)).toEqual([['f_fh1r', 'f_fx1r'], ['f_fh1r', 'f_fx2r']]);
+    expect(beams.slice(2).filter(([a]) => a === 'f_fx1r').map(([, b]) => b).sort()).toEqual(['b13r', 'b31r', 'b8r']);
+  });
+});

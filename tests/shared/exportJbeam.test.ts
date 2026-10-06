@@ -269,9 +269,13 @@ describe('jbeam export', () => {
     const arm = { slotType: 'car_suspension_F', nodes: [['id', 'posX', 'posY', 'posZ'], ['fx1l', 0.7, -1.3, 0.3]], beams: [['id1:', 'id2:'], ['fx1l', 'chassis1']] };
     const files = new Map(buildJbeamFiles(doc, tax, { meshNames: exportMeshNames(doc, meshes), author: 'x', suspensions: { 'car/front': { root: 'car_suspension_F', anchors: { chassis1: [0.75, -1.3, 0.35] }, parts: { car_suspension_F: arm } } } }).map((f) => [f.part, parsePart(f.text)[1]]));
     const set = [...files.entries()].find(([n]) => n.endsWith('_F_car_suspension_F'))![1];
-    const to = readTable(set.beams!).records.map((r) => r.values['id2:']);
-    expect(to).not.toContain('h1');
-    expect(doc.nodes.find((n) => n.id === to[0])?.partId).toBe(body.id);
+    // Not next to any body node: the point stays where the suspension needs it, bolted to the body.
+    const rows = readTable(set.beams!).records.map((r) => [r.values['id1:'], r.values['id2:']]);
+    expect(rows[0]).toEqual(['f_fx1l', 'f_chassis1']);
+    const mounts = rows.slice(1).map(([, b]) => b);
+    expect(mounts.length).toBeGreaterThan(0);
+    expect(mounts).not.toContain('h1');
+    for (const m of mounts) expect(doc.nodes.find((n) => n.id === m)?.partId).toBe(body.id);
   });
 
   it('binds flexbodies to slot node groups; riders bind to their parent; variants share the slot', () => {

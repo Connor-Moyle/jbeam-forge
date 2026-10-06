@@ -231,6 +231,14 @@ export function thickness(points: readonly V3[]): number {
 
 const FLAT = 0.025;
 
+/** A set's attachment point this close to a body node takes that node; farther, it's bolted on. */
+const MOUNT_SNAP = 0.05;
+const MOUNT_LINKS = 3;
+const MOUNT_MIN_KG = 2;
+/** ω·Δt a bolted-on point is sized for: well inside the limit (the game's cars' median is 1.3). */
+const MOUNT_RATIO = 1.5;
+const MOUNT = { beamSpring: 6_000_000, beamDamp: 150, beamDeform: 120_000, beamStrength: 400_000 };
+
 const dist2 = (a: V3, b: V3) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
 const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 
@@ -319,9 +327,13 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     }
   }
 
-  // The original car's body nodes → the new car's nearest node that can take them.
+  // The original car's body nodes → the new car's nearest node that can take them. When none is
+  // close, the point stays where the set needs it, as a node of its own bolted to the nearest body
+  // nodes: snapping the Autobello's front crossmember points 20-30 cm onto the two nearest body
+  // nodes collapsed the arms' pivots onto each other and the car came apart.
   const attached: Record<string, string> = {};
-  const extra: [string, V3][] = [];
+  const extra: [string, V3, number?][] = [];
+  const mounts: [string, string][] = [];
   for (const [id, pos] of Object.entries(input.anchors)) {
     // A node these parts define is theirs, not the original car's: an anchor list made from other
     // parts of the set (its options) names the engine block's own nodes, and attaching those gave
@@ -343,17 +355,31 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
         const d = dist2(at, t.pos);
         if (!best || d < best.d) best = { id: t.id, d };
       }
-    if (best) {
+    if (best && best.d <= MOUNT_SNAP ** 2) {
       attached[id] = best.id;
       nodeIds.set(id, best.id);
-      if (best.d > 0.3 ** 2) warnings.push(`${id} attaches to ${best.id}, ${Math.sqrt(best.d).toFixed(2)} m away: check the fit or the body's structure there.`);
+    } else if (best) {
+      const kept = `${input.nodePrefix}${id}`;
+      nodeIds.set(id, kept);
+      const near = input.target
+        .filter(carries)
+        .map((t) => ({ id: t.id, d: dist2(at, t.pos) }))
+        .sort((a, b) => a.d - b.d)
+        .slice(0, MOUNT_LINKS);
+      const links = near.length ? near : [best];
+      for (const t of links) mounts.push([kept, t.id]);
+      // Heavy enough for the set's own beams on it and the mount, inside the stability limit.
+      const load = k + links.length * MOUNT.beamSpring;
+      extra.push([kept, at, Math.max(MOUNT_MIN_KG, Math.ceil(load * (STABILITY_DT / MOUNT_RATIO) ** 2 * 10) / 10)]);
+      attached[id] = links[0]!.id;
+      if (best.d > 0.3 ** 2) warnings.push(`${id} is ${Math.sqrt(best.d).toFixed(2)} m from the body's nearest node (${best.id}): check the fit or the body's structure there.`);
     } else {
       // No body structure yet: keep the attachment point as a node of the suspension.
       nodeIds.set(id, `${input.nodePrefix}${id}`);
       extra.push([`${input.nodePrefix}${id}`, at]);
     }
   }
-  if (extra.length) warnings.push(`The body has no structure yet, so ${extra.length} attachment points were kept on the suspension. Generate the body, then export again.`);
+  if (extra.length && !mounts.length) warnings.push(`The body has no structure yet, so ${extra.length} attachment points were kept on the suspension. Generate the body, then export again.`);
 
   const out: Record<string, JbeamObject> = {};
   for (const [name, body] of Object.entries(input.parts)) {
@@ -422,7 +448,11 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   const root = out[rootName];
   if (root && extra.length) {
     const nodes = Array.isArray(root.nodes) ? root.nodes : [['id', 'posX', 'posY', 'posZ']];
-    root.nodes = [...nodes, ...extra.map(([id, p]) => [id, ...p] as JbeamValue[])];
+    root.nodes = [...nodes, ...extra.map(([id, p, w]) => [id, ...p, ...(w ? [{ nodeWeight: w, collision: false, selfCollision: false, group: '' }] : [])] as JbeamValue[])];
+  }
+  if (root && mounts.length) {
+    const beams = Array.isArray(root.beams) ? root.beams : [['id1:', 'id2:']];
+    root.beams = [...beams, { ...MOUNT, beamType: '|NORMAL', breakGroup: '', deformGroup: '' }, ...mounts.map(([a, b]) => [a, b] as JbeamValue[])];
   }
   const rootSlot = typeof input.parts[input.root]?.slotType === 'string' ? (input.parts[input.root]!.slotType as string) : input.root;
   return { parts: out, rootPart: rootName, rootSlotType: slotTypes.get(rootSlot) ?? rootSlot, attached, warnings };
