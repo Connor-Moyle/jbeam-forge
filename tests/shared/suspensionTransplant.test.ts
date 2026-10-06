@@ -128,3 +128,111 @@ describe('suspension jbeam transplant', () => {
     expect(tuningVariables(PARTS)).toEqual([{ name: '$camber_F', unit: '', category: 'Wheel Alignment', title: 'Camber', description: 'Camber angle', default: 1, min: 0.95, max: 1.05, step: 0.001 }]);
   });
 });
+
+describe('engine sets from another car (regressions from a real export)', () => {
+  // An engine whose set also has its own transaxle part, and option parts that use the block's nodes.
+  const ENGINE: Record<string, JbeamObject> = {
+    car_engine: {
+      slotType: 'car_engine',
+      slots: [['type', 'default', 'description'], ['car_transaxle', 'car_transaxle_7DCT', 'Transaxle'], ['car_exhaust', 'car_exhaust', 'Exhaust']],
+      nodes: [['id', 'posX', 'posY', 'posZ'], ['e1r', -0.15, -1.9, 0.17], ['e1l', 0.15, -1.9, 0.17]],
+      beams: [['id1:', 'id2:'], ['e1r', 'e1l'], ['e1r', 'b7r']],
+    },
+    car_transaxle_7DCT: { slotType: 'car_transaxle', nodes: [['id', 'posX', 'posY', 'posZ'], ['tra1r', -0.2, -2.5, 0.2]] },
+    car_exhaust: { slotType: 'car_exhaust', beams: [['id1:', 'id2:'], ['e1r', 'b20']] },
+  };
+  const target = [
+    { id: 'b7r', pos: [-0.14, -1.87, 0.18] as V3 },
+    { id: 'b21', pos: [0.14, -1.3, 0.17] as V3 },
+    { id: 'b20', pos: [0, -3, 0.3] as V3 },
+  ];
+
+  it('never attaches the engine block’s own nodes to the body (an options anchor list names them)', () => {
+    const r = transplantSuspension({
+      parts: ENGINE,
+      root: 'car_engine',
+      // The anchors of the option parts: the exhaust uses e1r, which the engine part defines.
+      anchors: { e1r: [-0.15, -1.9, 0.17], b7r: [-0.14, -1.87, 0.18], b20: [0, -3, 0.3] },
+      offset: [0, 0, 0],
+      partPrefix: 'mymod_E_',
+      nodePrefix: 'e_',
+      target,
+      meshNames: {},
+      tuning: {},
+    });
+    const nodes = (r.parts.mymod_E_car_engine!.nodes as unknown[][]).slice(1).map((n) => n[0]);
+    expect(nodes).toEqual(['e_e1r', 'e_e1l']);
+    expect(r.attached.e1r).toBeUndefined();
+    expect(r.parts.mymod_E_car_exhaust!.beams).toEqual([['id1:', 'id2:'], ['e_e1r', 'b20']]);
+  });
+
+  it('points the engine’s transaxle slot at the chosen gearbox even when the set has its own transaxle', () => {
+    const r = transplantSuspension({
+      parts: ENGINE,
+      root: 'car_engine',
+      anchors: { b7r: [-0.14, -1.87, 0.18], b20: [0, -3, 0.3] },
+      offset: [0, 0, 0],
+      partPrefix: 'mymod_E_',
+      nodePrefix: 'e_',
+      target,
+      meshNames: {},
+      tuning: {},
+      slotRewrites: { car_transaxle: { slotType: 'mymod_G_other_transmission', part: 'mymod_G_other_gearbox' } },
+    });
+    const rows = r.parts.mymod_E_car_engine!.slots as unknown[][];
+    expect(rows[1]!.slice(0, 2)).toEqual(['mymod_G_other_transmission', 'mymod_G_other_gearbox']);
+    expect(rows[2]!.slice(0, 2)).toEqual(['mymod_E_car_exhaust', 'mymod_E_car_exhaust']);
+  });
+});
+
+describe('nodes with formula positions (the Autobello front suspension)', () => {
+  const SUSP: Record<string, JbeamObject> = {
+    car_suspension_F: {
+      slotType: 'car_suspension_F',
+      variables: [['name', 'type', 'unit', 'category', 'default', 'min', 'max', 'title', 'description'], ['$caster_F', 'range', 'm', 'Alignment', 0.02, -0.05, 0.05, 'Caster', '']],
+      nodes: [['id', 'posX', 'posY', 'posZ'], ['fe11r', -0.57, '$=-1.147-$caster_F', 0.217], ['fh1r', -0.6, -1.2, 0.3]],
+      beams: [['id1:', 'id2:'], ['fe11r', 'fh1r'], ['fe11r', 'b1r']],
+    },
+  };
+
+  it('reads them as the set’s own nodes, at their default position', () => {
+    const nodes = definedNodes(SUSP.car_suspension_F!);
+    expect([...nodes.keys()]).toEqual(['fe11r', 'fh1r']);
+    expect(nodes.get('fe11r')![1]).toBeCloseTo(-1.167, 6);
+  });
+
+  it('renames them like any of its nodes, and moves them with the set', () => {
+    const r = transplantSuspension({
+      parts: SUSP,
+      root: 'car_suspension_F',
+      // An anchor list that (wrongly) names one: it must not be attached to the body.
+      anchors: { fe11r: [-0.57, -1.167, 0.217], b1r: [-0.5, -1.0, 0.5] },
+      offset: [0, 0.1, 0],
+      partPrefix: 'mymod_F_',
+      nodePrefix: 'f_',
+      target: [{ id: 'fe11r', pos: [-0.57, -1.06, 0.22] }, { id: 'b1r', pos: [-0.5, -0.9, 0.5] }],
+      meshNames: {},
+      tuning: {},
+    });
+    const rows = (r.parts.mymod_F_car_suspension_F!.nodes as unknown[][]).slice(1);
+    expect(rows[0]).toEqual(['f_fe11r', -0.57, '$=(-1.147-$caster_F) + 0.1', 0.217]);
+    expect(r.parts.mymod_F_car_suspension_F!.beams).toEqual([['id1:', 'id2:'], ['f_fe11r', 'f_fh1r'], ['f_fe11r', 'b1r']]);
+  });
+});
+
+describe('two of the original car’s nodes landing on one', () => {
+  it('drops the zero-length and repeated beams that would make', () => {
+    const r = transplantSuspension({
+      parts: { s: { slotType: 's', nodes: [['id', 'posX', 'posY', 'posZ'], ['fx1', 0, 0, 0]], beams: [['id1:', 'id2:'], ['fx1', 'b1'], ['fx1', 'b2'], ['b1', 'b2'], ['fx1', 'b1']] } },
+      root: 's',
+      anchors: { b1: [0, 1, 0], b2: [0, 1.01, 0] },
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'f_',
+      target: [{ id: 'body1', pos: [0, 1, 0] }],
+      meshNames: {},
+      tuning: {},
+    });
+    expect(r.parts.m_s!.beams).toEqual([['id1:', 'id2:'], ['f_fx1', 'body1']]);
+  });
+});

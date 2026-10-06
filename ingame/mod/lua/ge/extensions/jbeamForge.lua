@@ -302,26 +302,105 @@ function M.call(channel, json)
   return ok(result)
 end
 
+-- Something the player should see, in the log and on screen (F10 failing silently looked like a dead key).
+local function tell(level, msg)
+  log(level, logTag, msg)
+  if ui_message then ui_message('JBeam Forge: ' .. msg, 8, 'jbeamForge') end
+end
+
+-- The route actually showing, whatever opened or closed it (Esc, the back button, another screen).
+local function showing()
+  local current = extensions.ui_router and extensions.ui_router.getCurrent and extensions.ui_router.getCurrent()
+  if type(current) ~= 'table' then return false end
+  -- The router's entry: {request = {name = …}, resolved = {…}, fromRoute = …}.
+  local req = type(current.request) == 'table' and current.request or {}
+  return req.name == ROUTE or req.fullRoute == ROUTE or current.name == ROUTE
+end
+
+local pendingCheck = nil -- seconds until we look whether the screen really opened
+local retried = false
+
 function M.open()
-  if isOpen then return end
+  if showing() then return end
+  local rm = extensions.ui_router_routeManager
+  if rm and rm.getRoute and not rm.getRoute(ROUTE) then
+    tell('E', "its screen isn't registered in the game's interface. Restart the game after installing or updating it; if that doesn't help, a mod that replaces the interface may be blocking it (try the game without other UI mods).")
+    return {success = false, reason = 'route not registered'}
+  end
+  log('I', logTag, 'opening')
+  retried = false
   isOpen = true
   local result = extensions.ui_router.navigate(ROUTE)
   if type(result) == 'table' and result.success == false then
-    log('E', logTag, 'could not open the screen: ' .. dumps(result))
+    tell('E', 'the screen could not open: ' .. tostring(result.reason or result.message or dumps(result)))
     isOpen = false
+    return result
   end
+  pendingCheck = 1.5
   return result
 end
 
 function M.close()
-  if not isOpen then return end
   isOpen = false
   overlay = nil
-  extensions.ui_router.navigate('play')
+  pendingCheck = nil
+  if showing() then
+    log('I', logTag, 'closing')
+    extensions.ui_router.navigate('play')
+  end
 end
 
 function M.toggle()
-  if isOpen then M.close() else M.open() end
+  if showing() then M.close() else M.open() end
+end
+
+-- Follow the route: leaving the screen by any way closes it for us too.
+function M.onAfterRouteChange(context)
+  local to = context and context.toRoute
+  isOpen = type(to) == 'table' and to.name == ROUTE
+end
+
+-- F10 is ours: if the game read its controls before this mod was mounted, ask it to read them again.
+local bindCheck = 3
+local function checkBinding(dt)
+  if not bindCheck then return end
+  bindCheck = bindCheck - (dt or 0)
+  if bindCheck > 0 then return end
+  local b = extensions.core_input_bindings
+  local bound = b and b.getControlForAction and b.getControlForAction('jbeamForgeToggle')
+  if bound then
+    log('I', logTag, 'F10 is bound (' .. tostring(bound) .. ')')
+    bindCheck = nil
+    return
+  end
+  if bindCheck > -10 then
+    log('W', logTag, 'F10 not bound yet: asking the game to read its controls again')
+    if extensions.core_input_actions and extensions.core_input_actions.onFileChanged then extensions.core_input_actions.onFileChanged('/lua/ge/extensions/core/input/actions/jbeamForge.json') end
+    if b and b.onFileChanged then b.onFileChanged('/settings/inputmaps/keyboard_jbeamForge.json', 'modified') end
+    bindCheck = -10 -- one retry, a few seconds on
+    return
+  end
+  bindCheck = nil
+  tell('W', 'F10 is not bound. Bind it in Options → Controls → Gameplay → JBeam Forge, or type extensions.jbeamForge.toggle() in the console (~).')
+end
+
+local function checkOpened(dt)
+  if not pendingCheck then return end
+  pendingCheck = pendingCheck - (dt or 0)
+  if pendingCheck > 0 then return end
+  pendingCheck = nil
+  if not showing() and not retried then
+    -- The first open can outlast the router's patience while the screen loads: once more.
+    retried = true
+    log('W', logTag, 'the screen was slow to open: trying again')
+    extensions.ui_router.navigate(ROUTE)
+    pendingCheck = 4
+    return
+  end
+  if not showing() then
+    isOpen = false
+    tell('E', "the screen didn't open. A mod that replaces the game's interface may be in the way: try the game without other UI mods, and check the log for JBeam Forge lines.")
+  end
 end
 
 function M.isOpen()
@@ -389,7 +468,7 @@ end
 local function startSelftest()
   if not selftest and FS:fileExists(STORE .. 'selftest.json') then
     local plan = jsonReadFile(STORE .. 'selftest.json') or {}
-    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}}
+    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles}
     log('I', logTag, 'self-test: starting')
   end
 end
@@ -406,26 +485,64 @@ end
 
 function M.onUpdate(dtReal)
   trySpawn(dtReal)
+  checkBinding(dtReal)
+  checkOpened(dtReal)
   if not selftest then return end
   selftest.t = selftest.t + (dtReal or 0)
+  -- The map's start event can go missing (a car coming apart on spawn): a car in the world will do.
+  if selftest.stage == 'level' and selftest.t > 45 and getPlayerVehicle(0) then
+    selftest.stage = 'drive'
+    selftest.t = 0
+  end
   if selftest.stage == 'menu' and selftest.t > 8 then
     selftest.stage = 'level'
     selftest.t = 0
     freeroam_freeroam.startFreeroamByName(selftest.level)
-  elseif selftest.stage == 'drive' and selftest.t > 8 and getPlayerVehicle(0) then
+  elseif selftest.stage == 'drive' and selftest.vehicles and (selftest.vi or 0) < #selftest.vehicles then
+    -- A batch of cars, one after another: each gets a while to load and settle (its log lines are what count).
+    if selftest.t > (selftest.vi and 15 or 8) then
+      selftest.vi = (selftest.vi or 0) + 1
+      local v = selftest.vehicles[selftest.vi]
+      selftest.t = 0
+      log('I', logTag, 'self-test: spawning ' .. tostring(v.vehicle) .. ' ' .. tostring(v.config or ''))
+      local done, err = pcall(function() core_vehicles.replaceVehicle(v.vehicle, v.config and {config = v.config} or {}) end)
+      if not done then log('E', logTag, 'self-test: could not spawn ' .. tostring(v.vehicle) .. ': ' .. tostring(err)) end
+    end
+  elseif selftest.stage == 'drive' and selftest.t > 8 and selftest.vehicle and not selftest.spawned then
+    -- The car under test (a mod's vehicle), in place of the map's own.
+    selftest.spawned = true
+    selftest.t = 0
+    log('I', logTag, 'self-test: spawning ' .. tostring(selftest.vehicle) .. ' ' .. tostring(selftest.config or ''))
+    core_vehicles.replaceVehicle(selftest.vehicle, selftest.config and {config = selftest.config} or {})
+  elseif selftest.stage == 'drive' and selftest.t > 12 and getPlayerVehicle(0) then
+    -- Press F10 the way the player does: through the game's controls, not by calling open().
+    selftest.stage = 'press'
+    selftest.t = 0
+    local b = extensions.core_input_bindings
+    selftest.bound = b and b.getControlForAction and b.getControlForAction('jbeamForgeToggle') or false
+    local rm = extensions.ui_router_routeManager
+    selftest.routeRegistered = rm and rm.getRoute and rm.getRoute(ROUTE) ~= nil or false
+    local pressed = pcall(function() extensions.core_input_actions.triggerDownUp('jbeamForgeToggle') end)
+    selftest.pressed = pressed
+  elseif selftest.stage == 'press' and selftest.t > 8 then
+    selftest.f10Opened = showing()
     selftest.stage = 'open'
     selftest.t = 0
-    local navigated = M.open()
-    selftest.navigate = navigated and {success = navigated.success, reason = navigated.reason or navigated.message} or 'nothing'
+    if not selftest.f10Opened then
+      local navigated = M.open()
+      selftest.navigate = navigated and {success = navigated.success, reason = navigated.reason or navigated.message} or 'nothing'
+    end
   elseif selftest.stage == 'open' and (selftest.t > 300 or (selftest.t > 25 and (#selftest.steps == 0 or (uiReport and uiReport.done)))) then
     local car = currentVehicle()
     if car then jsonWriteFile(STORE .. 'selftest-car.json', car, false) end
     local current = extensions.ui_router.getCurrent and extensions.ui_router.getCurrent()
     jsonWriteFile(STORE .. 'selftest-result.json', {
       opened = isOpen,
+      f10 = {bound = selftest.bound, routeRegistered = selftest.routeRegistered, pressed = selftest.pressed, opened = selftest.f10Opened},
       navigate = selftest.navigate,
       route = type(current) == 'table' and (current.name or current.routeName or dumps(current):sub(1, 400)) or tostring(current),
       ui = uiReport,
+      spawned = selftest.vehicle,
       vehicle = car and {model = car.model, nodes = #car.nodes, beams = #car.beams, flexbodies = #car.flexbodies, models = car.models, configFile = car.config.file} or nil,
     }, true)
     log('I', logTag, 'self-test: done')

@@ -148,14 +148,18 @@ while (queue.length) {
 
 // Nodes, groups, flexbodies, beams in the installed config
 const nodeOwner = new Map<string, string>();
+const nodeAt = new Map<string, string>();
 const groups = new Set<string>();
 for (const name of installed) {
   const p = partOf(name)!;
   if (!p.nodes) continue;
   for (const r of readTable(p.nodes).records) {
     const id = s(r.values.id);
-    if (nodeOwner.has(id)) errors.push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
+    // Restated at the same place (the game's own parts do this; it merges them) is fine.
+    const at = ['posX', 'posY', 'posZ'].map((k) => (typeof r.values[k] === 'number' ? Math.round(r.values[k] * 200) / 200 : JSON.stringify(r.values[k]))).join(',');
+    if (nodeOwner.has(id) && nodeAt.get(id) !== at) errors.push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
     nodeOwner.set(id, name);
+    nodeAt.set(id, at);
     const g = r.options.group;
     if (typeof g === 'string' && g) groups.add(g);
     else if (Array.isArray(g)) g.forEach((x) => groups.add(s(x)));

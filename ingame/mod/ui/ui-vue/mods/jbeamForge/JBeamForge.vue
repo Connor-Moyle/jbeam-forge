@@ -45,7 +45,9 @@ function report(stage, err) {
 }
 
 onMounted(async () => {
-  acknowledgeMount()
+  // Tell the router first, then load: loading first kept the router waiting until it gave up.
+  await acknowledgeMount()
+  await new Promise(resolve => setTimeout(resolve, 30))
   stylesheet = document.createElement("link")
   stylesheet.rel = "stylesheet"
   stylesheet.href = new URL(BASE + "forge.css", window.location.href).href

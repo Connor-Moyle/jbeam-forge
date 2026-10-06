@@ -56,6 +56,13 @@ import { paintedCounts } from '@renderer/paint/facePaint';
 import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
 import { AiModeDialog } from '@renderer/ai/AiModeDialog';
 import { useWorkspaceBridge } from '@renderer/shell/workspaceBridge';
+import { fitSuspension, setUpAxles } from '@renderer/suspension/commands';
+import { addEngineOption, fitPowertrain } from '@renderer/powertrain/commands';
+import { addFromTemplate } from '@renderer/scripts/commands';
+import { BUILT_IN_TEMPLATES } from '@shared/lua/library';
+import { hingeAll } from '@renderer/hinges/commands';
+import { handlesFromHinges } from '@renderer/triggers/commands';
+import { toggleFeature } from '@renderer/features/commands';
 import styles from './App.module.css';
 
 /** App-lifetime subscriptions to the main process and the project store. */
@@ -137,6 +144,32 @@ function AppEffects() {
         },
         runCommand: (command: AppCommand) => runAppCommand(command),
         projectDoc: () => projectStore.getState().doc,
+        // Building cars without clicking (the export matrix): the game's sets by id, scripts, hinges, extras.
+        setUpAxles: () => setUpAxles(),
+        fitSet: async (target: string, setId: string) => {
+          const kind = target.startsWith('axle') ? 'suspension' : 'powertrain';
+          const sets = (await call(kind === 'suspension' ? 'suspension:catalogue' : 'powertrain:catalogue', undefined)) ?? [];
+          const set = sets.find((x) => x.id === setId);
+          if (!set) throw new Error(`no set ${setId}`);
+          if (target.startsWith('axle:')) {
+            const axle = projectStore.getState().doc?.axles?.[Number(target.slice(5))];
+            if (!axle) throw new Error(`no axle ${target}`);
+            await fitSuspension(axle.id, set);
+          } else if (target === 'engineOption') await addEngineOption(set);
+          else await fitPowertrain(target as 'engine' | 'gearbox', set);
+          return true;
+        },
+        addScript: (templateId: string) => addFromTemplate(templateId),
+        setMeta: (patch: { name?: string; slug?: string }) => projectStore.getState().execute({ label: 'Rename mod', apply: (d) => void Object.assign(d.meta, patch) }),
+        templateIds: () => BUILT_IN_TEMPLATES.map((t) => t.id),
+        // The export's jbeam and configurations as text, even when the export is blocked (to see why).
+        exportTexts: () => {
+          const prep = prepareExport();
+          return prep ? prep.bundle.files.filter((f) => 'text' in f && /\.(jbeam|pc|json)$/.test(f.path)).map((f) => ({ path: f.path, text: (f as { text: string }).text })) : null;
+        },
+        hingeAll: () => hingeAll(),
+        handlesFromHinges: () => handlesFromHinges(),
+        toggleFeature: (kind: string, on: boolean) => toggleFeature(kind as Parameters<typeof toggleFeature>[0], on),
         queueDialog: (answers: (string | null)[]) => call('harness:queueDialog', { answers }),
         partsState: () => {
           const d = projectStore.getState().doc;

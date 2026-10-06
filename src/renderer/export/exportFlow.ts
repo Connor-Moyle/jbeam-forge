@@ -31,6 +31,7 @@ import { withPaintedFaces } from '@renderer/paint/facePaint';
 import { collectMaterials, createTextureNamer, projectMaterialExport, skinMaterialsJson, type TextureCopy } from './materials';
 import { textureToDds, toBase64 } from './textureConvert';
 import { portedIssues, portedText } from '@shared/export/ported';
+import { installProblems } from '@shared/export/installCheck';
 import { commonRoot, engineModFiles, panelModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
@@ -218,12 +219,14 @@ export function prepareExport(): PreparedExport | null {
   const configs = [null, ...doc.configs];
   const taken = new Set<string>();
   const configFiles: ExportBundle['files'] = [];
+  const configChoices: { name: string; parts: Record<string, string> }[] = [];
   let defaultPc = 'default';
   for (const config of configs) {
     let file = configFileName(config);
     for (let i = 2; taken.has(file); i++) file = `${configFileName(config)}_${i}`;
     taken.add(file);
     const pc = resolveConfig(doc, tax, config, useSetData.getState().data);
+    configChoices.push({ name: config?.name ?? 'the default configuration', parts: pc.parts });
     if (config && config.id === doc.defaultConfigId) defaultPc = file;
     const labels = configLabels(configStats(doc, tax, pc, useSetData.getState().data), config?.info);
     configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config, labels), null, 2)}\n` });
@@ -249,6 +252,16 @@ export function prepareExport(): PreparedExport | null {
     loadedMeshKeys: allMeshes.map((m) => m.key),
   });
   for (const e of scripts.errors) report.errors.push({ code: 'SCRIPT', message: e });
+  // The jbeam as the game will assemble it, configuration by configuration.
+  if (kind === 'vehicle') {
+    const seen = new Set<string>();
+    for (const c of configChoices)
+      for (const message of installProblems(jbeams, slug, c.parts, `${slug}_`)) {
+        if (seen.has(message)) continue;
+        seen.add(message);
+        report.errors.push({ code: 'ASSEMBLY', message: configChoices.length > 1 ? `${c.name}: ${message}` : message });
+      }
+  }
   for (const w of scripts.warnings) report.warnings.push({ code: 'SCRIPT', message: w });
   // Settings → Scripts: warnings in a script's code stop the export too.
   if (useSettingsStore.getState().settings?.scriptStrictExport) {

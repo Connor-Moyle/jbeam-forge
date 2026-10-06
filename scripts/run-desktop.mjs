@@ -28,6 +28,8 @@ const only = process.argv.find((a) => a.startsWith('--only='))?.slice(7).split('
 const smokeModel = process.argv.find((a) => a.startsWith('--model='))?.slice(8);
 // Optional local project someone assigned by hand (opened read-only: never saved), e.g. --project="Template Car/hirochi_sunburst_6.jbforge"
 const userProject = process.argv.find((a) => a.startsWith('--project='))?.slice(10);
+const exportProject = process.argv.find((a) => a.startsWith('--export-project='))?.slice(17);
+const matrixArg = process.argv.find((a) => a.startsWith('--matrix='))?.slice(9);
 // Optional local Assetto Corsa car folder, e.g. --ac-car="L:/…/assettocorsa/content/cars/ks_mazda_mx5_cup"
 const acCar = process.argv.find((a) => a.startsWith('--ac-car='))?.slice(9);
 // Optional real BeamNG install for the suspension-parts scenario, e.g. --beamng-install="I:/…/BeamNG.drive"
@@ -2610,6 +2612,194 @@ const scenarios = [
       await page.waitForTimeout(500);
       await shot(page, 'cms2021-importer');
       rmSync(work, { recursive: true, force: true });
+    },
+  },
+  {
+    id: 'matrix',
+    name: 'the export matrix: the practice car with many of the game’s suspensions, engines and gearboxes, every script and extra, each exported into one unpacked mod and read the way the game does (--matrix=<count>[:<offset>])',
+    skip: () => !matrixArg || !realInstall,
+    async run({ page }) {
+      const [count, offset] = matrixArg.split(':').map(Number);
+      await page.waitForSelector('[data-testid=app-ready]');
+      const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
+      await invoke('settings:update', { beamngInstallDir: realInstall, offerLessons: false });
+      for (let i = 0; i < 3000; i++) {
+        const lib = await invoke('library:status');
+        if (!lib.scanning && (await invoke('suspension:catalogue')).length) break;
+        await page.waitForTimeout(100);
+      }
+      const susp = await invoke('suspension:catalogue');
+      const power = await invoke('powertrain:catalogue');
+      // Spread over types first, then vehicles: every type early, a different car for each repeat.
+      const spread = (list, key) => {
+        const groups = new Map();
+        for (const s of [...list].sort((a, b) => a.id.localeCompare(b.id))) groups.set(key(s), [...(groups.get(key(s)) ?? []), s]);
+        const out = [];
+        for (let round = 0; out.length < list.length; round++) {
+          let added = false;
+          for (const g of groups.values())
+            if (g[round]) {
+              out.push(g[round]);
+              added = true;
+            }
+          if (!added) break;
+        }
+        return out;
+      };
+      const fronts = spread(susp.filter((s) => s.axle !== 'rear'), (s) => s.type);
+      const rears = spread(susp.filter((s) => s.axle !== 'front'), (s) => s.type);
+      const engines = spread(power.filter((s) => s.kind === 'engine'), (s) => s.type);
+      const boxes = spread(power.filter((s) => s.kind === 'gearbox'), (s) => s.type);
+      const combos = Array.from({ length: count }, (_, k) => {
+        const i = (offset || 0) + k;
+        return { slug: `forge_m${String(i + 1).padStart(3, '0')}`, front: fronts[i % fronts.length].id, rear: rears[i % rears.length].id, engine: engines[i % engines.length].id, gearbox: boxes[i % boxes.length].id };
+      });
+      const modDir = join(outDir, 'matrix-mod');
+      mkdirSync(join(modDir, 'vehicles'), { recursive: true });
+      const report = [];
+      const templates = await hook(page, 'templateIds');
+      for (const c of combos) {
+        const r = { ...c, steps: [], problems: [] };
+        report.push(r);
+        try {
+          if (await page.locator('[data-view=editor]').count()) {
+            await hook(page, 'runCommand', 'close');
+            if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+          }
+          await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+          await page.getByTestId('home-tour').click();
+          await page.waitForSelector('[data-testid=tour-card]');
+          await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+          for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+          await hook(page, 'setMeta', { name: `Forge test ${c.slug.slice(7)}`, slug: c.slug });
+          await hook(page, 'applyPreset', 'modelling');
+          await page.getByTestId('scene-classify').click();
+          await page.getByTestId('classify-apply').click();
+          await page.getByTestId('toolbar-generate').click();
+          for (let i = 0; i < 1800 && !((await hook(page, 'projectDoc')).nodes.length > 50); i++) await page.waitForTimeout(100);
+          await page.waitForTimeout(1000);
+          await hook(page, 'setUpAxles');
+          for (const [target, id] of [['axle:0', c.front], ['axle:1', c.rear], ['engine', c.engine], ['gearbox', c.gearbox]]) {
+            try {
+              await hook(page, 'fitSet', target, id);
+              r.steps.push(`${target} ${id}`);
+            } catch (err) {
+              r.problems.push(`fit ${target} ${id}: ${String(err.message ?? err).slice(0, 300)}`);
+            }
+            await page.waitForTimeout(500);
+          }
+          r.hinges = await hook(page, 'hingeAll');
+          r.handles = await hook(page, 'handlesFromHinges');
+          for (const f of ['plateFront', 'plateRear', 'hitch', 'nitrous']) await hook(page, 'toggleFeature', f, true);
+          r.scripts = 0;
+          for (const t of templates) if (await hook(page, 'addScript', t)) r.scripts++;
+          await page.waitForTimeout(800);
+          // Export → Install: blocked exports list why.
+          await page.getByTestId('toolbar-export').click();
+          await page.getByTestId('export-dialog').waitFor();
+          await page.waitForTimeout(1500);
+          if (await page.getByTestId('export-install').isDisabled()) {
+            r.problems.push(`export blocked: ${(await page.getByTestId('export-dialog').textContent()).slice(0, 1500)}`);
+            await shot(page, `matrix-${c.slug}-blocked`);
+            // What it would have written, to see why.
+            for (const f of (await hook(page, 'exportTexts')) ?? []) {
+              const to = join(outDir, 'matrix-blocked', c.slug, f.path);
+              mkdirSync(join(to, '..'), { recursive: true });
+              writeFileSync(to, f.text);
+            }
+          } else {
+            await page.getByTestId('export-install').click();
+            await page.getByTestId('export-result').waitFor({ timeout: 180_000 });
+            const src = join(fakeUserDir, 'mods', 'unpacked');
+            const mod = readdirSync(src).sort((a, b) => statSync(join(src, b)).mtimeMs - statSync(join(src, a)).mtimeMs)[0];
+            cpSync(join(src, mod, 'vehicles', c.slug), join(modDir, 'vehicles', c.slug), { recursive: true });
+            r.exported = true;
+          }
+          for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
+        } catch (err) {
+          r.problems.push(`stopped: ${String(err.message ?? err).slice(0, 400)}`);
+          await shot(page, `matrix-${c.slug}-stopped`).catch(() => undefined);
+          for (let i = 0; i < 3; i++) await page.keyboard.press('Escape').catch(() => undefined);
+        }
+        writeFileSync(join(outDir, 'matrix-report.json'), JSON.stringify(report, null, 2));
+        console.log(`  matrix ${c.slug}: ${r.exported ? 'exported' : 'NOT exported'}${r.problems.length ? ` · ${r.problems.length} problems` : ''}`);
+      }
+      // Each car read the way the game does (lint), against the install.
+      const tsx = join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      for (const r of report.filter((x) => x.exported)) {
+        const one = join(outDir, 'matrix-lint', r.slug);
+        mkdirSync(join(one, 'vehicles'), { recursive: true });
+        cpSync(join(modDir, 'vehicles', r.slug), join(one, 'vehicles', r.slug), { recursive: true });
+        const lint = spawnSync(process.execPath, [tsx, '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lint-mod.ts'), one], { encoding: 'utf8', env: { ...process.env, BEAMNG_INSTALL: realInstall } });
+        r.lintOk = lint.status === 0;
+        r.lintErrors = (lint.stdout + lint.stderr).split('\n').filter((l) => /^ {2}\S/.test(l) && !/warn:/.test(l)).slice(0, 40);
+        rmSync(one, { recursive: true, force: true });
+      }
+      writeFileSync(join(outDir, 'matrix-report.json'), JSON.stringify(report, null, 2));
+      const bad = report.filter((r) => !r.exported || !r.lintOk || r.problems.length);
+      assert(bad.length === 0, `${bad.length} of ${report.length} cars have problems (matrix-report.json):\n${bad.map((r) => `${r.slug}: ${[...r.problems, ...(r.lintErrors ?? [])].slice(0, 4).join(' | ').slice(0, 400)}`).join('\n')}`);
+    },
+  },
+  {
+    id: 'export-project',
+    name: 'a project file exported as its author would, then read the way the game does (--export-project=<path>)',
+    skip: () => !exportProject,
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      // The game's parts and textures the project uses come from the install, as on its author's PC.
+      if (realInstall) {
+        const invoke = (channel, req) => page.evaluate(async ([c, r]) => (await window.forge.invoke(c, r)).value, [channel, req]);
+        await invoke('settings:update', { beamngInstallDir: realInstall });
+        for (let i = 0; i < 3000; i++) {
+          const lib = await invoke('library:status');
+          if (!lib.scanning && (await invoke('suspension:catalogue')).length) break;
+          await page.waitForTimeout(100);
+        }
+      }
+      // Its folders (the model, the game's textures it uses) are allowed on its author's PC: allow
+      // them here, then open it again so everything loads as it does there.
+      await hook(page, 'queueDialog', [exportProject]);
+      await hook(page, 'runCommand', 'open');
+      if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      if (await page.getByTestId('folders-allow').isVisible({ timeout: 8000 }).catch(() => false)) await page.getByTestId('folders-allow').click();
+      await page.waitForTimeout(1000);
+      await hook(page, 'runCommand', 'close');
+      if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      await hook(page, 'queueDialog', [exportProject]);
+      await hook(page, 'runCommand', 'open');
+      let st;
+      for (let i = 0; i < 1800; i++) {
+        if (await page.getByTestId('folders-allow').isVisible().catch(() => false)) await page.getByTestId('folders-allow').click();
+        st = await hook(page, 'sceneStats');
+        if (st.meshes > 0 && st.sources.every((x) => x.status === 'ready')) break;
+        await page.waitForTimeout(100);
+      }
+      assert(st.meshes > 0, `the project's models loaded (${JSON.stringify(st.sources)})`);
+      await page.waitForTimeout(3000); // the game's sets it uses load after the models
+      await page.getByTestId('toolbar-export').click();
+      await page.getByTestId('export-dialog').waitFor();
+      await page.waitForTimeout(1500);
+      await shot(page, 'export-project-dialog');
+      const dialogText = await page.getByTestId('export-dialog').textContent();
+      writeFileSync(join(outDir, 'export-project-dialog.txt'), dialogText);
+      const blocked = await page.getByTestId('export-install').isDisabled();
+      assert(!blocked, `the export isn't blocked:\n${dialogText.slice(0, 1500)}`);
+      await page.getByTestId('export-install').click();
+      await page.getByTestId('export-result').waitFor({ timeout: 180_000 });
+      const unpacked = join(fakeUserDir, 'mods', 'unpacked');
+      const mod = readdirSync(unpacked).sort((a, b) => statSync(join(unpacked, b)).mtimeMs - statSync(join(unpacked, a)).mtimeMs)[0];
+      const modDir = join(outDir, 'export-project-mod');
+      cpSync(join(unpacked, mod), modDir, { recursive: true });
+      const tsx = join(ROOT, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      const lint = spawnSync(process.execPath, [tsx, '--tsconfig', join(ROOT, 'tsconfig.node.json'), join(ROOT, 'scripts', 'lint-mod.ts'), modDir], { encoding: 'utf8', env: { ...process.env, ...(realInstall ? { BEAMNG_INSTALL: realInstall } : {}) } });
+      writeFileSync(join(outDir, 'export-project-lint.txt'), lint.stdout + lint.stderr);
+      const vdir = join(modDir, 'vehicles', readdirSync(join(modDir, 'vehicles'))[0]);
+      const pcs = readdirSync(vdir).filter((f) => f.endsWith('.pc'));
+      const runs = pcs.map((pc) => ({ pc, r: spawnSync(process.execPath, [tsx, join(ROOT, 'scripts', 'dev', 'jbeamStability.mts'), vdir, pc], { encoding: 'utf8', env: { ...process.env, STEPS: '6000' } }) }));
+      writeFileSync(join(outDir, 'export-project-stability.txt'), runs.map((c) => `${c.pc}\n${c.r.stdout}${c.r.stderr}`).join('\n'));
+      assert(lint.status === 0, `the mod lints clean:\n${(lint.stdout + lint.stderr).split('\n').filter((l) => /ERROR|^ {2}[a-z]/.test(l) && !/warn:/.test(l)).slice(0, 30).join('\n')}`);
+      for (const c of runs) assert(/RUN: \d+ steps .* stable/.test(c.r.stdout), `${c.pc} holds together:\n${c.r.stdout.split('\n').filter((l) => /RUN|worst|nodes,/.test(l)).join('\n')}${c.r.stderr.slice(0, 400)}`);
+      for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
     },
   },
   {

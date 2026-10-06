@@ -23,6 +23,7 @@ import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
 import { softenedValue, stabilise, type StabiliseBeam } from '../proxy/stability';
 import { setWheels } from '../suspension/wheels';
+import { mainAdditions } from './drivable';
 
 /**
  * Project → jbeam parts (SPEC §4.15), in the verified 0.39 format
@@ -318,7 +319,14 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
   const order = { edge: 0, brace: 1, attach: 2, mount: 3, hinge: 4, limit: 5, support: 6, popopen: 7 } as const;
   // Eased beams sit together within their kind, so their values are written once.
   const ease = (b: StructBeam) => soft?.beams.get(b)?.k ?? 1;
-  const sorted = [...beams].sort((x, y) => order[x.kind] - order[y.kind] || ease(y) - ease(x));
+  // A beam between two nodes in the same place (a hinge pivot landing on a panel node) holds nothing
+  // and the game warns about it ("zero size beam"): left out.
+  const zero = (b: StructBeam) => {
+    const p = pos(b.id1);
+    const q = pos(b.id2);
+    return !!p && !!q && Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) < 0.001;
+  };
+  const sorted = beams.filter((b) => !zero(b)).sort((x, y) => order[x.kind] - order[y.kind] || ease(y) - ease(x));
   const records: WritableRecord[] = sorted.map((b) => {
     const values = { 'id1:': b.id1, 'id2:': b.id2 };
     // The limiter's bound comes from the opening angle and where its two ends are.
@@ -684,6 +692,21 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const doc1: WritableObject = { [part.name]: content };
     files.push({ file: `${part.name}.jbeam`, part: part.name, text: serializeJbeam(doc1) });
   }
+  // What the game's borrowed parts expect from a car's own main part: the drive controller, fuel
+  // or batteries, tuning variables they use. Added once every part is known.
+  const extra = mainAdditions(
+    files.filter((f) => f.part !== slug).map((f) => f.text),
+    !!pt?.engine && !!opts.suspensions?.[pt.engine.setId],
+  );
+  const mainPart = main[slug] as WritableObject;
+  if (extra.controller) mainPart.controller = extra.controller;
+  if (extra.energyStorage) {
+    mainPart.energyStorage = extra.energyStorage;
+    for (const [name, section] of Object.entries(extra.storages)) mainPart[name] = section;
+  }
+  if (extra.variables.length) mainPart.variables = [['name', 'type', 'unit', 'category', 'default', 'min', 'max', 'title', 'description'], ...extra.variables] as WritableValue;
+  const mainFile = files.find((f) => f.part === slug);
+  if (mainFile) mainFile.text = serializeJbeam(main);
   return files;
 }
 

@@ -11,15 +11,69 @@ import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse
 
 export type V3 = [number, number, number];
 
-/** Node id → position, from a part's nodes table (rows of [id, x, y, z, …]; option objects skipped). */
-export function definedNodes(part: JbeamObject): Map<string, V3> {
+/** The defaults of a part's variables table ($caster_F → 0…). */
+export function variableDefaults(parts: Iterable<JbeamObject>): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const p of parts) {
+    const t = p.variables;
+    if (!Array.isArray(t) || !Array.isArray(t[0])) continue;
+    const col = t[0].map(String).indexOf('default');
+    for (const row of t.slice(1)) if (Array.isArray(row) && typeof row[0] === 'string' && typeof row[col] === 'number') out.set(row[0], row[col]);
+  }
+  return out;
+}
+
+/**
+ * A coordinate as a number: plain numbers, a "$variable" or a "$=…" formula of numbers, variables,
+ * + - * / and brackets (positions the game lets tuning move: "$=-1.147-$caster_F"). NaN when it
+ * can't be worked out.
+ */
+export function coordinate(v: JbeamValue | undefined, vars: ReadonlyMap<string, number>): number {
+  if (typeof v === 'number') return v;
+  if (typeof v !== 'string' || !v.startsWith('$')) return NaN;
+  const src = v.startsWith('$=') ? v.slice(2) : v;
+  const tokens = src.match(/\$[A-Za-z_][A-Za-z0-9_]*|\d+\.?\d*(?:[eE][-+]?\d+)?|\.\d+|[-+*/()]/g) ?? [];
+  if (tokens.join('') !== src.replace(/\s+/g, '')) return NaN;
+  let i = 0;
+  const atom = (): number => {
+    const t = tokens[i++];
+    if (t === '-') return -atom();
+    if (t === '+') return atom();
+    if (t === '(') {
+      const r = sum();
+      i++; // ')'
+      return r;
+    }
+    if (t?.startsWith('$')) return vars.get(t) ?? 0;
+    return t === undefined ? NaN : Number(t);
+  };
+  const product = (): number => {
+    let r = atom();
+    while (tokens[i] === '*' || tokens[i] === '/') r = tokens[i++] === '*' ? r * atom() : r / atom();
+    return r;
+  };
+  const sum = (): number => {
+    let r = product();
+    while (tokens[i] === '+' || tokens[i] === '-') r = tokens[i++] === '+' ? r + product() : r - product();
+    return r;
+  };
+  const r = sum();
+  return i === tokens.length ? r : NaN;
+}
+
+/**
+ * Node id → position, from a part's nodes table (rows of [id, x, y, z, …]; option objects skipped).
+ * Every row counts, formula positions included (worked out with the variables' defaults): a node
+ * missed here was taken for one of the original car's and renamed onto the new car's body.
+ */
+export function definedNodes(part: JbeamObject, vars: ReadonlyMap<string, number> = variableDefaults([part])): Map<string, V3> {
   const out = new Map<string, V3>();
   const table = part.nodes;
   if (!Array.isArray(table)) return out;
   for (const row of table.slice(1)) {
-    if (!Array.isArray(row) || typeof row[0] !== 'string') continue;
-    const [x, y, z] = [row[1], row[2], row[3]];
-    if (typeof x === 'number' && typeof y === 'number' && typeof z === 'number') out.set(row[0], [x, y, z]);
+    if (!Array.isArray(row) || typeof row[0] !== 'string' || row.length < 4) continue;
+    const p = [coordinate(row[1], vars), coordinate(row[2], vars), coordinate(row[3], vars)] as V3;
+    out.set(row[0], p.map((c) => (Number.isFinite(c) ? c : 0)) as V3);
   }
   return out;
 }
@@ -175,7 +229,12 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   const names = new Map([...slotTypes, ...partNames]);
 
   const nodeIds = new Map<string, string>();
-  for (const body of Object.values(input.parts)) for (const id of definedNodes(body).keys()) nodeIds.set(id, `${input.nodePrefix}${id}`);
+  const own = new Set<string>();
+  for (const body of Object.values(input.parts))
+    for (const id of definedNodes(body).keys()) {
+      nodeIds.set(id, `${input.nodePrefix}${id}`);
+      own.add(id);
+    }
   for (const [id, to] of Object.entries(input.linkedNodes ?? {})) if (!nodeIds.has(id)) nodeIds.set(id, to);
   const groups = setGroups(input.parts);
   const keepGroup = (g: JbeamValue): JbeamValue => (typeof g === 'string' && input.fallbackGroup && !groups.has(g) ? input.fallbackGroup : g);
@@ -184,7 +243,10 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   const attached: Record<string, string> = {};
   const extra: [string, V3][] = [];
   for (const [id, pos] of Object.entries(input.anchors)) {
-    if (input.linkedNodes?.[id]) continue;
+    // A node these parts define is theirs, not the original car's: an anchor list made from other
+    // parts of the set (its options) names the engine block's own nodes, and attaching those gave
+    // them the names of body nodes.
+    if (input.linkedNodes?.[id] || own.has(id)) continue;
     const at = add(pos, input.offset);
     let best: { id: string; d: number } | null = null;
     for (const t of input.target) {
@@ -209,12 +271,13 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     for (const [section, value] of Object.entries(body)) {
       if (section === 'information') part[section] = value;
       else if (section === 'slotType') part[section] = typeof value === 'string' ? (slotTypes.get(value) ?? value) : value;
-      else if (section === 'slots' || section === 'slots2') part[section] = shiftSlotOffsets(rewriteSlots(renameStrings(value, names), input.slotRewrites ?? {}), input.offset);
+      else if (section === 'slots' || section === 'slots2') part[section] = shiftSlotOffsets(renameStrings(rewriteSlots(value, input.slotRewrites ?? {}), names), input.offset);
       else if (section === 'nodes' && Array.isArray(value)) {
         part[section] = value.map((row, i) => {
           if (i === 0 || !Array.isArray(row) || typeof row[0] !== 'string') return row;
           const [id, x, y, z, ...rest] = row;
-          const moved = typeof x === 'number' && typeof y === 'number' && typeof z === 'number' ? add([x, y, z], input.offset) : [x, y, z];
+          // Formula positions move too ("$=… + d"), or those nodes stayed where the original car had them.
+          const moved = typeof x === 'number' && typeof y === 'number' && typeof z === 'number' ? add([x, y, z], input.offset) : [shiftOffset(x!, input.offset[0]), shiftOffset(y!, input.offset[1]), shiftOffset(z!, input.offset[2])];
           return [nodeIds.get(id) ?? id, ...moved, ...rest] as JbeamValue[];
         });
       } else if (section === 'flexbodies' && Array.isArray(value)) {
@@ -230,6 +293,20 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
         const header = Array.isArray(value[0]) ? value[0].map(String) : [];
         const col = header.indexOf('default');
         part[section] = value.map((row, i) => (i > 0 && Array.isArray(row) && typeof row[0] === 'string' && col >= 0 && input.tuning[row[0]] !== undefined ? row.map((c, j) => (j === col ? input.tuning[row[0] as string]! : c)) : row));
+      } else if ((section === 'beams' || section === 'triangles') && Array.isArray(value)) {
+        // Two of the original car's nodes can land on one node of the new car: a beam between them
+        // is then zero length, and two beams the same ("zero size beam", "duplicated beam").
+        const seen = new Set<string>();
+        const n = section === 'beams' ? 2 : 3;
+        part[section] = (renameStrings(value, nodeIds) as JbeamValue[]).filter((row, i) => {
+          if (i === 0 || !Array.isArray(row) || row.slice(0, n).some((c) => typeof c !== 'string')) return true;
+          const ids = row.slice(0, n) as string[];
+          if (new Set(ids).size < n) return false;
+          const key = [...ids].sort().join('|');
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
       } else part[section] = renameStrings(value, nodeIds);
     }
     out[partNames.get(name)!] = part;
