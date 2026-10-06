@@ -22,7 +22,7 @@ import { EngineDesignSchema } from '../powertrain/design';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 23;
+export const CURRENT_PROJECT_VERSION = 24;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -47,6 +47,11 @@ export const ProjectMetaSchema = z.object({
   modKind: z.enum(['vehicle', 'engine', 'tyres', 'wheels', 'panel']).optional(),
   /** Ported from another game (fork): which, and the modder's declaration (owns it, mod is free). */
   portedFrom: PortedFromSchema.optional(),
+  /**
+   * The BeamNG.drive version the mod was last exported for (v24): game updates are what break mods
+   * quietly, so opening it with another version says so.
+   */
+  gameVersion: z.string().max(64).optional(),
 });
 
 const placeholderList = z.array(z.unknown());
@@ -683,7 +688,12 @@ export const ProjectV23Schema = ProjectV22Schema.extend({
   formatVersion: z.literal(23),
 });
 
-export const ProjectSchema = ProjectV23Schema;
+/** v24: the BeamNG.drive version the mod was exported for (meta.gameVersion). */
+export const ProjectV24Schema = ProjectV23Schema.extend({
+  formatVersion: z.literal(24),
+});
+
+export const ProjectSchema = ProjectV24Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type PartVersion = z.infer<typeof PartVersionSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;

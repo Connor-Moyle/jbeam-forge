@@ -38,3 +38,27 @@ describe('what a car’s main part must provide for borrowed game parts', () => 
     expect(mainAdditions([brakes], false).controller).toBeNull();
   });
 });
+
+import { drivetrainIssues } from '../../src/shared/export/validate';
+
+describe('the drivetrain end to end', () => {
+  const run = (doc: Parameters<typeof drivetrainIssues>[0]) => {
+    const out: string[] = [];
+    drivetrainIssues(doc, (code) => out.push(code));
+    return out;
+  };
+  const set = (name: string) => ({ name }) as never;
+  const axle = (fitted: boolean) => ({ fitted: fitted ? {} : null }) as never;
+
+  it('names the missing link', () => {
+    expect(run({ powertrain: { engine: set('V8'), gearbox: null }, axles: [axle(true), axle(true)] })).toEqual(['drivetrain-no-gearbox']);
+    expect(run({ powertrain: { engine: null, gearbox: set('5M') }, axles: [] })).toEqual(['drivetrain-no-engine']);
+    expect(run({ powertrain: { engine: set('V8'), gearbox: set('5M'), drivetrain: { layout: 'rwd', frontShare: 0, centre: 'open' } }, axles: [axle(true), axle(false)] } as never)).toEqual(['drivetrain-no-axle']);
+    expect(run({ powertrain: { engine: set('V8'), gearbox: set('5M') }, axles: [axle(false), axle(false)] })).toEqual(['drivetrain-no-axle']);
+  });
+
+  it('passes a complete one, and a car without an engine', () => {
+    expect(run({ powertrain: { engine: set('V8'), gearbox: set('5M') }, axles: [axle(true), axle(true)] })).toEqual([]);
+    expect(run({ powertrain: { engine: null, gearbox: null }, axles: [] })).toEqual([]);
+  });
+});

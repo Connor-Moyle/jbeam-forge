@@ -115,9 +115,10 @@ async function main() {
     for (const name of ['jbeam_forge.zip', 'jbeam_forge_ingame.zip']) if (existsSync(join(mods, name))) moveAside(join(mods, name));
     for (const dir of readdirSync(join(mods, 'unpacked'))) if (/^jbeam_forge($|_ingame$)/i.test(dir)) moveAside(join(mods, 'unpacked', dir));
     // Other copies of the car under test: the game merges same-named vehicle folders from every mod.
-    if (vehicle) {
-      const prefix = `vehicles/${vehicle.toLowerCase()}/`;
-      for (const dir of readdirSync(join(mods, 'unpacked'))) if (existsSync(join(mods, 'unpacked', dir, 'vehicles', vehicle))) moveAside(join(mods, 'unpacked', dir));
+    // --aside=a,b: other vehicles to set aside too (the player's default car, spawned with the map).
+    for (const v of [...(vehicle ? [vehicle] : []), ...(arg('aside', '') ? arg('aside').split(',') : [])]) {
+      const prefix = `vehicles/${v.toLowerCase()}/`;
+      for (const dir of readdirSync(join(mods, 'unpacked'))) if (existsSync(join(mods, 'unpacked', dir, 'vehicles', v))) moveAside(join(mods, 'unpacked', dir));
       for (const f of readdirSync(mods)) if (f.toLowerCase().endsWith('.zip') && statSync(join(mods, f)).isFile() && (await zipHas(join(mods, f), prefix))) moveAside(join(mods, f));
     }
 

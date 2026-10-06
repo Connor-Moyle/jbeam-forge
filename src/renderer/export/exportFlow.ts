@@ -32,6 +32,7 @@ import { collectMaterials, createTextureNamer, projectMaterialExport, skinMateri
 import { textureToDds, toBase64 } from './textureConvert';
 import { portedIssues, portedText } from '@shared/export/ported';
 import { installProblems } from '@shared/export/installCheck';
+import { stampGameVersion } from './gameVersion';
 import { commonRoot, engineModFiles, panelModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
@@ -438,6 +439,7 @@ export async function runExport(mode: 'install' | 'zip'): Promise<void> {
     if (r) {
       ui.set({ result: { ...r, mode } });
       logger.info(`export ${mode}: ${r.path}`);
+      void stampGameVersion();
       if (useSettingsStore.getState().settings?.openFolderAfterExport) void call('export:reveal').catch(() => undefined);
     }
   } catch (err) {

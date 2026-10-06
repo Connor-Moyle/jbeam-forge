@@ -9,7 +9,7 @@ import { bodyPart, flexGroupOf, slotTypeOf, type TaxonomyLookup } from './jbeam'
  * broken in-game; warnings don't.
  */
 
-type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'triggers' | 'axles'>>;
+type Doc = Pick<Project, 'meta' | 'parts' | 'assignments' | 'ignoredMeshes' | 'nodes' | 'beams' | 'tris' | 'proxy' | 'hinges'> & Partial<Pick<Project, 'triggers' | 'axles' | 'powertrain'>>;
 
 export interface ExportIssue {
   code: string;
@@ -109,5 +109,29 @@ export function validateExport(doc: Doc, tax: TaxonomyLookup, input: ValidationI
     else if (doc.nodes.filter((n) => n.partId === t.partId).length < 3) warn('trigger-no-nodes', `Trigger ${t.id} needs ${owner.displayName} to have nodes (generate its structure), or it won't be written.`, owner.id);
   }
   if (unassigned) warn('meshes-unassigned', `${unassigned} mesh${unassigned === 1 ? ' is' : 'es are'} not assigned to any part and won't be exported.`);
+  drivetrainIssues(doc, warn);
   return { errors, warnings };
+}
+
+/**
+ * The drivetrain end to end, named by its missing link: an engine reaches the wheels through a
+ * gearbox and a game suspension on the driven axle (which brings the differential and shafts).
+ * Warnings: some engines bring their own gearbox (transaxles, electric motors).
+ */
+export function drivetrainIssues(doc: Pick<Doc, 'powertrain' | 'axles'>, warn: (code: string, message: string) => void): void {
+  const pt = doc.powertrain;
+  if (!pt?.engine) {
+    if (pt?.gearbox) warn('drivetrain-no-engine', `There's a gearbox (${pt.gearbox.name}) but no engine to turn it: choose one in the Engine workspace.`);
+    return;
+  }
+  if (!pt.gearbox) warn('drivetrain-no-gearbox', `The engine (${pt.engine.name}) has no gearbox chosen. Unless it brings its own (a transaxle, an electric motor), nothing turns the wheels: choose one in the Engine workspace.`);
+  const axles = doc.axles ?? [];
+  const front = axles[0];
+  const rear = axles.length > 1 ? axles[axles.length - 1] : undefined;
+  const layout = pt.drivetrain?.layout ?? 'auto';
+  const missing: string[] = [];
+  if ((layout === 'fwd' || layout === 'awd') && !front?.fitted) missing.push('front');
+  if ((layout === 'rwd' || layout === 'awd') && !rear?.fitted) missing.push('rear');
+  if (layout === 'auto' && !axles.some((a) => a.fitted)) missing.push('driven');
+  if (missing.length) warn('drivetrain-no-axle', `The ${missing.join(' and ')} axle has no game suspension, so the engine has no ${missing.length > 1 ? 'wheels' : 'wheel'} to drive there: fit one in the Suspension workspace (it brings the differential and half-shafts).`);
 }

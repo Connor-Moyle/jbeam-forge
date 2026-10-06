@@ -56,6 +56,7 @@ import { paintedCounts } from '@renderer/paint/facePaint';
 import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
 import { AiModeDialog } from '@renderer/ai/AiModeDialog';
 import { GameLogDialog } from '@renderer/export/GameLogDialog';
+import { checkGameVersion } from '@renderer/export/gameVersion';
 import { useWorkspaceBridge } from '@renderer/shell/workspaceBridge';
 import { fitSuspension, setUpAxles } from '@renderer/suspension/commands';
 import { addEngineOption, fitPowertrain } from '@renderer/powertrain/commands';
@@ -418,6 +419,11 @@ function Editor() {
   // A tyre, wheel, engine or panel mod opens on its builder; a vehicle never on a part mod's workspace.
   const modKind = useProjectStore((s) => s.doc?.meta.modKind);
   const { ready, preset: current, applyPreset: apply } = useShell();
+  // A project opened with another game version than its last export: say so.
+  const openedPath = useProjectStore((s) => s.filePath);
+  useEffect(() => {
+    if (openedPath) void checkGameVersion();
+  }, [openedPath]);
   // Help can start a workspace's lesson: it switches workspace through this.
   useEffect(() => {
     useWorkspaceBridge.getState().set(ready ? apply : null);

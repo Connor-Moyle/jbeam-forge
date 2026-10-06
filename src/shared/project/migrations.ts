@@ -180,6 +180,12 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'engine, gearbox and suspension settings adjustable in game, and versions of their parts',
     migrate: (doc) => ({ ...doc, formatVersion: 23 }),
   },
+  {
+    from: 23,
+    // Nothing to change: the game version stamp is new and optional.
+    describe: 'the BeamNG.drive version a mod was exported for',
+    migrate: (doc) => ({ ...doc, formatVersion: 24 }),
+  },
 ];
 
 export class MigrationError extends Error {
