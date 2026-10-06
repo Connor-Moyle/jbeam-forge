@@ -11,7 +11,7 @@ import { defaultLayer, type MaterialDef, type MaterialLayer } from './schema';
 export interface MaterialPreset {
   id: string;
   name: string;
-  category: 'Paint' | 'Metal' | 'Plastic & rubber' | 'Glass & lenses' | 'Interior' | 'Lights';
+  category: 'Paint' | 'Metal' | 'Plastic & rubber' | 'Glass & lenses' | 'Interior' | 'Lights' | 'Wraps & special';
   /** Everything but id/name/origin. */
   def: Omit<MaterialDef, 'id' | 'name' | 'origin'>;
 }
@@ -84,4 +84,53 @@ export const MATERIAL_PRESETS: readonly MaterialPreset[] = [
   { id: 'glow_red', name: 'Brake light glow', category: 'Lights', def: lamp(rgb(255, 20, 10), 25) },
   { id: 'glow_amber', name: 'Indicator glow', category: 'Lights', def: lamp(rgb(255, 140, 10), 25) },
   { id: 'glow_gauge', name: 'Gauge backlight', category: 'Lights', def: lamp(rgb(255, 255, 255), 5) },
+  // Paint
+  { id: 'paint_candy_red', name: 'Candy red', category: 'Paint', def: paint(rgb(150, 8, 12), 0.8, 0.2) },
+  { id: 'paint_candy_blue', name: 'Candy blue', category: 'Paint', def: paint(rgb(12, 30, 140), 0.8, 0.2) },
+  { id: 'paint_flake_silver', name: 'Silver metal flake', category: 'Paint', def: paint(rgb(190, 192, 196), 1, 0.3) },
+  { id: 'paint_gunmetal', name: 'Gunmetal grey', category: 'Paint', def: paint(rgb(70, 74, 80), 1, 0.35) },
+  { id: 'paint_racing_green', name: 'Racing green', category: 'Paint', def: paint(rgb(14, 60, 32), 0.3, 0.3) },
+  { id: 'paint_safety_yellow', name: 'Safety yellow', category: 'Paint', def: paint(rgb(250, 200, 10), 0.05, 0.35) },
+  { id: 'paint_signal_orange', name: 'Signal orange', category: 'Paint', def: paint(rgb(240, 90, 10), 0.1, 0.35) },
+  { id: 'paint_pure_white', name: 'Pure white (solid)', category: 'Paint', def: paint(rgb(240, 240, 238), 0, 0.3) },
+  { id: 'paint_jet_black', name: 'Jet black (solid)', category: 'Paint', def: paint(rgb(8, 8, 9), 0, 0.25) },
+  { id: 'paint_frozen_grey', name: 'Frozen grey (matte metallic)', category: 'Paint', def: paint(rgb(120, 124, 128), 0.8, 0.6, 0) },
+  // Metal
+  { id: 'copper', name: 'Copper', category: 'Metal', def: surface({ baseColor: rgb(184, 115, 70), metallic: 1, roughness: 0.25 }) },
+  { id: 'brass', name: 'Brass', category: 'Metal', def: surface({ baseColor: rgb(200, 165, 90), metallic: 1, roughness: 0.25 }) },
+  { id: 'black_chrome', name: 'Black chrome', category: 'Metal', def: surface({ baseColor: rgb(40, 42, 45), metallic: 1, roughness: 0.05 }) },
+  { id: 'stainless_polished', name: 'Polished stainless (exhausts)', category: 'Metal', def: surface({ baseColor: rgb(210, 212, 215), metallic: 1, roughness: 0.08 }) },
+  { id: 'galvanised', name: 'Galvanised steel', category: 'Metal', def: surface({ baseColor: rgb(165, 170, 172), metallic: 1, roughness: 0.55 }) },
+  { id: 'magnesium_raw', name: 'Raw magnesium (wheels, cases)', category: 'Metal', def: surface({ baseColor: rgb(175, 175, 170), metallic: 1, roughness: 0.5 }) },
+  { id: 'rusty_steel', name: 'Rusty steel (add a rust texture)', category: 'Metal', def: surface({ baseColor: rgb(110, 60, 35), metallic: 0.4, roughness: 0.9 }) },
+  { id: 'gold_plated', name: 'Gold plated', category: 'Metal', def: surface({ baseColor: rgb(230, 185, 80), metallic: 1, roughness: 0.08 }) },
+  // Plastic & rubber
+  { id: 'plastic_white', name: 'White plastic', category: 'Plastic & rubber', def: surface({ baseColor: rgb(225, 225, 222), roughness: 0.55 }) },
+  { id: 'plastic_red', name: 'Red plastic (towing eyes, clips)', category: 'Plastic & rubber', def: surface({ baseColor: rgb(180, 20, 20), roughness: 0.5 }) },
+  { id: 'tyre_sidewall', name: 'Tyre sidewall (worn rubber)', category: 'Plastic & rubber', def: surface({ baseColor: rgb(28, 28, 28), roughness: 0.85 }) },
+  { id: 'forged_carbon', name: 'Forged carbon (add a forged texture)', category: 'Plastic & rubber', def: surface({ baseColor: rgb(32, 33, 35), metallic: 0.4, roughness: 0.3, clearCoat: 1, clearCoatRoughness: 0.02 }) },
+  // Glass & lenses
+  { id: 'glass_privacy', name: 'Privacy glass (rear windows)', category: 'Glass & lenses', def: glass(rgb(15, 17, 20, 1), 0.8) },
+  { id: 'lens_smoked', name: 'Smoked lens', category: 'Glass & lenses', def: glass(rgb(40, 40, 42, 1), 0.7, 0.03) },
+  { id: 'lens_clear_red', name: 'Clear-red taillight lens', category: 'Glass & lenses', def: glass(rgb(220, 60, 60, 1), 0.35) },
+  { id: 'lens_yellow', name: 'Yellow fog-light lens', category: 'Glass & lenses', def: glass(rgb(240, 200, 40, 1), 0.4) },
+  // Interior
+  { id: 'leather_red', name: 'Red leather', category: 'Interior', def: surface({ baseColor: rgb(120, 20, 22), roughness: 0.55 }) },
+  { id: 'leather_cream', name: 'Cream leather', category: 'Interior', def: surface({ baseColor: rgb(215, 200, 170), roughness: 0.55 }) },
+  { id: 'wood_trim', name: 'Wood trim (add a grain texture)', category: 'Interior', def: surface({ baseColor: rgb(110, 60, 30), roughness: 0.2, clearCoat: 1, clearCoatRoughness: 0.03 }) },
+  { id: 'piano_black', name: 'Piano black trim', category: 'Interior', def: surface({ baseColor: rgb(6, 6, 7), roughness: 0.05, clearCoat: 1, clearCoatRoughness: 0.01 }) },
+  { id: 'headliner', name: 'Headliner fabric', category: 'Interior', def: surface({ baseColor: rgb(170, 168, 162), roughness: 1 }) },
+  { id: 'rubber_mat', name: 'Rubber floor mat', category: 'Interior', def: surface({ baseColor: rgb(20, 20, 20), roughness: 0.95 }) },
+  // Lights
+  { id: 'glow_led_white', name: 'LED daytime light (cool white)', category: 'Lights', def: lamp(rgb(225, 235, 255), 60) },
+  { id: 'glow_fog_yellow', name: 'Fog light glow (yellow)', category: 'Lights', def: lamp(rgb(255, 210, 60), 30) },
+  { id: 'glow_reverse', name: 'Reverse light glow', category: 'Lights', def: lamp(rgb(250, 250, 255), 30) },
+  { id: 'glow_gauge_red', name: 'Gauge backlight (red)', category: 'Lights', def: lamp(rgb(255, 30, 20), 5) },
+  { id: 'glow_underglow', name: 'Underglow (neon blue)', category: 'Lights', def: lamp(rgb(40, 120, 255), 80) },
+  // Wraps & special
+  { id: 'wrap_matte_black', name: 'Matte black wrap', category: 'Wraps & special', def: surface({ baseColor: rgb(18, 18, 19), roughness: 0.8 }, { paint: true }) },
+  { id: 'wrap_satin_white', name: 'Satin white wrap', category: 'Wraps & special', def: surface({ baseColor: rgb(230, 230, 228), roughness: 0.5 }, { paint: true }) },
+  { id: 'primer_grey', name: 'Grey primer', category: 'Wraps & special', def: surface({ baseColor: rgb(130, 132, 134), roughness: 0.9 }) },
+  { id: 'primer_red', name: 'Red oxide primer', category: 'Wraps & special', def: surface({ baseColor: rgb(130, 50, 35), roughness: 0.9 }) },
+  { id: 'shadow_black', name: 'Shadow black (hidden areas, under panels)', category: 'Wraps & special', def: surface({ baseColor: rgb(4, 4, 4), roughness: 1 }, { castShadows: false }) },
 ];

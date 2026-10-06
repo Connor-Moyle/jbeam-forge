@@ -66,16 +66,31 @@ export const PAINT_PRESETS: { group: string; paints: PresetPaint[] }[] = [
   { group: 'Matte and satin', paints: [P('Matte Black', [0.03, 0.03, 0.03], 0, 0.85, 0, 0.5), P('Satin Grey', [0.28, 0.29, 0.3], 0.2, 0.65, 0.3, 0.4), P('Matte Army Green', [0.2, 0.24, 0.13], 0, 0.9, 0, 0.5), P('Frozen Blue', [0.25, 0.4, 0.6], 0.5, 0.7, 0.2, 0.5)] },
   { group: 'Candy and chrome', paints: [P('Candy Apple Red', [0.55, 0.0, 0.02], 1, 0.12, 1, 0.01), P('Candy Purple', [0.3, 0.02, 0.45], 1, 0.12, 1, 0.01), P('Candy Lime', [0.3, 0.6, 0.02], 1, 0.12, 1, 0.01), P('Chrome', [0.95, 0.95, 0.95], 1, 0.02, 1, 0.01), P('Gold Chrome', [0.9, 0.68, 0.25], 1, 0.04, 1, 0.01)] },
   { group: 'Loud', paints: [P('Neon Green', [0.35, 1, 0.05], 0, 0.35), P('Hot Pink', [1, 0.08, 0.55], 0.2, 0.3), P('Electric Orange', [1, 0.35, 0.0], 0.3, 0.3), P('Toxic Yellow', [0.85, 1, 0.0], 0.1, 0.3), P('Cyber Cyan', [0.0, 0.9, 1], 0.4, 0.25)] },
+  {
+    group: 'Classic (1960s–80s)',
+    paints: [P('Seafoam Green', [0.45, 0.68, 0.6], 0, 0.5, 0.6), P('Harvest Gold', [0.72, 0.52, 0.12], 0, 0.5, 0.6), P('Avocado', [0.36, 0.4, 0.12], 0, 0.5, 0.6), P('Sky Blue', [0.45, 0.65, 0.85], 0, 0.5, 0.6), P('Cream', [0.92, 0.87, 0.72], 0, 0.5, 0.6), P('Brown Metallic', [0.25, 0.14, 0.07], 0.6, 0.4, 0.8), P('Tangerine', [0.95, 0.42, 0.05], 0, 0.45, 0.6)],
+  },
+  {
+    group: 'Service and fleet',
+    paints: [P('Taxi Yellow', [0.98, 0.75, 0.0], 0, 0.45), P('Police White', [0.95, 0.95, 0.95], 0, 0.45), P('Police Black', [0.03, 0.03, 0.035], 0, 0.45), P('Fire Engine Red', [0.78, 0.04, 0.03], 0, 0.4), P('Utility Orange', [1, 0.45, 0.0], 0, 0.5), P('Ambulance Lime', [0.75, 0.95, 0.1], 0, 0.45), P('Military Olive', [0.27, 0.29, 0.17], 0, 0.85, 0, 0.5), P('Desert Tan', [0.62, 0.5, 0.33], 0, 0.85, 0, 0.5)],
+  },
+  { group: 'Metallic (more)', paints: [P('Champagne Gold', [0.68, 0.56, 0.36], 0.85, 0.32), P('Copper Metallic', [0.55, 0.26, 0.12], 0.85, 0.32), P('Graphite', [0.12, 0.12, 0.13], 0.85, 0.35), P('Ice Blue Metallic', [0.55, 0.7, 0.85], 0.8, 0.3), P('Lava Orange Metallic', [0.8, 0.25, 0.02], 0.75, 0.3), P('Royal Purple Metallic', [0.2, 0.05, 0.35], 0.75, 0.32)] },
 ];
 
 /** Three-paint schemes (slot 1, 2, 3) for multicolour cars in one click. */
 export const PAINT_SCHEMES: { name: string; slots: [string, string, string] }[] = [
-  { name: 'Gulf', slots: ['Frozen Blue', 'Electric Orange', 'Jet Black'] },
-  { name: 'Martini', slots: ['Arctic White', 'Grand Prix Blue', 'Signal Red'] },
+  { name: 'Endurance blue and orange', slots: ['Frozen Blue', 'Electric Orange', 'Jet Black'] },
+  { name: 'Racing stripes on white', slots: ['Arctic White', 'Grand Prix Blue', 'Signal Red'] },
   { name: 'Two-tone luxury', slots: ['Midnight Pearl', 'Silver Metallic', 'Chrome'] },
   { name: 'Candy flip', slots: ['Candy Purple', 'Candy Apple Red', 'Gold Chrome'] },
   { name: 'Rave', slots: ['Neon Green', 'Hot Pink', 'Cyber Cyan'] },
   { name: 'Stealth', slots: ['Matte Black', 'Satin Grey', 'Gunmetal'] },
+  { name: 'Taxi', slots: ['Taxi Yellow', 'Jet Black', 'Arctic White'] },
+  { name: 'Police', slots: ['Police White', 'Police Black', 'Grand Prix Blue'] },
+  { name: 'Fire and rescue', slots: ['Fire Engine Red', 'Arctic White', 'Chrome'] },
+  { name: 'Retro two-tone', slots: ['Cream', 'Seafoam Green', 'Chrome'] },
+  { name: 'Military', slots: ['Military Olive', 'Desert Tan', 'Matte Black'] },
+  { name: 'Wood-panel wagon', slots: ['Cream', 'Brown Metallic', 'Chrome'] },
 ];
 
 export function presetByName(name: string): PresetPaint | undefined {

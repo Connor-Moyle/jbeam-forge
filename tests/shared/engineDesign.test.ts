@@ -11,7 +11,8 @@ describe('engine designer', () => {
       expect(EngineDesignSchema.safeParse(d).success, p.id).toBe(true);
       const r = designEngine(d);
       expect(r.peakPower.kw, p.id).toBeGreaterThan(30);
-      expect(r.peakPower.kw, p.id).toBeLessThan(600);
+      // Up to a drag engine's; anything past that is a broken preset.
+      expect(r.peakPower.kw, p.id).toBeLessThan(2500);
       expect(r.massKg, p.id).toBeGreaterThan(30);
       expect(r.curve.every(([rpm, nm], i) => nm > 0 && (i === 0 || rpm > r.curve[i - 1]![0])), p.id).toBe(true);
     }

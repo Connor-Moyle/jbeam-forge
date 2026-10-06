@@ -1004,7 +1004,7 @@ const scenarios = [
       // Paints: a three-paint scheme, then the brush on the car (these boxes have no UVs or paint material, so it says why instead).
       await page.getByTestId('toggle-paints').click();
       await page.getByTestId('paints-panel').waitFor();
-      await page.getByTestId('paint-scheme').filter({ hasText: 'Gulf' }).click();
+      await page.getByTestId('paint-scheme').filter({ hasText: 'Endurance blue and orange' }).click();
       assert((await page.getByTestId('paint-row').count()) === 3, 'scheme added three paints');
       await page.getByRole('switch', { name: 'Paint on the car' }).click();
       const vpBox = await page.locator('[data-panel=viewport] canvas').first().boundingBox();
