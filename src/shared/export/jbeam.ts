@@ -640,6 +640,9 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   const touching = nodesTouchingOtherParts(
     doc.nodes.map((n) => ({ id: n.id, pos: n.pos, partId: baseOf.get(n.partId) ?? n.partId })),
     doc.tris.map((t) => ({ ids: t.ids, partId: baseOf.get(t.partId) ?? t.partId })),
+    undefined,
+    // A door, hood or trunk shuts against the body: that contact must stay.
+    new Set(doc.parts.filter((p) => tax.entry(p.taxonomyId)?.openable).map((p) => baseOf.get(p.id) ?? p.id)),
   );
 
   for (const part of doc.parts) {

@@ -162,3 +162,20 @@ describe('hinged parts in generation and export', () => {
     expect(yanked.summary[0]).toMatch(/Tore off at the hinges/);
   });
 });
+
+describe('finding a hinged part’s latch', () => {
+  it('finds it when its node names were numbered (the second front door: dflt2, dflb2)', async () => {
+    const { hingeIds } = await import('../../src/shared/hinges/build');
+    const doc = {
+      nodes: [
+        { id: 'dflt', partId: 'door_FL', pos: [0, 0, 0] as [number, number, number], weight: 1 },
+        { id: 'dflb', partId: 'door_FL', pos: [0, 0, 0] as [number, number, number], weight: 1 },
+        { id: 'dflt2', partId: 'door_FR', pos: [0, 0, 0] as [number, number, number], weight: 1 },
+        { id: 'dflb2', partId: 'door_FR', pos: [0, 0, 0] as [number, number, number], weight: 1 },
+      ],
+      beams: [],
+    };
+    expect(hingeIds(doc, 'door_FR')).toMatchObject({ latchPart: 'dflt2', latchBody: 'dflb2' });
+    expect(hingeIds(doc, 'door_FL')).toMatchObject({ latchPart: 'dflt', latchBody: 'dflb' });
+  });
+});

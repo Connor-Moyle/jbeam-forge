@@ -132,6 +132,8 @@ export function hingeIds(doc: Pick<Project, 'beams' | 'nodes'>, partId: string):
   const hingeNodes = [...new Set(own.filter((b) => b.kind === 'hinge').map((b) => b.id1))];
   const limit = own.find((b) => b.kind === 'limit');
   const pop = own.find((b) => b.kind === 'popopen');
-  const latchPart = doc.nodes.find((n) => n.partId === partId && n.id.endsWith('lt'))?.id ?? null;
-  return { hinge: [hingeNodes[0] ?? '', hingeNodes[1] ?? ''], latchPart, latchBody: pop?.id1 ?? doc.nodes.find((n) => n.partId === partId && n.id.endsWith('lb'))?.id ?? null, limiter: limit ? [limit.id1, limit.id2] : null };
+  // The latch nodes are <prefix>lt and <prefix>lb, with a number when the name was taken: two front
+  // doors share the prefix, so the right door's are dflt2 and dflb2 (and it lost its latch).
+  const latchPart = doc.nodes.find((n) => n.partId === partId && /lt\d*$/.test(n.id))?.id ?? null;
+  return { hinge: [hingeNodes[0] ?? '', hingeNodes[1] ?? ''], latchPart, latchBody: pop?.id1 ?? doc.nodes.find((n) => n.partId === partId && /lb\d*$/.test(n.id))?.id ?? null, limiter: limit ? [limit.id1, limit.id2] : null };
 }

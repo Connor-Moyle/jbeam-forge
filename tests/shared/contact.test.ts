@@ -19,3 +19,22 @@ describe('nodes that start against another part', () => {
     expect([...nodesTouchingOtherParts(nodes, tris)]).toEqual(['gr1']);
   });
 });
+
+describe('parts made to close against the body', () => {
+  it('keep their contact: a door shuts on the jamb, and the jamb stays solid for it', () => {
+    const nodes = [
+      { id: 'b1', partId: 'body', pos: [0, 0, 0] as const },
+      { id: 'b2', partId: 'body', pos: [1, 0, 0] as const },
+      { id: 'b3', partId: 'body', pos: [0, 0, 1] as const },
+      { id: 'd1', partId: 'door', pos: [0.3, 0.01, 0.3] as const },
+      { id: 'd2', partId: 'door', pos: [0.6, 0.01, 0.3] as const },
+      { id: 'd3', partId: 'door', pos: [0.3, 0.01, 0.6] as const },
+    ];
+    const tris = [
+      { ids: ['b1', 'b2', 'b3'] as [string, string, string], partId: 'body' },
+      { ids: ['d1', 'd2', 'd3'] as [string, string, string], partId: 'door' },
+    ];
+    expect(nodesTouchingOtherParts(nodes, tris).size).toBeGreaterThan(0);
+    expect([...nodesTouchingOtherParts(nodes, tris, undefined, new Set(['door']))]).toEqual([]);
+  });
+});

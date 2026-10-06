@@ -47,8 +47,12 @@ export function nodesTouchingOtherParts(
   nodes: readonly { id: string; partId: string; pos: V3 }[],
   tris: readonly { ids: readonly [string, string, string]; partId: string }[],
   gap = CONTACT_GAP,
+  /** Parts made to close against others (doors, hood, trunk): their contact is what holds them shut. */
+  closing: ReadonlySet<string> = new Set(),
 ): Set<string> {
   const byId = new Map(nodes.map((n) => [n.id, n]));
+  tris = tris.filter((t) => !closing.has(t.partId));
+  nodes = nodes.filter((n) => !closing.has(n.partId));
   // Triangles in a coarse grid, so each node only looks at the ones nearby.
   const cell = Math.max(0.25, gap * 4);
   const key = (x: number, y: number, z: number) => `${Math.floor(x / cell)},${Math.floor(y / cell)},${Math.floor(z / cell)}`;
