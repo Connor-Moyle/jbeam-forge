@@ -187,6 +187,10 @@ function DynoEditor({ curve, reference, limit, selected, onSelect, onChange }: {
   const maxRpm = Math.max(limit, ...all.map(([r]) => r), 1000);
   const maxNm = Math.max(...all.map(([, t]) => t), 1) * 1.15;
   const maxKw = Math.max(...all.map(([r, t]) => kwAt(r, t)), 1) * 1.15;
+  // The labels are this curve's peaks up to the limiter; the scale leaves room over them.
+  const own = curve.filter(([r]) => r <= limit);
+  const peakNm = Math.max(...own.map(([, t]) => t), 0);
+  const peakKw = Math.max(...own.map(([r, t]) => kwAt(r, t)), 0);
   const x = (r: number) => PAD.l + (r / maxRpm) * (W - PAD.l - PAD.r);
   const yT = (t: number) => H - PAD.b - (t / maxNm) * (H - PAD.t - PAD.b);
   const yP = (kw: number) => H - PAD.b - (kw / maxKw) * (H - PAD.t - PAD.b);
@@ -220,10 +224,10 @@ function DynoEditor({ curve, reference, limit, selected, onSelect, onChange }: {
       ))}
       <line className={styles.limit} x1={x(limit)} x2={x(limit)} y1={PAD.t} y2={H - PAD.b} />
       <text className={styles.axisTorque} x={4} y={PAD.t + 8}>
-        {units.torque(maxNm)}
+        {units.torque(peakNm)} peak
       </text>
       <text className={styles.axisPower} x={W - 4} y={PAD.t + 8} textAnchor="end">
-        {units.power(maxKw)}
+        {units.power(peakKw)} peak
       </text>
       {reference && <polyline className={styles.reference} points={line(reference, (_r, t) => yT(t))} />}
       <polyline className={styles.torque} points={line(curve, (_r, t) => yT(t))} />

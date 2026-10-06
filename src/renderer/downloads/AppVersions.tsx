@@ -169,7 +169,7 @@ export function AppVersions() {
       {!(window.forge as { ingame?: boolean }).ingame && (
         <section className={styles.card} data-testid="downloads-ingame">
           <strong>JBeam Forge in BeamNG.drive</strong>
-          <IngameVersion />
+          <IngameVersion compact rowClass={styles.row} noteClass={styles.note} />
         </section>
       )}
       {older.length > 0 && (

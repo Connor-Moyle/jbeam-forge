@@ -61,6 +61,8 @@ export function SkinStudioPanel() {
     return () => clearTimeout(t);
   }, [meshes, keys, opts]);
 
+  // Each step that shows the sheet mounts its own canvas, so the step is a reason to draw too
+  // (the new one stayed blank when the plan was ready before the step opened).
   const canvas = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const c = canvas.current;
@@ -68,7 +70,7 @@ export function SkinStudioPanel() {
     const px = Math.round(c.clientWidth * (window.devicePixelRatio || 1)) || 512;
     c.width = c.height = px;
     drawTemplate(c, templateDrawing(plan, px, view, shading), { labels: view === 'parts' });
-  }, [plan, view, shading]);
+  }, [stepNow, plan, view, shading]);
 
   // The template on the car follows the plan while it's shown.
   useEffect(() => {

@@ -90,7 +90,7 @@ export function validateExport(doc: Doc, tax: TaxonomyLookup, input: ValidationI
       const name = input.meshNames.get(k);
       if (!name || !input.daeNodes.has(name)) err('flexbody-missing-mesh', `${part.displayName}: mesh ${k.slice(k.indexOf(':') + 1)} is not in the exported DAE.`, part.id);
     }
-    if (entry.openable && hasNodes && !doc.hinges.some((h) => h.partId === part.id)) warn('openable-unhinged', `${part.displayName} opens, but it has no hinge yet, so it is bolted shut. Add one from the Inspector.`, part.id);
+    if (entry.openable && hasNodes && !doc.hinges.some((h) => h.partId === part.id)) warn('openable-unhinged', `${part.displayName} opens, but it has no hinge yet, so it is bolted shut. Add one in the Moving parts workspace (Hinge all does every opening panel at once).`, part.id);
   }
 
   if (body && doc.nodes.some((n) => n.partId === body.id)) {

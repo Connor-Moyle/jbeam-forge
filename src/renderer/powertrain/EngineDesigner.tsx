@@ -400,8 +400,11 @@ function DesignDyno({ curve, reference, limit }: { curve: [number, number][]; re
   const shown = curve.filter(([r]) => r <= limit);
   const all = [...shown, ...(reference ?? [])];
   const maxRpm = Math.max(limit, 1000);
+  // The labels are the design's peaks (as in the cards above); the scale leaves room over them.
+  const peakNm = Math.max(...shown.map(([, t]) => t), 1);
+  const peakKw = Math.max(...shown.map(([r, t]) => kwAt(r, t)), 1);
   const maxNm = Math.max(...all.map(([, t]) => t), 1) * 1.12;
-  const maxKw = Math.max(...shown.map(([r, t]) => kwAt(r, t)), 1) * 1.12;
+  const maxKw = peakKw * 1.12;
   const x = (r: number) => PAD.l + (Math.min(r, maxRpm) / maxRpm) * (W - PAD.l - PAD.r);
   const yT = (t: number) => H - PAD.b - (t / maxNm) * (H - PAD.t - PAD.b);
   const yP = (kw: number) => H - PAD.b - (kw / maxKw) * (H - PAD.t - PAD.b);
@@ -423,10 +426,10 @@ function DesignDyno({ curve, reference, limit }: { curve: [number, number][]; re
         </g>
       ))}
       <text className={styles.axisTorque} x={4} y={PAD.t + 8}>
-        {units.torque(maxNm)}
+        {units.torque(peakNm)} peak
       </text>
       <text className={styles.axisPower} x={W - 4} y={PAD.t + 8} textAnchor="end">
-        {units.power(maxKw)}
+        {units.power(peakKw)} peak
       </text>
       {reference && reference.length > 1 && <polyline className={styles.reference} points={line(reference, (_r, t) => yT(t))} />}
       <polyline className={styles.torque} points={line(shown, (_r, t) => yT(t))} />

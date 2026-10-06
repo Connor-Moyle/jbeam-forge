@@ -28,6 +28,11 @@
   margin-bottom: var(--space-4);
 }
 
+/* A note between fields leaves the space a field does (it sat on the next label). */
+.group > p:not(:last-child) {
+  margin-bottom: var(--space-3);
+}
+
 .group + .group {
   padding-top: var(--space-3);
   border-top: var(--border-width) solid var(--border-0);

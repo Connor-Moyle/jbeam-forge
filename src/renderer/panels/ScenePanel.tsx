@@ -63,7 +63,7 @@ export function ScenePanel() {
         <span className={styles.searchIcon}>
           <Search aria-hidden />
         </span>
-        <Input aria-label="Search parts and meshes" placeholder="Search parts and meshes" value={query} onChange={(e) => setQuery(e.target.value)} className={styles.search} data-testid="scene-filter" />
+        <Input aria-label="Search parts and meshes" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} className={styles.search} data-testid="scene-filter" />
         <IconButton icon={Tag} label="Assign selected meshes…" disabled={selection.length === 0} onClick={() => openAssign(selection)} data-testid="scene-assign" />
         <IconButton icon={WandSparkles} label="Auto-classify: sort unassigned meshes into parts by their names" onClick={classifyUnassigned} data-testid="scene-classify" data-tour="auto-classify" />
         <IconButton icon={FileInput} label="Import model" shortcut={keyFor('import')} onClick={() => void startImport()} />

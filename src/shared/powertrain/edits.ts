@@ -58,6 +58,7 @@ const KNOWN: Record<string, { label: string; unit?: string; hint?: string; range
   maxTorqueRating: { label: 'Torque rating (breaks above)', unit: 'Nm', range: [0, 5000] },
   maxOverTorqueDamage: { label: 'Over-torque damage', range: [0, 2000] },
   oilVolume: { label: 'Oil volume', unit: 'L', range: [0, 20] },
+  oilpanMaximumSafeG: { label: 'Oil pan: safe g-force', unit: 'g', hint: 'Above this, hard cornering or braking starves the engine of oil (race oil pans are higher)', range: [0, 5] },
   // cooling (the radiator and oil cooler parts set these on the engine)
   radiatorArea: { label: 'Radiator core area', unit: 'm²', hint: 'Bigger cools better, adds drag', range: [0, 2] },
   radiatorEffectiveness: { label: 'Radiator effectiveness', hint: 'How well the core sheds heat (race radiators are higher)', range: [0, 50000] },
@@ -138,6 +139,21 @@ export const SECTION_LABELS: Record<string, string> = {
   torqueConverter: 'Torque converter',
 };
 
+/**
+ * A setting's game name in words, for the ones without a label of their own:
+ * "oilpanMaximumSafeG" → "Oilpan maximum safe g", "idleRPM" → "Idle RPM", "max_rpm" → "Max rpm".
+ */
+export function readableName(name: string): string {
+  const words = name
+    .replace(/_/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    .trim()
+    .split(/\s+/)
+    .map((w, i) => (w.length > 1 && w === w.toUpperCase() ? w : i === 0 ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.toLowerCase()));
+  return words.join(' ') || name;
+}
+
 function rangeFor(name: string, value: number): [number, number] {
   const known = KNOWN[name]?.range;
   if (known && value >= known[0] && value <= known[1]) return known;
@@ -156,7 +172,7 @@ export function editableFields(parts: Readonly<Record<string, JbeamObject>>): Ed
         if (typeof v !== 'number' || !Number.isFinite(v)) continue;
         const known = KNOWN[name];
         const [min, max] = rangeFor(name, v);
-        out.push({ key: fieldKey(part, section, name), part, section, name, value: v, label: known?.label ?? name, unit: known?.unit ?? '', hint: known?.hint ?? '', min, max, common: !!known });
+        out.push({ key: fieldKey(part, section, name), part, section, name, value: v, label: known?.label ?? readableName(name), unit: known?.unit ?? '', hint: known?.hint ?? '', min, max, common: !!known });
       }
     }
   }

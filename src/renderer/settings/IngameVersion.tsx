@@ -21,6 +21,8 @@ const describe = (s: IngameStatus) =>
         ? `Version ${s.installed} installed; ${s.bundled} is ready to install`
         : `Version ${s.installed} installed${s.unpacked ? ' (unpacked)' : ''}`;
 
+const HINT = 'Press F10 while driving to open JBeam Forge inside BeamNG.drive, on the car you’re in. It comes with this app and updates with it.';
+
 /** At startup: bring the game's copy up to this app's version (only if it was installed before). */
 export async function syncIngameOnStartup(): Promise<void> {
   if ((window.forge as { ingame?: boolean }).ingame) return;
@@ -34,7 +36,8 @@ export async function syncIngameOnStartup(): Promise<void> {
   }
 }
 
-export function IngameVersion() {
+/** `compact`: inside a card that already says what it is (Downloads): the status beside the button. */
+export function IngameVersion({ compact = false, rowClass, noteClass }: { compact?: boolean; rowClass?: string; noteClass?: string } = {}) {
   const [status, setStatus] = useState<IngameStatus | null>(null);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -54,16 +57,27 @@ export function IngameVersion() {
       .finally(() => setBusy(false));
   };
   const canInstall = !!status.modsDir && !!status.bundled && (!status.installed || status.updateAvailable);
+  const button = canInstall && (
+    <Button icon={Gamepad2} variant="primary" size={compact ? 'sm' : undefined} onClick={install} disabled={busy} data-testid="ingame-install">
+      {busy ? 'Installing…' : status.installed ? 'Update' : 'Install'}
+    </Button>
+  );
+  if (compact)
+    return (
+      <>
+        <div className={rowClass}>
+          <span data-testid="ingame-status">{describe(status)}</span>
+          {button}
+        </div>
+        <p className={noteClass}>{HINT}</p>
+      </>
+    );
   return (
-    <Field label="JBeam Forge in the game" hint="Press F10 while driving to open JBeam Forge inside BeamNG.drive, on the car you’re in. It comes with this app and updates with it.">
+    <Field label="JBeam Forge in the game" hint={HINT}>
       <span className={styles.readonly} data-testid="ingame-status">
         {describe(status)}
       </span>
-      {canInstall && (
-        <Button icon={Gamepad2} variant="primary" onClick={install} disabled={busy} data-testid="ingame-install">
-          {busy ? 'Installing…' : status.installed ? 'Update' : 'Install'}
-        </Button>
-      )}
+      {button}
     </Field>
   );
 }

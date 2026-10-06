@@ -2319,6 +2319,14 @@ const scenarios = [
       await page.getByTestId('skin-stats').waitFor({ timeout: 15_000 });
       assert(picked >= 5, `body panels picked by default (${picked} parts)`);
       await page.waitForTimeout(400);
+      // The sheet is drawn on the step's own canvas (it once stayed blank after step 1).
+      const inked = await page.getByTestId('skin-sheet').evaluate((c) => {
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let i = 3; i < d.length; i += 4 * 97) if (d[i] > 0) n++;
+        return n;
+      });
+      assert(inked > 50, `the layout is drawn in step 2 (${inked} samples inked)`);
       await shot(page, 'skin-studio-plan');
       await page.getByTestId('skin-apply').click();
       let doc = await hook(page, 'projectDoc');

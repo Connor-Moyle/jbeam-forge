@@ -66,29 +66,36 @@ export function PanelBuilderPanel() {
         <p className={styles.note}>Your model replaces this panel’s mesh. Its nodes and beams are the game’s own, so it attaches, bends and breaks like the original; it shows in the {panel.vehicleName}’s parts menu beside it.</p>
 
         <FieldGroup title="1 · Guide">
-          {panel.guideSourceId ? (
-            <div className={styles.row}>
-              <Button size="sm" icon={guideShown ? EyeOff : Eye} onClick={() => setGuideVisible(!guideShown)} data-testid="panel-guide-toggle">
-                {guideShown ? 'Hide the stock panel' : 'Show the stock panel'}
+          <div className={styles.stack}>
+            {panel.guideSourceId ? (
+              <div className={styles.row}>
+                <Button size="sm" icon={guideShown ? EyeOff : Eye} onClick={() => setGuideVisible(!guideShown)} data-testid="panel-guide-toggle">
+                  {guideShown ? 'Hide the stock panel' : 'Show the stock panel'}
+                </Button>
+                <Button size="sm" variant="ghost" icon={Trash2} onClick={removeGuide}>
+                  Remove it
+                </Button>
+              </div>
+            ) : (
+              <Button size="sm" icon={FileInput} onClick={() => void importGuide()} data-testid="panel-guide">
+                Bring in the stock panel as a guide
               </Button>
-              <Button size="sm" variant="ghost" icon={Trash2} onClick={removeGuide}>
-                Remove it
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" icon={FileInput} onClick={() => void importGuide()} data-testid="panel-guide">
-              Bring in the stock panel as a guide
-            </Button>
-          )}
-          <p className={styles.note}>The guide sits exactly where the panel goes on the car. It’s never exported.</p>
+            )}
+            <p className={styles.note}>The guide sits exactly where the panel goes on the car. It’s never exported.</p>
+          </div>
         </FieldGroup>
 
         <FieldGroup title="2 · Your model">
-          {own.length ? <Badge tone="success">{own.length} model{own.length === 1 ? '' : 's'} in</Badge> : <Callout tone="info">Import your panel. Model it in the car’s place (the same coordinates as the car), lined up with the guide.</Callout>}
-          <Button size="sm" icon={FileInput} onClick={() => void startImport()} data-testid="panel-import">
-            Import {own.length ? 'another' : 'your'} model
-          </Button>
-          <p className={styles.note}>Split, name, move and give it materials in the Materials workspace as usual. Everything you import (but the guide) becomes the panel’s mesh.</p>
+          <div className={styles.stack}>
+            {!own.length && <Callout tone="info">Import your panel. Model it in the car’s place (the same coordinates as the car), lined up with the guide.</Callout>}
+            <div className={styles.row}>
+              {own.length > 0 && <Badge tone="success">{own.length} model{own.length === 1 ? '' : 's'} in</Badge>}
+              <Button size="sm" icon={FileInput} onClick={() => void startImport()} data-testid="panel-import">
+                Import {own.length ? 'another' : 'your'} model
+              </Button>
+            </div>
+            <p className={styles.note}>Split, name, move and give it materials in the Materials workspace as usual. Everything you import (but the guide) becomes the panel’s mesh.</p>
+          </div>
         </FieldGroup>
       </div>
     </ScrollArea>
