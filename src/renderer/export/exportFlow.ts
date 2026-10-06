@@ -269,14 +269,32 @@ export function prepareExport(): PreparedExport | null {
     const bothEnds = wheels.some((w) => /^F/i.test(w)) && wheels.some((w) => /^R/i.test(w));
     if (bothEnds && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '')} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
   }
-  // An electric motor through a gearbox with a clutch: the game's clutch needs a combustion engine's
-  // inertia, and the car can't start (it came apart in testing).
+  // Two axles whose suspensions make wheels of the same name (a rear suspension on the front axle,
+  // a trailer's axle, which calls its wheels front ones): the game builds one wheel from both and
+  // the car comes apart at the hubs.
+  for (const [i, a] of fittedAxles.entries())
+    for (const b of fittedAxles.slice(i + 1)) {
+      const wa = wheelNames(useSetData.getState().data[a.fitted!.setId]?.parts ?? {});
+      const shared = wheelNames(useSetData.getState().data[b.fitted!.setId]?.parts ?? {}).filter((w) => wa.includes(w));
+      if (!shared.length) continue;
+      const end = (x: typeof a) => x.name.replace(/ axle$/i, '').toLowerCase();
+      // Rear wheel names on both: the front one is the odd one out; front names: the rear one.
+      const odd = shared.every((w) => /^R/i.test(w)) ? (/rear/i.test(a.name) ? b : a) : /front/i.test(a.name) ? b : a;
+      report.errors.push({
+        code: 'SUSPENSION_SAME_WHEELS',
+        message: `${a.fitted!.name} (${end(a)} axle) and ${b.fitted!.name} (${end(b)} axle) both make the wheels ${shared.join(', ')}, and the game can only build each wheel once. Fit a suspension made for the ${end(odd)} of a car on the ${end(odd)} axle.`,
+      });
+    }
+  // An electric motor through a gearbox with a clutch (a manual's, or a dual-clutch's): the game's
+  // clutch needs a combustion engine's inertia, and the car can't start (it came apart in testing;
+  // the dual-clutch failed in the game's own code).
   const pt = doc.powertrain;
   const setData = useSetData.getState().data;
   const devices = (setId: string | undefined) => (setId ? Object.values(setData[setId]?.parts ?? {}).flatMap(powertrainDevices) : []);
   if (pt?.engine && pt.gearbox) {
     const engine = devices(pt.engine.setId);
-    if (engine.includes('electricMotor') && !engine.includes('combustionEngine') && devices(pt.gearbox.setId).includes('frictionClutch'))
+    const box = devices(pt.gearbox.setId);
+    if (engine.includes('electricMotor') && !engine.includes('combustionEngine') && (box.includes('frictionClutch') || box.includes('dctGearbox')))
       report.errors.push({ code: 'ELECTRIC_WITH_CLUTCH', message: `${pt.engine.name} is electric, and ${pt.gearbox.name} has a clutch made for a combustion engine: the game can't run the two together. Choose an electric car's gearbox (a single reduction), or no gearbox.` });
   }
   // The jbeam as the game will assemble it, configuration by configuration.

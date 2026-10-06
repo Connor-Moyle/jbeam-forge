@@ -180,7 +180,8 @@ for (const name of installed) {
     const at = ['posX', 'posY', 'posZ'].map((k) => (typeof r.values[k] === 'number' ? Math.round(r.values[k] * 200) / 200 : JSON.stringify(r.values[k]))).join(',');
     // A part placing it by a tuning formula over a fixed one is the game's way of making it adjustable
     // (the Sunburst rally coilovers move the strut tops for camber and caster): the later one wins.
-    if (nodeOwner.has(id) && nodeAt.get(id) !== at) (/\$=/.test(at + nodeAt.get(id)) ? warnings : errors).push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
+    // One part stating a node twice is the game's own data (the Pessima's 4WS rear): the later one wins.
+    if (nodeOwner.has(id) && nodeAt.get(id) !== at) (/\$=/.test(at + nodeAt.get(id)) || nodeOwner.get(id) === name ? warnings : errors).push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
     nodeOwner.set(id, name);
     nodeAt.set(id, at);
     const g = r.options.group;
@@ -206,7 +207,11 @@ for (const name of installed) {
       const mesh = s(r.values.mesh);
       if (!game && !daeNodes.has(mesh) && !GAME_MESHES.has(mesh)) errors.push(`${name}: flexbody mesh ${mesh} is not in the DAE`);
       const gs = r.values['[group]:'];
-      for (const g of Array.isArray(gs) ? gs : []) if (!groups.has(s(g))) errors.push(`${name}: flexbody ${mesh} binds to node group ${s(g)}, which no installed part has`);
+      // The game binds a mesh to every node its groups hold: a group only another option of the part
+      // has (the ETKI's steering box) is fine while another group holds nodes; none at all is not.
+      const list = (Array.isArray(gs) ? gs : []).map(s);
+      const missing = list.filter((g) => !groups.has(g));
+      for (const g of missing) (missing.length === list.length ? errors : warnings).push(`${name}: flexbody ${mesh} binds to node group ${g}, which no installed part has`);
     }
   // A borrowed part (slug_F_…, slug_E_…) naming a node its own car doesn't have either is the game's
   // leftover (the Barstow's exhaust and rs1l): the game drops that beam on the stock car too.

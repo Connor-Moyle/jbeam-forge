@@ -23,7 +23,12 @@ export interface MainAdditions {
 const TABLE = GAME_VARIABLES as unknown as Record<string, JbeamValue[]>;
 
 function walk(v: JbeamValue | undefined, visit: (key: string, value: JbeamValue) => void): void {
-  if (Array.isArray(v)) for (const x of v) walk(x, visit);
+  // Table cells too: the Hopper's rear shock uses $bp_2MC_F in its rows, and that was missed.
+  if (Array.isArray(v))
+    for (const x of v) {
+      if (!Array.isArray(x) && !isJbeamObject(x)) visit('', x);
+      walk(x, visit);
+    }
   else if (isJbeamObject(v))
     for (const [k, x] of Object.entries(v)) {
       visit(k, x);

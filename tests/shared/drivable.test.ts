@@ -30,6 +30,12 @@ describe('what a car’s main part must provide for borrowed game parts', () => 
     expect(a.variables).toEqual([]);
   });
 
+  it('finds variables used in table rows too (the Hopper crawler’s rear shock)', () => {
+    const shock = t({ slotType: 'shock_R', rearBypass: { bypassDampers: [['pos', 'a', 'b'], [-0.22, '$bp_6C_R', '$=$bp_1SC_F+$bp_2MC_F']] } });
+    const names = mainAdditions([shock], false).variables.map((r) => r[0]);
+    expect(names).toEqual(expect.arrayContaining(['$bp_6C_R', '$bp_1SC_F', '$bp_2MC_F']));
+  });
+
   it('leaves unset a variable a part checks for being unset (the Barstow’s $trackwidth_R)', () => {
     const axle = t({ slotType: 'axle_R', slots2: [['name', 'allowTypes', 'default', 'description'], ['wheel_R_5', ['wheel_R_5'], 'steelwheel', 'Rear Wheels', { nodeOffset: { x: '$=case($trackwidth_R == nil, $trackoffset_R+0.25, $trackwidth_R)', y: 1.4, z: 0.29 } }]] });
     const names = mainAdditions([axle], false).variables.map((r) => r[0]);

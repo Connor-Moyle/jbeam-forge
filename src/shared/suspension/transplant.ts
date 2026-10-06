@@ -237,6 +237,7 @@ const FLAT = 0.025;
 const MOUNT_SNAP = 0.05;
 const MOUNT_LINKS = 3;
 const MOUNT_MIN_KG = 2;
+const MOUNT_RIGID_KG = 5;
 /** ω·Δt a bolted-on point is sized for: well inside the limit (the game's cars' median is 1.3). */
 const MOUNT_RATIO = 1.5;
 const MOUNT = { beamSpring: 6_000_000, beamDamp: 150, beamDeform: 120_000, beamStrength: 400_000 };
@@ -339,6 +340,16 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       // not a table: nothing to count
     }
   }
+  // Points something twists or slides on (a torsion-hydro steering box, rails): on their own car
+  // they're part of a rigid frame, so here they get a stiffer mount (the Burnside's steering box
+  // points spun off three bolts).
+  const rigid = new Set<string>();
+  for (const body of Object.values(input.parts))
+    for (const section of ['torsionHydros', 'torsionbars', 'rails', 'slidenodes'] as const) {
+      const refs = new Set<string>();
+      collectStrings(body[section], refs);
+      for (const r of refs) if (!own.has(r)) rigid.add(r);
+    }
 
   // The original car's body nodes → the new car's nearest node that can take them. When none is
   // close, the point stays where the set needs it, as a node of its own bolted to the nearest body
@@ -383,7 +394,8 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
         .sort((a, b) => a.d - b.d);
       const near = ranked.slice(0, MOUNT_LINKS);
       // Three bolts in one plane with the point don't hold it across that plane: add one out of it.
-      if (near.length === 3 && planeDistance(at, near[0]!.pos, near[1]!.pos, near[2]!.pos) < 0.03) {
+      // A point something twists always gets a fourth.
+      if (near.length === 3 && (rigid.has(id) || planeDistance(at, near[0]!.pos, near[1]!.pos, near[2]!.pos) < 0.03)) {
         const off = ranked.slice(3).find((t) => planeDistance(t.pos, near[0]!.pos, near[1]!.pos, near[2]!.pos) > 0.05);
         if (off) near.push(off);
       }
@@ -391,7 +403,7 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       for (const t of links) mounts.push([kept, t.id]);
       // Heavy enough for the set's own beams on it and the mount, inside the stability limit.
       const load = k + links.length * MOUNT.beamSpring;
-      extra.push([kept, at, Math.max(MOUNT_MIN_KG, Math.ceil(load * (STABILITY_DT / MOUNT_RATIO) ** 2 * 10) / 10)]);
+      extra.push([kept, at, Math.max(rigid.has(id) ? MOUNT_RIGID_KG : MOUNT_MIN_KG, Math.ceil(load * (STABILITY_DT / MOUNT_RATIO) ** 2 * 10) / 10)]);
       attached[id] = links[0]!.id;
       if (best.d > 0.3 ** 2) warnings.push(`${id} is ${Math.sqrt(best.d).toFixed(2)} m from the body's nearest node (${best.id}): check the fit or the body's structure there.`);
     } else {
