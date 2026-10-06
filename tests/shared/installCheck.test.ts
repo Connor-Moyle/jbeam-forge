@@ -41,3 +41,14 @@ describe('the same node restated at the same place', () => {
     expect(installProblems([main, susp, moved], 'car', {}, 'car_')).toHaveLength(1);
   });
 });
+
+describe('a borrowed set restating its own node somewhere else', () => {
+  it('is the game’s override and passes; across sets or against ours it is a clash', () => {
+    const main = file('car', { slotType: 'main', slots: [['type', 'default'], ['car_F_susp', 'car_F_susp'], ['car_F_coil', 'car_F_coil'], ['car_E_eng', 'car_E_eng']] });
+    const susp = file('car_F_susp', { slotType: 'car_F_susp', nodes: [['id', 'posX', 'posY', 'posZ'], ['f_fsm1r', -0.5, -1.4, 0.6]] });
+    const coil = file('car_F_coil', { slotType: 'car_F_coil', nodes: [['id', 'posX', 'posY', 'posZ'], ['f_fsm1r', -0.5, -1.4, 0.7]] });
+    const eng = file('car_E_eng', { slotType: 'car_E_eng', nodes: [['id', 'posX', 'posY', 'posZ'], ['f_fsm1r', 0, -1, 0.3]] });
+    expect(installProblems([main, susp, coil, file('car_E_eng', { slotType: 'car_E_eng' })], 'car', {}, 'car_')).toEqual([]);
+    expect(installProblems([main, susp, file('car_F_coil', { slotType: 'car_F_coil' }), eng], 'car', {}, 'car_')).toHaveLength(1);
+  });
+});

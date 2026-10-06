@@ -2712,7 +2712,8 @@ const scenarios = [
             await page.getByTestId('export-result').waitFor({ timeout: 180_000 });
             const src = join(fakeUserDir, 'mods', 'unpacked');
             const mod = readdirSync(src).sort((a, b) => statSync(join(src, b)).mtimeMs - statSync(join(src, a)).mtimeMs)[0];
-            cpSync(join(src, mod, 'vehicles', c.slug), join(modDir, 'vehicles', c.slug), { recursive: true });
+            // The whole mod: its vehicle folder and its scripts (lua/…), merged into the one test mod.
+            cpSync(join(src, mod), modDir, { recursive: true, filter: (p) => !/jbforge-export\.json$/.test(p) });
             r.exported = true;
           }
           for (let i = 0; i < 3 && (await page.locator('[role=dialog]').count()); i++) await page.keyboard.press('Escape');
@@ -2736,7 +2737,9 @@ const scenarios = [
         rmSync(one, { recursive: true, force: true });
       }
       writeFileSync(join(outDir, 'matrix-report.json'), JSON.stringify(report, null, 2));
-      const bad = report.filter((r) => !r.exported || !r.lintOk || r.problems.length);
+      // Refused for a reason the app gives on purpose (a whole-running-gear suspension next to another axle's): right.
+      for (const r of report) if (!r.exported && r.problems.length === 1 && /is the whole running gear/.test(r.problems[0]) && !/both define node|isn.t in the mod/.test(r.problems[0])) r.refusedAsExpected = true;
+      const bad = report.filter((r) => !r.refusedAsExpected && (!r.exported || !r.lintOk || r.problems.length));
       assert(bad.length === 0, `${bad.length} of ${report.length} cars have problems (matrix-report.json):\n${bad.map((r) => `${r.slug}: ${[...r.problems, ...(r.lintErrors ?? [])].slice(0, 4).join(' | ').slice(0, 400)}`).join('\n')}`);
     },
   },

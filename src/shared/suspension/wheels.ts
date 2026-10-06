@@ -98,3 +98,18 @@ export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0
   }
   return [...found.values()];
 }
+
+/**
+ * The wheels a set brings, by name (FL, FR, RL…): more than two and the set is the whole running
+ * gear (a box trailer's or a utility frame's), covering both axles.
+ */
+export function wheelNames(parts: Readonly<Record<string, JbeamObject>>): string[] {
+  const names = new Set<string>();
+  for (const p of Object.values(parts))
+    for (const section of ['pressureWheels', 'hubWheels', 'wheels'] as const) {
+      const t = p[section];
+      if (!Array.isArray(t)) continue;
+      for (const r of readTable(t).records) if (typeof r.values.name === 'string') names.add(r.values.name);
+    }
+  return [...names];
+}

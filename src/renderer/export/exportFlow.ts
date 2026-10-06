@@ -33,6 +33,7 @@ import { textureToDds, toBase64 } from './textureConvert';
 import { portedIssues, portedText } from '@shared/export/ported';
 import { installProblems } from '@shared/export/installCheck';
 import { stampGameVersion } from './gameVersion';
+import { wheelNames } from '@shared/suspension/wheels';
 import { commonRoot, engineModFiles, panelModFiles, rimModFiles, toCommon, tyreModFiles, type ModKind } from '@shared/export/modKinds';
 
 const logger = rlog('export');
@@ -257,6 +258,13 @@ export function prepareExport(): PreparedExport | null {
     loadedMeshKeys: allMeshes.map((m) => m.key),
   });
   for (const e of scripts.errors) report.errors.push({ code: 'SCRIPT', message: e });
+  // A suspension that is the whole running gear (four wheels: a box trailer's) on one axle, and
+  // another on the other: two sets of wheels in the same place.
+  const fittedAxles = (doc.axles ?? []).filter((a) => a.fitted);
+  for (const a of fittedAxles) {
+    const wheels = wheelNames(useSetData.getState().data[a.fitted!.setId]?.parts ?? {});
+    if (wheels.length > 2 && fittedAxles.length > 1) report.errors.push({ code: 'SUSPENSION_BOTH_AXLES', message: `${a.fitted!.name} on the ${a.name} axle is the whole running gear (wheels ${wheels.join(', ')}): it covers both axles. Remove the other axle's suspension, or choose a suspension for one axle.` });
+  }
   // The jbeam as the game will assemble it, configuration by configuration.
   if (kind === 'vehicle') {
     const seen = new Set<string>();

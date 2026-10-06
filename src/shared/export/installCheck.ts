@@ -47,9 +47,13 @@ export function installProblems(files: readonly { part: string; text: string }[]
   }
   // The same node in two parts at the same place is the game's own habit (a shock part restating
   // its mount): it merges them. Two places under one name is what pulls a car apart.
+  // A part of a borrowed set restating its set's node somewhere else is the game's design too (a
+  // gravel coilover raising the suspension, a drift kit's steering): the later one wins. So a clash
+  // is between parts of different origins: ours and a borrowed set's, or two borrowed sets.
   const owner = new Map<string, { part: string; at: string }>();
   const clashes = new Map<string, string[]>();
-  const where = (v: Record<string, unknown>) => ['posX', 'posY', 'posZ'].map((k) => (typeof v[k] === 'number' ? Math.round((v[k]) * 200) / 200 : String(v[k]))).join(',');
+  const origin = (part: string) => new RegExp(`^${ownPrefix}([A-Z]\\d?)_`).exec(part)?.[1] ?? 'own';
+  const where = (v: Record<string, unknown>) => ['posX', 'posY', 'posZ'].map((k) => (typeof v[k] === 'number' ? Math.round((v[k]) * 200) / 200 : JSON.stringify(v[k]))).join(',');
   for (const name of installed) {
     const p = parts.get(name);
     if (!p?.nodes) continue;
@@ -58,7 +62,8 @@ export function installProblems(files: readonly { part: string; text: string }[]
       const at = where(r.values);
       const was = owner.get(id);
       if (was && was.part !== name) {
-        if (was.at !== at) clashes.set(`${was.part} and ${name}`, [...(clashes.get(`${was.part} and ${name}`) ?? []), id]);
+        const sameSet = origin(was.part) === origin(name) && origin(name) !== 'own';
+        if (was.at !== at && !sameSet) clashes.set(`${was.part} and ${name}`, [...(clashes.get(`${was.part} and ${name}`) ?? []), id]);
       } else owner.set(id, { part: name, at });
     }
   }
