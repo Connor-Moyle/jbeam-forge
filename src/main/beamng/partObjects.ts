@@ -429,6 +429,15 @@ function flexMeshes(body: JbeamObject): string[] {
   return Array.isArray(body.flexbodies) ? body.flexbodies.slice(1).flatMap((row) => (Array.isArray(row) && typeof row[0] === 'string' ? [row[0]] : [])) : [];
 }
 
+/** Meshes a part moves as props (pulleys, driveshafts, fans): lights have no mesh. */
+function propMeshes(body: JbeamObject): string[] {
+  const t = body.props;
+  if (!Array.isArray(t) || !Array.isArray(t[0])) return [];
+  const col = t[0].map(String).indexOf('mesh');
+  if (col < 0) return [];
+  return t.slice(1).flatMap((row) => (Array.isArray(row) && typeof row[col] === 'string' && !/^(SPOTLIGHT|POINTLIGHT)$/.test(row[col]) ? [row[col]] : []));
+}
+
 async function allParts(zip: ZipReader): Promise<Map<string, JbeamObject>> {
   const map = new Map<string, JbeamObject>();
   for (const e of (await zip.entries()).filter((x) => x.name.endsWith('.jbeam'))) {
@@ -501,13 +510,17 @@ async function writeSets(
   // Every node the car and its engines define, so a set's attachments can be placed.
   const vehicleNodes = new Map<string, V3>();
   const engineParts = engines.flatMap(([n]) => engineClosure(n, find).map((p) => find(p)!));
+  // The car's own parts only: shared parts (hubs, wheels) stay the game's in a mod too, so their
+  // nodes must not be pinned to the new car's body. A node a part uses that the car doesn't have
+  // (the Barstow's exhaust names rs1l) is the game's own leftover: it drops that beam on the stock car too.
   for (const body of [...own.values(), ...engineParts]) for (const [id, pos] of definedNodes(body)) if (!vehicleNodes.has(id)) vehicleNodes.set(id, pos);
 
   const seen = new Set<string>();
   for (const { kind, part: partName, parts } of roots) {
     const body = find(partName)!;
     const slotType = typeof body.slotType === 'string' ? body.slotType : '';
-    const meshes = [...new Set(parts.flatMap((p) => flexMeshes(find(p)!)))];
+    // Prop meshes too: without them the set's driveshaft and pulleys were missing in the game.
+    const meshes = [...new Set(parts.flatMap((p) => [...flexMeshes(find(p)!), ...propMeshes(find(p)!)]))];
     const key = `${kind}:${meshes.sort().join('|')}:${kind === 'suspension' ? '' : partName}`;
     if (!meshes.length || seen.has(key)) continue;
     seen.add(key);

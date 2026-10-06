@@ -143,7 +143,13 @@ export function setGroups(parts: Record<string, JbeamObject>): Set<string> {
     else if (Array.isArray(g)) for (const x of g) if (typeof x === 'string' && x) out.add(x);
   };
   for (const p of Object.values(parts)) {
-    if (Array.isArray(p.nodes)) for (const row of p.nodes) if (isJbeamObject(row)) add(row.group);
+    // Groups come as option rows ({"group": …}) or on a node's own row (["rh1r", x, y, z, {"group": …}]):
+    // missing the second re-pinned meshes on those groups to the body, and they stretched.
+    if (Array.isArray(p.nodes))
+      for (const row of p.nodes) {
+        if (isJbeamObject(row)) add(row.group);
+        else if (Array.isArray(row)) for (const cell of row) if (isJbeamObject(cell)) add(cell.group);
+      }
     for (const section of ['pressureWheels', 'hubWheels', 'wheels']) {
       const table = p[section];
       if (!Array.isArray(table) || !Array.isArray(table[0])) continue;
@@ -289,6 +295,13 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
             const regrouped = Array.isArray(bound) ? [...new Set(bound.map(keepGroup))] : bound;
             return [input.meshNames[row[0]]!, regrouped as JbeamValue, ...rest];
           });
+      } else if (section === 'props' && Array.isArray(value) && Array.isArray(value[0])) {
+        // Props move a mesh by name: renamed to the mesh as exported, or left out when it wasn't
+        // ("Mesh 'bx_driveshaft' not found"). Lights (SPOTLIGHT, POINTLIGHT) have no mesh.
+        const meshCol = value[0].map(String).indexOf('mesh');
+        part[section] = (renameStrings(value, nodeIds) as JbeamValue[])
+          .filter((row, i) => i === 0 || meshCol < 0 || !Array.isArray(row) || typeof row[meshCol] !== 'string' || /^(SPOTLIGHT|POINTLIGHT)$/.test(row[meshCol]) || input.meshNames[row[meshCol]] !== undefined)
+          .map((row, i) => (i === 0 || meshCol < 0 || !Array.isArray(row) || typeof row[meshCol] !== 'string' || !input.meshNames[row[meshCol]] ? row : row.map((c, j) => (j === meshCol ? input.meshNames[row[meshCol] as string]! : c))));
       } else if (section === 'variables' && Array.isArray(value)) {
         const header = Array.isArray(value[0]) ? value[0].map(String) : [];
         const col = header.indexOf('default');

@@ -1,7 +1,8 @@
 import { RideCheck } from '@renderer/suspension/RideCheck';
+import { openGameLog } from '@renderer/export/GameLogDialog';
 import { EMPTY_ARR } from '@shared/empty';
 import { useState } from 'react';
-import { FlaskConical, Pause, Play, RotateCcw, Square } from 'lucide-react';
+import { FlaskConical, Pause, Play, RotateCcw, Square, ScrollText } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
 import { axleSpecs, brokenByPart, dragNode, pause, reset, run, runScenario, setGravity, setSpeed, startTestMode, stopTestMode, useSim } from '@renderer/sim/simSession';
@@ -40,6 +41,9 @@ export function TestResultsPanel() {
             <EmptyState icon={FlaskConical} message="Generate the structure first (Generate in the toolbar), then test it here." />
           )}
           <RideCheck />
+          <Button size="sm" icon={ScrollText} onClick={() => void openGameLog()} data-testid="testing-game-log">
+            What the game said (its log for this car)
+          </Button>
         </div>
       </ScrollArea>
     );

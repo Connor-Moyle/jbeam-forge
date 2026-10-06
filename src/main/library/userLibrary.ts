@@ -24,7 +24,7 @@ export interface FolderStatus {
 
 const MAX_FILES = 50_000;
 /** Bump when the BeamNG part cutting changes, so installs are cut again. */
-const BEAMNG_FORMAT = 10; // 10: nodes with formula positions count as the set's own (their attachment points were wrong)
+const BEAMNG_FORMAT = 11; // 11: nodes with formula positions count as the set's own; prop meshes are cut too
 
 type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
 

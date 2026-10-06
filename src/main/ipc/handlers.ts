@@ -17,7 +17,8 @@ import type { RecentService } from '../services/recent';
 import { AccessError, readHistory, withProjectExtension, writeHistory, type ProjectFiles } from '../services/projectFiles';
 import type { BeamngService } from '../beamng/service';
 import type { Packs } from '../content/packs';
-import { scanGameMaterials } from '../beamng/gameMaterials';
+import { gameMaterialDefinitions, scanGameMaterials } from '../beamng/gameMaterials';
+import { vehicleLogReport } from '@shared/beamng/logReport';
 import { engineSoundSamples, readSoundFile, scanEngineSounds } from '../beamng/engineSounds';
 import type { SetOptions } from '@shared/suspension/options';
 import { collectDiagnostics, copyDiagnosticsToClipboard } from '../diagnostics';
@@ -283,6 +284,29 @@ export function registerIpcHandlers(services: HandlerServices): void {
     const dir = settings.get().beamngInstallDir;
     return dir ? scanGameMaterials(dir) : [];
   });
+  registerInvoke(
+    'beamng:logReport',
+    async ({ vehicle }) => {
+      const dir = settings.get().beamngUserDir;
+      if (!dir) return null;
+      const file = join(dir, 'beamng.log');
+      try {
+        const [text, info] = await Promise.all([readFile(file, 'utf8'), stat(file)]);
+        return { ...vehicleLogReport(text, vehicle), logTime: info.mtimeMs };
+      } catch {
+        return null;
+      }
+    },
+    z.object({ vehicle: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/) }),
+  );
+  registerInvoke(
+    'beamng:gameMaterialDefs',
+    async ({ names }) => {
+      const dir = settings.get().beamngInstallDir;
+      return dir ? gameMaterialDefinitions(dir, names) : {};
+    },
+    z.object({ names: z.array(z.string().min(1).max(256)).max(5000) }),
+  );
 
   registerInvoke(
     'dialog:pickDirectory',

@@ -8,6 +8,7 @@ export interface LibraryStatus {
 }
 
 import type { SetOptions } from './suspension/options';
+import type { LogReport } from './beamng/logReport';
 import type { LibraryScript } from './lua/types';
 import type { ExtensionInfo } from './extensions/api';
 import type { ContentKind, ContentManifest } from './content/manifest';
@@ -312,6 +313,10 @@ export interface InvokeContract {
   'beamng:soundFile': { req: { path: string }; res: Uint8Array | null };
   /** Material names in the game's vehicle zips (fork), for using a stock material by name. */
   'beamng:gameMaterials': { req: undefined; res: { name: string; vehicle: string; paint: boolean }[] };
+  /** What the game's log says about a car's last load and spawn (null: no log, or no user folder set). */
+  'beamng:logReport': { req: { vehicle: string }; res: (LogReport & { logTime: number }) | null };
+  /** The game's definitions of other cars' materials a mod uses (by name), for its materials file. */
+  'beamng:gameMaterialDefs': { req: { names: string[] }; res: Record<string, unknown> };
   'dialog:pickDirectory': { req: { title?: string; defaultPath?: string } | undefined; res: string | null };
   /** Downloads: the content folder and what's installed of textures and meshes. */
   'content:info': { req: undefined; res: ContentInfo };
@@ -405,6 +410,8 @@ export const INVOKE_CHANNELS = [
   'ingame:install',
   'beamng:validate',
   'beamng:gameMaterials',
+  'beamng:gameMaterialDefs',
+  'beamng:logReport',
   'beamng:engineSounds',
   'beamng:soundSamples',
   'beamng:soundFile',

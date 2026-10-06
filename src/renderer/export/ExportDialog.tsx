@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ClipboardCopy, Download, FolderOpen, PackageCheck, RefreshCw, Store, Wand2 } from 'lucide-react';
+import { openGameLog } from './GameLogDialog';
+import { ArrowLeft, ClipboardCopy, Download, FolderOpen, PackageCheck, RefreshCw, Store, Wand2, ScrollText } from 'lucide-react';
 import type { PublishListing } from '@shared/ipc-contract';
 import { call } from '@renderer/diagnostics/ipc';
 import { generateParts, useStructureUi } from '@renderer/structure/generate';
@@ -120,8 +121,11 @@ export function ExportDialog() {
               <li>Fully quit BeamNG if it is running, then launch it (a fresh beamng.log).</li>
               <li>Load Gridmap, open the vehicle selector and pick “{prepared?.bundle.projectName}”.</li>
               <li>Check: it spawns without an error popup, the body is visible, the parts menu (Ctrl+W) lists the slots, and it sits or rolls without falling apart.</li>
-              <li>Send back which checks passed and beamng.log (in the game’s user folder, shown in Settings → BeamNG.drive).</li>
+              <li>Back here, read what the game said: every problem it logged for this car, in plain words, with a way to jump to it.</li>
             </ol>
+            <Button icon={ScrollText} onClick={() => void openGameLog()} data-testid="export-game-log">
+              What the game said
+            </Button>
           </div>
         ) : publishing && prepared ? (
           <PublishForm prepared={prepared} onChange={onListing} />

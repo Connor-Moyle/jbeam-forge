@@ -55,6 +55,7 @@ import { currentSet, useVinylUi } from '@renderer/paint/vinyls';
 import { paintedCounts } from '@renderer/paint/facePaint';
 import { syncIngameOnStartup } from '@renderer/settings/IngameVersion';
 import { AiModeDialog } from '@renderer/ai/AiModeDialog';
+import { GameLogDialog } from '@renderer/export/GameLogDialog';
 import { useWorkspaceBridge } from '@renderer/shell/workspaceBridge';
 import { fitSuspension, setUpAxles } from '@renderer/suspension/commands';
 import { addEngineOption, fitPowertrain } from '@renderer/powertrain/commands';
@@ -473,6 +474,7 @@ export function App() {
       <DialogHost />
       <HelpCentre />
       <AiModeDialog />
+      <GameLogDialog />
       <ImportHost />
     </TooltipProvider>
   );

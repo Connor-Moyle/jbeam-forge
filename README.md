@@ -546,7 +546,7 @@ They're your mods. Just make sure you've got the rights to the model you started
 No. It only reads from the game folder. Everything it makes goes into your project and your export.
 
 **Mac or Linux?**
-Windows only for now.
+Windows and Linux (a .deb, or the AppImage for any distribution; native BeamNG or the Windows game through Proton). No Mac version: BeamNG.drive itself has none.
 
 ---
 

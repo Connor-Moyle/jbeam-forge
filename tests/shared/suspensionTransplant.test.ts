@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JbeamObject } from '@shared/jbeam/parse';
-import { definedNodes, externalNodeRefs, shiftOffset, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
+import { definedNodes, externalNodeRefs, setGroups, shiftOffset, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
 
 const PARTS: Record<string, JbeamObject> = {
   car_suspension_F: {
@@ -234,5 +234,40 @@ describe('two of the original car’s nodes landing on one', () => {
       tuning: {},
     });
     expect(r.parts.m_s!.beams).toEqual([['id1:', 'id2:'], ['f_fx1', 'body1']]);
+  });
+});
+
+describe('node groups given on a node’s own row (the BX rear suspension)', () => {
+  it('count as the set’s, so meshes bound to them stay bound to them', () => {
+    const parts: Record<string, JbeamObject> = {
+      s: { slotType: 's', nodes: [['id', 'posX', 'posY', 'posZ'], ['rh1r', -0.64, 1.245, 0.2323, { group: ['bx_lowerarm_R', 'bx_hub_R'] }]] },
+      bar: { slotType: 'bar', flexbodies: [['mesh', '[group]:'], ['bx_swaybar_R', ['bx_lowerarm_R', 'bx_body']]] },
+    };
+    expect([...setGroups(parts)].sort()).toEqual(['bx_hub_R', 'bx_lowerarm_R']);
+    const r = transplantSuspension({ parts, root: 's', anchors: {}, offset: [0, 0, 0], partPrefix: 'm_', nodePrefix: 'r_', target: [], meshNames: { bx_swaybar_R: 'swaybar' }, tuning: {}, fallbackGroup: 'm_body' });
+    expect(r.parts.m_bar!.flexbodies).toEqual([['mesh', '[group]:'], ['swaybar', ['bx_lowerarm_R', 'm_body']]]);
+  });
+});
+
+describe('props of a borrowed set', () => {
+  it('follow the mesh as exported, and are left out when it wasn’t; lights stay', () => {
+    const r = transplantSuspension({
+      parts: {
+        e: {
+          slotType: 'e',
+          nodes: [['id', 'posX', 'posY', 'posZ'], ['e1', 0, 0, 0], ['e2', 1, 0, 0], ['e3', 0, 1, 0]],
+          props: [['func', 'mesh', 'idRef:', 'idX:', 'idY:'], ['rpmspin', 'barstow_pulley', 'e1', 'e2', 'e3'], ['rpmspin', 'bx_driveshaft', 'e1', 'e2', 'e3'], ['lowhighbeam', 'SPOTLIGHT', 'e1', 'e2', 'e3']],
+        },
+      },
+      root: 'e',
+      anchors: {},
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'e_',
+      target: [],
+      meshNames: { barstow_pulley: 'm_pulley' },
+      tuning: {},
+    });
+    expect(r.parts.m_e!.props).toEqual([['func', 'mesh', 'idRef:', 'idX:', 'idY:'], ['rpmspin', 'm_pulley', 'e_e1', 'e_e2', 'e_e3'], ['lowhighbeam', 'SPOTLIGHT', 'e_e1', 'e_e2', 'e_e3']]);
   });
 });

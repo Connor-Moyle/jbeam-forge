@@ -97,6 +97,26 @@ if (install && existsSync(join(install, 'content', 'vehicles', 'common.zip'))) {
     }
   }
 }
+// Every file the game ships in its vehicle zips (lower case, without the image extension: the
+// game takes x.color.dds for x.color.png), for materials that point at the game's own textures.
+const gameFiles = new Set<string>();
+const stem = (path: string) => path.toLowerCase().replace(/^\//, '').replace(/\.(png|dds|jpg|jpeg|tga)$/, '');
+if (install && existsSync(join(install, 'content', 'vehicles'))) {
+  for (const z of readdirSync(join(install, 'content', 'vehicles')).filter((f) => f.endsWith('.zip')))
+    await new Promise<void>((resolve) => {
+      yauzl.open(join(install, 'content', 'vehicles', z), { lazyEntries: true, autoClose: true }, (err, zip) => {
+        if (err || !zip) return resolve();
+        zip.on('entry', (e: yauzl.Entry) => {
+          gameFiles.add(stem(e.fileName));
+          zip.readEntry();
+        });
+        zip.on('end', () => resolve());
+        zip.on('error', () => resolve());
+        zip.readEntry();
+      });
+    });
+}
+
 const partOf = (name: string) => parts.get(name) ?? gameParts.get(name);
 
 /** A part's slots, from either table the game reads: slots2 (name, allowTypes, default) or the older slots (type, default). */
@@ -138,7 +158,8 @@ while (queue.length) {
       errors.push(`default.pc: slot ${slot} → missing part ${choice}`);
       continue;
     }
-    if (s(partOf(choice)!.slotType) !== slot) errors.push(`default.pc: part ${choice} does not fit slot ${slot}`);
+    // A part fits a slot by the slot's allowTypes (slots2), or by its name (the older slots table).
+    if (!r.allow.includes(s(partOf(choice)!.slotType))) errors.push(`default.pc: part ${choice} does not fit slot ${slot}`);
     if (!installed.has(choice)) {
       installed.add(choice);
       queue.push(choice);
@@ -185,7 +206,10 @@ for (const name of installed) {
       const gs = r.values['[group]:'];
       for (const g of Array.isArray(gs) ? gs : []) if (!groups.has(s(g))) errors.push(`${name}: flexbody ${mesh} binds to node group ${s(g)}, which no installed part has`);
     }
-  if (p.beams) for (const r of readTable(p.beams).records) for (const k of ['id1:', 'id2:']) if (!nodeOwner.has(s(r.values[k]))) errors.push(`${name}: beam references missing node ${s(r.values[k])}`);
+  // A borrowed part (slug_F_…, slug_E_…) naming a node its own car doesn't have either is the game's
+  // leftover (the Barstow's exhaust and rs1l): the game drops that beam on the stock car too.
+  const borrowed = new RegExp(`^${slug}_[A-Z]\\d?_`).test(name);
+  if (p.beams) for (const r of readTable(p.beams).records) for (const k of ['id1:', 'id2:']) if (!nodeOwner.has(s(r.values[k]))) (borrowed ? warnings : errors).push(`${name}: beam references missing node ${s(r.values[k])}`);
   if (p.triangles) for (const r of readTable(p.triangles).records) for (const k of ['id1:', 'id2:', 'id3:']) if (!nodeOwner.has(s(r.values[k]))) errors.push(`${name}: triangle references missing node ${s(r.values[k])}`);
   if (p.refNodes) for (const r of readTable(p.refNodes).records) for (const v of Object.values(r.values)) if (!nodeOwner.has(s(v))) errors.push(`${name}: refNode ${s(v)} missing`);
   if (!game && name !== slug && !p.flexbodies && !p.nodes) warnings.push(`${name}: no flexbodies and no nodes (empty part)`);
@@ -194,16 +218,17 @@ if (![...installed].some((n) => partOf(n)!.refNodes)) errors.push('no installed 
 
 // Materials
 const mats = JSON.parse(readFileSync(join(dir, 'main.materials.json'), 'utf8')) as Record<string, { mapTo: string; Stages: Record<string, unknown>[] }>;
-const mapped = new Set(Object.values(mats).map((m) => m.mapTo));
+// The game matches material names without regard to case (a model's "Generic_racing_interior" finds "generic_racing_interior").
+const mapped = new Set(Object.values(mats).map((m) => m.mapTo.toLowerCase()));
 // Materials the game itself defines (a game part's own, used by name) need no entry of the mod's.
-const gameMaterials = install ? new Set((await scanGameMaterials(install)).map((m) => m.name)) : new Set<string>();
-for (const m of daeMaterials) if (!mapped.has(m) && !gameMaterials.has(m)) errors.push(`DAE material ${m} has no main.materials.json entry${install ? ' and isn’t one of the game’s' : ''}`);
+const gameMaterials = install ? new Set((await scanGameMaterials(install)).map((m) => m.name.toLowerCase())) : new Set<string>();
+for (const m of daeMaterials) if (!mapped.has(m.toLowerCase()) && !gameMaterials.has(m.toLowerCase())) errors.push(`DAE material ${m} has no main.materials.json entry${install ? ' and isn’t one of the game’s' : ''}`);
 for (const [name, m] of Object.entries(mats)) {
   for (const stage of m.Stages)
     for (const [k, v] of Object.entries(stage)) {
       if (!k.endsWith('Map') || typeof v !== 'string') continue;
       const file = join(root, ...v.replace(/^\//, '').split('/'));
-      if (!existsSync(file)) errors.push(`material ${name}: ${k} ${v} does not exist`);
+      if (!existsSync(file) && !gameFiles.has(stem(v))) errors.push(`material ${name}: ${k} ${v} does not exist`);
     }
 }
 

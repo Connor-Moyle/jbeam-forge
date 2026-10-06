@@ -1,4 +1,5 @@
 import { runExtensionCommand, useExtensions } from '@renderer/extensions/host';
+import { openGameLog } from '@renderer/export/GameLogDialog';
 import { hingeAll } from '@renderer/hinges/commands';
 import { useMemo, useState, type KeyboardEvent } from 'react';
 import { fuzzyScore } from '@shared/fuzzy';
@@ -89,6 +90,7 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'undo', label: 'Undo', group: 'Action', hint: 'Ctrl+Z', run: undo },
       { id: 'redo', label: 'Redo', group: 'Action', hint: 'Ctrl+Y', run: redo },
       { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Action', hint: 'F1', run: () => useDialogStore.getState().setShortcutsOpen(true) },
+      { id: 'game-log', label: 'What the game said about this car (its log)', group: 'Action', run: () => void openGameLog() },
     ];
     const panels: Item[] = (Object.keys(PANELS) as PanelId[])
       .filter((id) => !('devOnly' in PANELS[id]) && id !== 'properties') // the column's tabs are listed one by one

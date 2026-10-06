@@ -45,7 +45,11 @@ const logger = rlog('export');
 
 export interface PreparedExport {
   /** Copies may still be marked for DDS conversion (finalBundle does it). */
-  bundle: Omit<ExportBundle, 'copies'> & { copies: TextureCopy[] };
+  bundle: Omit<ExportBundle, 'copies'> & {
+    copies: TextureCopy[];
+    /** Material names the meshes use that the mod doesn't define: the game's (finalBundle brings other cars' along). */
+    gameMaterials?: string[];
+  };
   report: ValidationReport;
   summary: { parts: number; meshes: number; nodes: number; beams: number; textures: number; daeBytes: number };
 }
@@ -281,7 +285,7 @@ export function prepareExport(): PreparedExport | null {
   if (kind !== 'vehicle') return partModExport(doc, kind, { author, files, copies: mats.copies, dae, meshCount: exported.length, meshNames: daeMeshes.map((m) => m.name) });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   return {
-    bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies },
+    bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies, gameMaterials: [...new Set(daeMeshes.flatMap((m) => m.materials))].filter((n) => !(n in materialJsonAll)) },
     report,
     summary: { parts: doc.parts.length, meshes: exported.length, nodes: doc.nodes.length, beams: doc.beams.length, textures: mats.copies.length, daeBytes: dae.length },
   };
@@ -389,7 +393,14 @@ export function ddsWanted(doc: Pick<Project, 'meta'>): boolean {
  * can't be converted is copied unchanged under its original extension, and
  * the materials pointing at it are fixed up.
  */
-export async function finalBundle(bundle: PreparedExport['bundle'], progress: (text: string) => void): Promise<ExportBundle> {
+export async function finalBundle(prepared: PreparedExport['bundle'], progress: (text: string) => void): Promise<ExportBundle> {
+  // Materials of other cars the meshes use (a borrowed engine's): a car only loads its own folder's
+  // and the common ones, so their definitions go in this mod's materials file.
+  const { gameMaterials, ...bundle } = prepared;
+  if (gameMaterials?.length) {
+    const defs = await call('beamng:gameMaterialDefs', { names: gameMaterials }).catch(() => ({}));
+    if (Object.keys(defs).length) bundle.files = bundle.files.map((f) => (f.text !== undefined && f.path.endsWith('/main.materials.json') ? { ...f, text: `${JSON.stringify({ ...defs, ...(JSON.parse(f.text) as object) }, null, 2)}\n` } : f));
+  }
   const todo = bundle.copies.filter((c) => c.convert);
   if (!todo.length) return { ...bundle, copies: bundle.copies.map(({ from, to }) => ({ from, to })) };
   const s = useSettingsStore.getState().settings;
