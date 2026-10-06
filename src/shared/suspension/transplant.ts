@@ -1,4 +1,5 @@
 import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse';
+import { readTable } from '../jbeam/tables';
 
 /**
  * Bringing a stock suspension's jbeam into another car. The set's parts are
@@ -243,6 +244,19 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     }
   for (const [id, to] of Object.entries(input.linkedNodes ?? {})) if (!nodeIds.has(id)) nodeIds.set(id, to);
   const groups = setGroups(input.parts);
+  // Which of the set's nodes each group holds (option rows and a node's own row both count).
+  const groupNodes = new Map<string, Set<string>>();
+  for (const body of Object.values(input.parts)) {
+    if (!Array.isArray(body.nodes)) continue;
+    for (const r of readTable(body.nodes).records) {
+      const g = r.options.group;
+      for (const name of Array.isArray(g) ? g : typeof g === 'string' && g ? [g] : []) {
+        const set = groupNodes.get(String(name)) ?? new Set<string>();
+        set.add(String(r.values.id));
+        groupNodes.set(String(name), set);
+      }
+    }
+  }
   const keepGroup = (g: JbeamValue): JbeamValue => (typeof g === 'string' && input.fallbackGroup && !groups.has(g) ? input.fallbackGroup : g);
 
   // The original car's body nodes → the new car's nearest node.
@@ -292,7 +306,15 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
           .map((row, i) => {
             if (i === 0 || !Array.isArray(row) || typeof row[0] !== 'string') return row;
             const [, bound, ...rest] = row;
-            const regrouped = Array.isArray(bound) ? [...new Set(bound.map(keepGroup))] : bound;
+            let regrouped = Array.isArray(bound) ? [...new Set(bound.map(keepGroup))] : bound;
+            // A mesh needs three nodes around it to sit right. On its own car an arm's group also
+            // took the frame's mount nodes, which stay behind: with fewer than three of the set's
+            // nodes left, the mesh also binds to the new car's body (where those mounts now are),
+            // or the game can't place it and it stretches ("VY node not found").
+            if (Array.isArray(regrouped) && input.fallbackGroup && !regrouped.includes(input.fallbackGroup)) {
+              const held = new Set(regrouped.flatMap((g) => [...(groupNodes.get(String(g)) ?? [])]));
+              if (held.size < 3) regrouped = [...regrouped, input.fallbackGroup];
+            }
             return [input.meshNames[row[0]]!, regrouped as JbeamValue, ...rest];
           });
       } else if (section === 'props' && Array.isArray(value) && Array.isArray(value[0])) {

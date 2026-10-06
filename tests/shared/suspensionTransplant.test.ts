@@ -121,7 +121,7 @@ describe('suspension jbeam transplant', () => {
       },
     };
     const r = transplantSuspension({ parts: set, root: 'eng', anchors: {}, offset: [0, 0, 0], partPrefix: 'm_E_', nodePrefix: 'e_', target: [], meshNames: { engine_block: 'mod_block', radiator_hose: 'mod_hose' }, tuning: {}, fallbackGroup: 'mod_body' });
-    expect(r.parts.m_E_eng!.flexbodies).toEqual([['mesh', '[group]:', 'nonFlexMaterials'], ['mod_block', ['car_engine']], ['mod_hose', ['car_engine', 'mod_body']]]);
+    expect(r.parts.m_E_eng!.flexbodies).toEqual([['mesh', '[group]:', 'nonFlexMaterials'], ['mod_block', ['car_engine', 'mod_body']], ['mod_hose', ['car_engine', 'mod_body']]]);
   });
 
   it('lists the tuning variables', () => {
@@ -269,5 +269,29 @@ describe('props of a borrowed set', () => {
       tuning: {},
     });
     expect(r.parts.m_e!.props).toEqual([['func', 'mesh', 'idRef:', 'idX:', 'idY:'], ['rpmspin', 'm_pulley', 'e_e1', 'e_e2', 'e_e3'], ['lowhighbeam', 'SPOTLIGHT', 'e_e1', 'e_e2', 'e_e3']]);
+  });
+});
+
+describe('a borrowed mesh whose groups keep too few of the set’s nodes (the Hopper’s arms)', () => {
+  it('also binds to the new car’s body, so it can be placed; one with enough stays as it was', () => {
+    const r = transplantSuspension({
+      parts: {
+        s: {
+          slotType: 's',
+          nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'hopper_lowerarm_F' }, ['faxs1r', -0.5, -1.4, 0.3], ['faxs1l', 0.5, -1.4, 0.3], { group: 'hopper_hub_F' }, ['fax1r', -0.7, -1.4, 0.3], ['fax2r', -0.7, -1.3, 0.4], ['fax5r', -0.7, -1.5, 0.35], { group: '' }],
+          flexbodies: [['mesh', '[group]:'], ['hopper_lowerarm_F', ['hopper_lowerarm_F']], ['hopper_hub_F', ['hopper_hub_F']]],
+        },
+      },
+      root: 's',
+      anchors: {},
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'f_',
+      target: [],
+      meshNames: { hopper_lowerarm_F: 'arm', hopper_hub_F: 'hub' },
+      tuning: {},
+      fallbackGroup: 'm_body',
+    });
+    expect(r.parts.m_s!.flexbodies).toEqual([['mesh', '[group]:'], ['arm', ['hopper_lowerarm_F', 'm_body']], ['hub', ['hopper_hub_F']]]);
   });
 });
