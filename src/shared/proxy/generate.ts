@@ -1,7 +1,7 @@
 import type { Part, PartProxy, Project, StructNode } from '../project/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
 import { materialDefaults } from '../parts/materials';
-import { buildProxy } from './build';
+import { bindable, buildProxy } from './build';
 import type { ProxyMesh } from './mesh';
 import { attachToParent, deriveStructure, FAR_FROM_PARENT, parentGap, placeRefNodes, positionTag, predictStability, presetSprings, type StabilityReport } from './derive';
 import { BEAM_PRESET_VALUES, kindDefaults, targetVertices } from './presets';
@@ -134,7 +134,14 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     const massKg = partMass(part, entry, settings);
     const cap = massNodeCap(entry, massKg);
     const target = Math.min(targetVertices(defaults.budget, settings.detail), cap);
-    let built = buildProxy(mesh, { mode: settings.mode, targetVertices: target, symmetry: settings.symmetry, maxEdge: settings.maxEdge, minEdge: settings.minEdge, inset: settings.inset, maxVertices: cap });
+    const build = (vertices: number) => buildProxy(mesh, { mode: settings.mode, targetVertices: vertices, symmetry: settings.symmetry, maxEdge: settings.maxEdge, minEdge: settings.minEdge, inset: settings.inset, maxVertices: Math.max(cap, vertices) });
+    let built = build(target);
+    // A long thin part can come out as a row of single nodes, which the game can't hang a mesh on:
+    // it gets more nodes (in steps, to three times its budget) until every node has neighbours off its line.
+    for (let more = Math.ceil(target * 1.5); !bindable(built.mesh) && more <= target * 3; more = Math.ceil(more * 1.5)) {
+      const denser = build(more);
+      if (denser.stats.vertices > built.stats.vertices) built = denser;
+    }
     const fallbackWarnings: string[] = [];
     if (built.stats.vertices < 4 || built.stats.triangles < 2) {
       // Thin or fragmented shapes can clean down to nothing: every meshed part still needs nodes.

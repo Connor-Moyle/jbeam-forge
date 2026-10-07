@@ -78,7 +78,8 @@ function shape(input: ProxyMesh, s: ProxyBuildSettings, target: number): ProxyMe
       // Leave ~40% of the budget for long-edge subdivision: evener spacing than decimating straight to budget.
       return decimate(input, s.maxEdge > 0 ? Math.max(4, Math.round(target * 0.6)) : target);
     case 'hull':
-      return convexHull(input, target);
+      // Part of the budget is kept for splitting long edges, so the part ends at its budget, not past it.
+      return convexHull(input, s.maxEdge > 0 ? Math.max(4, Math.round(target * 0.7)) : target);
     case 'box':
       return fitBox(input);
     case 'cylinder':
@@ -86,12 +87,100 @@ function shape(input: ProxyMesh, s: ProxyBuildSettings, target: number): ProxyMe
   }
 }
 
-/** Quality pass. Subdivision is capped at 1.5× the budget: remaining long beams are reported, not hidden in a blown budget. */
+/**
+ * Quality pass. Subdivision stops at the budget: remaining long beams are reported, not hidden in a
+ * blown budget. (It used to run to 1.5× the budget, and nearly every panel got there: a door came
+ * out at 43 nodes where the game's doors have 15.)
+ */
 function clean(m: ProxyMesh, s: ProxyBuildSettings, target: number, hardCap: number): ProxyMesh {
   let out = removeDegenerate(m);
   if (s.minEdge > 0) out = collapseShortEdges(out, s.minEdge);
-  if (s.maxEdge > 0) out = subdivideLongEdges(out, s.maxEdge, Math.max(vertexCount(out), Math.min(hardCap, Math.ceil(target * 1.5))));
+  if (s.maxEdge > 0) out = subdivideLongEdges(out, s.maxEdge, Math.max(vertexCount(out), Math.min(hardCap, target)));
   return out;
+}
+
+/**
+ * The left half of a centred part as points for a hull: its vertices at x ≥ 0 and the points where
+ * its edges cross the centre plane, so the half's hull is cut flat exactly on the plane.
+ */
+function leftHalfPoints(input: ProxyMesh): ProxyMesh {
+  const p = input.positions;
+  const out: number[] = [];
+  for (let v = 0; v < p.length; v += 3) if (p[v]! >= 0) out.push(p[v]!, p[v + 1]!, p[v + 2]!);
+  for (let t = 0; t < input.index.length; t += 3) {
+    for (let k = 0; k < 3; k++) {
+      const a = input.index[t + k]! * 3;
+      const b = input.index[t + ((k + 1) % 3)]! * 3;
+      if (p[a]! * p[b]! >= 0) continue;
+      const f = p[a]! / (p[a]! - p[b]!);
+      out.push(0, p[a + 1]! + (p[b + 1]! - p[a + 1]!) * f, p[a + 2]! + (p[b + 2]! - p[a + 2]!) * f);
+    }
+  }
+  return { positions: new Float32Array(out), index: new Uint32Array(0) };
+}
+
+/**
+ * A centred part's hull as two exact halves: the left half is wrapped, brought to half the budget
+ * and mirrored, so every node off the centre line has its twin (the game's panels are all built
+ * that way; a hull cut down as one piece came out different on each side). Null when the halves
+ * wouldn't meet on the centre line, and the part is wrapped whole instead.
+ */
+function mirroredHull(input: ProxyMesh, s: ProxyBuildSettings): ProxyMesh | null {
+  const target = Math.ceil(s.targetVertices / 2);
+  const half = clean(shape(leftHalfPoints(input), s, target), s, target, Math.ceil((s.maxVertices ?? Infinity) / 2));
+  const seam = Math.max(s.minEdge / 2, 0.02);
+  const pos = Float32Array.from(half.positions);
+  let onSeam = 0;
+  for (let v = 0; v < pos.length; v += 3)
+    if (pos[v]! < seam) {
+      pos[v] = 0;
+      onSeam++;
+    }
+  if (onSeam < 2) return null;
+  // The flat face the cut left on the centre plane is inside the part: it goes.
+  const idx: number[] = [];
+  for (let t = 0; t < half.index.length; t += 3) {
+    const [a, b, c] = [half.index[t]!, half.index[t + 1]!, half.index[t + 2]!];
+    if (pos[a * 3] === 0 && pos[b * 3] === 0 && pos[c * 3] === 0) continue;
+    idx.push(a, b, c);
+  }
+  if (idx.length < 6) return null;
+  return mirrorHalf({ positions: pos, index: new Uint32Array(idx) }, seam);
+}
+
+/**
+ * Can the game hang a mesh on these nodes? For each vertex it takes a node, a second one, and a
+ * third that must stand well off the line through the first two; with none it reports "VY node
+ * not found" and the mesh stays where it is. A wide, thin part cut down to a row of single nodes
+ * fails (a 9-node grille did: from its quarter-way node every other node lay within 25° of one
+ * line, and a node 33° off was enough). So every node, with each of its two nearest neighbours,
+ * needs another node at least BIND_ANGLE off that line.
+ */
+const BIND_ANGLE = (45 * Math.PI) / 180;
+
+export function bindable(m: ProxyMesh): boolean {
+  const p = m.positions;
+  const n = p.length / 3;
+  if (n < 3) return false;
+  const minSin = Math.sin(BIND_ANGLE);
+  for (let a = 0; a < n; a++) {
+    const near = [...Array(n).keys()].filter((b) => b !== a).map((b) => [b, Math.hypot(p[b * 3]! - p[a * 3]!, p[b * 3 + 1]! - p[a * 3 + 1]!, p[b * 3 + 2]! - p[a * 3 + 2]!)] as const).sort((x, y) => x[1] - y[1]);
+    for (const [b, ab] of near.slice(0, 2)) {
+      if (!(ab > 0)) continue;
+      const ux = (p[b * 3]! - p[a * 3]!) / ab;
+      const uy = (p[b * 3 + 1]! - p[a * 3 + 1]!) / ab;
+      const uz = (p[b * 3 + 2]! - p[a * 3 + 2]!) / ab;
+      const off = near.some(([c, ac]) => {
+        if (c === b || !(ac > 0)) return false;
+        const vx = (p[c * 3]! - p[a * 3]!) / ac;
+        const vy = (p[c * 3 + 1]! - p[a * 3 + 1]!) / ac;
+        const vz = (p[c * 3 + 2]! - p[a * 3 + 2]!) / ac;
+        return Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx) >= minSin;
+      });
+      if (!off) return false;
+    }
+  }
+  return true;
 }
 
 /** Build a part's proxy from its (BeamNG-space) render geometry. Requires `await meshoptReady` for decimate/hull. */
@@ -100,9 +189,13 @@ const WELD_NODES = 0.001;
 
 export function buildProxy(input: ProxyMesh, s: ProxyBuildSettings): ProxyBuildResult {
   const started = performance.now();
-  const mirrored = s.symmetry && (s.mode === 'decimate' || s.mode === 'surface') && isMirrorSymmetric(input.positions);
+  const symmetric = s.symmetry && (s.mode === 'decimate' || s.mode === 'surface' || s.mode === 'hull') && isMirrorSymmetric(input.positions);
+  const hullHalves = symmetric && s.mode === 'hull' ? mirroredHull(input, s) : null;
+  const mirrored = symmetric && (s.mode !== 'hull' || !!hullHalves);
   let mesh: ProxyMesh;
-  if (s.mode === 'surface') {
+  if (hullHalves) {
+    mesh = hullHalves;
+  } else if (s.mode === 'surface') {
     // Even spacing on the surface already: no collapse/subdivide pass (it would undo the evenness).
     const cap = s.maxVertices ?? Infinity;
     mesh = mirrored

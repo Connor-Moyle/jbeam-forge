@@ -168,8 +168,9 @@ describe('buildProxy', () => {
     expect(r.stats.vertices).toBeLessThanOrEqual(60);
     const p = r.mesh.positions;
     const lengths = edges(r.mesh).map(([a, b]) => Math.hypot(p[a * 3]! - p[b * 3]!, p[a * 3 + 1]! - p[b * 3 + 1]!, p[a * 3 + 2]! - p[b * 3 + 2]!));
-    expect(Math.max(...lengths)).toBeLessThan(0.9); // subdivision capped by budget; most edges within maxEdge
-    expect(lengths.filter((l) => l <= 0.6 + 1e-3).length / lengths.length).toBeGreaterThan(0.8);
+    expect(Math.max(...lengths)).toBeLessThan(0.9); // subdivision stops at the budget; most edges within maxEdge
+    expect(lengths.filter((l) => l <= 0.6 + 1e-3).length / lengths.length).toBeGreaterThan(0.55);
+    expect(r.stats.vertices).toBeLessThanOrEqual(30);
   });
 
   it('hull and cylinder modes give closed outward shells', () => {

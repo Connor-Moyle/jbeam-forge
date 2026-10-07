@@ -27,10 +27,10 @@ export interface BeamPreset extends BeamValues {
 }
 
 export const BEAM_PRESET_VALUES: Record<BeamPresetId, BeamPreset> = {
-  structure_stiff: { label: 'Stiff structure', beamSpring: 1_200_000, beamDamp: 80, beamDeform: 7_500, beamStrength: 50_000, nodeWeight: 2, nodeMaterial: '|NM_METAL', braceSpringFactor: 0.6 },
-  panel_metal: { label: 'Metal panel', beamSpring: 800_000, beamDamp: 60, beamDeform: 8_000, beamStrength: 55_000, nodeWeight: 0.75, nodeMaterial: '|NM_METAL', braceSpringFactor: 0.5 },
-  panel_plastic: { label: 'Plastic panel', beamSpring: 200_000, beamDamp: 30, beamDeform: 6_000, beamStrength: 25_000, nodeWeight: 0.3, nodeMaterial: '|NM_PLASTIC', braceSpringFactor: 0.5 },
-  trim_light: { label: 'Light trim', beamSpring: 150_000, beamDamp: 25, beamDeform: 4_000, beamStrength: 12_000, nodeWeight: 0.3, nodeMaterial: '|NM_PLASTIC', braceSpringFactor: 0.5 },
+  structure_stiff: { label: 'Stiff structure', beamSpring: 3_000_000, beamDamp: 130, beamDeform: 9_000, beamStrength: 50_000, nodeWeight: 3.5, nodeMaterial: '|NM_METAL', braceSpringFactor: 0.6 },
+  panel_metal: { label: 'Metal panel', beamSpring: 800_000, beamDamp: 70, beamDeform: 8_000, beamStrength: 55_000, nodeWeight: 0.9, nodeMaterial: '|NM_METAL', braceSpringFactor: 0.5 },
+  panel_plastic: { label: 'Plastic panel', beamSpring: 200_000, beamDamp: 60, beamDeform: 7_000, beamStrength: 50_000, nodeWeight: 0.6, nodeMaterial: '|NM_PLASTIC', braceSpringFactor: 0.5 },
+  trim_light: { label: 'Light trim', beamSpring: 300_000, beamDamp: 30, beamDeform: 4_000, beamStrength: 12_000, nodeWeight: 0.3, nodeMaterial: '|NM_PLASTIC', braceSpringFactor: 0.5 },
   glass_brittle: { label: 'Glass', beamSpring: 300_000, beamDamp: 250, beamDeform: 3_500, beamStrength: 3_500, nodeWeight: 1.6, nodeMaterial: '|NM_GLASS', braceSpringFactor: 0.5 },
   mechanical: { label: 'Mechanical', beamSpring: 4_000_000, beamDamp: 150, beamDeform: 25_000, beamStrength: 275_000, nodeWeight: 4.5, nodeMaterial: '|NM_METAL', braceSpringFactor: 0.7 },
   mechanical_light: { label: 'Light mechanical', beamSpring: 300_000, beamDamp: 70, beamDeform: 6_000, beamStrength: 15_000, nodeWeight: 1, nodeMaterial: '|NM_METAL', braceSpringFactor: 0.6 },
@@ -79,6 +79,13 @@ export const GAME_SET_IDS: ReadonlySet<string> = new Set(['suspension_set', 'eng
 const CYLINDERS = new Set(['driveshaft', 'halfshaft', 'axle', 'lower_arm', 'upper_arm', 'trailing_arm', 'link', 'sway_bar', 'tie_rod', 'steering_column', 'strut', 'coilover', 'spring', 'antenna']);
 const HULLS = new Set(['hub', 'knuckle', 'brake_disc', 'brake_caliper', 'brake_drum', 'radiator', 'intercooler', 'oil_cooler', 'fuel_tank', 'nitrous', 'battery', 'washer_tank', 'intake', 'turbo', 'supercharger', 'engine_mount', 'steering_rack', 'muffler', 'wheel', 'spare_wheel', 'shifter', 'pedals', 'handbrake', 'steering_wheel', 'seat', 'rear_seat', 'tow_hitch', 'tow_hook']);
 
+/**
+ * Node budgets of the panels the game's cars all build alike, measured over eight of them (Pessima,
+ * Covet, ETK 800, Sunburst, Bastion, Vivace, LeGran, Wendover): a door has 15 or 16 nodes, a hood 21
+ * to 24, a boot lid 14 to 18, a wing 9 to 13. The middle of each range is that count.
+ */
+const PANEL_BUDGETS: Record<string, [number, number]> = { door: [10, 20], hood: [14, 28], trunk: [12, 24], tailgate: [12, 24], fender: [8, 16], quarter_panel: [8, 16], roof: [10, 20] };
+
 /** Proxy mode, budget, bracing and attachment defaults for a part kind (user-overridable per part). */
 export function kindDefaults(entry: TaxonomyEntry): KindDefaults {
   const attachment: AttachmentStyle = entry.beamPreset === 'glass_brittle' ? 'clipped' : entry.subcategory === 'Structure' || entry.category === 'Mechanical' ? 'bolted' : entry.beamPreset === 'panel_plastic' || entry.beamPreset === 'trim_light' ? 'clipped' : 'bolted';
@@ -86,19 +93,20 @@ export function kindDefaults(entry: TaxonomyEntry): KindDefaults {
   if (entry.beamPreset === 'tyre_rubber' || SUSPENSION_SUBCATEGORIES.has(entry.subcategory) || SUSPENSION_IDS.has(entry.id) || GAME_SET_IDS.has(entry.id)) return { ...base, role: 'suspension', mode: 'cylinder', budget: [4, 8] };
   if (RIDERS.has(entry.id)) return { ...base, role: 'rides', mode: 'decimate', budget: [4, 8], bracing: 'none' };
   // The shell follows its surface: a hull would bridge the wheel arches, with collision faces through the tyres.
-  if (entry.id === 'body' || entry.id === 'frame' || entry.id === 'cab') return { ...base, mode: 'surface', budget: [160, 380], bracing: 'heavy' };
+  if (entry.id === 'body' || entry.id === 'frame' || entry.id === 'cab') return { ...base, mode: 'surface', budget: [100, 180], bracing: 'heavy' };
   // Everything else is wrapped in its convex hull: closed, well braced, and closest to correct.
-  if (entry.beamPreset === 'glass_brittle') return { ...base, mode: 'hull', budget: [6, 14], bracing: 'light' };
+  if (entry.beamPreset === 'glass_brittle') return { ...base, mode: 'hull', budget: [4, 8], bracing: 'light' };
   // Official blocks: few heavy nodes (transaxle ≤ 4 nodes at 30 kg, engine ~15 kg nodes).
   if (entry.beamPreset === 'mechanical_block') return { ...base, mode: 'hull', budget: [8, 16], bracing: 'heavy' };
   if (CYLINDERS.has(entry.id)) return { ...base, mode: 'cylinder', budget: [8, 12] };
-  if (HULLS.has(entry.id)) return { ...base, mode: 'hull', budget: [10, 22] };
-  if (entry.subcategory === 'Bumpers') return { ...base, mode: 'hull', budget: [16, 34] };
+  if (HULLS.has(entry.id)) return { ...base, mode: 'hull', budget: [6, 14] };
+  if (entry.subcategory === 'Bumpers') return { ...base, mode: 'hull', budget: [14, 30] };
   if (entry.subcategory === 'Rollcage') return { ...base, mode: 'surface', budget: [24, 60] };
-  if (entry.beamPreset === 'trim_light') return { ...base, mode: 'hull', budget: [8, 20], bracing: 'light' };
-  if (entry.beamPreset === 'panel_metal' || entry.beamPreset === 'panel_plastic') return { ...base, mode: 'hull', budget: [14, 38] };
-  if (entry.beamPreset === 'structure_stiff') return { ...base, mode: 'hull', budget: [16, 40] };
-  return { ...base, mode: 'hull', budget: [12, 24] };
+  if (entry.beamPreset === 'trim_light') return { ...base, mode: 'hull', budget: [5, 11], bracing: 'light' };
+  if (PANEL_BUDGETS[entry.id]) return { ...base, mode: 'hull', budget: PANEL_BUDGETS[entry.id]! };
+  if (entry.beamPreset === 'panel_metal' || entry.beamPreset === 'panel_plastic') return { ...base, mode: 'hull', budget: [8, 20] };
+  if (entry.beamPreset === 'structure_stiff') return { ...base, mode: 'hull', budget: [10, 26] };
+  return { ...base, mode: 'hull', budget: [8, 16] };
 }
 
 /** Detail 0..1 → vertex target within the budget. */
