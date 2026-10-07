@@ -269,6 +269,8 @@ export function slender(points: readonly V3[]): boolean {
 
 /** A set's attachment point this close to a body node takes that node; farther, it's bolted on. */
 const MOUNT_SNAP = 0.05;
+/** The softest bolt given to a node the old body also held (N/m). */
+const HELD_MIN_SPRING = 400_000;
 const MOUNT_LINKS = 3;
 const MOUNT_MIN_KG = 2;
 const MOUNT_RIGID_KG = 5;
@@ -381,6 +383,8 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   // How much spring the set's beams put on each node it doesn't define: hydros and torsion bars too
   // (the Burnside's steering hydro pushes on its steering box points, and a light point flew off).
   const vars = variableDefaults(Object.values(input.parts));
+  // The springs each of the set's own nodes already carries, from the set's own beams.
+  const ownSpring = new Map<string, number>();
   const anchorSpring = new Map<string, number>();
   for (const body of Object.values(input.parts)) for (const section of ['beams', 'hydros', 'torsionbars'] as const) {
     if (!Array.isArray(body[section])) continue;
@@ -388,7 +392,11 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       for (const r of readTable(body[section]).records) {
         const k = coordinate(r.options.beamSpring ?? 4_300_000, vars);
         if (!(k > 0)) continue;
-        for (const end of [r.values['id1:'], r.values['id2:']]) if (typeof end === 'string' && !own.has(end)) anchorSpring.set(end, (anchorSpring.get(end) ?? 0) + k);
+        for (const end of [r.values['id1:'], r.values['id2:']]) {
+          if (typeof end !== 'string') continue;
+          const sums = own.has(end) ? ownSpring : anchorSpring;
+          sums.set(end, (sums.get(end) ?? 0) + k);
+        }
       }
     } catch {
       // not a table: nothing to count
@@ -532,7 +540,11 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     const to = near.map((t) => t.id);
     if (!to.length) continue;
     const w = weights.get(id) ?? 25;
-    const spring = Math.round(Math.min(MOUNT.beamSpring, (w * (MOUNT_RATIO / STABILITY_DT) ** 2) / to.length));
+    // What its weight can carry less what the set's own beams already put on it: a subframe node
+    // on a 26 MN/m lower arm, given four full bolts as well, shook until the arm broke at spawn
+    // (the Bastion's, the ETK I's, the Vivace's). Never less than a bolt that still holds it.
+    const room = w * (MOUNT_RATIO / STABILITY_DT) ** 2 - (ownSpring.get(id) ?? 0);
+    const spring = Math.round(Math.min(MOUNT.beamSpring, Math.max(HELD_MIN_SPRING, room / to.length)));
     heldMounts.push({ node: `${input.nodePrefix}${id}`, to, spring });
   }
   if (extra.length && !mounts.length) warnings.push(`The body has no structure yet, so ${extra.length} attachment points were kept on the suspension. Generate the body, then export again.`);
