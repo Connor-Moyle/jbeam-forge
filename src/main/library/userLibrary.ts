@@ -24,7 +24,7 @@ export interface FolderStatus {
 
 const MAX_FILES = 50_000;
 /** Bump when the BeamNG part cutting changes, so installs are cut again. */
-const BEAMNG_FORMAT = 18; // 18: a suspension records its stock tyre's size; 17: each set records what its car weighs; 16: translation keys out of part names; 15: held.json counts plain beams only (not bump stops, limiters or hydros); 14: each set records the nodes its car's body also held
+const BEAMNG_FORMAT = 19; // 19: glow map entries a set's material swaps name come along; 18: a suspension records its stock tyre's size; 17: each set records what its car weighs; 16: translation keys out of part names; 15: held.json counts plain beams only (not bump stops, limiters or hydros); 14: each set records the nodes its car's body also held
 
 type Folders = { materials: readonly string[]; objects: readonly string[]; beamngInstall: string | null };
 

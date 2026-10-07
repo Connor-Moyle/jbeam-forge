@@ -114,6 +114,17 @@ describe('nodes of a suspension its car’s body also holds', () => {
     expect(where.get('rx1l')).toEqual([0.66, 2.3, 0.24]);
   });
 
+  it('bring the glow map entry a material swap names from the car’s main part (the Scintilla’s brake discs)', async () => {
+    const { borrowedGlows } = await import('../../src/main/beamng/partObjects');
+    const glow = { simpleFunction: { brakeGlow_FR: 1 }, off: 'disc', on: 'disc_glow' };
+    const closure = { brakes: { slotType: 'brakes', flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], ['disc', ['wheel_FR'], [], { materialOverride: { disc: 'disc_FR' } }]] } };
+    const car = new Map<string, Record<string, unknown>>([
+      ['brakes', closure.brakes],
+      ['car', { slotType: 'main', glowMap: { disc_FR: glow, lights: { off: 'a', on: 'b' } } }],
+    ]);
+    expect(borrowedGlows(closure as never, car as never)).toEqual({ disc_FR: glow });
+  });
+
   it('are not held by a damper: a beam with next to no spring', async () => {
     const { heldByBody } = await import('../../src/main/beamng/partObjects');
     const closure = { box: { slotType: 'box', nodes: [['id', 'posX', 'posY', 'posZ'], ['em1l', 0.4, -1.4, 0.5], ['tra1', 0.3, -1.2, 0.4]] } };

@@ -7,6 +7,7 @@ import { withZip, ZipReader } from './zip';
 import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
 import { firstSlotType, fittingDefaults, slotTypesOf } from '@shared/jbeam/slots';
 import { tyreOf } from '@shared/suspension/arch';
+import { jbeamMaterialRefs } from '@shared/export/materialRefs';
 import { findOptions } from '@shared/suspension/options';
 import { engineSpecs, gearboxSpecs, isEnginePart, isGearboxPart, partTitle } from '@shared/powertrain/specs';
 
@@ -460,6 +461,22 @@ export function stockFirst(own: ReadonlyMap<string, JbeamObject>, find: (name: s
   return [...first, ...rest, ...engineParts];
 }
 
+/** Glow map entries the set's material swaps name that only other parts of its car define. */
+export function borrowedGlows(closure: Readonly<Record<string, JbeamObject>>, carParts: ReadonlyMap<string, JbeamObject>): JbeamObject {
+  const have = new Set<string>();
+  for (const p of Object.values(closure)) if (isJbeamObject(p.glowMap)) for (const key of Object.keys(p.glowMap)) have.add(key);
+  const out: JbeamObject = {};
+  for (const name of jbeamMaterialRefs(Object.values(closure))) {
+    if (have.has(name)) continue;
+    for (const [part, body] of carParts) {
+      if (closure[part] || !isJbeamObject(body.glowMap) || !isJbeamObject(body.glowMap[name])) continue;
+      out[name] = body.glowMap[name];
+      break;
+    }
+  }
+  return out;
+}
+
 /** A beam softer than this (N/m) holds nothing in place: a damper, not a mount. */
 const WEAK_SPRING = 20_000;
 
@@ -649,6 +666,11 @@ async function writeSets(
     if (!dae) continue;
     const title = partTitle(body, partName);
     const closure = Object.fromEntries(parts.map((p) => [p, withoutDeadDefaults(find(p)!, find)]));
+    // A mesh's material swapped for a name that is no material but a glow map entry of the car's
+    // main part (each of the Scintilla's brake discs glows on its own): the entry comes along on
+    // the set's first part, or the game finds nothing by that name and paints the disc orange.
+    const glows = borrowedGlows(closure, own);
+    if (Object.keys(glows).length) closure[partName] = { ...closure[partName]!, glowMap: { ...(isJbeamObject(closure[partName]!.glowMap) ? closure[partName]!.glowMap : {}), ...glows } };
     const category = categoryOf(slotType);
     const axle = kind !== 'suspension' ? 'any' : category === 'Front Suspension' ? 'front' : category === 'Rear Suspension' ? 'rear' : /_F(_|$)/.test(slotType) ? 'front' : /_R(_|$)/.test(slotType) ? 'rear' : 'any';
     const engine = kind === 'engine' ? engineSpecs(body, Object.values(closure), title) : undefined;
