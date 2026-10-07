@@ -17,7 +17,7 @@ import { nodesTouchingOtherParts } from './contact';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
 import type { PartScripts } from '../lua/export';
-import { applyDrivetrainToAxle, DEFAULT_DRIVETRAIN, planDrivetrain } from '../powertrain/drivetrain';
+import { applyDrivetrainToAxle, applyDrivetrainToGearbox, DEFAULT_DRIVETRAIN, planDrivetrain } from '../powertrain/drivetrain';
 import { camerasInternalSection } from '../cameras/cameras';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
@@ -580,6 +580,11 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
         if (file) file.text = serializeJbeam({ [part]: t.parts[part]! });
       }
     }
+    if (gearboxParts)
+      for (const part of applyDrivetrainToGearbox(gearboxParts, plan)) {
+        const file = files.find((f) => f.part === part);
+        if (file) file.text = serializeJbeam({ [part]: gearboxParts[part]! });
+      }
     if (plan.rows) {
       const name = `${slug}_drivetrain`;
       files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: { information: { authors: opts.author || 'JBeam Forge', name: 'Drive shafts' }, slotType: name, powertrain: plan.rows as WritableValue[] } }) });

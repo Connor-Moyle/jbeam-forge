@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JbeamObject } from '../../src/shared/jbeam/parse';
-import { applyDrivetrainToAxle, planDrivetrain, powertrainRows } from '../../src/shared/powertrain/drivetrain';
+import { applyDrivetrainToAxle, applyDrivetrainToGearbox, planDrivetrain, powertrainRows } from '../../src/shared/powertrain/drivetrain';
 
 const H = ['type', 'name', 'inputName', 'inputIndex'];
 const ENGINE: Record<string, JbeamObject> = { eng: { powertrain: [H, ['combustionEngine', 'mainEngine', 'dummy', 0]] } };
@@ -80,6 +80,72 @@ describe('drive shafts', () => {
       ['shaft', 'jbf_driveshaft_2', 'jbf_centre_diff', 1],
       ['shaft', 'jbf_driveshaft_3', 'jbf_centre_diff', 2],
     ]);
+  });
+
+  describe('a gearbox set that brings its own car’s driveline', () => {
+    // A live rear axle as the game cuts it: its own driveshaft, differential and wheel shafts, fed by the transfer case.
+    const liveAxle = (): Record<string, JbeamObject> => ({
+      shaft_R: { powertrain: [H, ['torsionReactor', 'torsionReactorR', 'transfercase', 1, {}], ['shaft', 'driveshaft', 'torsionReactorR', 1]] },
+      diff_R: { powertrain: [H, ['differential', 'differential_R', 'driveshaft', 1, { diffType: 'lsd' }]] },
+      wheels_R: { powertrain: [H, ['shaft', 'wheelaxleRL', 'differential_R', 1, { connectedWheel: 'RL' }], ['shaft', 'wheelaxleRR', 'differential_R', 2, { connectedWheel: 'RR' }]] },
+    });
+    const axles = (rear: Record<string, JbeamObject>) => [{ index: 0, name: 'Front', y: -1.4, parts: undriven('F') }, { index: 1, name: 'Rear', y: 1.3, parts: rear }];
+
+    it('keeps the axle’s differential and half-shafts where a transaxle brings ones of the same name', () => {
+      // The Scintilla's transaxle behind a crawler's rear axle: two differential_R and two of each wheel shaft.
+      const box: Record<string, JbeamObject> = {
+        transaxle: { powertrain: [H, ['dctGearbox', 'gearbox', 'mainEngine', 1]] },
+        transfer: { powertrain: [H, ['shaft', 'transfercase', 'gearbox', 1, { uiName: 'Rear Output Shaft' }]] },
+        diff: { powertrain: [H, ['differential', 'differential_R', 'transfercase', 1, { diffType: 'open', gearRatio: 3.07 }]] },
+        halfshafts: { powertrain: [H, ['shaft', 'wheelaxleRL', 'differential_R', 1], ['shaft', 'wheelaxleRR', 'differential_R', 2]] },
+      };
+      const plan = planDrivetrain({ engine: ENGINE, gearbox: box, axles: axles(liveAxle()) });
+      expect([...plan.boxDrop].sort()).toEqual(['differential_R', 'wheelaxleRL', 'wheelaxleRR']);
+      expect(plan.rows).toBeNull();
+      expect(applyDrivetrainToGearbox(box, plan).sort()).toEqual(['diff', 'halfshafts']);
+      expect(powertrainRows(box).map((r) => r.name)).toEqual(['gearbox', 'transfercase']);
+      expect(box.diff!.powertrain).toBeUndefined();
+    });
+
+    it('drops the branches that feed nothing and locks a centre differential left with one output', () => {
+      // The Bolide's four-wheel-drive gearbox behind one driven axle: its centre differential sent the power to a front shaft that turned nothing.
+      const box: Record<string, JbeamObject> = {
+        auto: { powertrain: [H, ['torqueConverter', 'torqueConverter', 'mainEngine', 1], ['automaticGearbox', 'gearbox', 'torqueConverter', 1]] },
+        transfer: { powertrain: [H, ['rangeBox', 'rangebox', 'gearbox', 1], ['differential', 'transfercase', 'rangebox', 1, { diffType: ['lsd', 'locked'], diffTorqueSplit: 0.3 }]] },
+        middle: { powertrain: [H, ['torsionReactor', 'torsionReactorF', 'transfercase', 2], ['differential', 'differential_M', 'torsionReactorF', 1, { diffType: 'open' }]] },
+        shaft: { powertrain: [H, ['torsionReactor', 'torsionReactorRR', 'transfercase', 1, {}], ['shaft', 'driveshaft', 'torsionReactorRR', 1]] },
+        diff: { powertrain: [H, ['differential', 'differential_RR', 'driveshaft', 1, { diffType: 'open' }]] },
+        halfshafts: { powertrain: [H, ['shaft', 'wheelaxleRRL', 'differential_RR', 1], ['shaft', 'wheelaxleRRR', 'differential_RR', 2]] },
+      };
+      const plan = planDrivetrain({ engine: ENGINE, gearbox: box, axles: axles(liveAxle()) });
+      expect([...plan.boxDrop].sort()).toEqual(['differential_M', 'differential_RR', 'driveshaft', 'torsionReactorF', 'torsionReactorRR', 'wheelaxleRRL', 'wheelaxleRRR']);
+      expect([...plan.boxLock]).toEqual(['transfercase']);
+      applyDrivetrainToGearbox(box, plan);
+      expect(powertrainRows(box).map((r) => r.name)).toEqual(['torqueConverter', 'gearbox', 'rangebox', 'transfercase']);
+      expect((box.transfer!.powertrain as unknown[][])[2]![4]).toEqual({ diffType: 'locked', diffTorqueSplit: 0.3 });
+    });
+
+    it('ends at the gearbox when the axles take nothing from it, and feeds them from there', () => {
+      const box: Record<string, JbeamObject> = {
+        manual: { powertrain: [H, ['frictionClutch', 'clutch', 'mainEngine', 1], ['manualGearbox', 'gearbox', 'clutch', 1]] },
+        diff: { powertrain: [H, ['differential', 'differential_F', 'gearbox', 1, { diffType: 'open' }]] },
+      };
+      const plan = planDrivetrain({ engine: ENGINE, gearbox: box, axles: axles(axle('R', 'driveshaft')) });
+      expect([...plan.boxDrop]).toEqual(['differential_F']);
+      expect(plan.source).toBe('gearbox');
+      expect(plan.rows).toEqual([H, ['shaft', 'jbf_driveshaft_2', 'gearbox', 1]]);
+    });
+
+    it('keeps a transaxle’s differential for a suspension that only has the wheel shafts', () => {
+      const box: Record<string, JbeamObject> = {
+        manual: { powertrain: [H, ['frictionClutch', 'clutch', 'mainEngine', 1], ['manualGearbox', 'gearbox', 'clutch', 1]] },
+        diff: { powertrain: [H, ['differential', 'differential_F', 'gearbox', 1, { diffType: 'open' }]] },
+      };
+      const plan = planDrivetrain({ engine: ENGINE, gearbox: box, axles: [{ index: 0, name: 'Front', y: -1.4, parts: axle('F', null) }, { index: 1, name: 'Rear', y: 1.3, parts: undriven('R') }] });
+      expect(plan.boxDrop.size).toBe(0);
+      expect(plan.boxLock.size).toBe(0);
+      expect(plan.drop.size).toBe(0);
+    });
   });
 
   it('warns when two axles have the same devices', () => {

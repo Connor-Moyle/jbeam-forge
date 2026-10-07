@@ -100,6 +100,10 @@ export interface DrivetrainPlan {
   rewire: Map<number, Map<string, [string, number]>>;
   /** Axles whose powertrain rows are dropped (not driven). */
   drop: Set<number>;
+  /** Devices of the gearbox set that go: its own car's driveline past what our axles take power from. */
+  boxDrop: Set<string>;
+  /** Differentials of the gearbox set left with one output in use: locked, so the power goes there. */
+  boxLock: Set<string>;
   problems: string[];
 }
 
@@ -122,9 +126,12 @@ function diffOptions(type: CentreDiff, split: number): JbeamObject {
 export function planDrivetrain(input: { engine: Readonly<Record<string, JbeamObject>> | null; gearbox: Readonly<Record<string, JbeamObject>> | null; axles: readonly DriveAxle[] }, settings: DrivetrainSettings = DEFAULT_DRIVETRAIN): DrivetrainPlan {
   const problems: string[] = [];
   const engineRows = input.engine ? powertrainRows(input.engine) : [];
-  const boxRows = input.gearbox ? powertrainRows(input.gearbox) : [];
-  const source = boxRows.length ? gearboxOutput(boxRows) : null;
   const axleRows = input.axles.map((a) => powertrainRows(a.parts));
+  // A gearbox set comes with its own car's driveline (transfer case, driveshaft, differential,
+  // half-shafts). Where an axle has a device of the same name, the axle's is the one on the wheels.
+  const allBoxRows = input.gearbox ? powertrainRows(input.gearbox) : [];
+  const axleNames = new Set(axleRows.flat().map((r) => r.name));
+  let boxRows = allBoxRows.filter((r) => !axleNames.has(r.name));
   const known = new Set([...engineRows, ...boxRows, ...axleRows.flat()].map((r) => r.name));
   const ys = input.axles.map((a) => a.y);
   const mid = ys.length ? (Math.min(...ys) + Math.max(...ys)) / 2 : 0;
@@ -165,14 +172,50 @@ export function planDrivetrain(input: { engine: Readonly<Record<string, JbeamObj
   const rewire = new Map<number, Map<string, [string, number]>>();
   // Rows of an axle that isn't driven go; so do rows still pointing at a device nothing brought (the game would complain).
   const drop = new Set(axles.filter((a) => (a.driveable && !a.driven) || (!a.driveable && a.entries.some((e) => !known.has(e.input)))).map((a) => a.index));
+  // The gearbox set keeps what leads to a device our axles take power from; the rest of its own
+  // car's driveline feeds nothing here (a centre differential turning a shaft to nowhere lets all
+  // the power out that way). When the axles take nothing from it, it ends at the gearbox itself.
+  const kept = (rows: readonly PtRow[]) => {
+    const taken = new Set(axleRows.flatMap((r, i) => (drop.has(input.axles[i]!.index) ? [] : r.map((x) => x.input))));
+    let ends = rows.filter((r) => taken.has(r.name));
+    if (!ends.length) ends = rows.filter((r) => /gearbox/i.test(r.type));
+    if (!ends.length) return [...rows];
+    const keep = new Set<string>();
+    for (const todo = ends.map((r) => r.name); todo.length; ) {
+      const name = todo.pop()!;
+      if (keep.has(name)) continue;
+      keep.add(name);
+      for (const r of rows) if (r.name === name) todo.push(r.input);
+    }
+    return rows.filter((r) => keep.has(r.name));
+  };
+  boxRows = kept(boxRows);
+  const boxDrop = new Set(allBoxRows.filter((r) => !boxRows.includes(r)).map((r) => r.name));
+  const source = boxRows.length ? gearboxOutput(boxRows) : null;
   const out: JbeamValue[][] = [];
   const add = (row: JbeamValue[]) => out.push(row);
-  const resolved = (a: AxlePlan) => a.entries.every((e) => known.has(e.input) && !axleRows.some((rows, i) => input.axles[i]!.index !== a.index && rows.some((r) => r.name === e.input)));
+  /** The gearbox set's differentials with fewer than two outputs in use once the plan is made. */
+  const boxLock = () => {
+    const uses = new Map<string, Set<number>>();
+    const use = (name: string, index: number) => uses.set(name, (uses.get(name) ?? new Set()).add(index));
+    for (const r of boxRows) use(r.input, r.index);
+    for (const row of out) if (typeof row[2] === 'string' && typeof row[3] === 'number') use(row[2], row[3]);
+    axleRows.forEach((rows, i) => {
+      const a = input.axles[i]!;
+      if (drop.has(a.index)) return;
+      for (const r of rows) {
+        const to = rewire.get(a.index)?.get(r.name);
+        use(to ? to[0] : r.input, to ? to[1] : r.index);
+      }
+    });
+    return new Set(boxRows.filter((r) => r.type === 'differential' && (uses.get(r.name)?.size ?? 0) < 2).map((r) => r.name));
+  };
+  const resolved =(a: AxlePlan) => a.entries.every((e) => known.has(e.input) && !axleRows.some((rows, i) => input.axles[i]!.index !== a.index && rows.some((r) => r.name === e.input)));
 
   if (!source) {
     if (driven.length) problems.push('Fit a gearbox so the engine can reach the wheels.');
     for (const a of driven) a.via = a.entries.map((e) => e.input).join(', ');
-    return { source, axles, rows: null, rewire, drop, problems };
+    return { source, axles, rows: null, rewire, drop, boxDrop, boxLock: new Set(), problems };
   }
 
   const feed = (a: AxlePlan, from: string, index: number) => {
@@ -213,7 +256,39 @@ export function planDrivetrain(input: { engine: Readonly<Record<string, JbeamObj
     if (groups.some((g) => g.length > 1)) problems.push('Tandem axles share their end’s torque through a locked differential: check it in game.');
   }
   for (const a of axles) if (!a.driven) a.via = a.driveable ? 'not driven (rolls freely)' : 'no differential';
-  return { source, axles, rows: out.length ? [['type', 'name', 'inputName', 'inputIndex'], ...out] : null, rewire, drop, problems };
+  return { source, axles, rows: out.length ? [['type', 'name', 'inputName', 'inputIndex'], ...out] : null, rewire, drop, boxDrop, boxLock: boxLock(), problems };
+}
+
+/** Apply the plan to the gearbox's (transplanted) parts: its dropped devices' rows go, its one-output differentials lock. */
+export function applyDrivetrainToGearbox(parts: Record<string, JbeamObject>, plan: DrivetrainPlan): string[] {
+  const changed: string[] = [];
+  if (!plan.boxDrop.size && !plan.boxLock.size) return changed;
+  for (const [part, body] of Object.entries(parts)) {
+    const table = body.powertrain;
+    if (!Array.isArray(table) || !Array.isArray(table[0])) continue;
+    const n = table[0].map(String).indexOf('name');
+    if (n < 0) continue;
+    let touched = false;
+    const rows: JbeamValue[] = [table[0]];
+    for (const row of table.slice(1)) {
+      const name = Array.isArray(row) ? row[n] : undefined;
+      if (!Array.isArray(row) || typeof name !== 'string') {
+        rows.push(row);
+      } else if (plan.boxDrop.has(name)) {
+        touched = true;
+      } else if (plan.boxLock.has(name)) {
+        const last = row[row.length - 1];
+        const options = last !== undefined && !Array.isArray(last) && typeof last === 'object' && last !== null ? last : null;
+        rows.push(options ? [...row.slice(0, -1), { ...options, diffType: 'locked' }] : [...row, { diffType: 'locked' }]);
+        touched = true;
+      } else rows.push(row);
+    }
+    if (!touched) continue;
+    if (rows.some((r) => Array.isArray(r) && typeof r[n] === 'string' && r !== table[0])) body.powertrain = rows;
+    else delete body.powertrain;
+    changed.push(part);
+  }
+  return changed;
 }
 
 /** Apply the plan to one axle's (transplanted) parts: rewire its entry devices, or drop its rows when it isn't driven. */
