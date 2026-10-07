@@ -1,6 +1,7 @@
 import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse';
 import { readTable } from '../jbeam/tables';
 import { STABILITY_DT, STABILITY_OK } from '../proxy/derive';
+import { mountsHolding } from '../proxy/hold';
 
 /**
  * Bringing a stock suspension's jbeam into another car. The set's parts are
@@ -415,13 +416,10 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
         .filter(holds)
         .map((t) => ({ id: t.id, pos: t.pos, d: dist2(at, t.pos) }))
         .sort((a, b) => a.d - b.d);
-      const near = ranked.slice(0, MOUNT_LINKS);
-      // Three bolts in one plane with the point don't hold it across that plane: add one out of it.
-      // A point something twists always gets a fourth.
-      if (near.length === 3 && (rigid.has(id) || planeDistance(at, near[0]!.pos, near[1]!.pos, near[2]!.pos) < 0.03)) {
-        const off = ranked.slice(3).find((t) => planeDistance(t.pos, near[0]!.pos, near[1]!.pos, near[2]!.pos) > 0.05);
-        if (off) near.push(off);
-      }
+      // Three bolts in one plane with the point don't hold it across that plane: more are added
+      // until it is held every way (the Vivace's strut-tower points, bolted to three body nodes
+      // nearly in line, sat 30-46 mm out at rest). A point something twists always gets a fourth.
+      const near = mountsHolding(at, ranked, MOUNT_LINKS, rigid.has(id) ? MOUNT_LINKS + 1 : 0);
       const links = near.length ? near : [best];
       for (const t of links) mounts.push([kept, t.id]);
       // Heavy enough for the set's own beams on it and the mount, inside the stability limit.
@@ -445,6 +443,18 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       if (HUB_NODE.test(row[1])) hubCarriers.add(row[0]);
     }
   }
+  // The set's nodes beamed to another fitted set's (a gearbox's mount node to the engine block):
+  // how many such beams each has.
+  const loose = new Set(input.target.filter((t) => t.structural === false).map((t) => t.id));
+  const ofOtherSet = (id: string) => !own.has(id) && (!!input.linkedNodes?.[id] || (attached[id] !== undefined && loose.has(attached[id])));
+  const onOtherSet = new Map<string, number>();
+  for (const body of Object.values(input.parts)) {
+    if (!Array.isArray(body.beams)) continue;
+    for (const row of body.beams) {
+      if (!Array.isArray(row) || typeof row[0] !== 'string' || typeof row[1] !== 'string') continue;
+      for (const [x, y] of [[row[0], row[1]], [row[1], row[0]]] as const) if (own.has(x) && ofOtherSet(y)) onOtherSet.set(x, (onOtherSet.get(x) ?? 0) + 1);
+    }
+  }
   // Nodes the old body also held: bolted to the new one, with springs their weight can carry.
   const heldMounts: { node: string; to: string[]; spring: number }[] = [];
   const weights = new Map<string, number>();
@@ -456,16 +466,17 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     // car had on those was a bump stop, a sway bar or a half-shaft, and a bolt to the body locks the
     // wheel's travel until something breaks (the Covet's rear hubs were bolted solid).
     if (HUB_NODE.test(id) || hubCarriers.has(id)) continue;
+    // Nor a node that is part of the engine and gearbox block (a gearbox's mount node, beamed to
+    // every corner of the engine): what held it on its own car was the engine, and the engine is
+    // here. Bolted to the body as well, the whole drive line hung from that one bolt on top of its
+    // rubber mounts, and the bolt broke at spawn.
+    if ((onOtherSet.get(id) ?? 0) >= 3) continue;
     const p = add(at, input.offset);
     const ranked = input.target
       .filter((t) => t.structural !== false)
       .map((t) => ({ id: t.id, pos: t.pos, d: dist2(p, t.pos) }))
       .sort((a, b) => a.d - b.d);
-    const near = ranked.slice(0, MOUNT_LINKS);
-    if (near.length === 3 && planeDistance(p, near[0]!.pos, near[1]!.pos, near[2]!.pos) < 0.03) {
-      const off = ranked.slice(3).find((t) => planeDistance(t.pos, near[0]!.pos, near[1]!.pos, near[2]!.pos) > 0.05);
-      if (off) near.push(off);
-    }
+    const near = mountsHolding(p, ranked, MOUNT_LINKS);
     const to = near.map((t) => t.id);
     if (!to.length) continue;
     const w = weights.get(id) ?? 25;
@@ -473,6 +484,12 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     heldMounts.push({ node: `${input.nodePrefix}${id}`, to, spring });
   }
   if (extra.length && !mounts.length) warnings.push(`The body has no structure yet, so ${extra.length} attachment points were kept on the suspension. Generate the body, then export again.`);
+
+  // The rails the set brings. A node that slid on a rail of the old car's (the Covet's middle
+  // engine mount rides a rail across its front subframe) has none to slide on here: the game
+  // wrenched it away at spawn and the mount and its bolts broke. It stays a plain mounted node.
+  const rails = new Set<string>();
+  for (const body of Object.values(input.parts)) if (isJbeamObject(body.rails)) for (const rail of Object.keys(body.rails)) rails.add(rail);
 
   const out: Record<string, JbeamObject> = {};
   for (const [name, body] of Object.entries(input.parts)) {
@@ -515,6 +532,9 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
         part[section] = (renameStrings(value, nodeIds) as JbeamValue[])
           .filter((row, i) => i === 0 || meshCol < 0 || !Array.isArray(row) || typeof row[meshCol] !== 'string' || /^(SPOTLIGHT|POINTLIGHT)$/.test(row[meshCol]) || input.meshNames[row[meshCol]] !== undefined)
           .map((row, i) => (i === 0 || meshCol < 0 || !Array.isArray(row) || typeof row[meshCol] !== 'string' || !input.meshNames[row[meshCol]] ? row : row.map((c, j) => (j === meshCol ? input.meshNames[row[meshCol] as string]! : c))));
+      } else if (section === 'slidenodes' && Array.isArray(value)) {
+        const kept = (renameStrings(value, nodeIds) as JbeamValue[]).filter((row, i) => i === 0 || !Array.isArray(row) || typeof row[1] !== 'string' || rails.has(row[1]));
+        if (kept.some((row, i) => i > 0 && Array.isArray(row))) part[section] = kept;
       } else if (section === 'variables' && Array.isArray(value)) {
         const header = Array.isArray(value[0]) ? value[0].map(String) : [];
         const col = header.indexOf('default');

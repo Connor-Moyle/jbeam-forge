@@ -237,6 +237,57 @@ describe('two of the original car’s nodes landing on one', () => {
   });
 });
 
+describe('a node that slid on a rail (the Covet’s middle engine mount, on its front subframe)', () => {
+  const slide = (parts: Record<string, JbeamObject>) => transplantSuspension({ parts, root: 's', anchors: {}, offset: [0, 0, 0], partPrefix: 'm_', nodePrefix: 'e_', target: [], meshNames: {}, tuning: {} });
+  const HEAD = ['id:', 'railName', 'attached', 'fixToRail', 'tolerance', 'spring', 'strength', 'capStrength'];
+  const NODES = [['id', 'posX', 'posY', 'posZ'], ['fx2', 0, 0, 0], ['fx2r', -0.3, 0, 0], ['fx2l', 0.3, 0, 0]];
+
+  it('stays a plain node when the rail was the old car’s', () => {
+    const r = slide({ s: { slotType: 's', nodes: NODES, slidenodes: [HEAD, ['fx2', 'enginemountnode', true, true, 0, 11001000, 'FLT_MAX', 'FLT_MAX']] } });
+    expect(r.parts.m_s!.slidenodes).toBeUndefined();
+    expect(JSON.stringify(r.parts.m_s!.nodes)).toContain('e_fx2');
+  });
+
+  it('keeps sliding on a rail the set brings', () => {
+    const r = slide({
+      s: { slotType: 's', nodes: NODES, slidenodes: [HEAD, ['fx2', 'mine', true, true, 0, 11001000, 'FLT_MAX', 'FLT_MAX'], ['fx2r', 'theirs', true, true, 0, 1, 'FLT_MAX', 'FLT_MAX']] },
+      t: { slotType: 't', rails: { mine: { 'links:': ['fx2r', 'fx2l'] } } },
+    });
+    expect(r.parts.m_s!.slidenodes).toEqual([HEAD, ['e_fx2', 'mine', true, true, 0, 11001000, 'FLT_MAX', 'FLT_MAX']]);
+  });
+});
+
+describe('a gearbox’s mount node, beamed to every corner of the engine (the Vivace’s)', () => {
+  const box = (beams: unknown[][]) =>
+    transplantSuspension({
+      parts: { g: { slotType: 'g', nodes: [['id', 'posX', 'posY', 'posZ'], ['em1l', 0.4, -1.4, 0.5], ['tra1', 0.3, -1.2, 0.4]], beams: [['id1:', 'id2:'], ...beams] as JbeamObject['beams'] } },
+      root: 'g',
+      anchors: { e1l: [0.1, -1.3, 0.2], e2l: [0.1, -1.7, 0.3], e3l: [0.1, -1.3, 0.8], f1: [0.5, -1.4, 0.5] },
+      offset: [0, 0, 0],
+      partPrefix: 'm_',
+      nodePrefix: 'g_',
+      target: [
+        { id: 'b1', pos: [0.6, -1.4, 0.5] },
+        { id: 'b2', pos: [0.6, -1.2, 0.3] },
+        { id: 'b3', pos: [0.6, -1.6, 0.7] },
+        { id: 'b4', pos: [0.2, -1.4, 0.9] },
+      ],
+      meshNames: {},
+      tuning: {},
+      linkedNodes: { e1l: 'e_e1l', e2l: 'e_e2l', e3l: 'e_e3l' },
+      held: ['em1l', 'tra1'],
+    });
+  const bolts = (r: ReturnType<typeof box>, node: string) => (r.parts.m_g!.beams as unknown[]).filter((row) => Array.isArray(row) && row[0] === node && /^b\d$/.test(String(row[1])));
+
+  it('is not bolted to the body as well: the engine holds it', () => {
+    const r = box([['em1l', 'e1l'], ['em1l', 'e2l'], ['em1l', 'e3l'], ['tra1', 'em1l'], ['tra1', 'e1l']]);
+    expect(bolts(r, 'g_em1l')).toEqual([]);
+    // The gearbox node with one beam to the engine is still held by the body, as on its own car.
+    expect(bolts(r, 'g_tra1').length).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(r.parts.m_g!.beams)).toContain('["g_em1l","e_e1l"]');
+  });
+});
+
 describe('node groups given on a node’s own row (the BX rear suspension)', () => {
   it('count as the set’s, so meshes bound to them stay bound to them', () => {
     const parts: Record<string, JbeamObject> = {

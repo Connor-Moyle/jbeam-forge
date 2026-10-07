@@ -85,6 +85,44 @@ local function diagnose()
     out.worst[i] = {b.a, b.b, b.strain == math.huge and 'NaN' or math.floor(b.strain * 1000) / 1000, b.part, b.broken}
   end
   out.beams = #list
+  -- How far each part is out of shape: the pair of its nodes whose distance has changed most since
+  -- it was built (a part that only moved, with the car or on its hinge, shows nothing here).
+  local byPart = {}
+  for cid, n in pairs(v.data.nodes or {}) do
+    if type(cid) == 'number' and type(n) == 'table' and n.pos then
+      local p = tostring(n.partOrigin or '?')
+      local l = byPart[p]
+      if not l then l = {}; byPart[p] = l end
+      if #l < 48 then l[#l + 1] = {cid = cid, name = n.name or tostring(cid), was = vec3(n.pos)} end
+    end
+  end
+  local bent = {}
+  for part, l in pairs(byPart) do
+    for _, n in ipairs(l) do n.now = vec3(obj:getNodePosition(n.cid)) end
+    local worst, wa, wb, wd = 0, nil, nil, 0
+    -- And which node is out of place: how much each one's distances to the others have changed, in all.
+    local moved = {}
+    for i = 1, #l do
+      for j = i + 1, #l do
+        local d0 = (l[i].was - l[j].was):length()
+        local d = (l[i].now - l[j].now):length()
+        if d0 > 0.05 and math.abs(d - d0) > worst then worst, wa, wb, wd = math.abs(d - d0), l[i].name, l[j].name, d0 end
+        moved[i] = (moved[i] or 0) + math.abs(d - d0)
+        moved[j] = (moved[j] or 0) + math.abs(d - d0)
+      end
+    end
+    if worst > 0.004 then
+      local order = {}
+      for i = 1, #l do order[i] = {l[i].name, math.floor((moved[i] or 0) / math.max(1, #l - 1) * 1000 + 0.5)} end
+      table.sort(order, function(x, y) return x[2] > y[2] end)
+      local top = {}
+      for i = 1, math.min(5, #order) do top[i] = order[i] end
+      bent[#bent + 1] = {part, math.floor(worst * 1000 + 0.5), wa, wb, math.floor(wd * 1000 + 0.5), top}
+    end
+  end
+  table.sort(bent, function(x, y) return x[2] > y[2] end)
+  out.bent = {}
+  for i = 1, math.min(14, #bent) do out.bent[i] = bent[i] end
   obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDiagnose(' .. serialize(out) .. ') end')
 end
 

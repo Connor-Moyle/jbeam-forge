@@ -205,6 +205,50 @@ describe('generateStructure', () => {
     expect(doc.nodes.some((n) => n.partId === bumper.id)).toBe(false);
   });
 
+  it('keeps a left/right pair a pair when only one side is regenerated', () => {
+    const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
+    const body = createPart(doc, tax, { taxonomyId: 'body' });
+    const left = createPart(doc, tax, { taxonomyId: 'door', position: 'FL', parentPartId: body.id });
+    const right = createPart(doc, tax, { taxonomyId: 'door', position: 'FR', parentPartId: body.id });
+    // A door on the left (+X), and its mirror image listed in another vertex order on the right.
+    const shell = boxShell(0.04, -0.6, 0.4, 0.3, 1.2, 5);
+    const leftMesh: ProxyMesh = { positions: shell.positions.map((v, i) => (i % 3 === 0 ? v + 0.8 : v)), index: shell.index };
+    const count = shell.positions.length / 3;
+    const rightPositions = new Float32Array(shell.positions.length);
+    for (let v = 0; v < count; v++) {
+      const to = (count - 1 - v) * 3;
+      rightPositions[to] = -(shell.positions[v * 3]! + 0.8);
+      rightPositions[to + 1] = shell.positions[v * 3 + 1]!;
+      rightPositions[to + 2] = shell.positions[v * 3 + 2]!;
+    }
+    const rightIndex = new Uint32Array(shell.index.length);
+    for (let t = 0; t < shell.index.length; t += 3) {
+      rightIndex[t] = count - 1 - shell.index[t]!;
+      rightIndex[t + 1] = count - 1 - shell.index[t + 2]!;
+      rightIndex[t + 2] = count - 1 - shell.index[t + 1]!;
+    }
+    const rightMesh: ProxyMesh = { positions: rightPositions, index: rightIndex };
+    const spots = (partId: string, flip: boolean) =>
+      doc.nodes
+        .filter((n) => n.partId === partId)
+        .map((n) => `${((flip ? -n.pos[0] : n.pos[0]) || 0).toFixed(3)} ${n.pos[1].toFixed(3)} ${n.pos[2].toFixed(3)}`)
+        .sort();
+    generateStructure(doc, tax, [
+      { partId: body.id, mesh: boxShell(0.8, -2, 2, 0.2, 1.4, 8) },
+      { partId: left.id, mesh: leftMesh },
+      { partId: right.id, mesh: rightMesh },
+    ]);
+    expect(spots(right.id, true)).toEqual(spots(left.id, false));
+    // Each side again on its own: it comes back as the mirror of the side left standing.
+    generateStructure(doc, tax, [{ partId: right.id, mesh: rightMesh }]);
+    expect(spots(right.id, true)).toEqual(spots(left.id, false));
+    generateStructure(doc, tax, [{ partId: left.id, mesh: leftMesh }]);
+    expect(spots(right.id, true)).toEqual(spots(left.id, false));
+    // A side whose nodes were moved by hand is no pattern for the other.
+    doc.nodes.find((n) => n.partId === left.id)!.manual = true;
+    expect(() => generateStructure(doc, tax, [{ partId: right.id, mesh: rightMesh }])).not.toThrow();
+  });
+
   it('leaves suspension-built and riding parts without own nodes, unless overridden', () => {
     const doc = createEmptyProject({ name: 'T', slug: 't' }, '0', new Date('2026-01-01T00:00:00Z'));
     const tire = createPart(doc, tax, { taxonomyId: 'tire', position: 'FL' });

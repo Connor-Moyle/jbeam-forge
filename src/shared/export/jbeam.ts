@@ -2,7 +2,7 @@ import type { Part, Project, RowOptions, StructBeam, StructNode, StructTri, Tuni
 import { RESERVED } from '../jbeam/properties';
 import { triggerCorners, type Trigger } from '../triggers/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
-import type { JbeamObject, JbeamValue } from '../jbeam/parse';
+import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse';
 import { serializeJbeam, JbeamComment, type WritableObject, type WritableValue } from '../jbeam/serialize';
 import { readTable, writeTable, type WritableRecord } from '../jbeam/tables';
 import { materialDefaults, partPrice } from '../parts/materials';
@@ -13,6 +13,7 @@ import { couplerFor, type Hinge } from '../hinges/schema';
 import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, definedWeights, setGroups, transplantSuspension } from '../suspension/transplant';
+import { blockNodes } from '../powertrain/placement';
 import { nodesTouchingOtherParts } from './contact';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
@@ -321,7 +322,7 @@ function nodesSection(nodes: readonly StructNode[], group: string, preset: BeamP
 export const glassBreakGroup = (part: Pick<Part, 'name'>) => `${part.name}_break`;
 export const damagedMaterialName = (name: string) => `${name}_dmg`;
 
-function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}, glass = false, soft?: Softening): WritableValue[] {
+function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPresetId, attachStyle: keyof typeof ATTACHMENT_VALUES, hinge: Hinge | undefined, pos: (id: string) => [number, number, number] | undefined, vars: PartVars = {}, glass = false, soft?: Softening, shell = false): WritableValue[] {
   const a = ATTACHMENT_VALUES[attachStyle];
   const common = { beamType: '|NORMAL', beamPrecompression: 1, deformLimitExpansion: DEFORM_LIMIT_EXPANSION };
   const order = { edge: 0, brace: 1, attach: 2, mount: 3, hinge: 4, limit: 5, support: 6, popopen: 7 } as const;
@@ -359,6 +360,11 @@ function beamsSection(part: Part, beams: readonly StructBeam[], preset: BeamPres
     if (glass && (b.kind === 'edge' || b.kind === 'brace')) {
       options.deformGroup = glassBreakGroup(part);
       options.deformationTriggerRatio = 0.02;
+    }
+    // A shell's nodes are a fraction of the block's weight, and its beams are eased by as much: an
+    // engine block's 6 MN/m beams between 4 kg nodes shook until they bent (31 mm, on every car).
+    if (shell && (b.kind === 'edge' || b.kind === 'brace')) {
+      for (const key of ['beamSpring', 'beamDamp', 'beamDeform'] as const) if (typeof options[key] === 'number') options[key] = Math.round(options[key] * SHELL_WEIGHT);
     }
     if (b.kind === 'edge' || b.kind === 'brace') {
       if (vars.stiffness && typeof options.beamSpring === 'number') options.beamSpring = scaled(options.beamSpring, vars.stiffness);
@@ -420,6 +426,18 @@ function slotsFor(doc: Doc, children: readonly Part[], coreSlotType: string | nu
   return rows;
 }
 
+/** The energy storages a set's engines and motors draw from, by name (the game's default is mainTank). */
+export function fuelStoragesOf(parts: Readonly<Record<string, JbeamObject>>): string[] {
+  const names = new Set<string>();
+  for (const p of Object.values(parts))
+    for (const section of Object.values(p)) {
+      if (!isJbeamObject(section) || typeof section.requiredEnergyType !== 'string') continue;
+      const named = typeof section.energyStorage === 'string' ? [section.energyStorage] : Array.isArray(section.energyStorage) ? section.energyStorage.filter((n): n is string => typeof n === 'string') : ['mainTank'];
+      for (const n of named) names.add(n);
+    }
+  return [...names];
+}
+
 /** Build every jbeam file of the mod. */
 export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamExportOptions): JbeamFile[] {
   const slug = fullDoc.meta.slug;
@@ -467,9 +485,19 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     return t;
   };
   const axleSets: { index: number; t: ReturnType<typeof transplantSuspension> }[] = [];
+  // A drive shaft or differential that pushed against its own car's engine block (its torque
+  // reaction nodes e3r, e4r, e2l) pushes against the block of the engine fitted here. Left to
+  // stand-ins bolted to the body, one of them sat 146 mm out of place at rest.
+  const blockOfEngine: Record<string, string> = {};
+  const fittedEngine = pt?.engine ? opts.suspensions?.[pt.engine.setId] : undefined;
+  if (fittedEngine) {
+    // Only the points every engine that can be chosen has.
+    const others = (pt?.alternates ?? []).map((a) => opts.suspensions?.[a.setId]).map((s) => (s ? blockNodes(s.parts) : new Map<string, unknown>()));
+    for (const id of blockNodes(fittedEngine.parts).keys()) if (others.every((o) => o.has(id))) blockOfEngine[id] = `e_${id}`;
+  }
   (fullDoc.axles ?? []).forEach((axle, i) => {
     if (!axle.fitted) return;
-    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), mountNodes, axle.tuning, undefined, undefined, axle.fitted.choices, axle.edits);
+    const t = bring(axle.fitted.setId, axle.fitted.sourceId, axleTag(i), mountNodes, axle.tuning, undefined, undefined, axle.fitted.choices, axle.edits, blockOfEngine);
     if (!t) return;
     axleSets.push({ index: i, t });
     extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, `${axle.name} suspension`]);
@@ -555,7 +583,9 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     }
   }
   if (pt?.gearbox) {
-    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...mountNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits, pt.gearbox.choices);
+    // Its beams to its own car's engine block go to the same points of the engine fitted here, by name
+    // (by place, a block of another size left them on stand-ins bolted to the body).
+    const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...mountNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits, pt.gearbox.choices, undefined, blockOfEngine);
     // Without an engine of ours to plug into, the gearbox hangs off the body.
     if (t && !engineTransmissionSlots.length) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Transmission']);
     // Its launch and shift revs were written for its own car's engine: brought into ours' range
@@ -644,6 +674,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     hasPart: (id) => !!byId.get(id) && !!tax.entry(byId.get(id)!.taxonomyId),
     bodyPartId: body?.id ?? null,
     hasEngine: !!pt?.engine && !!opts.suspensions?.[pt.engine.setId],
+    fuelStorages: [...new Set([pt?.engine, ...(pt?.alternates ?? [])].flatMap((e) => (e ? fuelStoragesOf(opts.suspensions?.[e.setId]?.parts ?? {}) : [])))],
   });
   for (const [name, content] of Object.entries(fx.parts)) files.push({ file: `${name}.jbeam`, part: name, text: serializeJbeam({ [name]: content }) });
   foreign.push(...(Object.values(fx.parts) as JbeamObject[]));
@@ -677,8 +708,10 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     doc.nodes.map((n) => ({ id: n.id, pos: n.pos, partId: baseOf.get(n.partId) ?? n.partId })),
     doc.tris.map((t) => ({ ids: t.ids, partId: baseOf.get(t.partId) ?? t.partId })),
     undefined,
-    // A door, hood or trunk shuts against the body: that contact must stay.
-    new Set(doc.parts.filter((p) => tax.entry(p.taxonomyId)?.openable).map((p) => baseOf.get(p.id) ?? p.id)),
+    // Doors, the bonnet and the boot lid too. They were left to collide where they shut against the
+    // body, but their latch, hinges and seal supports are what hold them, and the contact shoved
+    // them out of shape the moment the car spawned (a bonnet's corners 23 mm, a boot lid 26 mm, measured
+    // in the game): their edges looked torn and the doors stood ajar.
   );
 
   for (const part of doc.parts) {
@@ -690,10 +723,12 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const shell = isShell(part);
     // A hinged part's hinge and latch nodes sit on top of nodes of its skin (and the latch's other
     // half belongs with the body): out of the group its meshes are hung on, or the game builds a
-    // mesh's frame on two nodes no distance apart and the skin there tears into spikes.
+    // mesh's frame on two nodes no distance apart and the skin there tears into spikes. Nor do they
+    // collide: they are points of a mechanism, not surface, and one a few centimetres under the
+    // part's own skin was pushed away by it.
     const helpers = doc.hinges.some((h) => h.partId === part.id) ? hingeIds(doc, part.id) : null;
     const helperIds = new Set(helpers ? [...helpers.hinge, helpers.latchPart, helpers.latchBody].filter((x): x is string => !!x) : []);
-    const nodes = (own ? ownNodes(part) : []).map((n) => (helperIds.has(n.id) ? { ...n, options: { ...n.options, group: '' } } : n));
+    const nodes = (own ? ownNodes(part) : []).map((n) => (helperIds.has(n.id) ? { ...n, options: { ...n.options, group: '', collision: false, selfCollision: false } } : n));
     const beams = own ? doc.beams.filter((b) => b.partId === part.id) : [];
     const tris = own && !shell ? doc.tris.filter((t) => t.partId === part.id) : [];
     const slotType = slotTypeOf(doc.parts, part);
@@ -742,7 +777,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     if (nodes.length) content.nodes = nodesSection(nodes, slotType, preset, partVars, softening, touching);
     const hinge = own ? doc.hinges.find((h) => h.partId === part.id) : undefined;
     const posOf = (id: string) => nodePos.get(id);
-    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass, softening);
+    if (beams.length) content.beams = beamsSection(part, beams, preset, settings.attachment, hinge, posOf, partVars, glass, softening, shell);
     const aero = AERO[part.taxonomyId];
     if (tris.length) content.triangles = trianglesSection(tris, slotType, preset, aero && { ...aero, pos: posOf, downforce: partVars.downforce });
     if (hinge && nodes.length) Object.assign(content, hingeSections(doc, part, hinge, nodes));

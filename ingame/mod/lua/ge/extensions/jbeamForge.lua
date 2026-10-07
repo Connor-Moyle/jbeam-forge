@@ -742,6 +742,12 @@ function M.onUpdate(dtReal)
       selftest.t = 0
       if v then
         log('I', logTag, 'self-test: spawning ' .. tostring(v.vehicle) .. ' ' .. tostring(v.config or ''))
+        -- Every car starts from the same clear spot: where the first one stood, not where the last one drove to.
+        pcall(function()
+          local here = getPlayerVehicle(0)
+          if not selftest.home and here then selftest.home = {pos = here:getPosition(), rot = quat(here:getRotation())} end
+          if selftest.home and here and spawn and spawn.safeTeleport then spawn.safeTeleport(here, selftest.home.pos, selftest.home.rot) end
+        end)
         local done, err = pcall(function() core_vehicles.replaceVehicle(v.vehicle, v.config and {config = v.config} or {}) end)
         if not done then log('E', logTag, 'self-test: could not spawn ' .. tostring(v.vehicle) .. ': ' .. tostring(err)) end
       else

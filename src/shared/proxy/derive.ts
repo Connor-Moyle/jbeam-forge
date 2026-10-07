@@ -158,6 +158,76 @@ export function braces(mesh: ProxyMesh, density: BracingDensity): [number, numbe
   return [...out.values()];
 }
 
+/** A node whose beams give it less hold than this along some direction (the sum of the squared parts of its beams' directions that way) gets braced there. */
+const WEAK_HOLD = 0.3;
+
+/**
+ * Braces for nodes that are not held in every direction. A node on a flat or long face has all its
+ * beams in one plane (or nearly along one line): nothing stops it moving across them, and it flaps.
+ * A side skirt's mid nodes hung on five beams in a plane and stood 70 mm out of place at rest in the
+ * game. Each such node gets up to two beams to the nodes that lie most nearly along the direction
+ * it lacks, one each way where there are any.
+ */
+export function holdEveryWay(nodes: readonly StructNode[], beams: readonly StructBeam[], partId: string): StructBeam[] {
+  const index = new Map(nodes.map((n, i) => [n.id, i]));
+  const linked = nodes.map(() => new Set<number>());
+  for (const b of beams) {
+    const i = index.get(b.id1);
+    const j = index.get(b.id2);
+    if (i === undefined || j === undefined) continue;
+    linked[i]!.add(j);
+    linked[j]!.add(i);
+  }
+  const lengths = beams
+    .map((b) => {
+      const p = nodes[index.get(b.id1) ?? -1]?.pos;
+      const q = nodes[index.get(b.id2) ?? -1]?.pos;
+      return p && q ? Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) : 0;
+    })
+    .filter((l) => l > 0)
+    .sort((x, y) => x - y);
+  const reach = 3 * (lengths[Math.floor(lengths.length / 2)] ?? 0.4);
+  const out: StructBeam[] = [];
+  const made = new Set<string>();
+  nodes.forEach((n, i) => {
+    if (linked[i]!.size < 2) return;
+    // The directions of its beams, each way, as a cloud about the node: its thinnest axis is the way it isn't held.
+    const cloud: number[] = [];
+    for (const j of linked[i]!) {
+      const q = nodes[j]!.pos;
+      const d = [q[0] - n.pos[0], q[1] - n.pos[1], q[2] - n.pos[2]];
+      const l = Math.hypot(d[0]!, d[1]!, d[2]!) || 1;
+      cloud.push(d[0]! / l, d[1]! / l, d[2]! / l, -d[0]! / l, -d[1]! / l, -d[2]! / l);
+    }
+    const weak = cloudAxes(cloud).axes[2]!;
+    let hold = 0;
+    for (let k = 0; k < cloud.length; k += 6) hold += (cloud[k]! * weak[0] + cloud[k + 1]! * weak[1] + cloud[k + 2]! * weak[2]) ** 2;
+    if (hold >= WEAK_HOLD) return;
+    const candidates = nodes
+      .map((m, j) => {
+        if (j === i || linked[i]!.has(j)) return null;
+        const d = [m.pos[0] - n.pos[0], m.pos[1] - n.pos[1], m.pos[2] - n.pos[2]];
+        const l = Math.hypot(d[0]!, d[1]!, d[2]!);
+        if (l < 0.03 || l > reach) return null;
+        const along = (d[0]! * weak[0] + d[1]! * weak[1] + d[2]! * weak[2]) / l;
+        return Math.abs(along) < 0.45 ? null : { j, along, score: Math.abs(along) / Math.sqrt(l) };
+      })
+      .filter((c): c is { j: number; along: number; score: number } => c !== null)
+      .sort((x, y) => y.score - x.score);
+    const picks = [candidates.find((c) => c.along > 0), candidates.find((c) => c.along < 0)].filter((c): c is { j: number; along: number; score: number } => !!c);
+    if (picks.length < 2 && candidates[1] && !picks.includes(candidates[1])) picks.push(candidates[1]);
+    for (const c of picks.slice(0, 2)) {
+      const key = i < c.j ? `${i}_${c.j}` : `${c.j}_${i}`;
+      if (made.has(key)) continue;
+      made.add(key);
+      linked[i]!.add(c.j);
+      linked[c.j]!.add(i);
+      out.push({ id1: n.id, id2: nodes[c.j]!.id, partId, kind: 'brace' });
+    }
+  });
+  return out;
+}
+
 export interface DeriveInput {
   partId: string;
   mesh: ProxyMesh;
@@ -268,6 +338,8 @@ export function deriveStructure(input: DeriveInput): DerivedStructure {
     added.push(node);
   }
   nodes.push(...added);
+  // (Not for a part set to no bracing: that is the modder's choice.)
+  if (input.bracing !== 'none') beams.push(...holdEveryWay(nodes, beams, partId));
   return { nodes, beams, tris, warnings };
 }
 

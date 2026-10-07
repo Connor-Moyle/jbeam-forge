@@ -3,7 +3,7 @@ import type { TaxonomyEntry } from '../taxonomy/schema';
 import { materialDefaults } from '../parts/materials';
 import { bindable, buildProxy } from './build';
 import { orientOpenAway } from './quality';
-import type { ProxyMesh } from './mesh';
+import { faceCount, vertexCount, type ProxyMesh } from './mesh';
 import { attachToParent, deriveStructure, FAR_FROM_PARENT, parentGap, placeRefNodes, positionTag, predictStability, presetSprings, type StabilityReport } from './derive';
 import { BEAM_PRESET_VALUES, kindDefaults, targetVertices } from './presets';
 import { adoptManualNodes } from '../structure/edit';
@@ -97,6 +97,65 @@ export function partRole(entry: TaxonomyEntry, settings: PartProxy): 'own' | 'ri
   return settings.role ?? kindDefaults(entry).role;
 }
 
+/** A proxy mirrored to the other side of the car (faces turned round, as a mirror turns them). */
+function mirrorAcross(m: ProxyMesh): ProxyMesh {
+  const positions = Float32Array.from(m.positions);
+  for (let v = 0; v < positions.length; v += 3) positions[v] = -positions[v]! || 0;
+  const index = Uint32Array.from(m.index);
+  for (let t = 0; t < index.length; t += 3) {
+    const x = index[t + 1]!;
+    index[t + 1] = index[t + 2]!;
+    index[t + 2] = x;
+  }
+  return { positions, index, ...(m.extraEdges ? { extraEdges: m.extraEdges } : {}) };
+}
+
+/** Does `proxy`, mirrored, lie where `shape` is? Its box within a few centimetres of the shape's on every side. */
+function mirrorsOnto(proxy: ProxyMesh, shape: ProxyMesh, tolerance = 0.04): boolean {
+  const box = (p: ArrayLike<number>, flip: boolean) => {
+    const lo = [Infinity, Infinity, Infinity];
+    const hi = [-Infinity, -Infinity, -Infinity];
+    for (let v = 0; v < p.length; v += 3)
+      for (let k = 0; k < 3; k++) {
+        const c = k === 0 && flip ? -p[v]! : p[v + k]!;
+        lo[k] = Math.min(lo[k]!, c);
+        hi[k] = Math.max(hi[k]!, c);
+      }
+    return [...lo, ...hi];
+  };
+  if (proxy.positions.length < 12 || shape.positions.length < 9) return false;
+  const a = box(proxy.positions, true);
+  const b = box(shape.positions, false);
+  return a.every((v, i) => Math.abs(v - b[i]!) <= tolerance);
+}
+
+/**
+ * The proxy a part's standing structure was built from, read back from its collision triangles.
+ * Null when it can't be trusted to be the whole of it: nodes moved by hand, or nodes that are in
+ * no triangle and aren't stiffeners.
+ */
+function standingProxy(doc: Pick<Doc, 'nodes' | 'tris'>, partId: string): ProxyMesh | null {
+  const nodes = doc.nodes.filter((n) => n.partId === partId);
+  const tris = doc.tris.filter((t) => t.partId === partId);
+  if (nodes.length < 4 || tris.length < 2 || nodes.some((n) => n.manual)) return null;
+  const slot = new Map<string, number>();
+  const positions: number[] = [];
+  const index: number[] = [];
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  for (const t of tris)
+    for (const id of t.ids) {
+      const n = byId.get(id);
+      if (!n) return null;
+      if (!slot.has(id)) {
+        slot.set(id, positions.length / 3);
+        positions.push(...n.pos);
+      }
+      index.push(slot.get(id)!);
+    }
+  if (nodes.some((n) => !slot.has(n.id) && n.options?.collision !== false)) return null;
+  return { positions: Float32Array.from(positions), index: Uint32Array.from(index) };
+}
+
 /** Panels and trim that are held flat by stiffener nodes when they come out thin (glass and mechanical parts aren't). */
 const STIFFENED: ReadonlySet<string> = new Set(['panel_metal', 'panel_plastic', 'trim_light', 'structure_stiff']);
 
@@ -142,6 +201,8 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
   const springs = presetSprings(presetOf, attachmentOf);
   const regenerated = new Set<string>();
   const middle = carMiddle(doc, tax, geometries);
+  // The first of each left/right pair built in this run, for its twin to mirror.
+  const pairs = new Map<string, { side: string; mesh: ProxyMesh }>();
 
   for (const partId of topological(doc.parts, [...geomById.keys()])) {
     const part = byId.get(partId);
@@ -174,6 +235,22 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
       const denser = build(more);
       if (denser.stats.vertices > built.stats.vertices) built = denser;
     }
+    // The other side's part (the right door after the left, the right skirt after the left) is the
+    // mirror of the first where the two shapes are mirror images: built each on its own, a pair came
+    // out with different nodes on each side and behaved differently (one side skirt bent 68 mm at
+    // rest, the other 22).
+    const pairKey = part.position && /[LR]$/.test(part.position) ? `${part.taxonomyId}|${part.variantOf ?? ''}|${part.position.slice(0, -1)}|${settings.mode}|${target}` : null;
+    let twin = pairKey ? pairs.get(pairKey) : undefined;
+    // One side regenerated on its own mirrors the other side as it stands, so the pair stays a pair.
+    if (pairKey && !twin) {
+      const side = part.position!.slice(-1);
+      const other = doc.parts.find((p) => p.id !== part.id && !geomById.has(p.id) && p.taxonomyId === part.taxonomyId && (p.variantOf ?? '') === (part.variantOf ?? '') && !!p.position && p.position.slice(0, -1) === part.position!.slice(0, -1) && /[LR]$/.test(p.position) && p.position.slice(-1) !== side);
+      const theirs = other && doc.proxy.parts[other.id];
+      const standing = other && theirs && theirs.mode === settings.mode && theirs.detail === settings.detail && theirs.bracing === settings.bracing ? standingProxy(doc, other.id) : null;
+      if (other && standing) twin = { side: other.position!.slice(-1), mesh: standing };
+    }
+    if (twin && twin.side !== part.position!.slice(-1) && mirrorsOnto(twin.mesh, mesh)) built = { ...built, mesh: mirrorAcross(twin.mesh), stats: { ...built.stats, vertices: vertexCount(twin.mesh), triangles: faceCount(twin.mesh) } };
+    else if (pairKey && !pairs.has(pairKey)) pairs.set(pairKey, { side: part.position!.slice(-1), mesh: built.mesh });
     const fallbackWarnings: string[] = [];
     if (built.stats.vertices < 4 || built.stats.triangles < 2) {
       // Thin or fragmented shapes can clean down to nothing: every meshed part still needs nodes.

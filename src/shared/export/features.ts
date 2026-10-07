@@ -43,6 +43,8 @@ export interface FeatureContext {
   bodyPartId: string | null;
   /** An engine is fitted (nitrous needs one). */
   hasEngine: boolean;
+  /** The fuel tanks the fitted engines draw from, by name (the game's default, mainTank, when not given). */
+  fuelStorages?: readonly string[];
 }
 
 export interface FeatureExport {
@@ -171,7 +173,10 @@ export function buildFeatureParts(features: Features, ctx: FeatureContext): Feat
         ...(group ? { flexbodies: [['mesh', '[group]:', 'nonFlexMaterials'], flexRow(`n2o_bottle_${n.bottle}`, group, n.pos, [0, 0, 0])] } : {}),
         energyStorage: [['type', 'name'], ['n2oTank', 'mainBottle']],
         mainBottle: { capacity: kg, startingCapacity: kg },
-        mainEngine: { energyStorage: ['mainTank', 'mainBottle'] },
+        // The bottle joins the engine's tanks; it must not replace them. Written as mainTank alone,
+        // an engine with tanks of other names (the Bolide's fueltank_R and fueltank_L) had no fuel
+        // and never started.
+        mainEngine: { energyStorage: [...(ctx.fuelStorages?.length ? ctx.fuelStorages : ['mainTank']), 'mainBottle'] },
         nodes: [
           ['id', 'posX', 'posY', 'posZ'],
           { collision: true, selfCollision: false, frictionCoef: 0.5, nodeMaterial: '|NM_METAL', nodeWeight: r4(kg * 1.2 + 4), group: bottle },

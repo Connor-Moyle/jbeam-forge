@@ -27,6 +27,14 @@ describe('buildFeatureParts', () => {
     expect((fx.parts.car_n2o as { slots2: unknown[][] }).slots2[2]![3]).toBe('car_n2o_shot_75');
   });
 
+  it('adds the bottle to the tanks the engine draws from, whatever they are called', () => {
+    const nitrous = { partId: 'body', pos: [0, 1.1, 0.5] as [number, number, number], bottle: '10lb' as const, shotKw: 50 };
+    const stores = (c: typeof ctx) => (buildFeatureParts({ ...none, nitrous }, c).parts.car_n2o_bottle_10lb as { mainEngine: { energyStorage: string[] } }).mainEngine.energyStorage;
+    expect(stores(ctx)).toEqual(['mainTank', 'mainBottle']);
+    // The Bolide's engine: with mainTank written over its two tanks it had no fuel.
+    expect(stores({ ...ctx, fuelStorages: ['fueltank_R', 'fueltank_L'] })).toEqual(['fueltank_R', 'fueltank_L', 'mainBottle']);
+  });
+
   it('leaves nitrous out without an engine', () => {
     const fx = buildFeatureParts({ ...none, nitrous: { partId: 'body', pos: [0, 1, 0.5], bottle: '10lb', shotKw: 50 } }, { ...ctx, hasEngine: false });
     expect(fx.parts).toEqual({});

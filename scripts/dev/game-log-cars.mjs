@@ -48,5 +48,6 @@ export function printCars(cars, say) {
   for (const c of cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken at spawn: ${Object.entries(c.diagnose.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${short(p)} ${n}`).join(', ')}`);
   for (const c of cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken beams: ${(c.diagnose.brokenList ?? []).slice(0, 14).map(([a, b, p]) => `${a}-${b} (${short(p)})`).join(', ')}`);
   for (const c of cars) if (c.afterDrive && (c.afterDrive.broken ?? 0) > (c.diagnose?.broken ?? 0)) say(`  ${c.vehicle} broke on the drive: ${c.afterDrive.broken - (c.diagnose?.broken ?? 0)} more (${Object.entries(c.afterDrive.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${short(p)} ${n}`).join(', ')})`);
+  for (const c of cars) if (c.diagnose?.bent?.length) say(`  ${c.vehicle} out of shape at rest: ${c.diagnose.bent.slice(0, 8).map(([p, mm, a, b, of, top]) => `${short(p)} ${mm} mm (${a}-${b}, ${of} mm apart${top ? `; most moved ${top.slice(0, 4).map(([n, m]) => `${n} ${m}`).join(' ')}` : ''})`).join(', ')}`);
   for (const c of cars) if (c.instability && c.diagnose?.worst) say(`  ${c.vehicle} most strained: ${c.diagnose.worst.slice(0, 6).map(([a, b, s, part]) => `${a}-${b} ${s} (${short(part)})`).join(', ')}`);
 }

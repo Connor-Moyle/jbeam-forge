@@ -13,6 +13,45 @@ export interface BlockBounds {
   max: V3;
 }
 
+/** The box round every node the set's parts define (radiator, exhaust and all). */
+export function setNodeBounds(parts: Readonly<Record<string, JbeamObject>>): BlockBounds | null {
+  const vars = variableDefaults(Object.values(parts));
+  const min: V3 = [Infinity, Infinity, Infinity];
+  const max: V3 = [-Infinity, -Infinity, -Infinity];
+  let count = 0;
+  for (const part of Object.values(parts))
+    for (const pos of definedNodes(part, vars).values()) {
+      count++;
+      for (let k = 0; k < 3; k++) {
+        min[k] = Math.min(min[k]!, pos[k]!);
+        max[k] = Math.max(max[k]!, pos[k]!);
+      }
+    }
+  return count ? { min, max } : null;
+}
+
+/** The engine block's nodes by name (e1r, e1l … e4l), where the set has them. */
+export function blockNodes(parts: Readonly<Record<string, JbeamObject>>): Map<string, V3> {
+  const vars = variableDefaults(Object.values(parts));
+  const out = new Map<string, V3>();
+  for (const part of Object.values(parts)) for (const [id, pos] of definedNodes(part, vars)) if (/^e\d+[lr]?$/i.test(id) && !out.has(id)) out.set(id, pos);
+  return out;
+}
+
+/**
+ * How far to move a gearbox set so it bolts to an engine: a gearbox is cut with the points of its
+ * own car's engine block it was beamed to (its anchors e1r, e1l…), and those belong on the same
+ * points of the engine fitted here. Null when the two share fewer than two of them.
+ */
+export function gearboxMating(engineBlock: ReadonlyMap<string, V3>, enginePosition: readonly [number, number, number], gearboxAnchors: Readonly<Record<string, readonly [number, number, number]>>): V3 | null {
+  const shared = [...engineBlock.keys()].filter((id) => gearboxAnchors[id]);
+  if (shared.length < 2) return null;
+  const mean = (pick: (id: string) => readonly [number, number, number]): V3 => [0, 1, 2].map((k) => shared.reduce((s, id) => s + pick(id)[k]!, 0) / shared.length) as V3;
+  const onEngine = mean((id) => engineBlock.get(id)!);
+  const onGearbox = mean((id) => gearboxAnchors[id]!);
+  return [onEngine[0] + enginePosition[0] - onGearbox[0], onEngine[1] + enginePosition[1] - onGearbox[1], onEngine[2] + enginePosition[2] - onGearbox[2]];
+}
+
 const strings = (v: unknown): string[] => (typeof v === 'string' ? [v] : Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
 
 export function blockBounds(parts: Readonly<Record<string, JbeamObject>>, kind: 'engine' | 'gearbox'): BlockBounds | null {

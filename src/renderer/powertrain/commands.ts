@@ -9,7 +9,7 @@ import { engineTags } from '@shared/export/jbeam';
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from '@shared/powertrain/drivetrain';
 import { DEFAULT_DESIGN, designName, displacementOf, editsForDesign, type DesignTarget, type EngineDesign } from '@shared/powertrain/design';
 import { designTarget, MASS_SCALE } from '@shared/powertrain/edits';
-import { blockBounds } from '@shared/powertrain/placement';
+import { blockBounds, blockNodes, gearboxMating, setNodeBounds } from '@shared/powertrain/placement';
 import { engineModel, engineModelObj } from '@shared/powertrain/engineModel';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
@@ -143,7 +143,15 @@ async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Pro
   const box = block ? new Box3(new Vector3(block.min[0] + at[0], block.min[1] + at[1], block.min[2] + at[2]), new Vector3(block.max[0] + at[0], block.max[1] + at[1], block.max[2] + at[2])) : boxOf(sourceId);
   const size = { y: box.max.y - box.min.y };
   const [tx, ty, tz] = target(kind, size, [sourceId, ...(old ? [old] : [])]);
-  if (src && !box.isEmpty()) {
+  // A gearbox goes onto the engine's block: the points of its own car's block it was cut with land
+  // on the same points of the engine fitted here, so it bolts to the engine and not to the body
+  // half a metre away.
+  const engineFit = kind === 'gearbox' ? projectStore.getState().doc?.powertrain.engine : undefined;
+  const enginePlace = engineFit ? projectStore.getState().doc?.sources.find((s) => s.id === engineFit.sourceId)?.placement.position : undefined;
+  const mating = engineFit && enginePlace ? gearboxMating(blockNodes(useSetData.getState().data[engineFit.setId]?.parts ?? {}), enginePlace, useSetData.getState().data[set.id]?.anchors ?? {}) : null;
+  if (src && mating) {
+    setPlacement(sourceId, { ...src.placement, position: mating });
+  } else if (src && !box.isEmpty()) {
     const c = box.getCenter(box.min.clone());
     const p = src.placement;
     let dz = tz - c.z;
@@ -159,7 +167,22 @@ async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Pro
       dz = Math.max(own.max.z - all.max.z, lowest - box.min.z);
       if (all.max.z + dz > own.max.z + 0.03) useUiStore.getState().pushStatus(`${set.vehicleName} ${set.name} is ${Math.round((all.max.z + dz - own.max.z) * 100)} cm taller than your car's own engine: check it clears the bonnet, or it will push through it in the game.`, 'warning', 10000);
     }
-    setPlacement(sourceId, { ...p, position: [p.position[0] + tx - c.x, p.position[1] + ty - c.y, p.position[2] + dz] });
+    let dy = ty - c.y;
+    // Not through the nose: an engine brings its radiator, and a long one from a bigger car stood
+    // ahead of the bumper, where it pushed the bonnet's catch open. It moves back until its front
+    // clears (by a third of a metre at most: past that it is the wrong engine for the bay).
+    const reach = kind === 'engine' ? setNodeBounds(useSetData.getState().data[set.id]?.parts ?? {}) : null;
+    if (reach) {
+      const car = carBox([sourceId, ...(old ? [old] : [])]);
+      const frontLimit = own ? own.min.y - 0.2 : car.isEmpty() ? -Infinity : car.min.y + 0.15;
+      const front = reach.min[1] + at[1] + dy;
+      if (front < frontLimit) {
+        const back = Math.min(0.33, frontLimit - front);
+        dy += back;
+        if (frontLimit - front > 0.33) useUiStore.getState().pushStatus(`${set.vehicleName} ${set.name} is ${Math.round((frontLimit - front - back) * 100)} cm too long for the engine bay with its radiator: move it back, or it will stand through the nose in the game.`, 'warning', 10000);
+      }
+    }
+    setPlacement(sourceId, { ...p, position: [p.position[0] + tx - c.x, p.position[1] + dy, p.position[2] + dz] });
   }
   assignToNewPart(
     (useSceneStore.getState().sources[sourceId]?.meshes ?? []).map((m) => m.key),

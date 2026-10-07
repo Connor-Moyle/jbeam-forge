@@ -1,4 +1,5 @@
 import type { Project, StructBeam, StructNode } from '../project/schema';
+import { mountsHolding } from '../proxy/hold';
 import { dist, distToLine, rotateAbout } from './geometry';
 import type { Hinge, Vec3 } from './schema';
 
@@ -29,6 +30,45 @@ function freeId(taken: Set<string>, base: string): string {
   for (let i = 2; taken.has(id); i++) id = `${base}${i}`;
   taken.add(id);
   return id;
+}
+
+/** A hinge or latch node closer than this to one of the part's own would hang on a beam of no length: it is moved clear. */
+const CLEAR = 0.012;
+const CLEAR_BY = 0.03;
+
+const sub = (a: readonly number[], b: readonly number[]): Vec3 => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
+const unit = (v: Vec3): Vec3 => {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
+};
+
+/** `pos`, moved a little along `along` when it sits on top of one of the part's nodes. */
+function clearOf(partNodes: readonly StructNode[], pos: Vec3, along: Vec3): Vec3 {
+  if (!partNodes.some((n) => dist(n.pos, pos) < CLEAR)) return pos;
+  const u = unit(along);
+  return [pos[0] + u[0] * CLEAR_BY, pos[1] + u[1] * CLEAR_BY, pos[2] + u[2] * CLEAR_BY];
+}
+
+/**
+ * The part's nodes a hinge or latch node is tied into: the nearest few, and more until it is held
+ * every way. A panel's nearest nodes are all on its skin, and a latch held by those alone gives
+ * way across the skin: the pop-open spring pushed a door 15 mm out round its own latch (measured in
+ * the game). The game ties a door's latch node to nearly every node of the door.
+ *
+ * Held is judged by angle, not distance: a bonnet catch's nearest body nodes were half a metre off
+ * and all in one upright plane with it, so one of them 40 mm out of that plane held nothing. The
+ * catch's body half sat 48 mm from where it belonged and the latch never closed.
+ */
+function mountsFor(partNodes: readonly StructNode[], pos: Vec3, links = MOUNT_LINKS): StructNode[] {
+  const ranked = partNodes
+    .map((x) => ({ x, d: dist(x.pos, pos) }))
+    .filter((r) => r.d >= CLEAR)
+    .sort((a, b) => a.d - b.d);
+  return mountsHolding(
+    pos,
+    ranked.map((r) => r.x),
+    links,
+  );
 }
 
 const LIMITER_REACH = 0.8; // m from the hinge's middle a limiter's body end may be
@@ -79,12 +119,13 @@ export function buildHinge(doc: Doc, hinge: Hinge, partNodes: readonly StructNod
   const nodes: StructNode[] = [];
   const beams: StructBeam[] = [];
 
-  // Hinge nodes sit exactly on the axis: braced into the part and, rigidly, to the body.
-  const hingeNodes = hinge.axis.map((p, i) => node(`h${i + 1}`, [...p]));
+  // Hinge nodes sit exactly on the axis (moved along it when one of the part's nodes is already
+  // there): braced into the part and, rigidly, to the body.
+  const hingeNodes = hinge.axis.map((p, i) => node(`h${i + 1}`, clearOf(partNodes, [...p], sub(hinge.axis[1 - i]!, p))));
   nodes.push(...hingeNodes);
   for (const h of hingeNodes) {
-    for (const p of nearest(partNodes, h.pos, MOUNT_LINKS)) beams.push(beam(h.id, p.id, 'mount'));
-    for (const b of nearest(bodyNodes, h.pos, HINGE_LINKS)) beams.push(beam(h.id, b.id, 'hinge'));
+    for (const p of mountsFor(partNodes, h.pos)) beams.push(beam(h.id, p.id, 'mount'));
+    for (const b of mountsFor(bodyNodes, h.pos, HINGE_LINKS)) beams.push(beam(h.id, b.id, 'hinge'));
   }
   beams.push(beam(hingeNodes[0]!.id, hingeNodes[1]!.id, 'mount'));
 
@@ -102,13 +143,18 @@ export function buildHinge(doc: Doc, hinge: Hinge, partNodes: readonly StructNod
   let latchPart: string | null = null;
   let latchBody: string | null = null;
   if (hinge.latch) {
-    const lp = node('lt', [...hinge.latch]);
-    const lb = node('lb', [...hinge.latch]);
+    // The pair sits just inside the part's edge, clear of the node the latch was placed on.
+    const middle: Vec3 = partNodes.length ? [0, 1, 2].map((k) => partNodes.reduce((s, n) => s + n.pos[k]!, 0) / partNodes.length) as Vec3 : [...hinge.latch];
+    const at = clearOf(partNodes, [...hinge.latch], sub(middle, hinge.latch));
+    const lp = node('lt', at);
+    const lb = node('lb', at);
     nodes.push(lp, lb);
     latchPart = lp.id;
     latchBody = lb.id;
-    for (const p of nearest(partNodes, lp.pos, MOUNT_LINKS)) beams.push(beam(lp.id, p.id, 'mount'));
-    for (const b of nearest(bodyNodes, lb.pos, MOUNT_LINKS)) beams.push(beam(lb.id, b.id, 'mount'));
+    for (const p of mountsFor(partNodes, lp.pos)) beams.push(beam(lp.id, p.id, 'mount'));
+    // The body's half is held the same way: on the nearest body nodes alone (all on one panel) it
+    // gave towards the part, and a bonnet's catch stood 10 mm off.
+    for (const b of mountsFor(bodyNodes, lb.pos)) beams.push(beam(lb.id, b.id, 'mount'));
     if (hinge.popOpen) {
       const push = nearest(partNodes, lp.pos, 2).at(-1);
       if (push) beams.push(beam(lb.id, push.id, 'popopen'));

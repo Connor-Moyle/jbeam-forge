@@ -49,7 +49,8 @@ export function beamPhysics(kind: StructBeam['kind'], preset: BeamPresetId, atta
     case 'support':
       return { beamSpring: 1_001_000, beamDamp: 50, beamDeform: 8_000, beamStrength: 200_000, deformLimitExpansion: e, breakGroup: `${partName}_supportBeams`, beamType: 'SUPPORT', longBound: 30 };
     case 'popopen':
-      return { beamSpring: 10_000, beamDamp: 600, beamDeform: 40_000, beamStrength: 10_000, deformLimitExpansion: e, breakGroup: `${partName}_hinge`, beamType: 'SUPPORT', longBound: 25, precompression: 1.05, breakGroupType: 1 };
+      // The game's own doors: 2.3 % of the beam's length, enough to move the edge off the catch.
+      return { beamSpring: 50_000, beamDamp: 1_320, beamDeform: 40_000, beamStrength: 10_000, deformLimitExpansion: e, breakGroup: `${partName}_hinge`, beamType: 'SUPPORT', longBound: 25, precompression: 1.023, breakGroupType: 1 };
     default:
       break;
   }
