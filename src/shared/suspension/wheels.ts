@@ -1,6 +1,6 @@
-import type { JbeamObject } from '../jbeam/parse';
+import { isJbeamObject, type JbeamObject } from '../jbeam/parse';
 import { readTable } from '../jbeam/tables';
-import { definedNodes, type V3 } from './transplant';
+import { coordinate, definedNodes, variableDefaults, type V3 } from './transplant';
 
 /**
  * Where a fitted suspension holds its wheels. The game's hub parts declare
@@ -22,6 +22,40 @@ export interface SetWheel {
   tireGroup?: string;
   /** The group of the node the wheel's arm is (the knuckle: steers, doesn't spin), if known. */
   armGroup?: string;
+  /**
+   * False when the hub's two nodes aren't the set's own (most cars: the game's wheel part brings
+   * them, placed by the wheel slot's nodeOffset). The centre's height and place along the car are
+   * then exact, from that offset; how far out it sits depends on the wheel fitted and is a guess.
+   */
+  exact: boolean;
+}
+
+/** Where a wheel's centre sits outboard of its slot's offset, roughly (the hub nodes of the game's wheel parts span about 0.1 to 0.3 m out). */
+const HUB_OUT = 0.15;
+
+/** Wheel slots' nodeOffset by end (F, R): where the game puts the wheel parts' hub nodes. */
+function wheelSlotOffsets(parts: Record<string, JbeamObject>): Map<string, V3> {
+  const vars = variableDefaults(Object.values(parts));
+  const out = new Map<string, V3>();
+  for (const p of Object.values(parts))
+    for (const key of ['slots', 'slots2'] as const) {
+      const t = p[key];
+      if (!Array.isArray(t) || !Array.isArray(t[0])) continue;
+      const h = t[0].map(String);
+      const col = h.includes('name') ? h.indexOf('name') : h.indexOf('type');
+      for (const row of t.slice(1)) {
+        if (!Array.isArray(row) || typeof row[col] !== 'string') continue;
+        const m = /^wheel_([FR])(?:_|$)/i.exec(row[col]);
+        const last = row[row.length - 1];
+        const o = m && isJbeamObject(last) && isJbeamObject(last.nodeOffset) ? last.nodeOffset : null;
+        if (!m || !o) continue;
+        const [x, y, z] = [coordinate(o.x ?? 0, vars), coordinate(o.y ?? 0, vars), coordinate(o.z ?? 0, vars)];
+        if (!Number.isFinite(y) || !Number.isFinite(z)) continue;
+        const end = m[1]!.toUpperCase();
+        if (!out.has(end)) out.set(end, [Number.isFinite(x) ? Math.abs(x) : 0.6, y, z]);
+      }
+    }
+  return out;
 }
 
 /** Every node's group (the first, when a node lists several). */
@@ -52,6 +86,7 @@ function setNodes(parts: Record<string, JbeamObject>): Map<string, V3> {
 export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0, 0]): SetWheel[] {
   const nodes = setNodes(parts);
   const groups = nodeGroups(parts);
+  const slotOffsets = wheelSlotOffsets(parts);
   const found = new Map<Side, SetWheel>();
   for (const part of Object.values(parts)) {
     if (!Array.isArray(part.pressureWheels)) continue;
@@ -64,11 +99,16 @@ export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0
     for (const r of records) {
       const n1 = r.values['node1:'];
       const n2 = r.values['node2:'];
-      const a = typeof n1 === 'string' ? nodes.get(n1) : undefined;
-      const b = typeof n2 === 'string' ? nodes.get(n2) : undefined;
+      const own1 = typeof n1 === 'string' ? nodes.get(n1) : undefined;
+      const own2 = typeof n2 === 'string' ? nodes.get(n2) : undefined;
+      const name = typeof r.values.name === 'string' ? r.values.name : '';
+      // The hub nodes come with the game's wheel part: the wheel slot's offset is where they go.
+      const slot = !own1 || !own2 ? (slotOffsets.get(name.charAt(0).toUpperCase()) ?? (slotOffsets.size === 1 ? [...slotOffsets.values()][0] : undefined)) : undefined;
+      const out = /L\d*$/i.test(name) ? 1 : -1;
+      const a: V3 | undefined = own1 && own2 ? own1 : slot ? [out * (slot[0] + HUB_OUT - 0.05), slot[1], slot[2]] : undefined;
+      const b: V3 | undefined = own1 && own2 ? own2 : slot ? [out * (slot[0] + HUB_OUT + 0.05), slot[1], slot[2]] : undefined;
       if (!a || !b) continue;
       const mid: V3 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2];
-      const name = typeof r.values.name === 'string' ? r.values.name : '';
       const side: Side = /L\d*$/i.test(name) ? 'L' : /R\d*$/i.test(name) ? 'R' : mid[0] >= 0 ? 'L' : 'R';
       if (found.has(side)) continue;
       const d: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
@@ -82,6 +122,7 @@ export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0
         side,
         centre: [mid[0] + offset[0], mid[1] + offset[1], mid[2] + offset[2]],
         axis: [(d[0] / len) * s, (d[1] / len) * s, (d[2] / len) * s],
+        exact: !slot,
         ...(text('hubGroup') ? { hubGroup: text('hubGroup') } : {}),
         ...(text('group') ? { tireGroup: text('group') } : {}),
         ...(armGroup ? { armGroup } : {}),
@@ -94,7 +135,7 @@ export function setWheels(parts: Record<string, JbeamObject>, offset: V3 = [0, 0
     const m = /^[a-z]{0,3}w1(l|r)$/i.exec(id);
     if (!m) continue;
     const side: Side = m[1]!.toLowerCase() === 'l' ? 'L' : 'R';
-    if (!found.has(side)) found.set(side, { side, centre: [pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2]], axis: [side === 'L' ? 1 : -1, 0, 0] });
+    if (!found.has(side)) found.set(side, { side, centre: [pos[0] + offset[0], pos[1] + offset[1], pos[2] + offset[2]], axis: [side === 'L' ? 1 : -1, 0, 0], exact: true });
   }
   return [...found.values()];
 }

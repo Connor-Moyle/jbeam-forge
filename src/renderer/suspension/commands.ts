@@ -159,24 +159,32 @@ async function fitSuspensionSteps(axleId: string, set: SuspensionSet): Promise<v
   const doc = projectStore.getState().doc;
   const axle = doc?.axles.find((a) => a.id === axleId);
   if (!doc || !axle) return;
-  const wheelZ = cornerTargets('')?.at.FL[2] ?? 0.3;
-  const body = new Box3();
-  for (const src of Object.values(useSceneStore.getState().sources)) {
-    for (const m of src.meshes) {
-      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
-      if (m.geometry.boundingBox) body.union(m.geometry.boundingBox);
-    }
-  }
-  const carX = body.isEmpty() ? 0 : (body.min.x + body.max.x) / 2;
+  // This end's wheels say where the middle of the car and the wheel centres' height are (the body's
+  // box doesn't: a suspension fitted before, with a steering box to one side, is in it).
+  const corners = cornerTargets('')?.at;
+  const [left, right] = axleKind(doc.axles, axle) === 'front' ? [corners?.FL, corners?.FR] : [corners?.RL, corners?.RR];
+  const carX = left && right ? (left[0] + right[0]) / 2 : 0;
+  const wheelZ = left && right ? (left[2] + right[2]) / 2 : 0.3;
   const old = axle.fitted?.sourceId;
   const staged = await stageImport(set.mesh, 'dae');
   const sourceId = await confirmImport(staged, defaultSettings('dae'), { gameMaterials: true, classify: false });
   if (!sourceId) return;
-  // Hubs (or the whole set) onto the axle line.
-  let hubs = boxOfSource(sourceId, /hub|knuckle|upright/i);
-  if (hubs.isEmpty()) hubs = boxOfSource(sourceId);
+  await useSetData.getState().ensure([set.id]);
   const all = boxOfSource(sourceId);
-  const at = [(all.min.x + all.max.x) / 2, (hubs.min.y + hubs.max.y) / 2, (hubs.min.z + hubs.max.z) / 2];
+  // The set's wheel centres, from its jbeam (where the game builds the wheels), go onto the axle
+  // line: the same for every set, whatever its meshes are called and however far its springs,
+  // arms or driveshaft reach. Only a set with no wheels of its own is placed by its meshes.
+  const wheels = setWheels(useSetData.getState().data[set.id]?.parts ?? {});
+  let at: number[];
+  if (wheels.length) {
+    const mean = (i: number) => wheels.reduce((s, w) => s + w.centre[i]!, 0) / wheels.length;
+    // One side only (half a set): its wheel mirrors about the set's own centre line.
+    at = [wheels.length > 1 ? mean(0) : 0, mean(1), mean(2)];
+  } else {
+    let hubs = boxOfSource(sourceId, /hub|knuckle|upright/i);
+    if (hubs.isEmpty()) hubs = all;
+    at = [(all.min.x + all.max.x) / 2, (hubs.min.y + hubs.max.y) / 2, (hubs.min.z + hubs.max.z) / 2];
+  }
   const src = projectStore.getState().doc?.sources.find((s) => s.id === sourceId);
   if (src) {
     const p = src.placement;
@@ -197,7 +205,6 @@ async function fitSuspensionSteps(axleId: string, set: SuspensionSet): Promise<v
       }
     },
   });
-  await useSetData.getState().ensure([set.id]);
   const moved = followSetWheels(axleId);
   startPlacing(sourceId, 'suspension');
   const setTrack = all.max.x - all.min.x;
@@ -251,7 +258,10 @@ export function followSetWheels(axleId: string): number {
     const box = boxOfKeys(new Set(ref));
     if (box.isEmpty()) continue;
     const c = box.getCenter(box.min.clone());
-    const d: [number, number, number] = [wheel.centre[0] - c.x, wheel.centre[1] - c.y, wheel.centre[2] - c.z];
+    // Onto the hub's axis (where along the car, and how high). Sideways too when the set says where
+    // its wheel sits; a wheel part of the game's decides that otherwise, and the mesh keeps its place
+    // along the axle, where it spins just as true.
+    const d: [number, number, number] = [wheel.exact ? wheel.centre[0] - c.x : 0, wheel.centre[1] - c.y, wheel.centre[2] - c.z];
     if (Math.hypot(...d) < 0.003) continue;
     moves.push({ keys: keysOf(CORNER_KINDS), d });
   }
