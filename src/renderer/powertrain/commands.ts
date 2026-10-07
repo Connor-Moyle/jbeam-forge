@@ -1,6 +1,6 @@
 import { startPlacing } from '@renderer/scene/placeFitted';
 import type { SetChoices } from '@shared/suspension/options';
-import { Box3 } from 'three';
+import { Box3, Vector3 } from 'three';
 import { create } from 'zustand';
 import type { SuspensionSet } from '@shared/ipc-contract';
 import { removeSourceFromDoc } from '@shared/project/removeSource';
@@ -9,6 +9,7 @@ import { engineTags } from '@shared/export/jbeam';
 import { DEFAULT_DRIVETRAIN, type DrivetrainSettings } from '@shared/powertrain/drivetrain';
 import { DEFAULT_DESIGN, designName, displacementOf, editsForDesign, type DesignTarget, type EngineDesign } from '@shared/powertrain/design';
 import { designTarget, MASS_SCALE } from '@shared/powertrain/edits';
+import { blockBounds } from '@shared/powertrain/placement';
 import { engineModel, engineModelObj } from '@shared/powertrain/engineModel';
 import { projectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
@@ -65,21 +66,50 @@ function carBox(exclude: readonly string[]): Box3 {
   return box;
 }
 
+/** The block of a fitted engine or gearbox where it stands on the car (its set's block nodes, moved with its placement), or null. */
+function fittedBlock(kind: PowertrainKind): Box3 | null {
+  const doc = projectStore.getState().doc;
+  const fitted = doc?.powertrain[kind];
+  const block = fitted ? blockBounds(useSetData.getState().data[fitted.setId]?.parts ?? {}, kind) : null;
+  const at = fitted ? doc?.sources.find((s) => s.id === fitted.sourceId)?.placement.position : undefined;
+  if (!block || !at) return null;
+  return new Box3(new Vector3(block.min[0] + at[0], block.min[1] + at[1], block.min[2] + at[2]), new Vector3(block.max[0] + at[0], block.max[1] + at[1], block.max[2] + at[2]));
+}
+
+/** The car's own engine model, when it has one: that's where an engine goes. */
+function ownEngineBox(): Box3 | null {
+  const doc = projectStore.getState().doc;
+  const ids = new Set((doc?.parts ?? []).filter((p) => p.taxonomyId === 'engine').map((p) => p.id));
+  if (!doc || !ids.size) return null;
+  const keys = new Set(Object.entries(doc.assignments).filter(([k, id]) => ids.has(id) && !doc.ignoredMeshes.includes(k)).map(([k]) => k));
+  const box = new Box3();
+  for (const src of Object.values(useSceneStore.getState().sources))
+    for (const m of src.meshes) {
+      if (!keys.has(m.key)) continue;
+      if (!m.geometry.boundingBox) m.geometry.computeBoundingBox();
+      if (m.geometry.boundingBox) box.union(m.geometry.boundingBox);
+    }
+  return box.isEmpty() ? null : box;
+}
+
 /**
- * Where it goes: an engine just behind the front axle, centred, a little
- * above wheel-centre height; a gearbox behind the engine (or where an engine
- * would be, when there's none yet).
+ * Where the middle of its block goes: an engine where the car's own engine model is, or over the
+ * front axle, centred between the wheels, a little above wheel-centre height; a gearbox straight
+ * behind the engine's block (or where an engine would be, when there's none yet).
  */
 function target(kind: PowertrainKind, size: { y: number }, exclude: readonly string[]): [number, number, number] {
   const doc = projectStore.getState().doc;
   const body = carBox(exclude);
-  const x = body.isEmpty() ? 0 : (body.min.x + body.max.x) / 2;
   const wheels = cornerTargets(exclude[0] ?? '');
+  const x = wheels ? (wheels.at.FL[0] + wheels.at.FR[0]) / 2 : body.isEmpty() ? 0 : (body.min.x + body.max.x) / 2;
   const frontAxle = doc?.axles[0]?.y ?? (wheels ? (wheels.at.FL[1] + wheels.at.FR[1]) / 2 : body.isEmpty() ? 0 : body.min.y + (body.max.y - body.min.y) * 0.2);
-  const z = (wheels?.at.FL[2] ?? 0.3) + 0.2;
-  const engine = doc?.powertrain.engine ? boxOf(doc.powertrain.engine.sourceId) : null;
-  if (kind === 'gearbox' && engine && !engine.isEmpty()) return [(engine.min.x + engine.max.x) / 2, engine.max.y + size.y / 2 - 0.05, (engine.min.z + engine.max.z) / 2 - 0.05];
-  return [x, frontAxle + 0.25 + (kind === 'gearbox' ? 0.5 : 0), z];
+  const z = (wheels?.at.FL[2] ?? 0.3) + 0.25;
+  const engine = fittedBlock('engine');
+  // The game's gearboxes hang their node (tra1) about this far behind the block they bolt to.
+  if (kind === 'gearbox' && engine) return [(engine.min.x + engine.max.x) / 2, engine.max.y + size.y / 2 + 0.45, (engine.min.z + engine.max.z) / 2 - 0.1];
+  const own = kind === 'engine' ? ownEngineBox() : null;
+  if (own) return [x, (own.min.y + own.max.y) / 2, (own.min.z + own.max.z) / 2];
+  return [x, frontAxle + 0.1 + (kind === 'gearbox' ? 0.6 : 0), z];
 }
 
 /** Where an engine goes on this car (BeamNG space), for the Engine workspace's camera; null with no car loaded. */
@@ -105,10 +135,14 @@ async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Pro
   const staged = await stageImport(set.mesh, 'dae');
   const sourceId = await confirmImport(staged, defaultSettings('dae'), { gameMaterials: true, classify: false });
   if (!sourceId) return;
-  const box = boxOf(sourceId);
+  // Placed by its block's nodes (its jbeam), not by its meshes: those take in the exhaust and whatever else the set brings.
+  await useSetData.getState().ensure([set.id, ...(doc.powertrain.engine ? [doc.powertrain.engine.setId] : [])]);
+  const src = projectStore.getState().doc?.sources.find((s) => s.id === sourceId);
+  const block = blockBounds(useSetData.getState().data[set.id]?.parts ?? {}, kind);
+  const at = src?.placement.position ?? [0, 0, 0];
+  const box = block ? new Box3(new Vector3(block.min[0] + at[0], block.min[1] + at[1], block.min[2] + at[2]), new Vector3(block.max[0] + at[0], block.max[1] + at[1], block.max[2] + at[2])) : boxOf(sourceId);
   const size = { y: box.max.y - box.min.y };
   const [tx, ty, tz] = target(kind, size, [sourceId, ...(old ? [old] : [])]);
-  const src = projectStore.getState().doc?.sources.find((s) => s.id === sourceId);
   if (src && !box.isEmpty()) {
     const c = box.getCenter(box.min.clone());
     const p = src.placement;
