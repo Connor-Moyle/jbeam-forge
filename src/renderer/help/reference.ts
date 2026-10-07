@@ -166,6 +166,15 @@ export const REFERENCE: Guide[] = [
         ],
       },
       { heading: 'Advanced', steps: ['Your own meshes can ride on the fitted suspension (custom control arms, calipers): assign them to it and they move with it.'] },
+      {
+        heading: 'Drive shafts (Engine panel)',
+        steps: [
+          'Driven wheels: as the axles were, rear, front or all. With all-wheel drive, the front share and the kind of centre differential.',
+          'A driven axle whose suspension has no differential (the rear of a front-drive car, say) is given one with a half-shaft to each wheel. Its final drive and kind (open, limited slip, viscous, locked) are set here.',
+          'From the engine to the wheels: every device the power passes through, in order, as the game will have it. What JBeam Forge added to join the parts up is marked.',
+          'A gearbox keeps only what leads to your axles: its own car’s transfer case, driveshaft and differential are left out where your axle has its own, and its launch and shift revs are fitted to your engine.',
+        ],
+      },
     ],
   },
   {
@@ -258,6 +267,14 @@ export const REFERENCE: Guide[] = [
     sections: [
       { heading: 'The basics', text: 'Export checks the mod and writes it: the jbeam files, one DAE with every mesh, main.materials.json, textures, info.json and a picture and info file per configuration. Errors must be fixed first; warnings explain what may look wrong.' },
       { heading: 'Ways to export', steps: ['Install: straight into BeamNG’s mods folder as an unpacked mod (ready to test).', 'Zip: one file to share.', 'Prepare for the repository: the zip plus a listing (title, description, pictures) ready for the official mod repository.'] },
+      {
+        heading: 'The model alone (File → Export Model)',
+        steps: [
+          'Takes the car back out as a 3D model, every mesh named after its part and standing where it is on the car, with the suspensions, engine and gearbox you fitted from the game.',
+          'glTF (.glb or .gltf): materials and textures in one file; the best way into Blender. FBX: for Maya, 3ds Max, Unity, Unreal and Blender, with material colours. COLLADA (.dae): Z up, as BeamNG reads it. OBJ with its .mtl: read by almost everything. STL: the shape alone, for 3D printing. PLY: one mesh with a colour per vertex.',
+          'Choose whether the game’s parts go in, whether meshes hidden in the viewport do, or only what is selected. The same commands are in the command palette (Ctrl+K).',
+        ],
+      },
       { heading: 'Advanced', steps: ['Settings → Export: zip compression, pictures for every configuration and opening the folder after export; the mod’s own settings: DDS textures.', 'Part mods (engines, tyres, wheels, panels) are written for the game’s own cars, never replacing game files.', 'Credits for anything you used (models, textures, a ported car) are written into the mod.'] },
     ],
   },

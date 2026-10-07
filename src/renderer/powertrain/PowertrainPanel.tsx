@@ -86,7 +86,7 @@ export function PowertrainPanel() {
         <Card kind="gearbox" fitted={powertrain?.gearbox ?? null} />
         <DrivetrainCard />
         {sets && sets.length === 0 && <p className={styles.note}>No engines or gearboxes yet: they come from your BeamNG.drive install. Set its folder in Settings.</p>}
-        <p className={styles.note}>The gearbox bolts to the engine&rsquo;s transmission slot, so pick one that suits the engine&rsquo;s drive layout. Differentials come with the suspension on each axle; Drive shafts joins them to the gearbox.</p>
+        <p className={styles.note}>The gearbox bolts to the engine&rsquo;s transmission slot, so pick one that suits the engine&rsquo;s drive layout. Most suspensions bring their own differential; Drive shafts joins it to the gearbox, adds one (with half-shafts) for a driven axle that has none, and shows the whole line from the engine to the wheels.</p>
       </ScrollArea>
     </div>
   );

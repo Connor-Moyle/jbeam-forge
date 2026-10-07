@@ -181,7 +181,10 @@ for (const name of installed) {
     // A part placing it by a tuning formula over a fixed one is the game's way of making it adjustable
     // (the Sunburst rally coilovers move the strut tops for camber and caster): the later one wins.
     // One part stating a node twice is the game's own data (the Pessima's 4WS rear): the later one wins.
-    if (nodeOwner.has(id) && nodeAt.get(id) !== at) (/\$=/.test(at + nodeAt.get(id)) || nodeOwner.get(id) === name ? warnings : errors).push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
+    // A wheel part stating the hub nodes again (fw1r, rw1ll…) is how the game sets a wheel's offset:
+    // older cars' hub parts define them and every wheel part moves them. Nothing to report.
+    const hub = /^[fr]w1(?:l{1,2}|r{1,2})$/i.test(id);
+    if (nodeOwner.has(id) && nodeAt.get(id) !== at && !hub) (/\$=/.test(at + nodeAt.get(id)) || nodeOwner.get(id) === name ? warnings : errors).push(`node ${id} defined by both ${nodeOwner.get(id)} and ${name}`);
     nodeOwner.set(id, name);
     nodeAt.set(id, at);
     const g = r.options.group;
