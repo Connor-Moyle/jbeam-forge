@@ -22,6 +22,7 @@ import { camerasInternalSection } from '../cameras/cameras';
 import { applyChoices, type SetChoices, type SetOptions } from '../suspension/options';
 import { buildFeatureParts } from './features';
 import { applyPowertrainEdits } from '../powertrain/edits';
+import { engineRevRange, fitShiftingToEngine, type RevRange } from '../powertrain/shiftFit';
 import { softenedValue, stabilise, type StabiliseBeam } from '../proxy/stability';
 import { setWheels } from '../suspension/wheels';
 import { mainAdditions } from './drivable';
@@ -501,6 +502,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   let engineNodes: { id: string; pos: [number, number, number]; weight?: number; structural?: boolean }[] = [];
   let engineParts: Record<string, JbeamObject> | null = null;
   let gearboxParts: Record<string, JbeamObject> | null = null;
+  // Every engine that can sit in front of the gearbox (the default and the alternates).
+  const engineRevs: RevRange[] = [];
   if (pt?.engine) {
     const tags = engineTags(pt);
     const t = bring(pt.engine.setId, pt.engine.sourceId, tags.get(pt.engine.sourceId) ?? 'E', mountNodes, pt.engine.tuning, rewritesFor(pt.engine.setId).rewrites, pt.engine.edits, pt.engine.choices, undefined, gearboxNodes);
@@ -520,6 +523,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
         return [...definedNodes(p)].map(([id, pos]) => ({ id, pos, weight: weights.get(id), structural: false }));
       });
       engineParts = t.parts;
+      const range = engineRevRange(Object.values(t.parts));
+      if (range) engineRevs.push(range);
       // The engine designer's own model rides on the engine's nodes, on the groups the game engine's meshes used.
       const own = (pt.engine.ownMeshes ?? []).filter((k) => opts.meshNames.has(k) && !fullDoc.ignoredMeshes.includes(k)).map((k) => opts.meshNames.get(k)!);
       if (own.length) {
@@ -541,6 +546,8 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
       for (const alt of pt.alternates ?? []) {
         const a = bring(alt.setId, alt.sourceId, tags.get(alt.sourceId) ?? 'E2', mountNodes, alt.tuning, rewritesFor(alt.setId).rewrites, alt.edits, alt.choices, undefined, rewritesFor(alt.setId).slots.length ? gearboxNodes : undefined);
         if (a) setSlot(a.rootPart, a.parts[a.rootPart]);
+        const altRange = a ? engineRevRange(Object.values(a.parts)) : null;
+        if (altRange) engineRevs.push(altRange);
       }
     }
   }
@@ -548,6 +555,19 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const t = bring(pt.gearbox.setId, pt.gearbox.sourceId, 'G', [...engineNodes, ...mountNodes], pt.gearbox.tuning, undefined, pt.gearbox.edits, pt.gearbox.choices);
     // Without an engine of ours to plug into, the gearbox hangs off the body.
     if (t && !engineTransmissionSlots.length) extraSlots.push([t.rootSlotType, [t.rootSlotType], [], t.rootPart, 'Transmission']);
+    // Its launch and shift revs were written for its own car's engine: brought into ours' range
+    // (a race transaxle behind a bus diesel never let the clutch in). What the modder set stays.
+    const revs = engineRevs.length ? { idle: Math.max(...engineRevs.map((r) => r.idle)), limit: Math.min(...engineRevs.map((r) => r.limit)) } : null;
+    if (t && revs) {
+      const keep = new Set(Object.keys(pt.gearbox.edits?.fields ?? {}).map((k) => `${slug}_G_${k}`));
+      const fitted = fitShiftingToEngine(t.parts, t.rootPart, revs, keep);
+      for (const name of fitted.changed) {
+        // Changed in place: the drive shafts below and the car's load sums hold on to these parts.
+        Object.assign(t.parts[name]!, fitted.parts[name]);
+        const file = files.find((f) => f.part === name);
+        if (file) file.text = serializeJbeam({ [name]: t.parts[name]! });
+      }
+    }
     if (t) gearboxParts = t.parts;
   }
   // Drive shafts: join the gearbox to the driven axles' differentials (and drop the rest's rows).
