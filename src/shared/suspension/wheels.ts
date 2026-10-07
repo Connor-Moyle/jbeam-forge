@@ -58,19 +58,47 @@ function wheelSlotOffsets(parts: Record<string, JbeamObject>): Map<string, V3> {
   return out;
 }
 
-/** Every node's group (the first, when a node lists several). */
+/**
+ * For every node, the group of its that a mesh can best be hung on: the one with the most of the
+ * set's nodes in it, and at least three of them off one line. A node often lists several groups
+ * (the knuckle's nodes are in the hub's, the strut's and the half-shaft's): the first one named was
+ * sometimes two nodes, and a brake caliper hung on it stayed behind ("VY node not found").
+ */
 function nodeGroups(parts: Record<string, JbeamObject>): Map<string, string> {
-  const out = new Map<string, string>();
+  const of = new Map<string, string[]>();
+  const members = new Map<string, V3[]>();
+  const positions = setNodes(parts);
   for (const p of Object.values(parts)) {
     if (!Array.isArray(p.nodes)) continue;
     try {
       for (const r of readTable(p.nodes).records) {
-        const g = Array.isArray(r.options.group) ? r.options.group[0] : r.options.group;
-        if (typeof r.values.id === 'string' && typeof g === 'string' && g && !out.has(r.values.id)) out.set(r.values.id, g);
+        const id = r.values.id;
+        if (typeof id !== 'string' || of.has(id)) continue;
+        const list = (Array.isArray(r.options.group) ? r.options.group : [r.options.group]).filter((g): g is string => typeof g === 'string' && g !== '');
+        of.set(id, list);
+        const at = positions.get(id);
+        if (at) for (const g of list) members.set(g, [...(members.get(g) ?? []), at]);
       }
     } catch {
       // not a table
     }
+  }
+  const holds = (g: string) => {
+    const pts = members.get(g) ?? [];
+    if (pts.length < 3) return false;
+    const [a, b] = pts as [V3, V3];
+    const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const ul = Math.hypot(u[0]!, u[1]!, u[2]!) || 1;
+    return pts.slice(2).some((c) => {
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      const vl = Math.hypot(v[0]!, v[1]!, v[2]!) || 1;
+      return Math.hypot(u[1]! * v[2]! - u[2]! * v[1]!, u[2]! * v[0]! - u[0]! * v[2]!, u[0]! * v[1]! - u[1]! * v[0]!) / (ul * vl) > 0.5;
+    });
+  };
+  const out = new Map<string, string>();
+  for (const [id, list] of of) {
+    const best = list.filter(holds).sort((x, y) => (members.get(y)?.length ?? 0) - (members.get(x)?.length ?? 0))[0];
+    if (best) out.set(id, best);
   }
   return out;
 }

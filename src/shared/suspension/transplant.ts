@@ -435,6 +435,16 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       extra.push([`${input.nodePrefix}${id}`, at]);
     }
   }
+  // The nodes that carry a wheel: every one of the set's with a beam straight to a hub node.
+  const hubCarriers = new Set<string>();
+  for (const body of Object.values(input.parts)) {
+    if (!Array.isArray(body.beams)) continue;
+    for (const row of body.beams) {
+      if (!Array.isArray(row) || typeof row[0] !== 'string' || typeof row[1] !== 'string') continue;
+      if (HUB_NODE.test(row[0])) hubCarriers.add(row[1]);
+      if (HUB_NODE.test(row[1])) hubCarriers.add(row[0]);
+    }
+  }
   // Nodes the old body also held: bolted to the new one, with springs their weight can carry.
   const heldMounts: { node: string; to: string[]; spring: number }[] = [];
   const weights = new Map<string, number>();
@@ -442,8 +452,10 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   for (const id of input.held ?? []) {
     const at = setPositions.get(id);
     if (!at || !own.has(id)) continue;
-    // Never a hub: what the old body had on it was a bump stop or a limiter, and a bolt would lock the wheel's travel.
-    if (HUB_NODE.test(id)) continue;
+    // Never a hub, nor the carrier it turns in (any node beamed straight to a hub node): what the old
+    // car had on those was a bump stop, a sway bar or a half-shaft, and a bolt to the body locks the
+    // wheel's travel until something breaks (the Covet's rear hubs were bolted solid).
+    if (HUB_NODE.test(id) || hubCarriers.has(id)) continue;
     const p = add(at, input.offset);
     const ranked = input.target
       .filter((t) => t.structural !== false)

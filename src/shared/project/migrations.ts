@@ -186,6 +186,12 @@ export const MIGRATIONS: readonly Migration[] = [
     describe: 'the BeamNG.drive version a mod was exported for',
     migrate: (doc) => ({ ...doc, formatVersion: 24 }),
   },
+  {
+    from: 24,
+    // Nothing to change: the settings of an added differential are new and optional.
+    describe: 'the final drive and kind of a differential added to a driven axle',
+    migrate: (doc) => ({ ...doc, formatVersion: 25 }),
+  },
 ];
 
 export class MigrationError extends Error {

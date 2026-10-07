@@ -37,6 +37,7 @@ import type { UserLibrary } from '../library/userLibrary';
 import { checkBundle, ExportError, installUnpacked, writeZip } from '../export/writer';
 import { describeError } from '@shared/logger';
 import { TEXT_FILE_KINDS, type TextFileKind } from '@shared/ipc-contract';
+import { MODEL_FORMATS, MODEL_FORMAT_VALUES } from '@shared/export/modelFormatList';
 
 const logger = scoped('ipc');
 import { registerInvoke } from './register';
@@ -227,18 +228,23 @@ export function registerIpcHandlers(services: HandlerServices): void {
   );
   registerInvoke(
     'export:saveModel',
-    async ({ suggestedName, format, data }, event) => {
-      const filters = format === 'glb' ? [{ name: 'glTF binary (.glb)', extensions: ['glb'] }] : [{ name: 'COLLADA (.dae)', extensions: ['dae'] }];
-      const picked = await pickSaveFile(event.sender, { title: 'Export model', defaultPath: suggestedName, filters });
+    async ({ suggestedName, format, data, extra }, event) => {
+      const info = MODEL_FORMATS.find((f) => f.value === format)!;
+      const picked = await pickSaveFile(event.sender, { title: 'Export model', defaultPath: suggestedName, filters: [{ name: info.label, extensions: [format] }] });
       if (!picked) return null;
       const path = picked.toLowerCase().endsWith(`.${format}`) ? picked : `${picked}.${format}`;
-      const bytes = typeof data === 'string' ? Buffer.from(data, 'utf8') : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+      let text = typeof data === 'string' ? data : null;
+      // An OBJ names its .mtl: when the file was saved under another name, the library goes with it.
+      const beside = extra ? `${path.slice(0, -format.length)}${extra.ext}` : null;
+      if (text !== null && beside && format === 'obj') text = text.replace(/^mtllib .*$/m, `mtllib ${basename(beside)}`);
+      const bytes = text !== null ? Buffer.from(text, 'utf8') : Buffer.from((data as Uint8Array).buffer, (data as Uint8Array).byteOffset, (data as Uint8Array).byteLength);
       await writeFile(path, bytes);
+      if (beside && extra) await writeFile(beside, Buffer.from(extra.data, 'utf8'));
       lastExport = path;
       logger.info(`exported model ${path} (${bytes.byteLength} bytes)`);
       return { path, bytes: bytes.byteLength };
     },
-    z.object({ suggestedName: z.string().min(1).max(255), format: z.enum(['glb', 'dae']), data: z.union([z.instanceof(Uint8Array), z.string()]) }),
+    z.object({ suggestedName: z.string().min(1).max(255), format: z.enum(MODEL_FORMAT_VALUES), data: z.union([z.instanceof(Uint8Array), z.string()]), extra: z.object({ ext: z.string().regex(/^[a-z0-9]{1,5}$/), data: z.string() }).optional() }),
   );
   registerInvoke('export:reveal', () => {
     if (lastExport) shell.showItemInFolder(lastExport);

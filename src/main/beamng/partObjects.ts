@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '@shared/jbeam/parse';
+import { readTable } from '@shared/jbeam/tables';
 import { withZip, ZipReader } from './zip';
 import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
 import { findOptions } from '@shared/suspension/options';
@@ -55,7 +56,9 @@ export function partsOf(doc: JbeamObject, vehicle: string, vehicleName: string):
     const meshes = [...new Set(body.flexbodies.slice(1).flatMap((row) => (Array.isArray(row) && typeof row[0] === 'string' ? [row[0]] : [])))];
     if (!meshes.length) continue;
     const info = isJbeamObject(body.information) ? body.information : null;
-    const partName = typeof info?.name === 'string' && info.name.trim() ? info.name.trim() : part;
+    // A few of the game's parts have a translation key left in their name ("ui.vehicleconfig.information.name.BRAND ProDrift Front Suspension"): it goes.
+    const given = typeof info?.name === 'string' ? info.name.replace(/\b(?:ui|vehiclesData)\.[A-Za-z0-9_.]+\s*/g, '').trim() : '';
+    const partName = given || part;
     out.push({ vehicle, vehicleName, part, partName, slotType, category, meshes });
   }
   return out;
@@ -377,6 +380,31 @@ export function panelCategory(slotType: string): string | null {
   return PANEL_KINDS.find(([re]) => re.test(slotType))?.[1] ?? null;
 }
 
+/**
+ * A part with the slots whose default part doesn't exist left empty. The game has a few of its own
+ * (the Rock Bouncer's rear suspension names a rear air bump stop no file defines): it leaves such a
+ * slot empty without a word, but copied into a mod the name is a part the mod is missing.
+ */
+export function withoutDeadDefaults(body: JbeamObject, find: (name: string) => JbeamObject | undefined): JbeamObject {
+  let out = body;
+  for (const key of ['slots', 'slots2'] as const) {
+    const table = body[key];
+    if (!Array.isArray(table) || !Array.isArray(table[0])) continue;
+    const col = table[0].map(String).indexOf('default');
+    if (col < 0) continue;
+    let changed = false;
+    const rows = table.map((row, i) => {
+      if (i === 0 || !Array.isArray(row) || typeof row[col] !== 'string' || !row[col] || find(row[col])) return row;
+      changed = true;
+      const copy = [...row];
+      copy[col] = '';
+      return copy;
+    });
+    if (changed) out = { ...out, [key]: rows };
+  }
+  return out;
+}
+
 /** A suspension as the game fits it: the part plus the defaults of its slots, all the way down. */
 export function suspensionClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 120, sharedSlots?: ReadonlySet<string>): string[] {
   // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension. Except a wheel
@@ -420,10 +448,17 @@ export function heldByBody(closure: Record<string, JbeamObject>, carParts: Reado
   for (const [name, p] of carParts) {
     if (closure[name] || (typeof p.slotType === 'string' && setSlots.has(p.slotType)) || !Array.isArray(p.beams)) continue;
     const defines = definedNodes(p);
-    for (const row of p.beams) {
-      if (!Array.isArray(row)) continue;
-      const [a, b] = row;
+    // Only what really holds: a plain beam. A bump stop or a limiter (bounded), a support, a hydro or
+    // a pressured beam lets the node move, and counting those had moving suspension nodes bolted down.
+    let rows: { a: unknown; b: unknown; type: unknown }[] = [];
+    try {
+      rows = readTable(p.beams).records.map((r) => ({ a: r.values['id1:'], b: r.values['id2:'], type: r.options.beamType }));
+    } catch {
+      continue;
+    }
+    for (const { a, b, type } of rows) {
       if (typeof a !== 'string' || typeof b !== 'string') continue;
+      if (typeof type === 'string' && type !== '|NORMAL') continue;
       for (const [x, y] of [[a, b], [b, a]] as const) if (own.has(x) && !defines.has(x) && !own.has(y)) held.add(x);
     }
   }
@@ -565,7 +600,7 @@ async function writeSets(
     const dae = sources.length ? subsetDae(sources, kind === 'suspension' ? '0.5 0.5 0.52' : kind === 'panel' ? '0.62 0.63 0.66' : '0.32 0.33 0.35', await textures.lookup(subsetMaterials(sources), materialIndex, zip)) : null;
     if (!dae) continue;
     const title = partTitle(body, partName);
-    const closure = Object.fromEntries(parts.map((p) => [p, find(p)!]));
+    const closure = Object.fromEntries(parts.map((p) => [p, withoutDeadDefaults(find(p)!, find)]));
     const category = categoryOf(slotType);
     const axle = kind !== 'suspension' ? 'any' : category === 'Front Suspension' ? 'front' : category === 'Rear Suspension' ? 'rear' : /_F(_|$)/.test(slotType) ? 'front' : /_R(_|$)/.test(slotType) ? 'rear' : 'any';
     const engine = kind === 'engine' ? engineSpecs(body, Object.values(closure), title) : undefined;

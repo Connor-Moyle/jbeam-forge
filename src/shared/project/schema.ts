@@ -22,7 +22,7 @@ import { EngineDesignSchema } from '../powertrain/design';
  * may tighten the type without a migration; anything else needs one.
  */
 export const PROJECT_FORMAT = 'jbforge';
-export const CURRENT_PROJECT_VERSION = 24;
+export const CURRENT_PROJECT_VERSION = 25;
 
 export const SLUG_PATTERN = /^[a-z0-9]+(?:_[a-z0-9]+)*$/;
 
@@ -435,6 +435,9 @@ export const PowertrainSchema = z.object({
       layout: z.enum(['auto', 'rwd', 'fwd', 'awd']),
       frontShare: z.number().min(0).max(1),
       centre: z.enum(['viscous', 'lsd', 'open', 'locked']),
+      /** A differential added to an axle that had none: its final drive and kind (absent: the gearbox's own car's, open). */
+      finalDrive: z.number().min(1).max(12).optional(),
+      axleDiff: z.enum(['viscous', 'lsd', 'open', 'locked']).optional(),
     })
     .optional(),
 });
@@ -693,7 +696,12 @@ export const ProjectV24Schema = ProjectV23Schema.extend({
   formatVersion: z.literal(24),
 });
 
-export const ProjectSchema = ProjectV24Schema;
+/** v25: the final drive and kind of a differential added to a driven axle that had none (powertrain.drivetrain). */
+export const ProjectV25Schema = ProjectV24Schema.extend({
+  formatVersion: z.literal(25),
+});
+
+export const ProjectSchema = ProjectV25Schema;
 export type Project = z.infer<typeof ProjectSchema>;
 export type PartVersion = z.infer<typeof PartVersionSchema>;
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;

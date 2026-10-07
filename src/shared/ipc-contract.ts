@@ -1,4 +1,5 @@
 import type { Settings, SettingsPatch } from './settings-schema';
+import type { ModelFormat } from './export/modelFormatList';
 import type { MaterialDef } from './materials/schema';
 
 export interface LibraryStatus {
@@ -298,8 +299,8 @@ export interface InvokeContract {
   'export:zip': { req: ExportBundle; res: { path: string; bytes: number } | null };
   /** A folder ready to upload to the BeamNG repository: the mod zip, README, description, pictures and the checklist. */
   'export:publish': { req: { bundle: ExportBundle; listing: PublishListing }; res: { path: string; bytes: number } | null };
-  /** Save a re-exported model (.glb binary or .dae text) wherever the user picks. */
-  'export:saveModel': { req: { suggestedName: string; format: 'glb' | 'dae'; data: Uint8Array | string }; res: { path: string; bytes: number } | null };
+  /** Save an exported model wherever the user picks; `extra` is a second file beside it under the same name (an OBJ's .mtl). */
+  'export:saveModel': { req: { suggestedName: string; format: ModelFormat; data: Uint8Array | string; extra?: { ext: string; data: string } }; res: { path: string; bytes: number } | null };
   /** Reveal the last export in Explorer. */
   'export:reveal': { req: undefined; res: undefined };
   'beamng:detect': { req: undefined; res: BeamngDetection };
@@ -369,7 +370,7 @@ export interface InvokeContract {
 }
 
 /** Commands the native menu forwards to the renderer. */
-export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'help', 'tutorial', 'settings', 'downloads', 'exportModelGlb', 'exportModelDae'] as const;
+export const APP_COMMANDS = ['new', 'open', 'save', 'saveAs', 'close', 'import', 'importAc', 'undo', 'redo', 'selectAll', 'palette', 'shortcuts', 'help', 'tutorial', 'settings', 'downloads', 'exportModel', 'exportModelGlb', 'exportModelDae'] as const;
 export type AppCommand = (typeof APP_COMMANDS)[number];
 
 /** Payload types for main → renderer events. */

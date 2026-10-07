@@ -247,7 +247,7 @@ describe('jbeam export', () => {
     doc.sources.push({ id: 'susp', placement: { position: [0, 0, 0], rotation: [0, 0, 0], scale: 1 } } as never);
     const hub = {
       slotType: 'car_suspension_F',
-      nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'car_hub_FL' }, ['fh1l', 0.7, -1.3, 0.3], ['fw1l', 0.8, -1.3, 0.3], ['fw1ll', 0.7, -1.3, 0.3], { group: '' }],
+      nodes: [['id', 'posX', 'posY', 'posZ'], { group: 'car_hub_FL' }, ['fh1l', 0.7, -1.3, 0.3], ['fh2l', 0.68, -1.3, 0.62], ['fh3l', 0.66, -1.12, 0.36], ['fw1l', 0.8, -1.3, 0.3], ['fw1ll', 0.7, -1.3, 0.3], { group: '' }],
       pressureWheels: [['name', 'hubGroup', 'group', 'node1:', 'node2:', 'nodeS', 'nodeArm:', 'wheelDir'], ['FL', 'wheel_FL', 'tire_FL', 'fw1ll', 'fw1l', 9999, 'fh1l', 1]],
     };
     const names = new Map([...exportMeshNames(doc, meshes), ['w:rim', 'test_rim_FL'], ['w:tyre', 'test_tyre_FL'], ['w:caliper', 'test_caliper_FL'], ['w:rim_r', 'test_rim_RL']]);

@@ -327,7 +327,7 @@ export function prepareExport(): PreparedExport | null {
     });
     const chain = powertrainChain(parsed);
     if (!chain.wheels.length && chain.endsAt)
-      report.errors.push({ code: 'DRIVETRAIN_NO_WHEELS', message: `The engine's power stops at ${chain.endsAt} and never reaches a wheel: the axle there has no differential or half-shafts for it. Fit a suspension that brings its own differential on the driven axle, a gearbox that has one (a transaxle), or add one in the axle's Brakes & diff page.` });
+      report.errors.push({ code: 'DRIVETRAIN_NO_WHEELS', message: `The engine's power stops at ${chain.endsAt} and never reaches a wheel: nothing joins it to a driven axle. Choose which end drives in the Engine tab's drive shafts card (a differential and half-shafts are added for an axle that has none), or fit a suspension from a driven axle.` });
   }
   // The jbeam as the game will assemble it, configuration by configuration.
   if (kind === 'vehicle') {

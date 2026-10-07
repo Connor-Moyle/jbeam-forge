@@ -1,0 +1,17 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.summary {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-label);
+}

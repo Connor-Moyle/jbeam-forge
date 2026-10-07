@@ -12,10 +12,10 @@ import styles from '@renderer/workshop/Workshop.module.css';
 import { setDrivetrain } from './commands';
 
 /**
- * Drive shafts: which axles the gearbox drives and how. The fitted axles
- * come from the game's cars with their own differentials; the export adds
- * the shafts (and a centre differential for all-wheel drive) that join them
- * to this gearbox.
+ * Drive shafts: which axles the gearbox drives and how, and the whole line from the engine to the
+ * wheels as the game will have it. The fitted axles come from the game's cars, most with their own
+ * differentials; the export adds the shafts (and a centre differential for all-wheel drive) that
+ * join them to this gearbox, and a differential with half-shafts for a driven axle that has none.
  */
 export function DrivetrainCard() {
   const doc = useProjectStore((s) => s.doc);
@@ -60,6 +60,16 @@ export function DrivetrainCard() {
           </Field>
         </>
       )}
+      {plan?.givenFinalDrive != null && (
+        <>
+          <Field label="Final drive" hint="Of the differential added for the driven axle (its suspension has none of its own)">
+            <Slider value={settings.finalDrive ?? plan.givenFinalDrive} onChange={(finalDrive) => setDrivetrain({ finalDrive })} min={2} max={6.5} step={0.05} format={(x) => `${x.toFixed(2)} : 1`} aria-label="Final drive" data-testid="drive-final" />
+          </Field>
+          <Field label="Axle differential">
+            <Select value={settings.axleDiff ?? 'open'} onChange={(axleDiff) => setDrivetrain({ axleDiff: axleDiff })} options={CENTRE_DIFFS.map((c) => ({ value: c.value, label: c.value === 'viscous' ? 'Viscous' : c.value === 'locked' ? 'Locked (spool)' : c.label }))} aria-label="Axle differential" data-testid="drive-axle-diff" />
+          </Field>
+        </>
+      )}
       {plan ? (
         <ul className={styles.chain} data-testid="drive-chain">
           {plan.axles.map((a) => (
@@ -70,6 +80,19 @@ export function DrivetrainCard() {
         </ul>
       ) : (
         <p className={styles.note}>Fit suspensions to the axles to see how the gearbox reaches them.</p>
+      )}
+      {plan && plan.path.length > 1 && (
+        <>
+          <p className={styles.note}>From the engine to the wheels:</p>
+          <ol className={styles.chain} data-testid="drive-path">
+            {plan.path.map((step, i) => (
+              <li key={i} className={step.added ? styles.driven : styles.note} style={{ paddingInlineStart: `calc(var(--space-3) * ${step.depth})` }}>
+                {step.label}
+                {step.added ? ' (added)' : ''}
+              </li>
+            ))}
+          </ol>
+        </>
       )}
       {plan?.problems.map((p) => (
         <Callout key={p} tone="warning">

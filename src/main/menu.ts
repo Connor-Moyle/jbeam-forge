@@ -53,6 +53,8 @@ export function buildAppMenu(opts: { getWindow: () => BrowserWindow | null; sett
         {
           label: 'Export Model',
           submenu: [
+            { label: 'Choose a format and what to include…', click: command('exportModel') },
+            { type: 'separator' },
             { label: 'glTF binary (.glb) — for Blender…', click: command('exportModelGlb') },
             { label: 'COLLADA (.dae) — BeamNG-ready…', click: command('exportModelDae') },
           ],

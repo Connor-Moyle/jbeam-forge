@@ -153,7 +153,9 @@ async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Pro
     const own = kind === 'engine' ? ownEngineBox() : null;
     const all = boxOf(sourceId);
     if (own && block && !all.isEmpty()) {
-      const lowest = (cornerTargets(sourceId)?.at.FL[2] ?? 0.3) - 0.2;
+      // The game's cars carry the bottom of the block some 8 cm under wheel-centre height, the sump
+      // below that: lower, and the sump scrapes (an engine set 20 cm under ran out of oil on the spot).
+      const lowest = (cornerTargets(sourceId)?.at.FL[2] ?? 0.3) - 0.08;
       dz = Math.max(own.max.z - all.max.z, lowest - box.min.z);
       if (all.max.z + dz > own.max.z + 0.03) useUiStore.getState().pushStatus(`${set.vehicleName} ${set.name} is ${Math.round((all.max.z + dz - own.max.z) * 100)} cm taller than your car's own engine: check it clears the bonnet, or it will push through it in the game.`, 'warning', 10000);
     }

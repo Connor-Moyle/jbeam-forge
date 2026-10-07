@@ -14,6 +14,7 @@ import { startImport } from '@renderer/import/importFlow';
 import { startAcImport } from '@renderer/import/acImport';
 import { openExport } from '@renderer/export/exportFlow';
 import { exportModel } from '@renderer/export/modelExport';
+import { useModelExportUi } from '@renderer/export/ModelExportDialog';
 import { generateAll } from '@renderer/structure/generate';
 import { startTestMode } from '@renderer/sim/simSession';
 import { useEditStore } from '@renderer/structure/editStore';
@@ -74,7 +75,10 @@ function PaletteBody({ close }: { close: () => void }) {
         },
       },
       { id: 'export', label: 'Export mod…', group: 'Action', run: () => void openExport() },
+      { id: 'export-model', label: 'Export model (FBX, glTF, OBJ, COLLADA, STL, PLY)…', group: 'Action', run: () => useModelExportUi.getState().show() },
       { id: 'export-glb', label: 'Export model as .glb (for Blender)…', group: 'Action', run: () => void exportModel('glb') },
+      { id: 'export-fbx', label: 'Export model as .fbx…', group: 'Action', run: () => void exportModel('fbx') },
+      { id: 'export-obj', label: 'Export model as .obj…', group: 'Action', run: () => void exportModel('obj') },
       { id: 'export-dae', label: 'Export model as .dae…', group: 'Action', run: () => void exportModel('dae') },
       { id: 'settings', label: 'Settings…', group: 'Action', hint: 'Ctrl+,', run: () => useDialogStore.getState().setSettingsOpen(true) },
       { id: 'downloads', label: 'Downloads: updates, textures and meshes…', group: 'Action', hint: 'Ctrl+Shift+D', run: () => useDialogStore.getState().setDownloads('app') },

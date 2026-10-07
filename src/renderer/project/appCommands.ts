@@ -7,6 +7,7 @@ import { closeProject, openProject, redo, saveProject, saveProjectAs, undo } fro
 import { startImport } from '@renderer/import/importFlow';
 import { startAcImport } from '@renderer/import/acImport';
 import { exportModel } from '@renderer/export/modelExport';
+import { useModelExportUi } from '@renderer/export/ModelExportDialog';
 import { startTutorial } from '@renderer/help/tutorial';
 import { useEditStore } from '@renderer/structure/editStore';
 import { selectAll } from '@renderer/structure/editCommands';
@@ -119,6 +120,9 @@ export function runAppCommand(command: AppCommand): void {
       break;
     case 'downloads':
       useDialogStore.getState().setDownloads('app');
+      break;
+    case 'exportModel':
+      if (projectStore.getState().doc) useModelExportUi.getState().show();
       break;
     case 'exportModelGlb':
       if (projectStore.getState().doc) void exportModel('glb');
