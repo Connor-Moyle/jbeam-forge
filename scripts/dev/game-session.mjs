@@ -103,6 +103,8 @@ async function run() {
   const id = Date.now();
   const from = readLog().split(/\r?\n/).length;
   rmSync(join(store, 'queue-done.json'), { force: true });
+  rmSync(join(store, 'shots'), { recursive: true, force: true });
+  mkdirSync(join(store, 'shots'), { recursive: true });
   writeFileSync(join(store, 'queue.json'), JSON.stringify({ id, vehicles, drive: process.argv.includes('--drive') }));
   say(`sent ${vehicles.length} cars`);
   const deadline = Date.now() + Number(arg('timeout', '1800')) * 1000;
@@ -129,6 +131,12 @@ async function run() {
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, 'beamng.log'), lines.filter((l) => !l.includes('self-test: flush')).join('\n'));
   writeFileSync(join(out, 'summary.json'), JSON.stringify({ cars }, null, 2));
+  // The pictures the game took of each car (front left at rest, side, and after the drive).
+  const shots = join(store, 'shots');
+  if (existsSync(shots)) {
+    for (const f of readdirSync(shots)) renameSync(join(shots, f), join(out, f));
+    say(`pictures: ${readdirSync(out).filter((f) => /\.(png|jpe?g)$/i.test(f)).length}`);
+  }
   printCars(cars, say);
   say(`results in ${out}`);
 }
@@ -148,6 +156,7 @@ async function stop() {
   const vehiclesDir = join(user, 'vehicles');
   if (existsSync(vehiclesDir)) for (const d of readdirSync(vehiclesDir)) if (!state.before.includes(d)) rmSync(join(vehiclesDir, d), { recursive: true, force: true });
   for (const f of ['selftest.json', 'queue.json', 'queue-done.json', 'quit.json']) rmSync(join(store, f), { force: true });
+  rmSync(join(store, 'shots'), { recursive: true, force: true });
   rmSync(stateFile, { force: true });
   say('stopped; mods folder put back as it was');
 }

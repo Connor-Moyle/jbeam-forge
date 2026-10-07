@@ -293,10 +293,58 @@ function M.onDriveReport(d)
   log('I', logTag, 'self-test: drive ' .. tostring(car and car:getJBeamFilename() or '?') .. ' ' .. jsonEncode(d or {}))
 end
 
+-- Pictures of the car under test, into settings/jbeamForge/shots (the test run collects them): the
+-- free camera is put where the view asks, by the car's own axes, and the picture is taken a moment
+-- later. Each view: how far forward, to the car's left and up the camera stands from the car.
+local SELFTEST_VIEWS = {
+  ['front-left'] = {5.2, 3.6, 1.7},
+  ['left'] = {0, 7, 0.9},
+  ['top'] = {0.01, 0, 9},
+  ['rear-right'] = {-5.2, -3.6, 1.7},
+  ['front'] = {7, 0, 1.1},
+  ['under-left'] = {1.5, 5, 0.15},
+}
+local SELFTEST_SHOTS = {{7, 'front-left'}, {7.6, 'left'}, {8.2, 'top'}, {8.8, 'rear-right'}, {9.4, 'front'}, {10, 'under-left'}}
+
+local function selftestView(name)
+  pcall(function()
+    local car = getPlayerVehicle(0)
+    local at = SELFTEST_VIEWS[name]
+    if not car or not at then return end
+    local fwd = car:getDirectionVector():normalized()
+    local up = vec3(0, 0, 1)
+    local left = up:cross(fwd):normalized()
+    -- The middle of the car: its spawn point is at the ground, about under the middle.
+    local mid = car:getSpawnWorldOOBB():getCenter()
+    local pos = mid + fwd * at[1] + left * at[2] + up * at[3]
+    local q = quatFromDir((mid + up * 0.1 - pos):normalized(), name == 'top' and fwd or up)
+    if not commands.isFreeCamera() then commands.setFreeCamera() end
+    core_camera.setPosRot(0, pos.x, pos.y, pos.z, q.x, q.y, q.z, q.w)
+  end)
+end
+
+local function selftestViewOff()
+  pcall(function() if commands.isFreeCamera() then commands.setGameCamera() end end)
+end
+
+local function selftestShot(index, vehicle, tag)
+  local done, err = pcall(function()
+    local dir = 'settings/jbeamForge/shots/'
+    if not FS:directoryExists(dir) then FS:directoryCreate(dir, true) end
+    local id = createScreenshot2({filename = string.format('%s%02d_%s_%s', dir, index, tostring(vehicle), tag), writeJPG = true, superSampling = 1, rescaleFactor = 0.5})
+    if not id or id == 0 then error('the game took none') end
+  end)
+  if not done then log('W', logTag, 'self-test: no picture: ' .. tostring(err)) end
+end
+
+-- Set once a car of the self-test has had its drive: the next look at it is the one after.
+local selftestDrove = false
+
 -- The self-test's look at what came apart on a car (jbeamForgeProbe.diagnose), into the log.
 function M.onDiagnose(d)
   local car = getPlayerVehicle(0)
-  log('I', logTag, 'self-test: diagnose ' .. tostring(car and car:getJBeamFilename() or '?') .. ' ' .. jsonEncode(d or {}))
+  -- The second look at a car comes after its drive: what broke on the move.
+  log('I', logTag, 'self-test: ' .. (selftestDrove and 'after-drive ' or 'diagnose ') .. tostring(car and car:getJBeamFilename() or '?') .. ' ' .. jsonEncode(d or {}))
 end
 
 local function askTelemetry()
@@ -635,7 +683,31 @@ function M.onUpdate(dtReal)
     end
   elseif selftest.stage == 'drive' and selftest.vehicles then
     -- A batch of cars, one after another: each gets a while to load and settle (its log lines are what count).
-    if selftest.vi and not selftest.diagnosed and selftest.t > 10 then
+    -- Pictures once it has settled, from all round, above and low down; one more after the drive.
+    local shot = SELFTEST_SHOTS[(selftest.shots or 0) + 1]
+    if selftest.vi and shot and selftest.t > shot[1] then
+      if selftest.aimed ~= shot[2] then
+        selftest.aimed = shot[2]
+        selftestView(shot[2])
+      elseif selftest.t > shot[1] + 0.35 then
+        selftest.shots = (selftest.shots or 0) + 1
+        selftestShot(selftest.vi, selftest.vehicles[selftest.vi].vehicle, selftest.shots .. '-' .. shot[2])
+        if not SELFTEST_SHOTS[selftest.shots + 1] then selftestViewOff() end
+      end
+    end
+    if selftest.drive and selftest.vi and selftest.drove and not selftest.viewed and selftest.t > 19 then
+      selftest.viewed = 1
+      selftestView('front-left')
+    end
+    if selftest.drive and selftest.vi and selftest.viewed == 1 and selftest.t > 19.5 then
+      selftest.viewed = 2
+      selftestShot(selftest.vi, selftest.vehicles[selftest.vi].vehicle, '7-after-drive')
+      selftestViewOff()
+      selftestDrove = true
+      local car = getPlayerVehicle(0)
+      if car then car:queueLuaCommand('jbeamForgeProbe.diagnose()') end
+    end
+    if selftest.vi and not selftest.diagnosed and selftest.t > 10.6 then
       selftest.diagnosed = true
       local car = getPlayerVehicle(0)
       if car then car:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe.diagnose()") end
@@ -655,6 +727,10 @@ function M.onUpdate(dtReal)
       selftest.diagnosed = false
       selftest.throttled = false
       selftest.drove = false
+      selftest.viewed = nil
+      selftest.shots = nil
+      selftest.aimed = nil
+      selftestDrove = false
       selftest.vi = (selftest.vi or 0) + 1
       local v = selftest.vehicles[selftest.vi]
       selftest.t = 0

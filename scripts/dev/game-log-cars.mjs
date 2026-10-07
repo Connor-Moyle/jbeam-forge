@@ -33,6 +33,8 @@ export function carsFromLog(lines) {
       drove: json(has(/self-test: drive /)[0]),
       // What came apart, from the self-test's probe: broken beams and the most strained ones.
       diagnose: json(has(/self-test: diagnose /)[0]),
+      // The same look again after the drive: what broke on the move.
+      afterDrive: json(has(/self-test: after-drive /)[0]),
       errors: has(/\|E\|/).slice(0, 30),
     };
   });
@@ -44,5 +46,7 @@ export function printCars(cars, say) {
   for (const c of cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}${c.diagnose ? ` · broken ${c.diagnose.broken}/${c.diagnose.beams}` : ''}${c.drove ? ` · drove ${Math.round((c.drove.speed ?? 0) * 3.6)} km/h in gear ${c.drove.gear}` : ''}`);
   for (const c of cars) if (c.drove && (c.drove.speed ?? 0) < 2) say(`  ${c.vehicle} didn't drive: ${JSON.stringify(c.drove)}`);
   for (const c of cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken at spawn: ${Object.entries(c.diagnose.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${short(p)} ${n}`).join(', ')}`);
+  for (const c of cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken beams: ${(c.diagnose.brokenList ?? []).slice(0, 14).map(([a, b, p]) => `${a}-${b} (${short(p)})`).join(', ')}`);
+  for (const c of cars) if (c.afterDrive && (c.afterDrive.broken ?? 0) > (c.diagnose?.broken ?? 0)) say(`  ${c.vehicle} broke on the drive: ${c.afterDrive.broken - (c.diagnose?.broken ?? 0)} more (${Object.entries(c.afterDrive.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${short(p)} ${n}`).join(', ')})`);
   for (const c of cars) if (c.instability && c.diagnose?.worst) say(`  ${c.vehicle} most strained: ${c.diagnose.worst.slice(0, 6).map(([a, b, s, part]) => `${a}-${b} ${s} (${short(part)})`).join(', ')}`);
 }
