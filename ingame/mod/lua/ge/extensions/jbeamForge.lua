@@ -304,9 +304,12 @@ local SELFTEST_VIEWS = {
   ['front'] = {4.6, 0, 0.9},
   ['under-left'] = {1.2, 3.4, 0.12},
   ['bonnet'] = {3.1, 0.7, 1.9},
+  -- Close views look at a spot of the car (forward, left and up of its middle) instead of the middle.
+  ['nose'] = {3.3, 0.9, 1.0, 1.9, 0, 0.2},
+  ['door-right'] = {0.9, -2.4, 0.75, 0.1, -0.7, 0.2},
   ['right'] = {0, -4.8, 0.8},
 }
-local SELFTEST_SHOTS = {{5.4, 'front-left'}, {6, 'bonnet'}, {6.6, 'left'}, {7.2, 'top'}, {7.8, 'rear-right'}, {8.4, 'front'}, {9, 'right'}}
+local SELFTEST_SHOTS = {{5.2, 'front-left'}, {5.7, 'nose'}, {6.2, 'bonnet'}, {6.7, 'left'}, {7.2, 'top'}, {7.7, 'rear-right'}, {8.2, 'door-right'}, {8.7, 'front'}, {9.2, 'right'}}
 
 local function selftestView(name)
   pcall(function()
@@ -319,7 +322,8 @@ local function selftestView(name)
     -- The middle of the car: its spawn point is at the ground, about under the middle.
     local mid = car:getSpawnWorldOOBB():getCenter()
     local pos = mid + fwd * at[1] + left * at[2] + up * at[3]
-    local q = quatFromDir((mid + up * 0.1 - pos):normalized(), name == 'top' and fwd or up)
+    local target = mid + up * 0.1 + fwd * (at[4] or 0) + left * (at[5] or 0) + up * (at[6] or 0)
+    local q = quatFromDir((target - pos):normalized(), name == 'top' and fwd or up)
     if not commands.isFreeCamera() then commands.setFreeCamera() end
     core_camera.setPosRot(0, pos.x, pos.y, pos.z, q.x, q.y, q.z, q.w)
   end)
@@ -703,7 +707,7 @@ function M.onUpdate(dtReal)
     end
     if selftest.drive and selftest.vi and selftest.viewed == 1 and selftest.t > 19.5 then
       selftest.viewed = 2
-      selftestShot(selftest.vi, selftest.vehicles[selftest.vi].vehicle, '8-after-drive')
+      selftestShot(selftest.vi, selftest.vehicles[selftest.vi].vehicle, '10-after-drive')
       selftestViewOff()
       selftestDrove = true
       local car = getPlayerVehicle(0)
