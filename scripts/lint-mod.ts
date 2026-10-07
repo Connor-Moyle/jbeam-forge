@@ -19,6 +19,7 @@ import yauzl from 'yauzl';
 import { join } from 'node:path';
 import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '../src/shared/jbeam/parse';
 import { readTable } from '../src/shared/jbeam/tables';
+import { slotTypesOf } from '../src/shared/jbeam/slots';
 import { scanGameMaterials } from '../src/main/beamng/gameMaterials';
 
 const root = process.argv[2];
@@ -127,9 +128,9 @@ function slotRows(p: JbeamObject): { name: string; allow: string[]; def: string 
 }
 
 // Slots: every slot's allowTypes must name a slotType some part has.
-const slotTypes = new Set([...parts.values(), ...gameParts.values()].map((p) => s(p.slotType)));
+const slotTypes = new Set([...parts.values(), ...gameParts.values()].flatMap((p) => slotTypesOf(p)));
 const partsBySlot = new Map<string, string[]>();
-for (const [name, p] of parts) partsBySlot.set(s(p.slotType), [...(partsBySlot.get(s(p.slotType)) ?? []), name]);
+for (const [name, p] of parts) for (const st of slotTypesOf(p)) partsBySlot.set(st, [...(partsBySlot.get(st) ?? []), name]);
 // Filled by the game's own common parts (every stock car declares them), and meshes from vehicles/common.
 const GAME_SLOT_TYPES = new Set(['paint_design', 'skin_glass', 'licenseplate_design_2_1']);
 const GAME_MESHES = new Set(['licenseplate', 'towhitch', 'n2o_bottle_10lb', 'n2o_bottle_20lb']);
@@ -159,7 +160,7 @@ while (queue.length) {
       continue;
     }
     // A part fits a slot by the slot's allowTypes (slots2), or by its name (the older slots table).
-    if (!r.allow.includes(s(partOf(choice)!.slotType))) errors.push(`default.pc: part ${choice} does not fit slot ${slot}`);
+    if (!slotTypesOf(partOf(choice)).some((st) => r.allow.includes(st))) errors.push(`default.pc: part ${choice} does not fit slot ${slot}`);
     if (!installed.has(choice)) {
       installed.add(choice);
       queue.push(choice);
@@ -236,7 +237,11 @@ const mats = JSON.parse(readFileSync(join(dir, 'main.materials.json'), 'utf8')) 
 const mapped = new Set(Object.values(mats).map((m) => m.mapTo.toLowerCase()));
 // Materials the game itself defines (a game part's own, used by name) need no entry of the mod's.
 const gameMaterials = install ? new Set((await scanGameMaterials(install)).map((m) => m.name.toLowerCase())) : new Set<string>();
-for (const m of daeMaterials) if (!mapped.has(m.toLowerCase()) && !gameMaterials.has(m.toLowerCase())) errors.push(`DAE material ${m} has no main.materials.json entry${install ? ' and isn’t one of the game’s' : ''}`);
+// A material a part's glowMap switches (the Pessima's gear indicator: auto_P is pessima_gauges, lit
+// or not) is a name on the model only: the game puts the glowMap's own materials in its place.
+const glowing = new Set<string>();
+for (const p of parts.values()) if (isJbeamObject(p.glowMap)) for (const key of Object.keys(p.glowMap)) glowing.add(key.toLowerCase());
+for (const m of daeMaterials) if (!mapped.has(m.toLowerCase()) && !gameMaterials.has(m.toLowerCase()) && !glowing.has(m.toLowerCase())) errors.push(`DAE material ${m} has no main.materials.json entry${install ? ' and isn’t one of the game’s' : ''}`);
 for (const [name, m] of Object.entries(mats)) {
   for (const stage of m.Stages)
     for (const [k, v] of Object.entries(stage)) {

@@ -2,6 +2,7 @@ import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse
 import { readTable } from '../jbeam/tables';
 import { STABILITY_DT, STABILITY_OK } from '../proxy/derive';
 import { mountsHolding } from '../proxy/hold';
+import { firstSlotType, slotTypesOf } from '../jbeam/slots';
 
 /**
  * Bringing a stock suspension's jbeam into another car. The set's parts are
@@ -234,6 +235,38 @@ export function thickness(points: readonly V3[]): number {
 
 const FLAT = 0.025;
 
+/**
+ * Do the points lie along one line, near enough? Their widest reach across the line through the
+ * two farthest apart, under a fifth of its length. The Lansdale's panhard rod kept three nodes,
+ * two of them 16 cm apart at one end of 1.3 m: the game found nothing to turn the mesh about
+ * ("VY node not found").
+ */
+export function slender(points: readonly V3[]): boolean {
+  if (points.length < 3) return true;
+  let a = points[0]!;
+  let b = points[1]!;
+  let far = 0;
+  for (const p of points)
+    for (const q of points) {
+      const d = dist2(p, q);
+      if (d > far) {
+        far = d;
+        a = p;
+        b = q;
+      }
+    }
+  const length = Math.sqrt(far);
+  if (length < 1e-6) return true;
+  const u = [(b[0] - a[0]) / length, (b[1] - a[1]) / length, (b[2] - a[2]) / length];
+  let wide = 0;
+  for (const p of points) {
+    const v = [p[0] - a[0], p[1] - a[1], p[2] - a[2]];
+    const along = v[0]! * u[0]! + v[1]! * u[1]! + v[2]! * u[2]!;
+    wide = Math.max(wide, Math.sqrt(Math.max(0, v[0]! ** 2 + v[1]! ** 2 + v[2]! ** 2 - along ** 2)));
+  }
+  return wide < Math.max(2 * FLAT, 0.2 * length);
+}
+
 /** A set's attachment point this close to a body node takes that node; farther, it's bolted on. */
 const MOUNT_SNAP = 0.05;
 const MOUNT_LINKS = 3;
@@ -300,7 +333,7 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   const warnings: string[] = [];
   const partNames = new Map(Object.keys(input.parts).map((n) => [n, `${input.partPrefix}${n}`]));
   const slotTypes = new Map<string, string>();
-  for (const body of Object.values(input.parts)) if (typeof body.slotType === 'string') slotTypes.set(body.slotType, `${input.partPrefix}${body.slotType}`);
+  for (const body of Object.values(input.parts)) for (const st of slotTypesOf(body)) slotTypes.set(st, `${input.partPrefix}${st}`);
   // Parts and slot types: one map (slot types often equal part names).
   const names = new Map([...slotTypes, ...partNames]);
 
@@ -376,10 +409,29 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   // close, the point stays where the set needs it, as a node of its own bolted to the nearest body
   // nodes: snapping the Autobello's front crossmember points 20-30 cm onto the two nearest body
   // nodes collapsed the arms' pivots onto each other and the car came apart.
+  // A point of the old car's frame: not the set's own, and not another fitted set's.
+  const onFrame = (id: JbeamValue | undefined): id is string => typeof id === 'string' && !own.has(id) && !input.linkedNodes?.[id] && input.anchors[id] !== undefined;
+  // A prop hung wholly on the old car's frame belongs to that car's cabin, not to the set: a
+  // transaxle's clutch pedal sits on three floor nodes by the driver's feet, 1.7 m from the gearbox
+  // in a rear-engined car. Brought along, the pedal and its three points stood out in front of the
+  // new car's bumper, and the points broke loose at spawn. Such props are left out.
+  const propOnFrame = (header: readonly string[], row: readonly JbeamValue[]) => ['idRef:', 'idX:', 'idY:'].every((c) => header.includes(c) && onFrame(row[header.indexOf(c)]));
+  // The frame points the set really uses: only those become mounting points.
+  const used = new Set<string>();
+  for (const body of Object.values(input.parts))
+    for (const [section, v] of Object.entries(body)) {
+      if (['information', 'slotType', 'slots', 'slots2', 'flexbodies', 'variables', 'nodes'].includes(section)) continue;
+      if (section === 'props' && Array.isArray(v) && Array.isArray(v[0])) {
+        const header = v[0].map(String);
+        for (const row of v.slice(1)) if (!Array.isArray(row) || !propOnFrame(header, row)) collectStrings(row, used);
+      } else collectStrings(v, used);
+    }
+
   const attached: Record<string, string> = {};
   const extra: [string, V3, number?][] = [];
   const mounts: [string, string][] = [];
   for (const [id, pos] of Object.entries(input.anchors)) {
+    if (!used.has(id)) continue;
     // A node these parts define is theirs, not the original car's: an anchor list made from other
     // parts of the set (its options) names the engine block's own nodes, and attaching those gave
     // them the names of body nodes.
@@ -496,7 +548,8 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     const part: JbeamObject = {};
     for (const [section, value] of Object.entries(body)) {
       if (section === 'information') part[section] = value;
-      else if (section === 'slotType') part[section] = typeof value === 'string' ? (slotTypes.get(value) ?? value) : value;
+      // A part that fits several slots (one intake for three engines) keeps fitting each of them.
+      else if (section === 'slotType') part[section] = typeof value === 'string' ? (slotTypes.get(value) ?? value) : Array.isArray(value) ? value.map((v) => (typeof v === 'string' ? (slotTypes.get(v) ?? v) : v)) : value;
       else if (section === 'slots' || section === 'slots2') part[section] = shiftSlotOffsets(renameStrings(rewriteSlots(value, input.slotRewrites ?? {}), names), input.offset);
       else if (section === 'nodes' && Array.isArray(value)) {
         part[section] = value.map((row, i) => {
@@ -521,15 +574,17 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
             if (Array.isArray(regrouped) && input.fallbackGroup && !regrouped.includes(input.fallbackGroup)) {
               const held = new Set(regrouped.flatMap((g) => (typeof g === 'string' ? [...(groupNodes.get(g) ?? [])] : [])));
               const pts = [...held].flatMap((id) => (setPositions.has(id) ? [setPositions.get(id)!] : []));
-              if (held.size < 3 || (pts.length >= 4 && thickness(pts) < FLAT)) regrouped = [...regrouped, input.fallbackGroup];
+              if (held.size < 3 || (pts.length >= 3 && slender(pts)) || (pts.length >= 4 && thickness(pts) < FLAT)) regrouped = [...regrouped, input.fallbackGroup];
             }
             return [input.meshNames[row[0]]!, regrouped as JbeamValue, ...rest];
           });
       } else if (section === 'props' && Array.isArray(value) && Array.isArray(value[0])) {
         // Props move a mesh by name: renamed to the mesh as exported, or left out when it wasn't
         // ("Mesh 'bx_driveshaft' not found"). Lights (SPOTLIGHT, POINTLIGHT) have no mesh.
-        const meshCol = value[0].map(String).indexOf('mesh');
-        part[section] = (renameStrings(value, nodeIds) as JbeamValue[])
+        const header = value[0].map(String);
+        const meshCol = header.indexOf('mesh');
+        const kept = value.filter((row, i) => i === 0 || !Array.isArray(row) || !propOnFrame(header, row));
+        part[section] = (renameStrings(kept, nodeIds) as JbeamValue[])
           .filter((row, i) => i === 0 || meshCol < 0 || !Array.isArray(row) || typeof row[meshCol] !== 'string' || /^(SPOTLIGHT|POINTLIGHT)$/.test(row[meshCol]) || input.meshNames[row[meshCol]] !== undefined)
           .map((row, i) => (i === 0 || meshCol < 0 || !Array.isArray(row) || typeof row[meshCol] !== 'string' || !input.meshNames[row[meshCol]] ? row : row.map((c, j) => (j === meshCol ? input.meshNames[row[meshCol] as string]! : c))));
       } else if (section === 'slidenodes' && Array.isArray(value)) {
@@ -581,7 +636,7 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       { beamSpring: MOUNT.beamSpring },
     ];
   }
-  const rootSlot = typeof input.parts[input.root]?.slotType === 'string' ? (input.parts[input.root]!.slotType as string) : input.root;
+  const rootSlot = firstSlotType(input.parts[input.root]) || input.root;
   return { parts: out, rootPart: rootName, rootSlotType: slotTypes.get(rootSlot) ?? rootSlot, attached, warnings };
 }
 

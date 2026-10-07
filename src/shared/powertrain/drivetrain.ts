@@ -391,12 +391,28 @@ export function planDrivetrain(input: { engine: Readonly<Record<string, JbeamObj
       feed(a, source, 1);
     }
   } else {
-    const fronts = driven.filter((a) => a.front);
-    const rears = driven.filter((a) => !a.front);
-    const groups = [fronts, rears].filter((g) => g.length);
-    split(groups, source, 1, settings.frontShare, settings.centre);
-    for (const a of driven) a.via = `the centre differential (${Math.round(settings.frontShare * 100)}% front)`;
-    if (groups.some((g) => g.length > 1)) problems.push('Tandem axles share their end’s torque through a locked differential: check it in game.');
+    // A gearbox that brings its own transfer case, with one axle already on it (a pickup's front
+    // drive shaft on the transfer case's front output): the other axle goes on the output left
+    // free. Hung off the last device in the line, both axles sat behind the front output, which
+    // the game leaves disconnected until four-wheel drive is chosen, and the car didn't move.
+    const settled = driven.filter((a) => !given.has(a.index) && resolved(a));
+    const open = driven.filter((a) => !settled.includes(a));
+    const inUse = new Map<string, Set<number>>();
+    const use = (name: string, index: number) => inUse.set(name, (inUse.get(name) ?? new Set<number>()).add(index));
+    for (const r of boxRows) use(r.input, r.index);
+    for (const a of settled) for (const e of a.entries) use(e.input, e.index);
+    const free = boxRows.filter((r) => r.type === 'differential').flatMap((r) => [1, 2].filter((i) => !inUse.get(r.name)?.has(i)).map((i) => ({ name: r.name, index: i })));
+    if (settled.length && open.length === 1 && free.length) {
+      connect(open[0]!, free[0]!.name, free[0]!.index);
+      for (const a of settled) a.via = a.entries.map((e) => e.input).join(', ');
+    } else {
+      const fronts = driven.filter((a) => a.front);
+      const rears = driven.filter((a) => !a.front);
+      const groups = [fronts, rears].filter((g) => g.length);
+      split(groups, source, 1, settings.frontShare, settings.centre);
+      for (const a of driven) a.via = `the centre differential (${Math.round(settings.frontShare * 100)}% front)`;
+      if (groups.some((g) => g.length > 1)) problems.push('Tandem axles share their end’s torque through a locked differential: check it in game.');
+    }
   }
   for (const a of axles) if (!a.driven) a.via = a.driveable ? 'not driven (rolls freely)' : boxFed(a) ? a.entries.map((e) => e.input).join(', ') : 'no differential';
   // The line as it will be in the game: the engine, what's left of the gearbox set, what we add, and the axles as rewired.

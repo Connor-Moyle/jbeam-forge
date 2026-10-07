@@ -39,6 +39,8 @@ export interface SuspensionSet {
   vehicleName: string;
   /** The game's type for the car it comes from (Car, Truck, Trailer…); absent before catalogue 14. */
   vehicleType?: string;
+  /** What that car weighs in its default configuration, kg; absent before catalogue 17 and for cars that don't say. */
+  vehicleWeight?: number;
   brand: string;
   /** Brand logo (absolute), or null. */
   logo: string | null;

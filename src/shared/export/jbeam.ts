@@ -14,6 +14,7 @@ import { hingeIds } from '../hinges/build';
 import { limiterBound } from '../hinges/geometry';
 import { definedNodes, definedWeights, setGroups, transplantSuspension } from '../suspension/transplant';
 import { blockNodes } from '../powertrain/placement';
+import { firstSlotType } from '../jbeam/slots';
 import { nodesTouchingOtherParts } from './contact';
 import { applyDrivelineEdits } from '../powertrain/driveline';
 import { exportableProps, propRow, PROPS_HEADER } from '../props/props';
@@ -520,7 +521,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   });
   // The gearbox plugs into the engine's transmission slot (renamed ahead so the engine can point at it).
   const box = pt?.gearbox ? opts.suspensions?.[pt.gearbox.setId] : undefined;
-  const boxSlot = box ? (typeof box.parts[box.root]?.slotType === 'string' ? (box.parts[box.root]!.slotType as string) : box.root) : null;
+  const boxSlot = box ? firstSlotType(box.parts[box.root]) || box.root : null;
   // Each engine's transmission slot is pointed at our gearbox.
   const rewritesFor = (setId: string) => {
     const engineData = opts.suspensions?.[setId];

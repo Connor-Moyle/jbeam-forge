@@ -1,4 +1,5 @@
 import { isJbeamObject, type JbeamObject, type JbeamValue } from '../jbeam/parse';
+import { slotTypesOf } from '../jbeam/slots';
 
 /**
  * The game's alternative parts for a fitted set (suspension, engine or
@@ -67,7 +68,6 @@ export function slotRows(body: JbeamObject): SlotRow[] {
   return out;
 }
 
-const slotTypesOf = (body: JbeamObject): string[] => (typeof body.slotType === 'string' ? [body.slotType] : Array.isArray(body.slotType) ? body.slotType.filter((x): x is string => typeof x === 'string') : []);
 
 export function partTitleOf(body: JbeamObject, name: string): string {
   const info = isJbeamObject(body.information) ? body.information : null;

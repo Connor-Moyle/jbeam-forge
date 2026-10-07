@@ -99,4 +99,28 @@ describe('nodes of a suspension its car’s body also holds', () => {
     ]);
     expect(heldByBody(closure as never, car as never)).toEqual(['fx0']);
   });
+
+  it('are placed by the car as the game ships it, not by a stretched frame that names the same nodes', async () => {
+    const { stockFirst } = await import('../../src/main/beamng/partObjects');
+    const { definedNodes } = await import('../../src/shared/suspension/transplant');
+    const N = ['id', 'posX', 'posY', 'posZ'];
+    const own = new Map<string, Record<string, unknown>>([
+      ['frame_limo', { slotType: 'frame', nodes: [N, ['rx1l', 0.66, 4.2, 0.24]] }],
+      ['car', { slotType: 'main', slots: [['type', 'default', 'description'], ['frame', 'frame', 'Frame']] }],
+      ['frame', { slotType: 'frame', nodes: [N, ['rx1l', 0.66, 2.3, 0.24]] }],
+    ]);
+    const where = new Map<string, readonly number[]>();
+    for (const body of stockFirst(own as never, (n) => own.get(n) as never)) for (const [id, pos] of definedNodes(body)) if (!where.has(id)) where.set(id, pos);
+    expect(where.get('rx1l')).toEqual([0.66, 2.3, 0.24]);
+  });
+
+  it('are not held by a damper: a beam with next to no spring', async () => {
+    const { heldByBody } = await import('../../src/main/beamng/partObjects');
+    const closure = { box: { slotType: 'box', nodes: [['id', 'posX', 'posY', 'posZ'], ['em1l', 0.4, -1.4, 0.5], ['tra1', 0.3, -1.2, 0.4]] } };
+    const car = new Map<string, Record<string, unknown>>([
+      ['box', closure.box],
+      ['mounts', { slotType: 'mounts', nodes: [['id', 'posX', 'posY', 'posZ'], ['f1', 0.5, -1.4, 0.5]], beams: [['id1:', 'id2:'], { beamSpring: 100, beamDamp: 1000 }, ['em1l', 'f1'], { beamSpring: 2001000 }, ['tra1', 'f1']] }],
+    ]);
+    expect(heldByBody(closure as never, car as never)).toEqual(['tra1']);
+  });
 });

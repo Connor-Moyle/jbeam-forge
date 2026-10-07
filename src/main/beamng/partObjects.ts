@@ -5,6 +5,7 @@ import { isJbeamObject, parseJbeam, type JbeamObject, type JbeamValue } from '@s
 import { readTable } from '@shared/jbeam/tables';
 import { withZip, ZipReader } from './zip';
 import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
+import { firstSlotType, fittingDefaults, slotTypesOf } from '@shared/jbeam/slots';
 import { findOptions } from '@shared/suspension/options';
 import { engineSpecs, gearboxSpecs, isEnginePart, isGearboxPart, partTitle } from '@shared/powertrain/specs';
 
@@ -50,7 +51,7 @@ export function partsOf(doc: JbeamObject, vehicle: string, vehicleName: string):
   const out: PartObject[] = [];
   for (const [part, body] of Object.entries(doc)) {
     if (!isJbeamObject(body)) continue;
-    const slotType = typeof body.slotType === 'string' ? body.slotType : '';
+    const slotType = firstSlotType(body);
     const category = categoryOf(slotType);
     if (!category || !Array.isArray(body.flexbodies)) continue;
     const meshes = [...new Set(body.flexbodies.slice(1).flatMap((row) => (Array.isArray(row) && typeof row[0] === 'string' ? [row[0]] : [])))];
@@ -297,14 +298,24 @@ async function vehicleName(zip: ZipReader, vehicle: string, t: Translate): Promi
   return (await vehicleInfo(zip, vehicle, t)).name;
 }
 
-async function vehicleInfo(zip: ZipReader, vehicle: string, t: Translate): Promise<{ name: string; brand: string; type?: string }> {
+async function vehicleInfo(zip: ZipReader, vehicle: string, t: Translate): Promise<{ name: string; brand: string; type?: string; weight?: number }> {
   try {
     const info = parseJbeam(await zip.readText(`vehicles/${vehicle}/info.json`)).value;
     if (isJbeamObject(info) && typeof info.Name === 'string') {
       const name = t(info.Name);
       const brand = typeof info.Brand === 'string' ? info.Brand : '';
       const type = typeof info.Type === 'string' ? info.Type : undefined;
-      if (!name.startsWith('vehiclesData.')) return { name: brand && !name.startsWith(brand) ? `${brand} ${name}` : name, brand, ...(type ? { type } : {}) };
+      // What the car weighs as the game ships it (its default configuration): what its springs are sized for.
+      let weight: number | undefined;
+      if (typeof info.default_pc === 'string') {
+        try {
+          const config = parseJbeam(await zip.readText(`vehicles/${vehicle}/info_${info.default_pc}.json`)).value;
+          if (isJbeamObject(config) && typeof config.Weight === 'number' && config.Weight > 0) weight = config.Weight;
+        } catch {
+          // no info for the default configuration
+        }
+      }
+      if (!name.startsWith('vehiclesData.')) return { name: brand && !name.startsWith(brand) ? `${brand} ${name}` : name, brand, ...(type ? { type } : {}), ...(weight ? { weight } : {}) };
     }
   } catch {
     // no info.json (common parts, props)
@@ -410,12 +421,12 @@ export function suspensionClosure(start: string, find: (name: string) => JbeamOb
   // Wheels, tyres and trim hang off the hubs' slots, but they aren't the suspension. Except a wheel
   // only this car has (the Covet 3-wheel's tractor wheel): nothing in common fits its slot, so the
   // set brings it along or the hub's slot is left pointing at a part the mod doesn't have.
-  return partClosure(start, find, (b) => typeof b.slotType === 'string' && NOT_SUSPENSION.test(b.slotType) && (!sharedSlots || !/^(wheel|tire)/i.test(b.slotType) || sharedSlots.has(b.slotType)), max);
+  return partClosure(start, find, (b) => slotTypesOf(b).some((t) => NOT_SUSPENSION.test(t) && (!sharedSlots || !/^(wheel|tire)/i.test(t) || sharedSlots.has(t))), max);
 }
 
 /** An engine without its gearbox (that belongs to the gearbox workshop), wheels or body parts. */
 export function engineClosure(start: string, find: (name: string) => JbeamObject | undefined, max = 120): string[] {
-  return partClosure(start, find, (b) => isGearboxPart(b) || (typeof b.slotType === 'string' && /transmission|transaxle|gearbox|^wheel|^tire/i.test(b.slotType)), max);
+  return partClosure(start, find, (b) => isGearboxPart(b) || slotTypesOf(b).some((t) => /transmission|transaxle|gearbox|^wheel|^tire/i.test(t)), max);
 }
 
 /** A part and the defaults of its slots, all the way down; `skip` leaves out branches (not the start). */
@@ -439,26 +450,40 @@ export function partClosure(start: string, find: (name: string) => JbeamObject |
  * crossmember node fx0 hangs from the body as well as from the hubs, and without the body it swung
  * free. Parts that go in the set's own slots, or replace it, don't count (they come and go with it).
  */
+/** A car's own parts, those of its stock build first (its main part and its slots' defaults, all the way down), then the rest and its engines. */
+export function stockFirst(own: ReadonlyMap<string, JbeamObject>, find: (name: string) => JbeamObject | undefined, engineParts: readonly JbeamObject[] = []): JbeamObject[] {
+  const mains = [...own].filter(([, b]) => slotTypesOf(b).includes('main')).map(([n]) => n);
+  const stock = new Set(mains.flatMap((m) => partClosure(m, find, () => false, 5000)));
+  const first = [...own].filter(([n]) => stock.has(n)).map(([, b]) => b);
+  const rest = [...own].filter(([n]) => !stock.has(n)).map(([, b]) => b);
+  return [...first, ...rest, ...engineParts];
+}
+
+/** A beam softer than this (N/m) holds nothing in place: a damper, not a mount. */
+const WEAK_SPRING = 20_000;
+
 export function heldByBody(closure: Record<string, JbeamObject>, carParts: ReadonlyMap<string, JbeamObject>): string[] {
   const own = new Set<string>();
   for (const p of Object.values(closure)) for (const id of definedNodes(p).keys()) own.add(id);
   const setSlots = declaredSlotTypes(Object.values(closure));
-  for (const p of Object.values(closure)) if (typeof p.slotType === 'string') setSlots.add(p.slotType);
+  for (const p of Object.values(closure)) for (const t of slotTypesOf(p)) setSlots.add(t);
   const held = new Set<string>();
   for (const [name, p] of carParts) {
-    if (closure[name] || (typeof p.slotType === 'string' && setSlots.has(p.slotType)) || !Array.isArray(p.beams)) continue;
+    if (closure[name] || slotTypesOf(p).some((t) => setSlots.has(t)) || !Array.isArray(p.beams)) continue;
     const defines = definedNodes(p);
     // Only what really holds: a plain beam. A bump stop or a limiter (bounded), a support, a hydro or
     // a pressured beam lets the node move, and counting those had moving suspension nodes bolted down.
-    let rows: { a: unknown; b: unknown; type: unknown }[] = [];
+    // Nor does a beam with next to no spring (an engine mount's damper, 100 N/m beside 260,000).
+    let rows: { a: unknown; b: unknown; type: unknown; spring: unknown }[] = [];
     try {
-      rows = readTable(p.beams).records.map((r) => ({ a: r.values['id1:'], b: r.values['id2:'], type: r.options.beamType }));
+      rows = readTable(p.beams).records.map((r) => ({ a: r.values['id1:'], b: r.values['id2:'], type: r.options.beamType, spring: r.options.beamSpring }));
     } catch {
       continue;
     }
-    for (const { a, b, type } of rows) {
+    for (const { a, b, type, spring } of rows) {
       if (typeof a !== 'string' || typeof b !== 'string') continue;
       if (typeof type === 'string' && type !== '|NORMAL') continue;
+      if (typeof spring === 'number' && spring < WEAK_SPRING) continue;
       for (const [x, y] of [[a, b], [b, a]] as const) if (own.has(x) && !defines.has(x) && !own.has(y)) held.add(x);
     }
   }
@@ -523,7 +548,7 @@ async function allParts(zip: ZipReader): Promise<Map<string, JbeamObject>> {
 async function writeSets(
   zip: ZipReader,
   vehicle: string,
-  info: { name: string; brand: string; type?: string },
+  info: { name: string; brand: string; type?: string; weight?: number },
   commonParts: ReadonlyMap<string, JbeamObject>,
   brandLogos: ReadonlyMap<string, Buffer>,
   locate: (mesh: string) => DaeDoc | undefined,
@@ -532,7 +557,25 @@ async function writeSets(
   materialIndex: ReadonlyMap<string, string>,
 ): Promise<void> {
   const own = await allParts(zip);
-  const find = (n: string) => own.get(n) ?? commonParts.get(n);
+  const raw = (n: string) => own.get(n) ?? commonParts.get(n);
+  // Which parts fit each slot type, to mend slot defaults the game's files get wrong.
+  const bySlot = new Map<string, string[]>();
+  for (const [name, body] of [...commonParts, ...own])
+    for (const t of slotTypesOf(body)) {
+      const list = bySlot.get(t);
+      if (list) list.push(name);
+      else bySlot.set(t, [name]);
+    }
+  const mended = new Map<string, JbeamObject>();
+  const find = (n: string) => {
+    const hit = mended.get(n);
+    if (hit) return hit;
+    const body = raw(n);
+    if (!body) return undefined;
+    const fixed = fittingDefaults(body, raw, (t) => bySlot.get(t) ?? []);
+    mended.set(n, fixed);
+    return fixed;
+  };
   let logo: Buffer | null = brandLogos.get(info.brand.toLowerCase()) ?? null;
   if (!logo) {
     try {
@@ -549,9 +592,9 @@ async function writeSets(
   // What goes in: suspensions from the car's own parts; engines and gearboxes (often shared, in
   // common) that fit a slot the car or its engines declare.
   const roots: { kind: 'suspension' | 'engine' | 'gearbox' | 'panel'; part: string; parts: string[] }[] = [];
-  const sharedSlots = new Set([...commonParts.values()].flatMap((b) => (typeof b.slotType === 'string' ? [b.slotType] : [])));
+  const sharedSlots = new Set([...commonParts.values()].flatMap((b) => slotTypesOf(b)));
   for (const [partName, body] of own) {
-    const slotType = typeof body.slotType === 'string' ? body.slotType : '';
+    const slotType = firstSlotType(body);
     const category = categoryOf(slotType);
     // A set starts at the suspension itself (not a hub or subframe on its own).
     if (category && SET_CATEGORIES.has(category) && /suspension|axle/i.test(slotType)) roots.push({ kind: 'suspension', part: partName, parts: suspensionClosure(partName, find, 120, sharedSlots) });
@@ -563,12 +606,12 @@ async function writeSets(
   // Landing gear and the like have motors too; they aren't engines.
   // Props (the cannon) run motors that aren't a car's engine.
   const isProp = info.type === 'Prop';
-  const engines = isProp ? [] : [...pool].filter(([n, b]) => typeof b.slotType === 'string' && carSlots.has(b.slotType) && isEnginePart(b) && !/landing|winch|crane|ramp/i.test(`${n} ${partTitle(b, n)}`));
+  const engines = isProp ? [] : [...pool].filter(([n, b]) => slotTypesOf(b).some((t) => carSlots.has(t)) && isEnginePart(b) && !/landing|winch|crane|ramp/i.test(`${n} ${partTitle(b, n)}`));
   for (const [name] of engines) roots.push({ kind: 'engine', part: name, parts: engineClosure(name, find) });
   const engineSlots = declaredSlotTypes(engines.map(([, b]) => b));
   for (const [name, b] of pool) {
-    if (!isProp && typeof b.slotType === 'string' && (carSlots.has(b.slotType) || engineSlots.has(b.slotType)) && isGearboxPart(b)) {
-      roots.push({ kind: 'gearbox', part: name, parts: partClosure(name, find, (x) => typeof x.slotType === 'string' && /^wheel|^tire/i.test(x.slotType)) });
+    if (!isProp && slotTypesOf(b).some((t) => carSlots.has(t) || engineSlots.has(t)) && isGearboxPart(b)) {
+      roots.push({ kind: 'gearbox', part: name, parts: partClosure(name, find, (x) => slotTypesOf(x).some((t) => /^wheel|^tire/i.test(t))) });
     }
   }
 
@@ -578,12 +621,16 @@ async function writeSets(
   // The car's own parts only: shared parts (hubs, wheels) stay the game's in a mod too, so their
   // nodes must not be pinned to the new car's body. A node a part uses that the car doesn't have
   // (the Barstow's exhaust names rs1l) is the game's own leftover: it drops that beam on the stock car too.
-  for (const body of [...own.values(), ...engineParts]) for (const [id, pos] of definedNodes(body)) if (!vehicleNodes.has(id)) vehicleNodes.set(id, pos);
+  // Where a node is defined more than once, the car as the game ships it says where it is: its
+  // main part and the defaults of its slots, all the way down. A stretched or long-bed frame names
+  // the same nodes further back (the Grand Marshal's limousine frame, 2.5 m), and read first it put
+  // a suspension's mounting points behind the car, where they tore the tail off at spawn.
+  for (const body of stockFirst(own, find, engineParts)) for (const [id, pos] of definedNodes(body)) if (!vehicleNodes.has(id)) vehicleNodes.set(id, pos);
 
   const seen = new Set<string>();
   for (const { kind, part: partName, parts } of roots) {
     const body = find(partName)!;
-    const slotType = typeof body.slotType === 'string' ? body.slotType : '';
+    const slotType = firstSlotType(body);
     // Prop meshes too: without them the set's driveshaft and pulleys were missing in the game.
     const meshes = [...new Set(parts.flatMap((p) => [...flexMeshes(find(p)!), ...propMeshes(find(p)!)]))];
     const key = `${kind}:${meshes.sort().join('|')}:${kind === 'suspension' ? '' : partName}`;
@@ -622,6 +669,7 @@ async function writeSets(
       vehicle,
       vehicleName: info.name,
       ...(info.type ? { vehicleType: info.type } : {}),
+      ...(info.weight ? { vehicleWeight: info.weight } : {}),
       brand: info.brand || 'Other',
       axle,
       type,
@@ -757,7 +805,7 @@ export async function importModSets(modZip: string, installDir: string | null, o
       const materialIndex = new Map([...commonMaterials, ...(await materialTextures(zip))]);
       for (const vehicle of vehicles) {
         const info = await vehicleInfo(zip, vehicle, t);
-        await writeSets(zip, vehicle, { name: info.name || vehicle, brand: info.brand && info.brand !== 'Other' ? info.brand : fallbackBrand, ...(info.type ? { type: info.type } : {}) }, commonParts, new Map(), locate, join(out, 'sets'), textures, materialIndex);
+        await writeSets(zip, vehicle, { name: info.name || vehicle, brand: info.brand && info.brand !== 'Other' ? info.brand : fallbackBrand, ...(info.type ? { type: info.type } : {}), ...(info.weight ? { weight: info.weight } : {}) }, commonParts, new Map(), locate, join(out, 'sets'), textures, materialIndex);
         found.push(vehicle);
       }
     });

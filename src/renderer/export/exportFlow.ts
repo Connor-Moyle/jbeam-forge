@@ -35,6 +35,8 @@ import { portedIssues, portedText } from '@shared/export/ported';
 import { installProblems } from '@shared/export/installCheck';
 import { stampGameVersion } from './gameVersion';
 import { wheelNames, wheelSlotEnds } from '@shared/suspension/wheels';
+import { suspensionLoadWarning } from '@shared/suspension/load';
+import { jbeamMaterialRefs } from '@shared/export/materialRefs';
 import { powertrainDevices } from '@shared/powertrain/specs';
 import { powertrainChain } from '@shared/powertrain/chain';
 import { isJbeamObject, parseJbeam } from '@shared/jbeam/parse';
@@ -231,6 +233,7 @@ export function prepareExport(): PreparedExport | null {
   const configFiles: ExportBundle['files'] = [];
   const configChoices: { name: string; parts: Record<string, string> }[] = [];
   let defaultPc = 'default';
+  let defaultWeightKg: number | null = null;
   for (const config of configs) {
     let file = configFileName(config);
     for (let i = 2; taken.has(file); i++) file = `${configFileName(config)}_${i}`;
@@ -238,7 +241,9 @@ export function prepareExport(): PreparedExport | null {
     const pc = resolveConfig(doc, tax, config, useSetData.getState().data);
     configChoices.push({ name: config?.name ?? 'the default configuration', parts: pc.parts });
     if (config && config.id === doc.defaultConfigId) defaultPc = file;
-    const labels = configLabels(configStats(doc, tax, pc, useSetData.getState().data), config?.info);
+    const stats = configStats(doc, tax, pc, useSetData.getState().data);
+    if (!config || config.id === doc.defaultConfigId) defaultWeightKg = stats.weightKg ?? defaultWeightKg;
+    const labels = configLabels(stats, config?.info);
     configFiles.push({ path: `${root}/${file}.pc`, text: `${JSON.stringify(pc, null, 2)}\n` }, { path: `${root}/info_${file}.json`, text: `${JSON.stringify(configInfoJson(doc, tax, pc, config, labels), null, 2)}\n` });
     const everyConfig = useSettingsStore.getState().settings?.previewEveryConfig ?? true;
     const preview = config && !everyConfig ? null : capturePreviewOf(doc, includedParts(doc, tax, pc, useSetData.getState().data), config?.id ?? null);
@@ -278,6 +283,12 @@ export function prepareExport(): PreparedExport | null {
     const set = catalogue.find((s) => s.id === a.fitted!.setId);
     if (set?.vehicleType && /trailer/i.test(set.vehicleType) && !/trailer/i.test(doc.meta.type ?? ''))
       report.warnings.push({ code: 'TRAILER_SUSPENSION', message: `${a.fitted!.name} on the ${a.name.replace(/ axle$/i, '').toLowerCase()} axle comes from a trailer (${set.vehicleName}): it doesn't steer and is built for a trailer's loads, so the car may handle badly or come apart. Spawn it and check, or pick a car's suspension.` });
+  }
+  // A suspension under a car much heavier or lighter than the one it was made for.
+  for (const a of fittedAxles) {
+    const set = catalogue.find((s) => s.id === a.fitted!.setId);
+    const text = set ? suspensionLoadWarning(set, a.name.replace(/ axle$/i, '').toLowerCase(), defaultWeightKg) : null;
+    if (text) report.warnings.push({ code: 'SUSPENSION_LOAD', message: text });
   }
   // Two axles whose suspensions make wheels of the same name (a rear suspension on the front axle,
   // a trailer's axle, which calls its wheels front ones): the game builds one wheel from both and
@@ -357,8 +368,20 @@ export function prepareExport(): PreparedExport | null {
   if (credits.length && kind === 'vehicle') files.push({ path: `${root}/credits.txt`, text: creditsText(credits, doc.meta.name) });
   if (kind !== 'vehicle') return partModExport(doc, kind, { author, files, copies: mats.copies, dae, meshCount: exported.length, meshNames: daeMeshes.map((m) => m.name) });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
+  // Materials the mod needs from the game: those on its meshes, and those its parts' glow maps and
+  // material swaps name (a borrowed gear indicator's lit face, each brake disc's own).
+  const named = jbeamMaterialRefs(
+    jbeams.flatMap((j) => {
+      try {
+        const v = parseJbeam(j.text).value;
+        return isJbeamObject(v) ? Object.values(v).filter(isJbeamObject) : [];
+      } catch {
+        return [];
+      }
+    }),
+  );
   return {
-    bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies, gameMaterials: [...new Set(daeMeshes.flatMap((m) => m.materials))].filter((n) => !(n in materialJsonAll)) },
+    bundle: { slug, projectName: doc.meta.name, files, copies: mats.copies, gameMaterials: [...new Set([...daeMeshes.flatMap((m) => m.materials), ...named])].filter((n) => !(n in materialJsonAll)) },
     report,
     summary: { parts: doc.parts.length, meshes: exported.length, nodes: doc.nodes.length, beams: doc.beams.length, textures: mats.copies.length, daeBytes: dae.length },
   };

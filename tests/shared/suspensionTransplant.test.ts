@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { JbeamObject } from '@shared/jbeam/parse';
-import { definedNodes, externalNodeRefs, planeDistance, setGroups, shiftOffset, thickness, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
+import { definedNodes, externalNodeRefs, planeDistance, setGroups, shiftOffset, slender, thickness, transplantSuspension, tuningVariables, type V3 } from '@shared/suspension/transplant';
 
 const PARTS: Record<string, JbeamObject> = {
   car_suspension_F: {
@@ -257,6 +257,63 @@ describe('a node that slid on a rail (the Covet’s middle engine mount, on its 
   });
 });
 
+describe('a prop hung on the old car’s cabin (the Autobello transaxle’s clutch pedal)', () => {
+  const PROPS = ['func', 'mesh', 'idRef:', 'idX:', 'idY:', 'baseRotation'];
+  const r = transplantSuspension({
+    parts: {
+      g: {
+        slotType: 'g',
+        nodes: [['id', 'posX', 'posY', 'posZ'], ['tra1', 0, 1.2, 0.3], ['tra2', 0.2, 1.2, 0.3], ['tra3', 0, 1.4, 0.3]],
+        beams: [['id1:', 'id2:'], ['tra1', 'f3']],
+        props: [PROPS, ['clutch', 'pedal', 'b1l', 'b1ll', 'b1rr', { x: 0, y: 0, z: 0 }], ['rpm', 'shaft', 'tra1', 'tra2', 'tra3', { x: 0, y: 0, z: 0 }], ['gear', 'lever', 'tra1', 'b1l', 'tra3', { x: 0, y: 0, z: 0 }]],
+      },
+    },
+    root: 'g',
+    anchors: { b1l: [0.37, -0.5, 0.14], b1ll: [0.6, -0.5, 0.14], b1rr: [-0.6, -0.5, 0.14], f3: [0.1, 1.0, 0.3], spare: [0, 0, 0] },
+    offset: [0, -3, 0],
+    partPrefix: 'm_',
+    nodePrefix: 'g_',
+    target: [{ id: 'body1', pos: [0.3, -2.4, 0.2] }, { id: 'body2', pos: [-0.3, -2.2, 0.4] }, { id: 'body3', pos: [0, -1.9, 0.1] }],
+    meshNames: { pedal: 'm_pedal', shaft: 'm_shaft', lever: 'm_lever' },
+    tuning: {},
+  });
+  const text = JSON.stringify(r.parts.m_g);
+
+  it('is left out, with the points it stood on', () => {
+    expect((r.parts.m_g!.props as unknown[][]).map((row) => row[0])).toEqual(['func', 'rpm', 'gear']);
+    expect(text).not.toContain('b1ll');
+    expect(text).not.toContain('b1rr');
+  });
+
+  it('keeps a prop with a foot on the set, and makes only the mounting points something uses', () => {
+    expect(text).toContain('g_b1l');
+    expect(text).toContain('g_f3');
+    expect(text).not.toContain('spare');
+  });
+});
+
+describe('a part that fits several slots (the Sunburst’s intake, one for three engines)', () => {
+  it('keeps fitting each of them under their new names', () => {
+    const r = transplantSuspension({
+      parts: {
+        engine: { slotType: 'engine', slots2: [['name', 'allowTypes', 'denyTypes', 'default', 'description'], ['engine_1_6_intake', ['engine_1_6_intake'], [], 'intake', 'Intake']] },
+        intake: { slotType: ['engine_1_6_intake', 'engine_2_0_intake'] },
+      },
+      root: 'engine',
+      anchors: {},
+      offset: [0, 0, 0],
+      partPrefix: 'm_E_',
+      nodePrefix: 'e_',
+      target: [],
+      meshNames: {},
+      tuning: {},
+    });
+    expect(r.parts.m_E_intake!.slotType).toEqual(['m_E_engine_1_6_intake', 'm_E_engine_2_0_intake']);
+    expect((r.parts.m_E_engine!.slots2 as unknown[][])[1]).toEqual(['m_E_engine_1_6_intake', ['m_E_engine_1_6_intake'], [], 'm_E_intake', 'Intake']);
+    expect(r.rootSlotType).toBe('m_E_engine');
+  });
+});
+
 describe('a gearbox’s mount node, beamed to every corner of the engine (the Vivace’s)', () => {
   const box = (beams: unknown[][]) =>
     transplantSuspension({
@@ -357,6 +414,12 @@ describe('a borrowed mesh whose own nodes lie flat (the Autobello’s tie rods, 
       fallbackGroup: 'm_body',
     });
     expect(r.parts.m_s!.flexbodies).toEqual([['mesh', '[group]:'], ['rod', ['tierod_F', 'm_body']], ['rack', ['tierod_M']]]);
+  });
+
+  it('knows points strung along one line from points spread about (the Lansdale’s panhard rod)', () => {
+    expect(slender([[-0.62, 1.2465, 0.2428], [0.68, 1.1665, 0.3828], [0.66, 1.2465, 0.2428]])).toBe(true);
+    expect(slender([[0, 0, 0], [1, 0, 0]])).toBe(true);
+    expect(slender([[0, 0, 0], [0.5, 0, 0], [0.25, 0.3, 0]])).toBe(false);
   });
 
   it('measures how far points spread out of their plane', () => {
