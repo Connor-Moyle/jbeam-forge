@@ -2711,6 +2711,8 @@ const scenarios = [
               writeFileSync(to, f.text);
             }
           } else {
+            // What the export had to say (its warnings), for the report.
+            r.dialog = (await page.getByTestId('export-dialog').textContent()).slice(0, 4000);
             await page.getByTestId('export-install').click();
             await page.getByTestId('export-result').waitFor({ timeout: 180_000 });
             const src = join(fakeUserDir, 'mods', 'unpacked');

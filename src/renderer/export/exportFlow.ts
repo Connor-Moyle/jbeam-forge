@@ -34,7 +34,8 @@ import { textureToDds, toBase64 } from './textureConvert';
 import { portedIssues, portedText } from '@shared/export/ported';
 import { installProblems } from '@shared/export/installCheck';
 import { stampGameVersion } from './gameVersion';
-import { wheelNames, wheelSlotEnds } from '@shared/suspension/wheels';
+import { setWheels, wheelNames, wheelSlotEnds } from '@shared/suspension/wheels';
+import { archWarning, nodesFoulingTyres } from '@shared/suspension/arch';
 import { suspensionLoadWarning } from '@shared/suspension/load';
 import { jbeamMaterialRefs } from '@shared/export/materialRefs';
 import { powertrainDevices } from '@shared/powertrain/specs';
@@ -289,6 +290,18 @@ export function prepareExport(): PreparedExport | null {
     const set = catalogue.find((s) => s.id === a.fitted!.setId);
     const text = set ? suspensionLoadWarning(set, a.name.replace(/ axle$/i, '').toLowerCase(), defaultWeightKg) : null;
     if (text) report.warnings.push({ code: 'SUSPENSION_LOAD', message: text });
+  }
+  // Structure of the car's own that starts inside a fitted suspension's tyres.
+  const partNames = new Map(doc.parts.map((p) => [p.id, p.displayName]));
+  const ownNodes = doc.nodes.filter((n) => partNames.has(n.partId) && !SET_KINDS.has(doc.parts.find((p) => p.id === n.partId)?.taxonomyId ?? '')).map((n) => ({ pos: n.pos, part: partNames.get(n.partId)! }));
+  for (const a of fittedAxles) {
+    const set = catalogue.find((s) => s.id === a.fitted!.setId);
+    const parts = useSetData.getState().data[a.fitted!.setId]?.parts;
+    if (!set?.tyre || !parts) continue;
+    const offset = doc.sources.find((s) => s.id === a.fitted!.sourceId)?.placement.position ?? [0, 0, 0];
+    const inside = nodesFoulingTyres(setWheels(parts, offset), set.tyre, ownNodes);
+    const text = archWarning(a.name.replace(/ axle$/i, '').toLowerCase(), set, set.tyre, inside);
+    if (text) report.warnings.push({ code: 'TYRE_IN_STRUCTURE', message: text });
   }
   // Two axles whose suspensions make wheels of the same name (a rear suspension on the front axle,
   // a trailer's axle, which calls its wheels front ones): the game builds one wheel from both and

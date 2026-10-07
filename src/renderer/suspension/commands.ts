@@ -58,6 +58,9 @@ export async function loadFittedSets(): Promise<void> {
     ...(doc?.panel ? [doc.panel.setId] : []),
   ];
   if (ids.length) await useSetData.getState().ensure(ids);
+  // The catalogue too: the export's checks read each set's car, its weight and its tyres from it,
+  // and it was only loaded once the Suspension tab had been opened.
+  if (ids.length) await useSuspensionCatalogue.getState().load().catch(() => undefined);
 }
 
 /** Which axle the picker is choosing for. */

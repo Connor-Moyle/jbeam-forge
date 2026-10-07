@@ -8,6 +8,7 @@ import { attachToParent, deriveStructure, FAR_FROM_PARENT, parentGap, placeRefNo
 import { BEAM_PRESET_VALUES, kindDefaults, targetVertices } from './presets';
 import { adoptManualNodes } from '../structure/edit';
 import { applyHinge } from '../hinges/apply';
+import { carveWheels, inWheelSpace, type WheelSpace } from './wheelSpace';
 
 /**
  * Generate parts' structure into the document (SPEC §4.4). Pure: works on
@@ -186,7 +187,7 @@ function carMiddle(doc: Doc, tax: TaxonomyLookup, geometries: readonly PartGeome
     }
   return Number.isFinite(yLo) ? [0, (yLo + yHi) / 2, zLo + (zHi - zLo) * 0.4] : [0, 0, 0.5];
 }
-export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: readonly PartGeometry[]): GenerateResult {
+export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: readonly PartGeometry[], wheels: readonly WheelSpace[] = []): GenerateResult {
   const geomById = new Map(geometries.map((g) => [g.partId, g.mesh]));
   const reports: PartReport[] = [];
   const skipped: GenerateResult['skipped'] = [];
@@ -263,6 +264,11 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     const manual = doc.nodes.filter((n) => n.partId === partId && n.manual);
     const slot = slotOf(doc.parts, partId);
     const taken = new Set(doc.nodes.filter((n) => slotOf(doc.parts, n.partId) !== slot).map((n) => n.id));
+    // The wheels' room is cut out of everything that isn't a wheel (a hull closes a wing across its arch).
+    if (wheels.length && !inWheelSpace(mesh, wheels)) {
+      const carved = carveWheels(built.mesh, wheels);
+      if (carved !== built.mesh) built = { ...built, mesh: carved, stats: { ...built.stats, vertices: vertexCount(carved), triangles: faceCount(carved) } };
+    }
     // A panel left as one layer has its collision faces looking out of the car.
     built = { ...built, mesh: orientOpenAway(built.mesh, middle) };
     const derived = deriveStructure({ partId, mesh: built.mesh, prefix: nodePrefix(part, entry), massKg, bracing: settings.bracing, taken, ...(settings.mode !== 'surface' && STIFFENED.has(entry.beamPreset) ? { stiffenTowards: middle } : {}) });

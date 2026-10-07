@@ -41,6 +41,8 @@ export interface SuspensionSet {
   vehicleType?: string;
   /** What that car weighs in its default configuration, kg; absent before catalogue 17 and for cars that don't say. */
   vehicleWeight?: number;
+  /** The tyre the game fits to a suspension, metres; absent before catalogue 18 and when none was found. */
+  tyre?: { radius: number; width: number };
   brand: string;
   /** Brand logo (absolute), or null. */
   logo: string | null;

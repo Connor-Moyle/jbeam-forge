@@ -14,6 +14,7 @@ import { meshoptReady } from '@shared/proxy/shapes';
 import { edges, reduceDense } from '@shared/proxy/mesh';
 import { defaultProxySettings, generateStructure, massNodeCap, partMass, partSettings, removePartStructure, type PartGeometry, type PartReport } from '@shared/proxy/generate';
 import { braces } from '@shared/proxy/derive';
+import { wheelSpaceOf, type WheelSpace } from '@shared/proxy/wheelSpace';
 import { kindDefaults, targetVertices } from '@shared/proxy/presets';
 
 const logger = rlog('generate');
@@ -107,7 +108,12 @@ export async function generateParts(partIds: readonly string[], label?: string, 
         work.proxy.parts[id] = { ...own, ...(choice.mode === 'auto' ? {} : { mode: choice.mode }), detail: choice.detail };
       }
     }
-    const r = generateStructure(work, tax, geometries);
+    // Where the car's wheels are (from its own wheel and tyre models), so nothing is built in their room.
+    const wheels = base.parts
+      .filter((p) => p.taxonomyId === 'tire' || p.taxonomyId === 'wheel')
+      .map((p) => wheelSpaceOf(partGeometry(p.id)))
+      .filter((w): w is WheelSpace => w !== null);
+    const r = generateStructure(work, tax, geometries, wheels);
     const genMs = Math.round(performance.now() - started);
     projectStore.getState().execute({
       label: label ?? (partIds.length === 1 ? 'Generate part' : `Generate ${partIds.length} parts`),

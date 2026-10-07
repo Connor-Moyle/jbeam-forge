@@ -6,6 +6,7 @@ import { readTable } from '@shared/jbeam/tables';
 import { withZip, ZipReader } from './zip';
 import { definedNodes, externalNodeRefs, type V3 } from '@shared/suspension/transplant';
 import { firstSlotType, fittingDefaults, slotTypesOf } from '@shared/jbeam/slots';
+import { tyreOf } from '@shared/suspension/arch';
 import { findOptions } from '@shared/suspension/options';
 import { engineSpecs, gearboxSpecs, isEnginePart, isGearboxPart, partTitle } from '@shared/powertrain/specs';
 
@@ -661,6 +662,8 @@ async function writeSets(
     writeFileSync(join(dir, 'anchors.json'), JSON.stringify(externalNodeRefs(closure, vehicleNodes)));
     writeFileSync(join(dir, 'held.json'), JSON.stringify(heldByBody(closure, own)));
     // The game's other parts for the set's slots (brakes, racks, turbos…), offered as choices.
+    // The tyre the game fits to it: down its slots' defaults (wheel, then tyre), the first with a size.
+    const tyre = kind === 'suspension' ? (partClosure(partName, find, () => false, 400).map((p) => tyreOf(find(p)!)).find((t) => t !== null) ?? null) : null;
     const options = findOptions(parts, find, pool);
     if (options.slots.length) writeFileSync(join(dir, 'options.json'), JSON.stringify({ ...options, anchors: externalNodeRefs(options.parts, vehicleNodes) }));
     const setJson = {
@@ -670,6 +673,7 @@ async function writeSets(
       vehicleName: info.name,
       ...(info.type ? { vehicleType: info.type } : {}),
       ...(info.weight ? { vehicleWeight: info.weight } : {}),
+      ...(tyre ? { tyre } : {}),
       brand: info.brand || 'Other',
       axle,
       type,

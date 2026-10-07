@@ -65,6 +65,9 @@ export interface JbeamExportOptions {
 
 /** The share of its weight the car's own engine model keeps once a game engine does the work in its place. */
 const SHELL_WEIGHT = 0.12;
+/** Round a fitted wheel's axle, the reach within which the car's own nodes don't collide with the car (m): out from the axle, and to each side. */
+const WHEEL_ZONE_RADIUS = 0.5;
+const WHEEL_ZONE_SIDE = 0.22;
 
 /** How a beam's values were eased so the car holds together at 2000 Hz. */
 interface Softening {
@@ -705,7 +708,7 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   opts.onStability?.({ softened: softening.softened, addedKg: softening.addedKg, heavier: softening.weights.size });
   // A part and its variants are never fitted together: they count as one part here.
   const baseOf = new Map(doc.parts.map((p) => [p.id, p.variantOf ?? p.id]));
-  const touching = nodesTouchingOtherParts(
+  const touchingParts = nodesTouchingOtherParts(
     doc.nodes.map((n) => ({ id: n.id, pos: n.pos, partId: baseOf.get(n.partId) ?? n.partId })),
     doc.tris.map((t) => ({ ids: t.ids, partId: baseOf.get(t.partId) ?? t.partId })),
     undefined,
@@ -714,6 +717,23 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     // them out of shape the moment the car spawned (a bonnet's corners 23 mm, a boot lid 26 mm, measured
     // in the game): their edges looked torn and the doors stood ajar.
   );
+  // Nodes beside a fitted suspension's wheels too. On a suspension softer or lower than the body
+  // was drawn for, the tyre rides tucked up into the arch, and arch nodes that collided with it
+  // were pushed out of shape and held the wheel back.
+  const touching = new Set(touchingParts);
+  for (const axle of fullDoc.axles ?? []) {
+    const parts = axle.fitted ? opts.suspensions?.[axle.fitted.setId]?.parts : undefined;
+    if (!axle.fitted || !parts) continue;
+    const offset = fullDoc.sources?.find((s) => s.id === axle.fitted!.sourceId)?.placement.position ?? [0, 0, 0];
+    for (const wheel of setWheels(parts, offset))
+      for (const n of bodyNodes) {
+        const v = [n.pos[0] - wheel.centre[0], n.pos[1] - wheel.centre[1], n.pos[2] - wheel.centre[2]];
+        const along = v[0]! * wheel.axis[0] + v[1]! * wheel.axis[1] + v[2]! * wheel.axis[2];
+        // Where only the hub face is known the tyre is outboard of it.
+        if (wheel.exact ? Math.abs(along) > WHEEL_ZONE_SIDE : along < -0.1 || along > 2 * WHEEL_ZONE_SIDE) continue;
+        if (Math.sqrt(Math.max(0, v[0]! ** 2 + v[1]! ** 2 + v[2]! ** 2 - along ** 2)) <= WHEEL_ZONE_RADIUS) touching.add(n.id);
+      }
+  }
 
   for (const part of doc.parts) {
     const entry = tax.entry(part.taxonomyId);
