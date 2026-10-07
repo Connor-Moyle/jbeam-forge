@@ -39,9 +39,10 @@ const backup = join(user, '_jbeam_forge_test_backup');
 const stateFile = join(user, '_jbeam_forge_session.json');
 const batchDir = join(mods, 'unpacked', 'jbeam_forge_test_batch');
 const logPath = join(user, 'beamng.log');
+const LOG_ROOM = 13000;
 const readLog = () => (existsSync(logPath) ? readFileSync(logPath, 'utf8') : '');
 
-async function start() {
+async function start(opts = { aside: arg('aside', ''), level: arg('level', 'gridmap_v2') }) {
   if (running()) throw new Error('BeamNG.drive is already running: stop it first');
   if (existsSync(stateFile)) throw new Error(`${stateFile} is still there: run stop first`);
   if (existsSync(backup) && readdirSync(backup).length) throw new Error(`${backup} still holds mods from a run that didn't finish`);
@@ -56,16 +57,16 @@ async function start() {
   };
   for (const name of ['jbeam_forge.zip', 'jbeam_forge_ingame.zip']) if (existsSync(join(mods, name))) aside(join(mods, name));
   for (const dir of readdirSync(join(mods, 'unpacked'))) if (/^jbeam_forge($|_ingame$)/i.test(dir)) aside(join(mods, 'unpacked', dir));
-  for (const v of arg('aside', '') ? arg('aside').split(',') : []) {
+  for (const v of opts.aside ? opts.aside.split(',') : []) {
     for (const dir of readdirSync(join(mods, 'unpacked'))) if (existsSync(join(mods, 'unpacked', dir, 'vehicles', v))) aside(join(mods, 'unpacked', dir));
     for (const f of readdirSync(mods)) if (f.toLowerCase() === `${v.toLowerCase()}.zip`) aside(join(mods, f));
   }
   cpSync(resolve(ROOT, 'release', 'jbeam_forge_ingame.zip'), join(mods, 'jbeam_forge_ingame.zip'));
   const vehiclesDir = join(user, 'vehicles');
   const before = existsSync(vehiclesDir) ? readdirSync(vehiclesDir) : [];
-  writeFileSync(stateFile, JSON.stringify({ moved, before }));
+  writeFileSync(stateFile, JSON.stringify({ moved, before, opts }));
   for (const f of ['queue.json', 'queue-done.json', 'quit.json', 'selftest-result.json']) rmSync(join(store, f), { force: true });
-  writeFileSync(join(store, 'selftest.json'), JSON.stringify({ level: arg('level', 'gridmap_v2'), steps: [], serve: true }));
+  writeFileSync(join(store, 'selftest.json'), JSON.stringify({ level: opts.level, steps: [], serve: true }));
   say('starting BeamNG.drive');
   spawn(join(install, 'Bin64', EXE), [], { cwd: install, detached: true, stdio: 'ignore' }).unref();
   // Ready once the map has loaded.
@@ -83,6 +84,14 @@ async function start() {
 async function run() {
   if (!running() || !existsSync(stateFile)) throw new Error('no session: run start first');
   const src = resolve(arg('vehicle-mod'));
+  // The game's log stops taking lines at 15000 (a car is some 700): a fresh game before that.
+  const count = !arg('vehicles') || arg('vehicles') === 'all' ? readdirSync(join(src, 'vehicles')).length : arg('vehicles').split(',').length;
+  if (readLog().split(/\r?\n/).length + count * 700 > LOG_ROOM) {
+    say('the log of the game is nearly full: restarting the game');
+    const { opts } = JSON.parse(readFileSync(stateFile, 'utf8'));
+    await stop();
+    await start(opts);
+  }
   rmSync(batchDir, { recursive: true, force: true });
   cpSync(src, batchDir, { recursive: true });
   const all = readdirSync(join(src, 'vehicles')).filter((d) => statSync(join(src, 'vehicles', d)).isDirectory());
@@ -118,7 +127,7 @@ async function run() {
   const cars = carsFromLog(lines);
   const out = resolve(ROOT, 'artifacts', 'game-session', new Date().toISOString().replace(/[:.]/g, '-'));
   mkdirSync(out, { recursive: true });
-  writeFileSync(join(out, 'beamng.log'), lines.join('\n'));
+  writeFileSync(join(out, 'beamng.log'), lines.filter((l) => !l.includes('self-test: flush')).join('\n'));
   writeFileSync(join(out, 'summary.json'), JSON.stringify({ cars }, null, 2));
   printCars(cars, say);
   say(`results in ${out}`);

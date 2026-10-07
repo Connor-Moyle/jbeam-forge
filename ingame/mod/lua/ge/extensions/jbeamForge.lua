@@ -668,8 +668,11 @@ function M.onUpdate(dtReal)
         selftest.vi = nil
         log('I', logTag, 'self-test: batch done')
         if selftest.serve then
-          -- The game writes its log a block at a time: enough lines after the last car's to push them out to the file.
-          for _ = 1, 3000 do log('D', logTag, 'self-test: flush ' .. string.rep('.', 100)) end
+          -- One of the game's own cars while waiting, so the batch's files can be swapped for the next.
+          pcall(function() core_vehicles.replaceVehicle('pickup', {}) end)
+          -- The game writes its log a block at a time: a few long lines after the last car's push them out to the
+          -- file (few, because the log stops taking lines at 15000).
+          for _ = 1, 16 do log('D', logTag, 'self-test: flush ' .. string.rep('.', 65536)) end
           jsonWriteFile(STORE .. 'queue-done.json', {id = selftest.queueId}, false)
         end
       end
