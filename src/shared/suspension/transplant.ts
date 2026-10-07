@@ -524,8 +524,16 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
         // is then zero length, and two beams the same ("zero size beam", "duplicated beam").
         const seen = new Set<string>();
         const n = section === 'beams' ? 2 : 3;
+        // A point of the old car's frame: not the set's own, and not the gearbox's.
+        const ofFrame = (id: JbeamValue | undefined) => typeof id === 'string' && !own.has(id) && !input.linkedNodes?.[id] && input.anchors[id] !== undefined;
         part[section] = (renameStrings(value, nodeIds) as JbeamValue[]).filter((row, i) => {
           if (i === 0 || !Array.isArray(row) || row.slice(0, n).some((c) => typeof c !== 'string')) return true;
+          // A beam from one point of the old car's frame to another (an engine's mount brackets, a
+          // subframe's braces) was part of that frame. Here both its ends are bolted to the new body
+          // on their own, and it can only fight the body: the Bolide's engine brackets broke at
+          // spawn and took the engine with them.
+          const from = value[i];
+          if (section === 'beams' && Array.isArray(from) && ofFrame(from[0]) && ofFrame(from[1])) return false;
           const ids = row.slice(0, n) as string[];
           if (new Set(ids).size < n) return false;
           const key = [...ids].sort().join('|');

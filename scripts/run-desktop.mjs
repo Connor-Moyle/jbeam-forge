@@ -2747,6 +2747,56 @@ const scenarios = [
     },
   },
   {
+    id: 'model-export',
+    name: 'File → Export Model: the practice car as FBX, OBJ, STL, PLY, glTF and COLLADA through the dialog',
+    async run({ page }) {
+      await page.waitForSelector('[data-testid=app-ready]');
+      if (await page.locator('[data-view=editor]').count()) {
+        await hook(page, 'runCommand', 'close');
+        if (await page.getByTestId('unsaved-discard').isVisible({ timeout: 1500 }).catch(() => false)) await page.getByTestId('unsaved-discard').click();
+      }
+      await page.waitForSelector('[data-view=home][data-testid=app-ready]');
+      await page.getByTestId('home-tour').click();
+      await page.waitForSelector('[data-testid=tour-card]');
+      await page.getByRole('button', { name: 'Skip the tutorial' }).click();
+      for (let i = 0; i < 300 && !((await hook(page, 'sceneStats')).meshes > 40); i++) await page.waitForTimeout(100);
+      const meshes = (await hook(page, 'sceneStats')).meshes;
+      const exportAs = async (label, ext) => {
+        const path = join(outDir, `model-export.${ext}`);
+        await hook(page, 'queueDialog', [path]);
+        await hook(page, 'runCommand', 'exportModel');
+        await page.getByTestId('model-export-dialog').waitFor();
+        await page.getByTestId('model-export-format').click();
+        await page.getByRole('option', { name: label }).click();
+        const summary = await page.getByTestId('model-export-summary').textContent();
+        assert(new RegExp(`^${meshes} meshes`).test(summary ?? ''), `the dialog counts every mesh (${summary})`);
+        if (ext === 'fbx') await shot(page, 'model-export-dialog');
+        await page.getByTestId('model-export-save').click();
+        for (let i = 0; i < 600 && !existsSync(path); i++) await page.waitForTimeout(100);
+        assert(existsSync(path), `wrote ${path}`);
+        await page.getByTestId('model-export-dialog').waitFor({ state: 'detached' });
+        return readFileSync(path);
+      };
+      const fbx = await exportAs('Autodesk FBX (.fbx)', 'fbx');
+      assert(fbx.toString('latin1', 0, 18) === 'Kaydara FBX Binary', 'a binary FBX');
+      assert(fbx.includes(Buffer.from('Hood.hood')) || fbx.includes(Buffer.from('hood')), 'the FBX names its models after the parts');
+      const obj = (await exportAs('Wavefront OBJ (.obj + .mtl)', 'obj')).toString('utf8');
+      assert(/^mtllib model-export\.mtl$/m.test(obj), 'the OBJ names the .mtl saved beside it');
+      assert(existsSync(join(outDir, 'model-export.mtl')), 'the .mtl is written next to the .obj');
+      assert((obj.match(/^o /gm) ?? []).length === meshes, `an object for each mesh (${(obj.match(/^o /gm) ?? []).length} of ${meshes})`);
+      const stl = await exportAs('STL (.stl)', 'stl');
+      assert(stl.length === 84 + stl.readUInt32LE(80) * 50 && stl.readUInt32LE(80) > 1000, `a binary STL of ${stl.readUInt32LE(80)} triangles`);
+      const ply = await exportAs('Stanford PLY (.ply)', 'ply');
+      assert(ply.toString('latin1', 0, 3) === 'ply', 'a PLY');
+      const gltf = JSON.parse((await exportAs('glTF (.gltf)', 'gltf')).toString('utf8'));
+      assert(gltf.asset?.version === '2.0' && gltf.meshes.length >= meshes, `glTF text with ${gltf.meshes.length} meshes`);
+      const glb = await exportAs('glTF binary (.glb)', 'glb');
+      assert(glb.toString('latin1', 0, 4) === 'glTF', 'a binary glTF');
+      const dae = (await exportAs('COLLADA (.dae)', 'dae')).toString('utf8');
+      assert(dae.includes('<COLLADA') && dae.includes('Z_UP'), 'a COLLADA file, Z up');
+    },
+  },
+  {
     id: 'export-project',
     name: 'a project file exported as its author would, then read the way the game does (--export-project=<path>)',
     skip: () => !exportProject,

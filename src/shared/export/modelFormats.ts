@@ -359,7 +359,9 @@ export function writeFbx(scene: ModelScene, now = new Date()): Uint8Array {
     const mid = id();
     models++;
     objects.push(fbxGeometry(gid, m));
-    objects.push(node('Model', [L(mid), S(`${safe(m.group)}.${safe(m.name)}\x00\x01Model`), S('Mesh')], [node('Version', [I(232)]), node('Properties70', [], [P('DefaultAttributeIndex', 'int', 'Integer', '', I(0))]), node('Shading', [{ t: 'C', v: 1 }]), node('Culling', [S('CullingOff')])]));
+    // Named part.mesh; a mesh not yet in a part keeps its own name alone.
+    const label = m.group && m.group !== 'Unassigned' ? `${safe(m.group)}.${safe(m.name)}` : safe(m.name);
+    objects.push(node('Model', [L(mid), S(`${label}\x00\x01Model`), S('Mesh')], [node('Version', [I(232)]), node('Properties70', [], [P('DefaultAttributeIndex', 'int', 'Integer', '', I(0))]), node('Shading', [{ t: 'C', v: 1 }]), node('Culling', [S('CullingOff')])]));
     links.push(node('C', [S('OO'), L(mid), L(0)]), node('C', [S('OO'), L(gid), L(mid)]));
     // In the order the mesh numbers them: that is what its material indices count in.
     for (const name of m.materials) if (materialIds.has(name)) links.push(node('C', [S('OO'), L(materialIds.get(name)!), L(mid)]));
