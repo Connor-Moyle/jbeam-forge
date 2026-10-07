@@ -582,7 +582,7 @@ end
 local function startSelftest()
   if not selftest and FS:fileExists(STORE .. 'selftest.json') then
     local plan = jsonReadFile(STORE .. 'selftest.json') or {}
-    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles, measure = plan.measure, drive = plan.drive, measured = {}}
+    selftest = {stage = 'menu', t = 0, level = plan.level or 'gridmap_v2', steps = plan.steps or {}, vehicle = plan.vehicle, config = plan.config, vehicles = plan.vehicles, measure = plan.measure, drive = plan.drive, serve = plan.serve, measured = {}}
     log('I', logTag, 'self-test: starting')
   end
 end
@@ -633,7 +633,7 @@ function M.onUpdate(dtReal)
         measure = nil
       end
     end
-  elseif selftest.stage == 'drive' and selftest.vehicles and (selftest.vi or 0) < #selftest.vehicles then
+  elseif selftest.stage == 'drive' and selftest.vehicles then
     -- A batch of cars, one after another: each gets a while to load and settle (its log lines are what count).
     if selftest.vi and not selftest.diagnosed and selftest.t > 10 then
       selftest.diagnosed = true
@@ -658,9 +658,42 @@ function M.onUpdate(dtReal)
       selftest.vi = (selftest.vi or 0) + 1
       local v = selftest.vehicles[selftest.vi]
       selftest.t = 0
-      log('I', logTag, 'self-test: spawning ' .. tostring(v.vehicle) .. ' ' .. tostring(v.config or ''))
-      local done, err = pcall(function() core_vehicles.replaceVehicle(v.vehicle, v.config and {config = v.config} or {}) end)
-      if not done then log('E', logTag, 'self-test: could not spawn ' .. tostring(v.vehicle) .. ': ' .. tostring(err)) end
+      if v then
+        log('I', logTag, 'self-test: spawning ' .. tostring(v.vehicle) .. ' ' .. tostring(v.config or ''))
+        local done, err = pcall(function() core_vehicles.replaceVehicle(v.vehicle, v.config and {config = v.config} or {}) end)
+        if not done then log('E', logTag, 'self-test: could not spawn ' .. tostring(v.vehicle) .. ': ' .. tostring(err)) end
+      else
+        -- The batch is through (the last car had its full turn too).
+        selftest.vehicles = nil
+        selftest.vi = nil
+        log('I', logTag, 'self-test: batch done')
+        if selftest.serve then
+          -- The game writes its log a block at a time: enough lines after the last car's to push them out to the file.
+          for _ = 1, 3000 do log('D', logTag, 'self-test: flush ' .. string.rep('.', 100)) end
+          jsonWriteFile(STORE .. 'queue-done.json', {id = selftest.queueId}, false)
+        end
+      end
+    end
+  elseif selftest.stage == 'drive' and selftest.serve then
+    -- Kept open for the next batch: a test run drops queue.json here (the mods are already in
+    -- place), the game picks up the new files, and the cars go through as above.
+    if selftest.t > 1 then
+      selftest.t = 0
+      if FS:fileExists(STORE .. 'queue.json') then
+        local q = jsonReadFile(STORE .. 'queue.json') or {}
+        FS:removeFile(STORE .. 'queue.json')
+        if core_modmanager and core_modmanager.initDB then core_modmanager.initDB() end
+        selftest.vehicles = q.vehicles or {}
+        selftest.drive = q.drive
+        selftest.queueId = q.id
+        selftest.vi = nil
+        log('I', logTag, 'self-test: batch ' .. tostring(q.id) .. ' with ' .. tostring(#selftest.vehicles) .. ' cars')
+      elseif FS:fileExists(STORE .. 'quit.json') then
+        FS:removeFile(STORE .. 'quit.json')
+        selftest = nil
+        log('I', logTag, 'self-test: serving stopped')
+        return
+      end
     end
   elseif selftest.stage == 'drive' and selftest.t > 8 and selftest.vehicle and not selftest.spawned then
     -- The car under test (a mod's vehicle), in place of the map's own.

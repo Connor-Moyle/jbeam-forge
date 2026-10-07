@@ -16,6 +16,7 @@ import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, r
 import { spawn, spawnSync } from 'node:child_process';
 import { basename, join, resolve } from 'node:path';
 import yauzl from 'yauzl';
+import { carsFromLog, printCars } from './game-log-cars.mjs';
 
 const arg = (name, fallback) => process.argv.find((a) => a.startsWith(`--${name}=`))?.slice(name.length + 3) ?? fallback;
 const ROOT = resolve(import.meta.dirname, '..', '..');
@@ -207,46 +208,8 @@ async function main() {
     };
     // A batch: each car's lines, from its spawn to the next.
     if (batch) {
-      const marks = lines.map((l, i) => [i, /self-test: (?:spawning|measuring) (\S+)/.exec(l)?.[1]]).filter(([, v]) => v);
-      summary.cars = marks.map(([at, v], k) => {
-        const seg = lines.slice(at, marks[k + 1]?.[0] ?? lines.length);
-        const has = (re) => seg.filter((l) => re.test(l));
-        return {
-          vehicle: v,
-          spawned: has(/spawning vehicle \/vehicles\//).length > 0,
-          instability: has(/Instability detected/).length,
-          noController: has(/No main controller found/).length > 0,
-          linkErrors: has(/link target not found/).length,
-          flexbodyErrors: has(/FLEXBODY ERROR/).length,
-          missingMeshes: [...new Set(has(/Mesh '.*' not found/).map((l) => /Mesh '(.*)' not found/.exec(l)[1]))],
-          zeroBeams: has(/zero size beam/).length,
-          duplicatedBeams: has(/duplicated beam/).length,
-          missingMaterials: [...new Set(has(/NO-MATERIAL/).map((l) => /mapping to: (\S+)/.exec(l)?.[1]))],
-          luaErrors: has(/expressionParser|attempt to|stack traceback/).length,
-          drove: (() => {
-            const line = has(/self-test: drive /)[0];
-            try {
-              return line ? JSON.parse(line.slice(line.indexOf('{'))) : null;
-            } catch {
-              return null;
-            }
-          })(),
-          // What came apart, from the self-test's probe: broken beams and the most strained ones.
-          diagnose: (() => {
-            const line = has(/self-test: diagnose /)[0];
-            try {
-              return line ? JSON.parse(line.slice(line.indexOf('{'))) : null;
-            } catch {
-              return null;
-            }
-          })(),
-          errors: has(/\|E\|/).slice(0, 30),
-        };
-      });
-      for (const c of summary.cars) say(`${c.vehicle}: ${c.spawned ? 'spawned' : 'NOT spawned'} · instability ${c.instability} · controller ${c.noController ? 'MISSING' : 'ok'} · links ${c.linkErrors} · flexbody ${c.flexbodyErrors} · meshes ${c.missingMeshes.length} · materials ${c.missingMaterials.length} · zero beams ${c.zeroBeams} · dup beams ${c.duplicatedBeams} · lua ${c.luaErrors}${c.diagnose ? ` · broken ${c.diagnose.broken}/${c.diagnose.beams}` : ''}`);
-      for (const c of summary.cars) if (c.drove) say(`  ${c.vehicle} drive: ${JSON.stringify(c.drove)}`);
-      for (const c of summary.cars) if (c.diagnose?.broken) say(`  ${c.vehicle} broken at spawn: ${Object.entries(c.diagnose.brokenByPart ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([p, n]) => `${p.replace(/^forge_[a-z0-9]+_/, '')} ${n}`).join(', ')}`);
-      for (const c of summary.cars) if (c.instability && c.diagnose?.worst) say(`  ${c.vehicle} most strained: ${c.diagnose.worst.slice(0, 6).map(([a, b, s, part]) => `${a}-${b} ${s} (${String(part ?? '').replace(/^forge_[a-z0-9]+_/, '')})`).join(', ')}`);
+      summary.cars = carsFromLog(lines);
+      printCars(summary.cars, say);
     }
     if (measure) {
       const store2 = join(store, 'selftest-measured.json');
