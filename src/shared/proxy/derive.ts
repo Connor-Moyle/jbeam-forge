@@ -1,6 +1,7 @@
 import type { StructBeam, StructNode, StructTri } from '../project/schema';
 import type { PositionAxis } from '../taxonomy/schema';
 import { edges, type ProxyMesh } from './mesh';
+import { principalAxes as cloudAxes } from './shapes';
 import { ATTACHMENT_VALUES, BEAM_PRESET_VALUES, type AttachmentStyle, type BeamPresetId, type BracingDensity } from './presets';
 
 /**
@@ -165,6 +166,67 @@ export interface DeriveInput {
   bracing: BracingDensity;
   /** Node ids used by other parts (vehicle-wide uniqueness). */
   taken?: ReadonlySet<string>;
+  /**
+   * Give a thin panel stiffener nodes on its inner side (towards this point, the middle of the car).
+   * Left out, the part is built from its skin alone.
+   */
+  stiffenTowards?: readonly [number, number, number];
+}
+
+/** How many skin nodes each stiffener is tied to (the game's reach most of a panel: 8 to 12). */
+const STIFFENER_LINKS = 10;
+/** A panel shallower than this share of its width, and than PANEL_DEPTH, is a thin one. */
+const PANEL_FLATNESS = 0.3;
+const PANEL_DEPTH = 0.2;
+/** Smaller than this across and it's trim, not a panel that needs holding flat. */
+const PANEL_MIN_WIDTH = 0.3;
+
+/**
+ * Where a thin panel's stiffener nodes go. The game's bonnets, boot lids and doors are a grid of
+ * nodes on the skin with one or two more some 15–20 cm inside, tied to the skin all round: that
+ * depth is what stops the panel bending (a Pessima bonnet is 0.24 m deep, node to node). A panel
+ * built from its skin alone was 0.08 m deep and sagged into the engine bay under its own weight.
+ * Returns none for a part with depth of its own.
+ */
+export function stiffenerPositions(positions: ArrayLike<number>, towards: readonly [number, number, number]): [number, number, number][] {
+  const n = positions.length / 3;
+  if (n < 6) return [];
+  const { center, axes } = cloudAxes(positions);
+  const span = axes.map((a) => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let v = 0; v < n; v++) {
+      const d = (positions[v * 3]! - center[0]) * a[0] + (positions[v * 3 + 1]! - center[1]) * a[1] + (positions[v * 3 + 2]! - center[2]) * a[2];
+      lo = Math.min(lo, d);
+      hi = Math.max(hi, d);
+    }
+    return { lo, hi, size: hi - lo };
+  });
+  const [along, across, depth] = span as [(typeof span)[0], (typeof span)[0], (typeof span)[0]];
+  if (across.size < PANEL_MIN_WIDTH || depth.size > PANEL_DEPTH || depth.size > PANEL_FLATNESS * across.size) return [];
+  // Inwards: the side of the panel the middle of the car is on.
+  const normal = axes[2]!;
+  const side = (towards[0] - center[0]) * normal[0] + (towards[1] - center[1]) * normal[1] + (towards[2] - center[2]) * normal[2] >= 0 ? 1 : -1;
+  const reach = Math.min(0.2, Math.max(0.1, 0.16 * across.size));
+  // One under the middle; a long panel gets two, a quarter of its length either side of it.
+  const mid = (along.lo + along.hi) / 2;
+  const stations = along.size > 0.9 ? [mid - along.size * 0.22, mid + along.size * 0.22] : [mid];
+  const midAcross = (across.lo + across.hi) / 2;
+  const inward = side * ((side > 0 ? depth.hi : -depth.lo) + reach);
+  // A panel across the car's centre line has its stiffeners on it, or in a pair either side.
+  const out = stations.map((s) => [0, 1, 2].map((k) => center[k]! + axes[0]![k]! * s + axes[1]![k]! * midAcross + normal[k]! * inward) as [number, number, number]).map(([x, y, z]): [number, number, number] => [Math.abs(x) < 0.03 ? 0 : x, y, z]);
+  // Two either side of the centre line are made an exact pair, as the skin's nodes are.
+  const [a, b] = out;
+  if (a && b && Math.abs(a[0] + b[0]) < 0.03 && Math.abs(a[1] - b[1]) < 0.03 && Math.abs(a[2] - b[2]) < 0.03) {
+    const x = (Math.abs(a[0]) + Math.abs(b[0])) / 2;
+    const y = (a[1] + b[1]) / 2;
+    const z = (a[2] + b[2]) / 2;
+    return [
+      [Math.sign(a[0]) * x, y, z],
+      [Math.sign(b[0]) * x, y, z],
+    ];
+  }
+  return out;
 }
 
 export interface DerivedStructure {
@@ -178,7 +240,8 @@ export function deriveStructure(input: DeriveInput): DerivedStructure {
   const { mesh, partId } = input;
   const ids = nameNodes(mesh.positions, input.prefix, input.taken);
   const n = ids.length;
-  const weight = n ? input.massKg / n : 0;
+  const stiffeners = input.stiffenTowards ? stiffenerPositions(mesh.positions, input.stiffenTowards) : [];
+  const weight = n ? input.massKg / (n + stiffeners.length) : 0;
   const warnings: string[] = [];
   if (n && weight < LIGHT_NODE_KG) warnings.push(`Nodes weigh ${weight.toFixed(2)} kg each (below ${LIGHT_NODE_KG} kg): raise the part's mass or lower its detail.`);
   const round = (v: number) => Math.round(v * 1e4) / 1e4 || 0; // no -0
@@ -186,6 +249,25 @@ export function deriveStructure(input: DeriveInput): DerivedStructure {
   const beams: StructBeam[] = [...edges(mesh).map(([a, b]) => ({ id1: ids[a]!, id2: ids[b]!, partId, kind: 'edge' as const })), ...braces(mesh, input.bracing).map(([a, b]) => ({ id1: ids[a]!, id2: ids[b]!, partId, kind: 'brace' as const }))];
   const tris: StructTri[] = [];
   for (let t = 0; t < mesh.index.length; t += 3) tris.push({ ids: [ids[mesh.index[t]!]!, ids[mesh.index[t + 1]!]!, ids[mesh.index[t + 2]!]!], partId });
+  // Stiffeners: inside the panel, out of the way of collisions (as the game's are), each tied to the
+  // skin nodes round it and to the next stiffener.
+  const used = new Set([...ids, ...(input.taken ?? [])]);
+  const added: StructNode[] = [];
+  for (const at of stiffeners) {
+    // On the centre line it has no side; off it, it takes its side's letter like any other node.
+    const tail = Math.abs(at[0]) < 1e-3 ? '' : at[0] > 0 ? 'l' : 'r';
+    let k = 1;
+    // A pair either side of the centre line shares its number (hs1l, hs1r), like every other pair.
+    while (used.has(`${input.prefix}s${k}${tail}`)) k++;
+    const id = `${input.prefix}s${k}${tail}`;
+    used.add(id);
+    const node: StructNode = { id, partId, pos: [round(at[0]), round(at[1]), round(at[2])], weight: Math.round(weight * 1000) / 1000 || 0.001, options: { collision: false, selfCollision: false } };
+    const near = nodes.map((m) => ({ id: m.id, d: Math.hypot(m.pos[0] - at[0], m.pos[1] - at[1], m.pos[2] - at[2]) })).sort((a, b) => a.d - b.d);
+    for (const m of near.slice(0, STIFFENER_LINKS)) beams.push({ id1: id, id2: m.id, partId, kind: 'brace' });
+    for (const other of added) beams.push({ id1: other.id, id2: id, partId, kind: 'brace' });
+    added.push(node);
+  }
+  nodes.push(...added);
   return { nodes, beams, tris, warnings };
 }
 

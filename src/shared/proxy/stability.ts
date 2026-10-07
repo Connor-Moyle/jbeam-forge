@@ -13,8 +13,14 @@
  */
 
 export const PHYSICS_DT = 1 / 2000;
-/** √(Σk/m)·Δt a node may reach. The explicit step diverges near √2 (Gershgorin); this keeps a margin. */
-export const SAFE_RATIO = 1.25;
+/**
+ * √(Σk/m)·Δt a node may reach. Measured over every node of the game's own cars (50,000 of them,
+ * scripts/dev/calibrate-stability.mts): half sit above 1.33, a tenth above 1.79, one in a hundred
+ * above 2.11, and they are stable (a node's beams pull in different directions, so their springs
+ * don't simply add). This is the game's ninetieth percentile. It was 1.25, below the game's median,
+ * which softened a body's beams to a sixth of a real car's.
+ */
+export const SAFE_RATIO = 1.75;
 /** Σc/m·Δt a node may reach (diverges at 2). */
 export const SAFE_DAMP = 0.9;
 /** A beam is softened at most this far before its nodes get weight instead. */

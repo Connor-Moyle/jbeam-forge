@@ -189,3 +189,122 @@ export function orientOutward(m: ProxyMesh): ProxyMesh {
   }
   return { positions: m.positions, index: idx, extraEdges: m.extraEdges };
 }
+
+/**
+ * Open sheets (a thin panel brought down to one layer) have no inside to tell their faces by: each
+ * connected sheet is turned so its faces look away from `from`, the middle of the car. Closed
+ * shells are left as orientOutward made them.
+ */
+export function orientOpenAway(m: ProxyMesh, from: readonly [number, number, number]): ProxyMesh {
+  const tris = m.index.length / 3;
+  const idx = Uint32Array.from(m.index);
+  const p = m.positions;
+  const key = (a: number, b: number) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+  const edgeTris = new Map<string, number[]>();
+  for (let t = 0; t < tris; t++)
+    for (let k = 0; k < 3; k++) {
+      const kk = key(idx[t * 3 + k]!, idx[t * 3 + ((k + 1) % 3)]!);
+      const list = edgeTris.get(kk);
+      if (list) list.push(t);
+      else edgeTris.set(kk, [t]);
+    }
+  const seen = new Uint8Array(tris);
+  for (let s = 0; s < tris; s++) {
+    if (seen[s]) continue;
+    const comp: number[] = [];
+    const queue = [s];
+    seen[s] = 1;
+    let open = false;
+    while (queue.length) {
+      const t = queue.pop()!;
+      comp.push(t);
+      for (let k = 0; k < 3; k++) {
+        const list = edgeTris.get(key(idx[t * 3 + k]!, idx[t * 3 + ((k + 1) % 3)]!)) ?? [];
+        if (list.length < 2) open = true;
+        for (const u of list)
+          if (!seen[u]) {
+            seen[u] = 1;
+            queue.push(u);
+          }
+      }
+    }
+    if (!open) continue;
+    let facing = 0;
+    for (const t of comp) {
+      const [a, b, c] = [idx[t * 3]! * 3, idx[t * 3 + 1]! * 3, idx[t * 3 + 2]! * 3];
+      const ux = p[b]! - p[a]!;
+      const uy = p[b + 1]! - p[a + 1]!;
+      const uz = p[b + 2]! - p[a + 2]!;
+      const vx = p[c]! - p[a]!;
+      const vy = p[c + 1]! - p[a + 1]!;
+      const vz = p[c + 2]! - p[a + 2]!;
+      // The face's normal (its length is twice its area, so big faces count for more) against the way out.
+      facing += (uy * vz - uz * vy) * ((p[a]! + p[b]! + p[c]!) / 3 - from[0]) + (uz * vx - ux * vz) * ((p[a + 1]! + p[b + 1]! + p[c + 1]!) / 3 - from[1]) + (ux * vy - uy * vx) * ((p[a + 2]! + p[b + 2]! + p[c + 2]!) / 3 - from[2]);
+    }
+    if (facing < 0)
+      for (const t of comp) {
+        const x = idx[t * 3 + 1]!;
+        idx[t * 3 + 1] = idx[t * 3 + 2]!;
+        idx[t * 3 + 2] = x;
+      }
+  }
+  return { positions: m.positions, index: idx, extraEdges: m.extraEdges };
+}
+
+/**
+ * Merge every group of vertices closer together than `minDistance`, joined by an edge or not, into
+ * one at their middle, until none are left. Collapsing short edges alone leaves pairs that no edge
+ * joins (the two faces of a thin part, the ring round the end of a long one): a side skirt kept
+ * nodes 4 mm apart, and a mesh hung on nodes that close tears into spikes at the first movement.
+ */
+export function mergeClose(m: ProxyMesh, minDistance: number): ProxyMesh {
+  let out = m;
+  for (let pass = 0; pass < 6; pass++) {
+    const n = vertexCount(out);
+    const p = out.positions;
+    const parent = Array.from({ length: n }, (_, i) => i);
+    const find = (x: number): number => {
+      while (parent[x] !== x) {
+        parent[x] = parent[parent[x]!]!;
+        x = parent[x]!;
+      }
+      return x;
+    };
+    let merged = 0;
+    const taken = new Uint8Array(n);
+    for (let a = 0; a < n; a++) {
+      if (taken[a]) continue;
+      for (let b = a + 1; b < n; b++) {
+        if (taken[b]) continue;
+        if (Math.hypot(p[a * 3]! - p[b * 3]!, p[a * 3 + 1]! - p[b * 3 + 1]!, p[a * 3 + 2]! - p[b * 3 + 2]!) >= minDistance) continue;
+        // One merge per vertex per pass, so a chain of close vertices doesn't all fall into one.
+        parent[find(b)] = find(a);
+        taken[a] = 1;
+        taken[b] = 1;
+        merged++;
+        break;
+      }
+    }
+    if (!merged) break;
+    const pos = Float32Array.from(p);
+    const sum = new Map<number, [number, number, number, number]>();
+    for (let v = 0; v < n; v++) {
+      const r = find(v);
+      const s = sum.get(r) ?? [0, 0, 0, 0];
+      s[0] += p[v * 3]!;
+      s[1] += p[v * 3 + 1]!;
+      s[2] += p[v * 3 + 2]!;
+      s[3]++;
+      sum.set(r, s);
+    }
+    for (const [r, s] of sum) {
+      pos[r * 3] = s[0] / s[3];
+      pos[r * 3 + 1] = s[1] / s[3];
+      pos[r * 3 + 2] = s[2] / s[3];
+    }
+    const idx: number[] = [];
+    for (let t = 0; t < out.index.length; t += 3) idx.push(find(out.index[t]!), find(out.index[t + 1]!), find(out.index[t + 2]!));
+    out = removeDegenerate(compact(pos, idx), 0);
+  }
+  return out;
+}

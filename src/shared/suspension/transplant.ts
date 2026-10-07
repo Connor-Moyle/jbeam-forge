@@ -289,6 +289,12 @@ function renameStrings(value: JbeamValue, map: ReadonlyMap<string, string>): Jbe
   return value;
 }
 
+/**
+ * The hub nodes the game's wheel parts state: front or rear, side, and the outer one doubled (fw1r,
+ * fw1rr, rw1l, rw1ll). Not rw2r, rw3r and the like: those are a suspension's own (the Covet's trailing arms).
+ */
+const HUB_NODE = /^[fr]w1(?:l{1,2}|r{1,2})$/i;
+
 export function transplantSuspension(input: TransplantInput): TransplantResult {
   const warnings: string[] = [];
   const partNames = new Map(Object.keys(input.parts).map((n) => [n, `${input.partPrefix}${n}`]));
@@ -299,10 +305,24 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
 
   const nodeIds = new Map<string, string>();
   const own = new Set<string>();
+  // The hub nodes a wheel is built on (fw1r, fw1rr, rw1l…) keep their names when the set takes the
+  // game's wheel parts: those parts state the same nodes again, by these names, to set the wheel's
+  // offset. Renamed, an older car's set (the Covet's, the 200BX's) had two hubs a side, its arms on
+  // one and the wheel between the two, and the wheel broke off at spawn.
+  const takesWheelParts = Object.values(input.parts).some((p) =>
+    (['slots', 'slots2'] as const).some((key) => {
+      const t = p[key];
+      if (!Array.isArray(t) || !Array.isArray(t[0])) return false;
+      const h = t[0].map(String);
+      const col = h.includes('name') ? h.indexOf('name') : h.indexOf('type');
+      return t.slice(1).some((row) => Array.isArray(row) && typeof row[col] === 'string' && /^wheel_[FR](?:_|$)/i.test(row[col]));
+    }),
+  );
   for (const body of Object.values(input.parts))
     for (const id of definedNodes(body).keys()) {
-      nodeIds.set(id, `${input.nodePrefix}${id}`);
       own.add(id);
+      if (takesWheelParts && HUB_NODE.test(id)) continue;
+      nodeIds.set(id, `${input.nodePrefix}${id}`);
     }
   for (const [id, to] of Object.entries(input.linkedNodes ?? {})) if (!nodeIds.has(id)) nodeIds.set(id, to);
   const groups = setGroups(input.parts);
@@ -363,6 +383,9 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     // parts of the set (its options) names the engine block's own nodes, and attaching those gave
     // them the names of body nodes.
     if (input.linkedNodes?.[id] || own.has(id)) continue;
+    // A hub node the wheel part will bring is no part of the old body: made into a mounting point, it
+    // sat at the wheel part's own coordinates (by the car's middle) with the arms beamed to it.
+    if (takesWheelParts && HUB_NODE.test(id)) continue;
     const at = add(pos, input.offset);
     // A light node under stiff beams shakes the car apart: the Barstow gearbox's 20 MN/m beam to its
     // own exhaust landed on the Autobello's 0.4 kg exhaust node. Such nodes are passed over.
@@ -419,6 +442,8 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
   for (const id of input.held ?? []) {
     const at = setPositions.get(id);
     if (!at || !own.has(id)) continue;
+    // Never a hub: what the old body had on it was a bump stop or a limiter, and a bolt would lock the wheel's travel.
+    if (HUB_NODE.test(id)) continue;
     const p = add(at, input.offset);
     const ranked = input.target
       .filter((t) => t.structural !== false)

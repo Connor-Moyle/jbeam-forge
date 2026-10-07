@@ -147,7 +147,8 @@ describe('jbeam export', () => {
     const pos = new Map(doc.nodes.map((n) => [n.id, n.pos]));
     const lifting = rows.filter((r) => r.inlineOptions?.liftCoef !== undefined);
     expect(lifting.length).toBeGreaterThan(0);
-    expect(lifting.length).toBeLessThan(rows.length);
+    // A thin wing is one layer of faces, all looking up (as the game's wings are): every one lifts.
+    expect(lifting.length).toBeLessThanOrEqual(rows.length);
     expect(lifting.every((r) => r.inlineOptions.liftCoef === '$=70*$test_wing_downforce' && r.inlineOptions.stallAngle === 0.24)).toBe(true);
     // Lifting faces are the top: right-hand normals pointing up.
     for (const r of lifting) {

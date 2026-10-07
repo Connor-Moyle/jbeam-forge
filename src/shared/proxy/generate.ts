@@ -2,6 +2,7 @@ import type { Part, PartProxy, Project, StructNode } from '../project/schema';
 import type { TaxonomyEntry } from '../taxonomy/schema';
 import { materialDefaults } from '../parts/materials';
 import { bindable, buildProxy } from './build';
+import { orientOpenAway } from './quality';
 import type { ProxyMesh } from './mesh';
 import { attachToParent, deriveStructure, FAR_FROM_PARENT, parentGap, placeRefNodes, positionTag, predictStability, presetSprings, type StabilityReport } from './derive';
 import { BEAM_PRESET_VALUES, kindDefaults, targetVertices } from './presets';
@@ -96,6 +97,36 @@ export function partRole(entry: TaxonomyEntry, settings: PartProxy): 'own' | 'ri
   return settings.role ?? kindDefaults(entry).role;
 }
 
+/** Panels and trim that are held flat by stiffener nodes when they come out thin (glass and mechanical parts aren't). */
+const STIFFENED: ReadonlySet<string> = new Set(['panel_metal', 'panel_plastic', 'trim_light', 'structure_stiff']);
+
+/**
+ * The middle of the car, low down: a panel's inner side is the one facing it. From the body's
+ * structure when there is one (regenerating a single part gives only that part's shape), else from
+ * every node there is, else from the shapes being generated.
+ */
+function carMiddle(doc: Doc, tax: TaxonomyLookup, geometries: readonly PartGeometry[]): [number, number, number] {
+  let yLo = Infinity;
+  let yHi = -Infinity;
+  let zLo = Infinity;
+  let zHi = -Infinity;
+  const take = (y: number, z: number) => {
+    yLo = Math.min(yLo, y);
+    yHi = Math.max(yHi, y);
+    zLo = Math.min(zLo, z);
+    zHi = Math.max(zHi, z);
+  };
+  const body = doc.parts.find((p) => tax.entry(p.taxonomyId)?.parent === null && !p.variantOf);
+  const bodyNodes = body ? doc.nodes.filter((n) => n.partId === body.id) : [];
+  for (const n of bodyNodes.length ? bodyNodes : doc.nodes) take(n.pos[1], n.pos[2]);
+  // Shapes too when they are the whole car (a first generation), or there is no structure yet.
+  if (geometries.length > 3 || !Number.isFinite(yLo))
+    for (const g of geometries) {
+      const p = g.mesh.positions;
+      for (let v = 0; v < p.length; v += 3) take(p[v + 1]!, p[v + 2]!);
+    }
+  return Number.isFinite(yLo) ? [0, (yLo + yHi) / 2, zLo + (zHi - zLo) * 0.4] : [0, 0, 0.5];
+}
 export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: readonly PartGeometry[]): GenerateResult {
   const geomById = new Map(geometries.map((g) => [g.partId, g.mesh]));
   const reports: PartReport[] = [];
@@ -110,6 +141,7 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
   };
   const springs = presetSprings(presetOf, attachmentOf);
   const regenerated = new Set<string>();
+  const middle = carMiddle(doc, tax, geometries);
 
   for (const partId of topological(doc.parts, [...geomById.keys()])) {
     const part = byId.get(partId);
@@ -154,7 +186,9 @@ export function generateStructure(doc: Doc, tax: TaxonomyLookup, geometries: rea
     const manual = doc.nodes.filter((n) => n.partId === partId && n.manual);
     const slot = slotOf(doc.parts, partId);
     const taken = new Set(doc.nodes.filter((n) => slotOf(doc.parts, n.partId) !== slot).map((n) => n.id));
-    const derived = deriveStructure({ partId, mesh: built.mesh, prefix: nodePrefix(part, entry), massKg, bracing: settings.bracing, taken });
+    // A panel left as one layer has its collision faces looking out of the car.
+    built = { ...built, mesh: orientOpenAway(built.mesh, middle) };
+    const derived = deriveStructure({ partId, mesh: built.mesh, prefix: nodePrefix(part, entry), massKg, bracing: settings.bracing, taken, ...(settings.mode !== 'surface' && STIFFENED.has(entry.beamPreset) ? { stiffenTowards: middle } : {}) });
     const adopted = adoptManualNodes(derived, manual);
     doc.nodes.push(...derived.nodes);
     doc.beams.push(...derived.beams);

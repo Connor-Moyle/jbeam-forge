@@ -143,7 +143,8 @@ describe('row properties', () => {
     const out = parts(doc).get('bench_hood')!;
     const nodes = readTable(out.nodes!).records;
     expect(nodes.find((r) => r.values.id === hood[0]!.id)!.options.collision).toBe(false);
-    expect(nodes.filter((r) => r.options.collision === false)).toHaveLength(1);
+    // (The panel's stiffener nodes never collide: they're apart from this.)
+    expect(nodes.filter((r) => r.options.collision === false && !/s\d+[lr]?$/.test(typeof r.values.id === 'string' ? r.values.id : ''))).toHaveLength(1);
     const beams = readTable(out.beams!).records;
     expect(beams.filter((r) => r.options.beamSpring === 1234)).toHaveLength(1);
     const tris = readTable(out.triangles!).records;

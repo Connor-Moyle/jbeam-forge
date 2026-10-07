@@ -1,6 +1,6 @@
 import { faceCount, vertexCount, weldGraph, type ProxyMesh } from './mesh';
-import { collapseShortEdges, orientOutward, removeDegenerate, subdivideLongEdges } from './quality';
-import { convexHull, decimate, fitBox, fitCylinder } from './shapes';
+import { collapseShortEdges, mergeClose, orientOutward, removeDegenerate, subdivideLongEdges } from './quality';
+import { convexHull, decimate, fitBox, fitCylinder, principalAxes } from './shapes';
 import { isMirrorSymmetric, leftHalf, mirrorGraph, mirrorHalf } from './symmetry';
 import { remeshSurface } from './remesh';
 
@@ -94,8 +94,10 @@ function shape(input: ProxyMesh, s: ProxyBuildSettings, target: number): ProxyMe
  */
 function clean(m: ProxyMesh, s: ProxyBuildSettings, target: number, hardCap: number): ProxyMesh {
   let out = removeDegenerate(m);
-  if (s.minEdge > 0) out = collapseShortEdges(out, s.minEdge);
+  if (s.minEdge > 0) out = mergeClose(collapseShortEdges(out, s.minEdge), s.minEdge);
   if (s.maxEdge > 0) out = subdivideLongEdges(out, s.maxEdge, Math.max(vertexCount(out), Math.min(hardCap, target)));
+  // Splitting two faces of a thin part puts a new vertex on each, one over the other: merged again.
+  if (s.minEdge > 0 && s.maxEdge > 0) out = mergeClose(out, s.minEdge);
   return out;
 }
 
@@ -127,7 +129,9 @@ function leftHalfPoints(input: ProxyMesh): ProxyMesh {
  */
 function mirroredHull(input: ProxyMesh, s: ProxyBuildSettings): ProxyMesh | null {
   const target = Math.ceil(s.targetVertices / 2);
-  const half = clean(shape(leftHalfPoints(input), s, target), s, target, Math.ceil((s.maxVertices ?? Infinity) / 2));
+  // Moved in under the skin as a half, so both sides move alike (done after mirroring, a thin panel's
+  // one layer of faces has no inside to go by, and left and right came out a few millimetres different).
+  const half = insetShell(orientOutward(clean(shape(leftHalfPoints(input), s, target), s, target, Math.ceil((s.maxVertices ?? Infinity) / 2))), s.inset);
   const seam = Math.max(s.minEdge / 2, 0.02);
   const pos = Float32Array.from(half.positions);
   let onSeam = 0;
@@ -184,11 +188,33 @@ export function bindable(m: ProxyMesh): boolean {
 }
 
 /** Build a part's proxy from its (BeamNG-space) render geometry. Requires `await meshoptReady` for decimate/hull. */
+/** Faces of a thin panel are closer than this (m); its nodes are kept at least THIN_MIN_EDGE apart. */
+const THIN_DEPTH = 0.12;
+const THIN_MIN_EDGE = 0.09;
+
+function isThin(positions: ArrayLike<number>): boolean {
+  const n = positions.length / 3;
+  if (n < 4) return false;
+  const { center, axes } = principalAxes(positions);
+  const a = axes[2]!;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let v = 0; v < n; v++) {
+    const d = (positions[v * 3]! - center[0]) * a[0] + (positions[v * 3 + 1]! - center[1]) * a[1] + (positions[v * 3 + 2]! - center[2]) * a[2];
+    lo = Math.min(lo, d);
+    hi = Math.max(hi, d);
+  }
+  return hi - lo < THIN_DEPTH;
+}
+
 /** Nodes closer than this (m) are merged: a 1 mm beam can only shake. */
 const WELD_NODES = 0.001;
 
-export function buildProxy(input: ProxyMesh, s: ProxyBuildSettings): ProxyBuildResult {
+export function buildProxy(input: ProxyMesh, settings: ProxyBuildSettings): ProxyBuildResult {
   const started = performance.now();
+  // A thin panel's hull has a node on each face at every edge, a few centimetres apart: one node
+  // does there, and the budget goes on the skin instead.
+  const s = settings.mode === 'hull' && settings.minEdge > 0 && isThin(input.positions) ? { ...settings, minEdge: Math.max(settings.minEdge, THIN_MIN_EDGE) } : settings;
   const symmetric = s.symmetry && (s.mode === 'decimate' || s.mode === 'surface' || s.mode === 'hull') && isMirrorSymmetric(input.positions);
   const hullHalves = symmetric && s.mode === 'hull' ? mirroredHull(input, s) : null;
   const mirrored = symmetric && (s.mode !== 'hull' || !!hullHalves);
@@ -209,6 +235,6 @@ export function buildProxy(input: ProxyMesh, s: ProxyBuildSettings): ProxyBuildR
     mesh = s.mode === 'box' || s.mode === 'cylinder' ? shape(input, s, s.targetVertices) : clean(shape(input, s, s.targetVertices), s, s.targetVertices, s.maxVertices ?? Infinity);
   }
   // Nodes that ended up in one place (the centre seam, inset thin panels) become one node.
-  mesh = weldGraph(insetShell(orientOutward(mesh), s.inset), WELD_NODES);
+  mesh = weldGraph(hullHalves ? orientOutward(mesh) : insetShell(orientOutward(mesh), s.inset), WELD_NODES);
   return { mesh, mirrored, stats: { inputTriangles: input.index.length / 3, vertices: vertexCount(mesh), triangles: faceCount(mesh), ms: performance.now() - started } };
 }

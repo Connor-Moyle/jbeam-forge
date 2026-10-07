@@ -61,6 +61,9 @@ export interface JbeamExportOptions {
   onStability?: (r: { softened: number; addedKg: number; heavier: number }) => void;
 }
 
+/** The share of its weight the car's own engine model keeps once a game engine does the work in its place. */
+const SHELL_WEIGHT = 0.12;
+
 /** How a beam's values were eased so the car holds together at 2000 Hz. */
 interface Softening {
   beams: Map<StructBeam, { k: number; c: number }>;
@@ -603,9 +606,15 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
   };
   const roots = doc.parts.filter((p) => !p.parentPartId || !byId.has(p.parentPartId));
   const bodySlot = body ? slotTypeOf(doc.parts, body) : null;
+  // The car's own engine model with one of the game's engines fitted: the game's engine is the
+  // real one now, in the same place. The model stays as a light shell that collides with nothing,
+  // or two engine blocks would fight for the bay and push the bonnet off. (Lightened here, so the
+  // easing of its beams goes by the weight it will have.)
+  const isShell = (part: Part) => part.taxonomyId === 'engine' && !!engineParts;
   const ownNodes = (part: Part) => {
     const entry = tax.entry(part.taxonomyId);
-    return entry && partRole(entry, partSettings(doc, part, entry)) === 'own' ? doc.nodes.filter((n) => n.partId === part.id) : [];
+    const nodes = entry && partRole(entry, partSettings(doc, part, entry)) === 'own' ? doc.nodes.filter((n) => n.partId === part.id) : [];
+    return isShell(part) ? nodes.map((n) => ({ ...n, weight: Math.max(0.5, Math.round(n.weight * SHELL_WEIGHT * 1000) / 1000), options: { ...n.options, collision: false, selfCollision: false } })) : nodes;
   };
   // With a game suspension on an axle, that axle's own wheels, tyres and brakes ride on the game's wheel:
   // the rim and disc spin with its hub, the tyre with its tyre, the caliper steers with the knuckle.
@@ -678,9 +687,15 @@ export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamEx
     const settings = partSettings(doc, part, entry);
     const preset = materialDefaults(entry, part.constructionMaterial).beamPreset;
     const own = partRole(entry, settings) === 'own';
-    const nodes = own ? ownNodes(part) : [];
+    const shell = isShell(part);
+    // A hinged part's hinge and latch nodes sit on top of nodes of its skin (and the latch's other
+    // half belongs with the body): out of the group its meshes are hung on, or the game builds a
+    // mesh's frame on two nodes no distance apart and the skin there tears into spikes.
+    const helpers = doc.hinges.some((h) => h.partId === part.id) ? hingeIds(doc, part.id) : null;
+    const helperIds = new Set(helpers ? [...helpers.hinge, helpers.latchPart, helpers.latchBody].filter((x): x is string => !!x) : []);
+    const nodes = (own ? ownNodes(part) : []).map((n) => (helperIds.has(n.id) ? { ...n, options: { ...n.options, group: '' } } : n));
     const beams = own ? doc.beams.filter((b) => b.partId === part.id) : [];
-    const tris = own ? doc.tris.filter((t) => t.partId === part.id) : [];
+    const tris = own && !shell ? doc.tris.filter((t) => t.partId === part.id) : [];
     const slotType = slotTypeOf(doc.parts, part);
     const group = nodes.length ? slotType : flexGroupOf(doc, part);
     const groups = !nodes.length ? wheelGroups.get(part.id) : undefined;

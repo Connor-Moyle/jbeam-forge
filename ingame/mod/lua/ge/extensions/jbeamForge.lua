@@ -297,14 +297,16 @@ end
 -- free camera is put where the view asks, by the car's own axes, and the picture is taken a moment
 -- later. Each view: how far forward, to the car's left and up the camera stands from the car.
 local SELFTEST_VIEWS = {
-  ['front-left'] = {5.2, 3.6, 1.7},
-  ['left'] = {0, 7, 0.9},
-  ['top'] = {0.01, 0, 9},
-  ['rear-right'] = {-5.2, -3.6, 1.7},
-  ['front'] = {7, 0, 1.1},
-  ['under-left'] = {1.5, 5, 0.15},
+  ['front-left'] = {3.6, 2.5, 1.4},
+  ['left'] = {0, 4.8, 0.8},
+  ['top'] = {0.01, 0, 6.2},
+  ['rear-right'] = {-3.6, -2.5, 1.4},
+  ['front'] = {4.6, 0, 0.9},
+  ['under-left'] = {1.2, 3.4, 0.12},
+  ['bonnet'] = {3.1, 0.7, 1.9},
+  ['right'] = {0, -4.8, 0.8},
 }
-local SELFTEST_SHOTS = {{7, 'front-left'}, {7.6, 'left'}, {8.2, 'top'}, {8.8, 'rear-right'}, {9.4, 'front'}, {10, 'under-left'}}
+local SELFTEST_SHOTS = {{5.4, 'front-left'}, {6, 'bonnet'}, {6.6, 'left'}, {7.2, 'top'}, {7.8, 'rear-right'}, {8.4, 'front'}, {9, 'right'}}
 
 local function selftestView(name)
   pcall(function()
@@ -331,7 +333,7 @@ local function selftestShot(index, vehicle, tag)
   local done, err = pcall(function()
     local dir = 'settings/jbeamForge/shots/'
     if not FS:directoryExists(dir) then FS:directoryCreate(dir, true) end
-    local id = createScreenshot2({filename = string.format('%s%02d_%s_%s', dir, index, tostring(vehicle), tag), writeJPG = true, superSampling = 1, rescaleFactor = 0.5})
+    local id = createScreenshot2({filename = string.format('%s%02d_%s_%s', dir, index, tostring(vehicle), tag), writeJPG = true, superSampling = 1, rescaleFactor = 0.6})
     if not id or id == 0 then error('the game took none') end
   end)
   if not done then log('W', logTag, 'self-test: no picture: ' .. tostring(err)) end
@@ -701,7 +703,7 @@ function M.onUpdate(dtReal)
     end
     if selftest.drive and selftest.vi and selftest.viewed == 1 and selftest.t > 19.5 then
       selftest.viewed = 2
-      selftestShot(selftest.vi, selftest.vehicles[selftest.vi].vehicle, '7-after-drive')
+      selftestShot(selftest.vi, selftest.vehicles[selftest.vi].vehicle, '8-after-drive')
       selftestViewOff()
       selftestDrove = true
       local car = getPlayerVehicle(0)

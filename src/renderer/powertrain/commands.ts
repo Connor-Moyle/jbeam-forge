@@ -146,7 +146,18 @@ async function fitPowertrainSteps(kind: PowertrainKind, set: SuspensionSet): Pro
   if (src && !box.isEmpty()) {
     const c = box.getCenter(box.min.clone());
     const p = src.placement;
-    setPlacement(sourceId, { ...p, position: [p.position[0] + tx - c.x, p.position[1] + ty - c.y, p.position[2] + tz - c.z] });
+    let dz = tz - c.z;
+    // Under the bonnet: the top of everything the engine brings no higher than the top of the car's
+    // own engine model (which was made to fit), but its block not lower than the sump can go. A
+    // tall engine in a low bay came up through the bonnet and crumpled it at spawn.
+    const own = kind === 'engine' ? ownEngineBox() : null;
+    const all = boxOf(sourceId);
+    if (own && block && !all.isEmpty()) {
+      const lowest = (cornerTargets(sourceId)?.at.FL[2] ?? 0.3) - 0.2;
+      dz = Math.max(own.max.z - all.max.z, lowest - box.min.z);
+      if (all.max.z + dz > own.max.z + 0.03) useUiStore.getState().pushStatus(`${set.vehicleName} ${set.name} is ${Math.round((all.max.z + dz - own.max.z) * 100)} cm taller than your car's own engine: check it clears the bonnet, or it will push through it in the game.`, 'warning', 10000);
+    }
+    setPlacement(sourceId, { ...p, position: [p.position[0] + tx - c.x, p.position[1] + ty - c.y, p.position[2] + dz] });
   }
   assignToNewPart(
     (useSceneStore.getState().sources[sourceId]?.meshes ?? []).map((m) => m.key),
