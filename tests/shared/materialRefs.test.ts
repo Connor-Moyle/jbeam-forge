@@ -17,7 +17,7 @@ describe('materials a part’s jbeam names that no mesh carries', () => {
           flexbodies: [
             ['mesh', '[group]:', 'nonFlexMaterials'],
             ['disc', ['wheel_FR'], [], { pos: { x: 0, y: 0, z: 0 }, materialOverride: { scintilla_brakedisc_front: 'scintilla_brakedisc_front_R' } }],
-            { materialOverride: { scintilla_brakedisc_front: 'scintilla_brakedisc_front_L' } },
+            { materialOverride: [['scintilla_brakedisc_front', 'scintilla_brakedisc_front_L']] },
             ['disc', ['wheel_FL']],
           ],
         },

@@ -11,9 +11,11 @@ export function jbeamMaterialRefs(parts: Iterable<JbeamObject>): string[] {
   const out = new Set<string>();
   const overrides = (v: JbeamValue | undefined) => {
     if (Array.isArray(v)) for (const x of v) overrides(x);
-    else if (isJbeamObject(v)) {
+    if (isJbeamObject(v)) {
       const swap = v.materialOverride;
       if (isJbeamObject(swap)) for (const to of Object.values(swap)) if (typeof to === 'string' && to) out.add(to);
+      // The game writes it as pairs: [["from", "to"], …].
+      if (Array.isArray(swap)) for (const pair of swap) if (Array.isArray(pair) && typeof pair[1] === 'string' && pair[1]) out.add(pair[1]);
     }
   };
   for (const p of parts) {
