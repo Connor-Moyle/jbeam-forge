@@ -15,7 +15,8 @@ import { startAcImport } from '@renderer/import/acImport';
 import { openExport } from '@renderer/export/exportFlow';
 import { exportModel } from '@renderer/export/modelExport';
 import { useModelExportUi } from '@renderer/export/ModelExportDialog';
-import { generateAll } from '@renderer/structure/generate';
+import { generateAll, generateAs } from '@renderer/structure/generate';
+import { ARCHETYPES } from '@shared/proxy/archetypes';
 import { startTestMode } from '@renderer/sim/simSession';
 import { useEditStore } from '@renderer/structure/editStore';
 import { exitFocus, focusPart } from '@renderer/parts/focus';
@@ -64,6 +65,7 @@ function PaletteBody({ close }: { close: () => void }) {
       { id: 'import', label: 'Import model…', group: 'Action', hint: 'Ctrl+I', run: () => void startImport() },
       { id: 'import-ac', label: 'Import Assetto Corsa car…', group: 'Action', run: () => void startAcImport() },
       hasParts && { id: 'generate', label: 'Generate structure for all parts', group: 'Action', run: () => void generateAll() },
+      ...(hasParts ? ARCHETYPES.map((a): Item => ({ id: `generate-as-${a.id}`, label: `Generate structure as a ${a.label.toLowerCase()}: ${a.description.replace(/^A |^An /, '').toLowerCase()}`, group: 'Action', run: () => void generateAs(a.id) })) : []),
       hasParts && { id: 'hinge-all', label: 'Hinge every door, hood, trunk and tailgate', group: 'Action', run: () => void hingeAll() },
       hasStructure && { id: 'edit', label: edit.active ? 'Stop editing nodes & beams' : 'Edit nodes & beams', group: 'Action', hint: 'Tab', run: () => edit.setActive(!edit.active) },
       hasStructure && {

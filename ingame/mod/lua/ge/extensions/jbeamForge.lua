@@ -446,6 +446,116 @@ channels['vehicle:measureStatus'] = function()
   return {stage = measure.stage, seconds = measure.t, result = measure.result}
 end
 
+-- Checks the game's tester doesn't make: doors and lids open and shut, a skidpad, a 50 km/h pole.
+-- One after another on the car being driven; the answers come back from the car's side.
+local checks = nil
+
+local function checkCar(command)
+  local car = getPlayerVehicle(0)
+  if car then car:queueLuaCommand("extensions.load('jbeamForgeProbe'); jbeamForgeProbe." .. command) end
+end
+
+local function checksFinish(reason)
+  if not checks or checks.stage == 'done' then return end
+  if checks.pole then
+    local pole = be:getObjectByID(checks.pole)
+    if pole then pole:delete() end
+    checks.pole = nil
+  end
+  checks.stage = 'done'
+  checks.finished = reason or 'done'
+  local car = currentVehicle()
+  local result = {model = car and car.model, config = car and configKey(car.config.file), finished = checks.finished, checks = checks.out}
+  if result.model then jsonWriteFile(STORE .. 'checks/' .. result.model .. '_' .. tostring(result.config) .. '.json', result, true) end
+  log('I', logTag, 'checks ' .. tostring(result.model) .. ': ' .. jsonEncode(checks.out))
+  local said = {}
+  for _, name in ipairs({'doors', 'skidpad', 'pole'}) do
+    local c = checks.out[name]
+    if c then said[#said + 1] = name .. (c.error and ' failed to run' or c.pass and ' passed' or ' FAILED') end
+  end
+  if ui_message then ui_message('JBeam Forge checks: ' .. table.concat(said, ', '), 15, 'jbeamForgeChecks') end
+  guihooks.trigger('JBeamForgeEvent', {event = 'checks', payload = result})
+  checks.result = result
+end
+
+function M.onCheck(name, data)
+  if not checks or checks.stage == 'done' then return end
+  checks.out[name] = data
+  checks.t = 0
+  if name == 'doors' then
+    checks.stage = 'skidpad'
+    checkCar('skidpadCheck()')
+  elseif name == 'skidpad' then
+    checks.stage = 'line-up'
+  elseif name == 'pole' then
+    checksFinish('done')
+  end
+end
+
+local function checksUpdate(dt)
+  if not checks or checks.stage == 'done' then return end
+  checks.t = checks.t + (dt or 0)
+  if checks.stage == 'wait' then
+    if checks.t > checks.wait then checksBegin() end
+    return
+  end
+  local car = getPlayerVehicle(0)
+  if not car then return checksFinish('the car is gone') end
+  if checks.stage == 'line-up' and checks.t > 3 then
+    -- Back where the checks began, at rest, with a bollard set up 45 m ahead.
+    if checks.home and spawn and spawn.safeTeleport then spawn.safeTeleport(car, checks.home.pos, checks.home.rot) end
+    checks.stage = 'pole-spawn'
+    checks.t = 0
+  elseif checks.stage == 'pole-spawn' and checks.t > 2 then
+    local pos = car:getPosition()
+    local dir = car:getDirectionVector()
+    dir.z = 0
+    dir:normalize()
+    local at = pos + dir * 45
+    local done, pole = pcall(function() return core_vehicles.spawnNewVehicle('bollard', {pos = at, rot = quat(0, 0, 0, 1), autoEnterVehicle = false}) end)
+    if done and pole then
+      checks.pole = pole:getID()
+      be:enterVehicle(0, car)
+    else
+      checks.out.pole = {error = 'no bollard could be set up'}
+      return checksFinish('done')
+    end
+    checks.stage = 'pole'
+    checks.t = 0
+    checkCar('poleCheck(50, ' .. tostring(at.x) .. ', ' .. tostring(at.y) .. ')')
+  elseif checks.t > 45 then
+    checksFinish('the ' .. tostring(checks.stage) .. ' check never answered')
+  end
+end
+
+local function checksBegin()
+  local car = getPlayerVehicle(0)
+  if not car then return checksFinish('there is no car to check') end
+  checks.home = {pos = car:getPosition(), rot = quat(car:getRotation())}
+  checks.stage = 'doors'
+  checks.t = 0
+  checkCar('doorsCheck()')
+end
+
+-- `wait`: seconds to let a car that is only now being put on the map arrive and settle.
+channels['vehicle:checks'] = function(req)
+  checks = {stage = 'wait', t = 0, out = {}, wait = type(req) == 'table' and tonumber(req.wait) or 0}
+  if checks.wait <= 0 then
+    if not getPlayerVehicle(0) then error('No car to check: spawn one first') end
+    checksBegin()
+  end
+  return {started = true}
+end
+
+channels['vehicle:checksStatus'] = function()
+  if not checks then return nil end
+  return {stage = checks.stage, result = checks.result, checks = checks.out}
+end
+
+function M.startChecks()
+  return channels['vehicle:checks']()
+end
+
 channels['world:draw'] = function(req)
   overlay = req
   return nil
@@ -654,6 +764,7 @@ end
 function M.onUpdate(dtReal)
   trySpawn(dtReal)
   measureUpdate(dtReal)
+  checksUpdate(dtReal)
   checkBinding(dtReal)
   checkOpened(dtReal)
   if not selftest then return end
@@ -729,7 +840,13 @@ function M.onUpdate(dtReal)
       local car = getPlayerVehicle(0)
       if car then car:queueLuaCommand('jbeamForgeProbe.driveReport()') end
     end
-    if selftest.t > (selftest.vi and (selftest.drive and 21 or 15) or 8) then
+    if selftest.checks and selftest.vi and not selftest.checked and selftest.t > 20 then
+      selftest.checked = true
+      pcall(M.startChecks)
+    end
+    -- A car being checked has until its checks are done (or a minute and a half).
+    local checking = selftest.checks and selftest.vi and selftest.t < 110 and (not selftest.checked or (checks and checks.stage ~= 'done'))
+    if not checking and selftest.t > (selftest.vi and (selftest.drive and 21 or 15) or 8) then
       selftest.diagnosed = false
       selftest.throttled = false
       selftest.drove = false
@@ -737,6 +854,7 @@ function M.onUpdate(dtReal)
       selftest.shots = nil
       selftest.aimed = nil
       selftestDrove = false
+      selftest.checked = nil
       selftest.vi = (selftest.vi or 0) + 1
       local v = selftest.vehicles[selftest.vi]
       selftest.t = 0
@@ -776,6 +894,7 @@ function M.onUpdate(dtReal)
         if core_modmanager and core_modmanager.initDB then core_modmanager.initDB() end
         selftest.vehicles = q.vehicles or {}
         selftest.drive = q.drive
+        selftest.checks = q.checks
         selftest.queueId = q.id
         selftest.vi = nil
         log('I', logTag, 'self-test: batch ' .. tostring(q.id) .. ' with ' .. tostring(#selftest.vehicles) .. ' cars')

@@ -15,6 +15,7 @@ import { edges, reduceDense } from '@shared/proxy/mesh';
 import { defaultProxySettings, generateStructure, massNodeCap, partMass, partSettings, removePartStructure, type PartGeometry, type PartReport } from '@shared/proxy/generate';
 import { braces } from '@shared/proxy/derive';
 import { wheelSpaceOf, type WheelSpace } from '@shared/proxy/wheelSpace';
+import { applyArchetype, ARCHETYPES } from '@shared/proxy/archetypes';
 import { kindDefaults, targetVertices } from '@shared/proxy/presets';
 
 const logger = rlog('generate');
@@ -169,6 +170,26 @@ function keepRowOptions(from: Pick<Project, 'nodes' | 'beams' | 'tris'>, to: Pic
 export interface GenerateChoice {
   mode: 'auto' | ProxyMode;
   detail: number;
+}
+
+/** Set the whole car's structure to a kind of vehicle (its parts' weights and detail), then generate it: two steps on the undo list. */
+export async function generateAs(archetypeId: string): Promise<PartReport[]> {
+  const tax = currentTaxonomy();
+  const archetype = ARCHETYPES.find((a) => a.id === archetypeId);
+  if (!archetype || !projectStore.getState().doc) return [];
+  let scale: number | null = null;
+  projectStore.getState().execute({
+    label: `Start as a ${archetype.label.toLowerCase()}`,
+    apply: (d) => {
+      scale = applyArchetype(d, tax, archetypeId);
+    },
+  });
+  if (scale === null) {
+    useUiStore.getState().pushStatus('Make the car’s parts first (Parts tab): there is nothing to set up yet.', 'warning', 6000);
+    return [];
+  }
+  useUiStore.getState().pushStatus(`${archetype.label}: about ${archetype.kerbKg.toLocaleString('en-US')} kg ready to drive, with the suspension and engine you fit. Generating the structure…`, 'info', 6000);
+  return generateAll();
 }
 
 export function generateAll(choice?: GenerateChoice): Promise<PartReport[]> {

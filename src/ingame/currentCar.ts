@@ -136,7 +136,7 @@ export async function openCurrentCar(): Promise<void> {
   ui.pushStatus(`${car.model}: ${doc?.parts.length ?? 0} parts, ${doc?.nodes.length ?? 0} nodes, ${doc?.beams.length ?? 0} beams, as the game has it.`, 'success', 9000);
 }
 
-type Game = { spawn: (model: string, config?: string) => Promise<void>; measure: (model: string, config?: string) => Promise<unknown>; close: () => Promise<void>; draw: (s: { nodes: [number, number, number][]; beams: [number, number][] } | null) => Promise<void> };
+type Game = { spawn: (model: string, config?: string) => Promise<void>; measure: (model: string, config?: string) => Promise<unknown>; checks?: (wait?: number) => Promise<unknown>; close: () => Promise<void>; draw: (s: { nodes: [number, number, number][]; beams: [number, number][] } | null) => Promise<void> };
 const game = () => (window.forge as GameForge & { game?: Game }).game as Game | undefined;
 
 /**
@@ -158,6 +158,21 @@ export async function measureInGame(): Promise<void> {
   await g.measure(doc.meta.slug, `vehicles/${doc.meta.slug}/${pc ? configFileName(pc) : 'default'}.pc`);
   ui.pushStatus('Measuring on the test map: the figures show on screen when it’s done (a minute or two).', 'info', 9000);
   await g.close();
+}
+
+/**
+ * In the game: install the mod as it is now, put it on the map and run the checks the game's own
+ * tester doesn't make: every door and lid is unlatched and shut again, the car is driven round a
+ * skidpad, and it is run into a bollard at 50 km/h. Each says pass or fail on screen.
+ */
+export async function checkInGame(): Promise<void> {
+  const ui = useUiStore.getState();
+  const g = game();
+  if (!g?.checks) return;
+  if (!(await testInGame())) return;
+  // The car is on its way to the map: the checks start once it has had time to arrive and settle.
+  await g.checks(10);
+  ui.pushStatus('Checking doors, skidpad and a 50 km/h pole: the results show on screen in about a minute.', 'info', 9000);
 }
 
 /** In the game: install the mod as it is now and drive it, in the game's own physics. */

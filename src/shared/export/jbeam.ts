@@ -442,6 +442,21 @@ export function fuelStoragesOf(parts: Readonly<Record<string, JbeamObject>>): st
   return [...names];
 }
 
+/**
+ * The push that opens a part when its latch lets go, N. A door swings on an upright hinge and 50 N
+ * moves it; a bonnet or boot lid has to be lifted, and 50 N is less than it weighs: in the game the
+ * boot lid of three test cars didn't move at all when unlatched. A lid gets a little more than its
+ * own weight.
+ */
+export function openForce(hinge: Pick<Hinge, 'axis'>, nodes: readonly Pick<StructNode, 'weight'>[]): number {
+  const [a, b] = hinge.axis;
+  const length = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) || 1;
+  const lying = Math.abs(b[2] - a[2]) / length < 0.5;
+  if (!lying) return 50;
+  const kg = nodes.reduce((s, n) => s + n.weight, 0);
+  return Math.round(Math.min(900, Math.max(50, kg * 9.81 * 1.2)));
+}
+
 /** Build every jbeam file of the mod. */
 export function buildJbeamFiles(fullDoc: Doc, tax: TaxonomyLookup, opts: JbeamExportOptions): JbeamFile[] {
   const slug = fullDoc.meta.slug;
@@ -923,7 +938,7 @@ function hingeSections(doc: Doc, part: Part, hinge: Hinge, nodes: readonly Struc
       attachSoundEvent: 'event:>Vehicle>Latches>Door>modern_06_close',
       detachSoundEvent: 'event:>Vehicle>Latches>Door>modern_06_open',
       breakSoundEvent: '',
-      openForceMagnitude: 50,
+      openForceMagnitude: openForce(hinge, nodes),
       openForceDuration: 0.45,
       closeForceMagnitude: 60,
       closeForceDuration: 0.5,

@@ -342,6 +342,28 @@ export function registerIpcHandlers(services: HandlerServices): void {
   );
 
   registerInvoke(
+    'beamng:checkResults',
+    async ({ vehicle }) => {
+      const dir = settings.get().beamngUserDir;
+      const out: Record<string, Record<string, unknown>> = {};
+      if (!dir) return out;
+      const folder = join(dir, 'settings', 'jbeamForge', 'checks');
+      const names = await readdir(folder).catch(() => [] as string[]);
+      for (const name of names) {
+        if (!name.toLowerCase().startsWith(`${vehicle.toLowerCase()}_`) || !name.toLowerCase().endsWith('.json')) continue;
+        try {
+          const saved = JSON.parse(await readFile(join(folder, name), 'utf8')) as { model?: unknown; checks?: unknown };
+          if (saved.model === vehicle && saved.checks && typeof saved.checks === 'object') out[name.slice(vehicle.length + 1, -5)] = saved.checks as Record<string, unknown>;
+        } catch {
+          // half-written or not JSON: skip
+        }
+      }
+      return out;
+    },
+    z.object({ vehicle: z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/) }),
+  );
+
+  registerInvoke(
     'dialog:pickDirectory',
     (req, event) =>
       pickDirectory(event.sender, {

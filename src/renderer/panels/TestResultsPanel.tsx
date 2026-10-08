@@ -1,7 +1,9 @@
 import { RideCheck } from '@renderer/suspension/RideCheck';
 import { openGameLog } from '@renderer/export/GameLogDialog';
 import { EMPTY_ARR } from '@shared/empty';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { call } from '@renderer/diagnostics/ipc';
+import { checkLines, poleComparison, type CheckResult } from '@shared/ingame/checks';
 import { FlaskConical, Pause, Play, RotateCcw, Square, ScrollText } from 'lucide-react';
 import { useProjectStore } from '@renderer/app/stores/project';
 import { useSceneStore } from '@renderer/app/stores/scene';
@@ -207,9 +209,12 @@ function ActiveTest() {
               ))}
             </ul>
             <BrokenParts broken={result.broken} />
+            {result.scenario === 'crash-pole' && <GamePole kmh={kmh} broke={result.broken.length} beams={result.beamStress.length} />}
             <p className={styles.hint}>Beams are coloured by the highest stress they saw (green → yellow → red); broken beams are hidden.</p>
           </FieldGroup>
         )}
+
+        <GameChecks />
 
         <FieldGroup title="Pre-checks">
           {issues.length === 0 ? (
@@ -229,4 +234,53 @@ function ActiveTest() {
       </div>
     </ScrollArea>
   );
+}
+
+/** What the in-game checks last found for this car (JBeam Forge in the game → Check), read from the game's user folder. */
+function useGameChecks(): Record<string, CheckResult> | null {
+  const slug = useProjectStore((s) => s.doc?.meta.slug);
+  // Kept with the car it was read for, so another car's never shows.
+  const [read, setRead] = useState<{ slug: string; checks: Record<string, CheckResult> } | null>(null);
+  useEffect(() => {
+    let live = true;
+    if (slug)
+      void call('beamng:checkResults', { vehicle: slug })
+        .then((byConfig) => {
+          const first = Object.values(byConfig)[0];
+          if (live && first) setRead({ slug, checks: first as Record<string, CheckResult> });
+        })
+        .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [slug]);
+  return read && read.slug === slug ? read.checks : null;
+}
+
+function GameChecks() {
+  const checks = useGameChecks();
+  if (!checks) return null;
+  return (
+    <FieldGroup title="In the game">
+      <ul className={styles.list} data-testid="game-checks">
+        {checkLines(checks).map((l) => (
+          <li key={l.name}>
+            <Badge tone={l.pass ? 'success' : 'danger'}>{l.pass ? 'pass' : 'fail'}</Badge> {l.name}: {l.text}
+          </li>
+        ))}
+      </ul>
+      <p className={styles.hint}>From the last time this car was put through Check in JBeam Forge in the game (F10).</p>
+    </FieldGroup>
+  );
+}
+
+/** The game's 50 km/h pole beside the sandbox's, when the game has run one for this car. */
+function GamePole({ kmh, broke, beams }: { kmh: number; broke: number; beams: number }) {
+  const checks = useGameChecks();
+  const text = poleComparison({ kmh, broke, beams }, checks?.pole);
+  return text ? (
+    <p className={styles.hint} data-testid="game-pole">
+      {text}
+    </p>
+  ) : null;
 }

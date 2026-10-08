@@ -1,5 +1,6 @@
 import type { EventChannel, ExportBundle, ForgeApi, InvokeChannel, IpcResult, RecentProject } from '@shared/ipc-contract';
 import { measuredFigures } from '@shared/export/performance';
+import { checksMessage, type CheckResult } from '@shared/ingame/checks';
 import { LAYOUT_VERSION, StoredLayoutSchema } from '@shared/layout-schema';
 import { DEFAULT_SETTINGS, mergeSettings, SettingsPatchSchema, type Settings } from '@shared/settings-schema';
 
@@ -219,6 +220,7 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
     spawn: (model: string, config?: string) => lua<void>('vehicle:spawn', { model, ...(config ? { config } : {}) }),
     measure: (model: string, config?: string) => lua<{ model: string; config: string }>('vehicle:measure', { model, ...(config ? { config } : {}) }),
     telemetry: () => lua<Record<string, unknown> | null>('vehicle:telemetry'),
+    checks: (wait = 0) => lua<{ started: boolean }>('vehicle:checks', { wait }),
     close: () => lua<void>('ui:close'),
     draw: (structure: { nodes: [number, number, number][]; beams: [number, number][] } | null) => lua<void>('world:draw', structure),
   };
@@ -227,6 +229,7 @@ export function createGameForge(bridge: GameBridge): ForgeApi & { ingame: true; 
     const p = payload as { event?: string } | null;
     if (p?.event === 'vehicle:changed') emit('status:message', { text: 'The car in the game changed.', tone: 'info' });
     if (p?.event === 'measured') emit('status:message', { text: 'The game measured the car: export again to put its figures in the mod.', tone: 'success' });
+    if (p?.event === 'checks') emit('status:message', checksMessage((payload as { payload?: { checks?: Record<string, CheckResult> } }).payload?.checks ?? {}));
   });
 
   return {

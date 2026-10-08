@@ -105,7 +105,7 @@ async function run() {
   rmSync(join(store, 'queue-done.json'), { force: true });
   rmSync(join(store, 'shots'), { recursive: true, force: true });
   mkdirSync(join(store, 'shots'), { recursive: true });
-  writeFileSync(join(store, 'queue.json'), JSON.stringify({ id, vehicles, drive: process.argv.includes('--drive') }));
+  writeFileSync(join(store, 'queue.json'), JSON.stringify({ id, vehicles, drive: process.argv.includes('--drive'), checks: process.argv.includes('--checks') }));
   say(`sent ${vehicles.length} cars`);
   const deadline = Date.now() + Number(arg('timeout', '1800')) * 1000;
   while (Date.now() < deadline) {

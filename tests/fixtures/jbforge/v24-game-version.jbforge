@@ -15,8 +15,8 @@
   "sources": [
     {
       "id": "src_1f1683af",
-      "path": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car.obj",
-      "absolutePath": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car.obj",
+      "path": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car.obj",
+      "absolutePath": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car.obj",
       "format": "obj",
       "import": {
         "scale": 1,
@@ -41,8 +41,8 @@
     },
     {
       "id": "src_b5fad026",
-      "path": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\sets\\barstow\\barstow_engine_i6\\barstow_barstow_engine_i6.dae",
-      "absolutePath": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\sets\\barstow\\barstow_engine_i6\\barstow_barstow_engine_i6.dae",
+      "path": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\sets\\barstow\\barstow_engine_i6\\barstow_barstow_engine_i6.dae",
+      "absolutePath": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\sets\\barstow\\barstow_engine_i6\\barstow_barstow_engine_i6.dae",
       "format": "dae",
       "import": {
         "scale": 1,
@@ -30525,7 +30525,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_atlas.png"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_atlas.png"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -30637,7 +30637,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_atlas.png"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_atlas.png"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -30804,7 +30804,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_wheels.png"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_wheels.png"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -30861,7 +30861,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_interior.png"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_interior.png"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -31083,7 +31083,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_atlas.png"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_atlas.png"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -31195,7 +31195,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_wheels.png"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\tutorial\\demo_car_wheels.png"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -31252,7 +31252,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\_textures\\vehicles\\common\\engines\\v8_classic\\v8_classic_b.color.dds"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\_textures\\vehicles\\common\\engines\\v8_classic\\v8_classic_b.color.dds"
           },
           "uv2": [],
           "instanceDiffuse": false,
@@ -31309,7 +31309,7 @@
           ],
           "detailNormalStrength": 1,
           "maps": {
-            "baseColorMap": "C:\\Users\\conno\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\_textures\\vehicles\\barstow\\barstow_d.dds"
+            "baseColorMap": "C:\\Users\\you\\AppData\\Local\\Temp\\jbforge-fixture-hG7NiH\\library-scan\\beamng\\parts\\_textures\\vehicles\\barstow\\barstow_d.dds"
           },
           "uv2": [],
           "instanceDiffuse": false,

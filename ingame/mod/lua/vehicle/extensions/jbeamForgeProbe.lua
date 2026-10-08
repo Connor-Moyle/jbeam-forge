@@ -158,6 +158,169 @@ M.driveReport = function()
   if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onDriveReport(' .. serialize({error = tostring(err)}) .. ') end') end
 end
 
+-- ---------------------------------------------------------------- checks
+-- Three things the game's own tester doesn't try: do the doors and lids open and shut, how hard
+-- does the car corner, and what does a 50 km/h pole do to it. Each runs on its own clock here and
+-- sends its answer to JBeam Forge when it is done.
+local check = nil
+
+local function brokenCount()
+  local n = 0
+  for _, b in pairs(v.data.beams or {}) do if obj:beamIsBroken(b.cid) then n = n + 1 end end
+  return n
+end
+
+local function send(name, result)
+  obj:queueGameEngineLua('if jbeamForge then jbeamForge.onCheck(' .. serialize(name) .. ', ' .. serialize(result) .. ') end')
+end
+
+-- Every latch the car has (doors, bonnet, boot): its controller and the two nodes it joins.
+local function latches()
+  -- A latch's section is named after its controller and lists its node pairs by name, under a
+  -- header row, as the game's own controller reads them.
+  local out = {}
+  for name, data in pairs(v.data) do
+    if type(data) == 'table' and type(data.couplerNodes) == 'table' then
+      local rows = tableFromHeaderTable(data.couplerNodes)
+      local row = rows and rows[1]
+      local ctrl = controller.getControllerSafe and controller.getControllerSafe(name) or (controller.getController and controller.getController(name))
+      local a = row and beamstate.nodeNameMap[row.cid1]
+      local b = row and beamstate.nodeNameMap[row.cid2]
+      if a and b and ctrl and ctrl.detachGroup and ctrl.tryAttachGroupImpulse then out[#out + 1] = {name = name, a = a, b = b, ctrl = ctrl} end
+    end
+  end
+  table.sort(out, function(x, y) return x.name < y.name end)
+  return out
+end
+
+local function gap(l)
+  return (vec3(obj:getNodePosition(l.a)) - vec3(obj:getNodePosition(l.b))):length()
+end
+
+M.doorsCheck = function()
+  local done, err = pcall(function()
+    local list = latches()
+    for _, l in ipairs(list) do l.shut = gap(l) end
+    check = {kind = 'doors', t = 0, list = list, stage = 'open'}
+    for _, l in ipairs(list) do l.ctrl.detachGroup() end
+    if #list == 0 then
+      check = nil
+      send('doors', {latches = 0, pass = true, note = 'no doors or lids with a latch'})
+    end
+  end)
+  if not done then check = nil; send('doors', {error = tostring(err)}) end
+end
+
+M.skidpadCheck = function()
+  pcall(function()
+    if controller.mainController.setGearboxMode then controller.mainController.setGearboxMode('arcade') end
+    input.event('parkingbrake', 0, 1)
+    input.event('brake', 0, 1)
+    input.event('steering', 1, 1)
+    input.event('throttle', 0.55, 1)
+  end)
+  check = {kind = 'skidpad', t = 0, broken = brokenCount(), best = 0, sum = 0, n = 0, speed = 0}
+end
+
+M.poleCheck = function(kmh, x, y)
+  pcall(function()
+    if controller.mainController.setGearboxMode then controller.mainController.setGearboxMode('arcade') end
+    input.event('parkingbrake', 0, 1)
+    input.event('brake', 0, 1)
+    input.event('steering', 0, 1)
+    input.event('throttle', 1, 1)
+  end)
+  check = {kind = 'pole', t = 0, target = (kmh or 50) / 3.6, broken = brokenCount(), top = 0, last = 0, peak = 0, hit = nil, aim = x and y and vec3(x, y, 0) or nil, sign = 1, miss = nil, since = 0}
+end
+
+local function checkUpdate(dt)
+  if not check then return end
+  check.t = check.t + dt
+  if check.kind == 'doors' then
+    if check.stage == 'open' and check.t > 2.5 then
+      for _, l in ipairs(check.list) do l.open = gap(l) end
+      for _, l in ipairs(check.list) do l.ctrl.tryAttachGroupImpulse() end
+      check.stage = 'shut'
+    elseif check.stage == 'shut' and check.t > 6.5 then
+      local out, pass = {}, true
+      for _, l in ipairs(check.list) do
+        local opened = (l.open - l.shut) > 0.02
+        local shutAgain = gap(l) < l.shut + 0.02
+        if not opened then pass = false end
+        out[#out + 1] = {name = l.name, opened = opened, shutAgain = shutAgain, moved = math.floor((l.open - l.shut) * 1000 + 0.5)}
+      end
+      send('doors', {latches = #check.list, pass = pass, list = out})
+      check = nil
+    end
+  elseif check.kind == 'skidpad' then
+    -- Sideways pull, in g, once the car is round its circle (the first four seconds are the run-up).
+    local g = math.abs(sensors.gx2 or 0) / 9.81
+    -- Held to a town-corner speed: flat out, a strong car ran wide and off the pad.
+    input.event('throttle', math.abs(electrics.values.wheelspeed or 0) < 10 and 0.6 or 0.08, 1)
+    if check.t > 4 then
+      check.sum = check.sum + g * dt
+      check.n = check.n + dt
+      check.best = math.max(check.best, g)
+      check.speed = math.max(check.speed, math.abs(electrics.values.wheelspeed or 0))
+    end
+    if check.t > 12 then
+      input.event('throttle', 0, 1)
+      input.event('steering', 0, 1)
+      input.event('brake', 1, 1)
+      local average = check.n > 0 and check.sum / check.n or 0
+      local broke = brokenCount() - check.broken
+      send('skidpad', {g = math.floor(average * 100 + 0.5) / 100, peak = math.floor(check.best * 100 + 0.5) / 100, kmh = math.floor(check.speed * 3.6 + 0.5), broke = broke, pass = average >= 0.35 and broke == 0})
+      check = nil
+    end
+  elseif check.kind == 'pole' then
+    local speed = math.abs(electrics.values.airspeed or 0)
+    -- Up to the speed, then held there.
+    if not check.hit then input.event('throttle', speed < check.target and 1 or 0.12, 1) end
+    -- Kept pointing at the pole: how far off to one side it is, as a steering input. Which way the
+    -- wheel turns for a positive input is found by trying: if the aim gets worse, it is the other.
+    if check.aim and not check.hit then
+      local pos = obj:getPosition()
+      local dir = obj:getDirectionVector()
+      local tx, ty = check.aim.x - pos.x, check.aim.y - pos.y
+      local far = math.sqrt(tx * tx + ty * ty)
+      if far > 3 then
+        local off = (dir.x * ty - dir.y * tx) / far
+        check.since = check.since + dt
+        if check.since > 0.6 then
+          if check.miss and math.abs(off) > math.abs(check.miss) + 0.01 and math.abs(off) > 0.03 then check.sign = -check.sign end
+          check.miss = off
+          check.since = 0
+        end
+        input.event('steering', math.max(-0.5, math.min(0.5, -off * 4 * check.sign)), 1)
+      end
+    end
+    check.top = math.max(check.top, speed)
+    local slowing = (check.last - speed) / math.max(dt, 0.001)
+    check.last = speed
+    if speed > 5 and slowing > 40 and not check.hit then check.hit = {t = check.t, kmh = math.floor(speed * 3.6 + slowing * dt * 3.6 + 0.5)} end
+    if check.hit then check.peak = math.max(check.peak, slowing / 9.81) end
+    if (check.hit and check.t > check.hit.t + 3) or check.t > 25 then
+      input.event('throttle', 0, 1)
+      input.event('brake', 1, 1)
+      local broke = brokenCount() - check.broken
+      local list = latches()
+      local shut = 0
+      for _, l in ipairs(list) do if gap(l) < 0.05 then shut = shut + 1 end end
+      send('pole', {hit = check.hit ~= nil, kmh = check.hit and check.hit.kmh or math.floor(check.top * 3.6 + 0.5), peakG = math.floor(check.peak * 10 + 0.5) / 10, broke = broke, latches = #list, stillShut = shut, pass = check.hit ~= nil})
+      check = nil
+    end
+  end
+end
+
+M.updateGFX = function(dt)
+  local done, err = pcall(checkUpdate, dt)
+  if not done then
+    local kind = check and check.kind or 'check'
+    check = nil
+    send(kind, {error = tostring(err)})
+  end
+end
+
 M.telemetry = function()
   local done, err = pcall(telemetry)
   if not done then obj:queueGameEngineLua('if jbeamForge then jbeamForge.onTelemetry(' .. serialize({error = tostring(err)}) .. ') end') end
