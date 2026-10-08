@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CarFront, ChevronLeft } from 'lucide-react';
-import type { SuspensionSet } from '@shared/ipc-contract';
+import type { LibraryStatus, SuspensionSet } from '@shared/ipc-contract';
 import { tuningVariables } from '@shared/suspension/transplant';
 import { call } from '@renderer/diagnostics/ipc';
 import { objectThumbnail } from '@renderer/materials/preview';
@@ -65,6 +65,43 @@ export function SetThumb({ set }: { set: SuspensionSet }) {
   return <span className={styles.thumb}>{src && <img src={src} alt="" />}</span>;
 }
 
+/**
+ * Why a picker has nothing to offer: the game's parts are still being read (a few minutes, on first
+ * run and once after an update that changes what is kept about them), or there is no game to read
+ * them from. An empty list with no word of why read as a broken button.
+ */
+function NothingYet() {
+  const [status, setStatus] = useState<LibraryStatus | null>(null);
+  useEffect(() => {
+    let live = true;
+    void call('library:status')
+      .then((s) => {
+        if (live) setStatus(s);
+      })
+      .catch(() => undefined);
+    const off = window.forge.on('library:changed', (s) => setStatus(s));
+    return () => {
+      live = false;
+      off();
+    };
+  }, []);
+  const game = status?.folders.find((x) => x.kind === 'beamng');
+  if (!status || status.scanning)
+    return (
+      <p className={styles.note} data-testid="workshop-reading">
+        JBeam Forge is reading the parts of your BeamNG.drive install. That takes a few minutes the first time, and once after an update. They will appear here as soon as it is done; you can keep working meanwhile.
+      </p>
+    );
+  return (
+    <div data-testid="workshop-none">
+      <p className={styles.note}>{game?.error ? `The game's parts could not be read: ${game.error}` : 'Nothing to choose from yet. These come from your BeamNG.drive install: set its folder in Settings → BeamNG.drive, then read its parts again.'}</p>
+      <Button size="sm" onClick={() => void call('library:rescan').then(setStatus).catch(() => undefined)}>
+        Read the game&rsquo;s parts again
+      </Button>
+    </div>
+  );
+}
+
 /** Type → brand → car → that car's sets; `details` adds a spec line or chart per set. */
 export function SetPicker({ title, sets, onBack, onFit, details, testId }: { title: string; sets: readonly SuspensionSet[]; onBack: () => void; onFit: (s: SuspensionSet) => Promise<void>; details?: (s: SuspensionSet) => ReactNode; testId: string }) {
   const [type, setType] = useState<string | null>(null);
@@ -96,7 +133,7 @@ export function SetPicker({ title, sets, onBack, onFit, details, testId }: { tit
           {title} · {[type ?? 'Type', brand, vehicles.find((v) => v.vehicle === vehicle)?.vehicleName].filter(Boolean).join(' › ')}
         </span>
       </header>
-      <p className={styles.note}>Choose the {step}.</p>
+      {sets.length ? <p className={styles.note}>Choose the {step}.</p> : <NothingYet />}
       <ScrollArea className={styles.scroll}>
         {!type && (
           <div className={styles.chips}>

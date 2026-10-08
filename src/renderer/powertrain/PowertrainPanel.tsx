@@ -41,11 +41,12 @@ export function PowertrainPanel() {
     return () => leaveEngineStage();
   }, [onStage, engineSource]);
 
-  if (view && sets && view.page === 'option') {
+  // The pickers show even before the catalogue has answered (they say the game's parts are being read).
+  if (view && view.page === 'option') {
     return (
       <SetPicker
         title="Another engine"
-        sets={sets.filter((s) => s.kind === 'engine')}
+        sets={(sets ?? []).filter((s) => s.kind === 'engine')}
         testId="engine-option-picker"
         onBack={() => usePowertrainUi.getState().show(null)}
         details={(s) => <EngineLine set={s} />}
@@ -56,11 +57,11 @@ export function PowertrainPanel() {
       />
     );
   }
-  if (view && sets && view.page === 'pick') {
+  if (view && view.page === 'pick') {
     return (
       <SetPicker
         title={LABEL[view.kind]}
-        sets={sets.filter((s) => s.kind === view.kind)}
+        sets={(sets ?? []).filter((s) => s.kind === view.kind)}
         testId={`${view.kind}-picker`}
         onBack={() => usePowertrainUi.getState().show(null)}
         details={(s) => (view.kind === 'engine' ? <EngineLine set={s} /> : <GearboxLine set={s} />)}

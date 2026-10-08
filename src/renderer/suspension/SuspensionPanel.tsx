@@ -38,7 +38,8 @@ export function SuspensionPanel() {
     const kind = axleKind(axles, axle);
     return sets.filter((s) => s.axle === kind || s.axle === 'any');
   }, [axle, axles, sets]);
-  if (axle && sets) {
+  // Shown even before the catalogue has answered: with nothing on screen the button looked dead.
+  if (axle) {
     return (
       <SetPicker
         title={axle.name}
