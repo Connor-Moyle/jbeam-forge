@@ -6,7 +6,7 @@ import { Solver, type Obstacle, type SimModel } from './solver';
  * sag, what breaks and where — not BeamNG's exact behaviour.
  */
 
-export type ScenarioId = 'settle' | 'drop' | 'corner-drop' | 'yank' | 'crash-pole' | 'crash-wall' | 'crash-offset' | 'hinge-swing' | 'hinge-yank' | 'suspension-drop';
+export type ScenarioId = 'settle' | 'drop' | 'corner-drop' | 'yank' | 'crash-pole' | 'crash-wall' | 'crash-offset' | 'crash-rear' | 'crash-side' | 'rollover' | 'crash-sweep' | 'hinge-swing' | 'hinge-yank' | 'suspension-drop';
 
 /** What a hinge scenario needs to know about the hinge (a subset of the project's Hinge). */
 export interface HingeSpec {
@@ -248,6 +248,68 @@ export function crash(model: SimModel, kind: 'pole' | 'wall' | 'offset', kmh = 5
   const labels = { pole: 'pole', wall: 'full-width wall', offset: '40 % offset barrier' } as const;
   const crushText = crush > 0.005 ? `front crushed ${(crush * 1000).toFixed(0)} mm` : 'no lasting crush (it sprang back)';
   return finish(s, `crash-${kind}` as ScenarioId, seconds, start, [`${kmh} km/h into a ${labels[kind]}: ${crushText}, ${s.breakLog.length} beam(s) broke.`]);
+}
+
+/** Backed into a wall at `kmh`: what the tail does. Rear is +Y in BeamNG space. */
+export function crashRear(model: SimModel, kmh = 50, seconds = 0.35): ScenarioResult {
+  const s = new Solver(model);
+  placeOnGround(s, 0.005);
+  const { lo, hi } = bounds(s);
+  s.obstacles = [{ kind: 'wall', x: (lo[0]! + hi[0]!) / 2, y: hi[1]! + 0.05, nx: 0, ny: -1 }];
+  const speed = kmh / 3.6;
+  for (let i = 0; i < s.n; i++) s.v[i * 3 + 1] = speed;
+  const start = Float64Array.from(s.x);
+  run(s, seconds);
+  const after = bounds(s);
+  const crush = hi[1]! - lo[1]! - (after.hi[1]! - after.lo[1]!);
+  const crushText = crush > 0.005 ? `tail crushed ${(crush * 1000).toFixed(0)} mm` : 'no lasting crush (it sprang back)';
+  return finish(s, 'crash-rear', seconds, start, [`${kmh} km/h backwards into a wall: ${crushText}, ${s.breakLog.length} beam(s) broke.`]);
+}
+
+/** Slid sideways into a pole at `kmh`, the pole at the middle of the car's left side (+X): the test doors and sills are built for. */
+export function crashSide(model: SimModel, kmh = 30, seconds = 0.35): ScenarioResult {
+  const s = new Solver(model);
+  placeOnGround(s, 0.005);
+  const { lo, hi } = bounds(s);
+  s.obstacles = [{ kind: 'pole', x: hi[0]! + 0.05 + 0.15, y: (lo[1]! + hi[1]!) / 2, radius: 0.15 }];
+  const speed = kmh / 3.6;
+  for (let i = 0; i < s.n; i++) s.v[i * 3] = speed;
+  const start = Float64Array.from(s.x);
+  run(s, seconds);
+  const after = bounds(s);
+  const crush = hi[0]! - lo[0]! - (after.hi[0]! - after.lo[0]!);
+  const crushText = crush > 0.005 ? `side pushed in ${(crush * 1000).toFixed(0)} mm` : 'no lasting crush (it sprang back)';
+  return finish(s, 'crash-side', seconds, start, [`${kmh} km/h sideways into a pole: ${crushText}, ${s.breakLog.length} beam(s) broke.`]);
+}
+
+/** Dropped on its roof from `height` (m): what the roof and pillars carry. */
+export function rollover(model: SimModel, height = 0.5, seconds = 1.5): ScenarioResult {
+  const s = new Solver(model);
+  // Turned over about its length.
+  s.transform(([x, y, z]) => [-x, y, -z]);
+  placeOnGround(s, height);
+  const before = bounds(s);
+  const start = Float64Array.from(s.x);
+  run(s, seconds);
+  const after = bounds(s);
+  const crush = before.hi[2]! - before.lo[2]! - (after.hi[2]! - after.lo[2]!);
+  const crushText = crush > 0.005 ? `the car is ${(crush * 1000).toFixed(0)} mm lower` : 'the roof held its height';
+  return finish(s, 'rollover', seconds, start, [`Dropped on its roof from ${height.toFixed(1)} m: ${crushText}, ${s.breakLog.length} beam(s) broke.`]);
+}
+
+/** Speeds a sweep tries, km/h. */
+export const SWEEP_SPEEDS = [20, 35, 50, 65, 80] as const;
+
+/** Into a full-width wall at each of a row of speeds: how the crush and the breakage grow. Shows the fastest run. */
+export function crashSweep(model: SimModel): ScenarioResult {
+  const lines: string[] = [];
+  let last: ScenarioResult | null = null;
+  for (const kmh of SWEEP_SPEEDS) {
+    last = crash(model, 'wall', kmh);
+    lines.push(last.summary[last.summary.length - 1]!);
+    if (last.diverged) break;
+  }
+  return { ...last!, scenario: 'crash-sweep', summary: [...(last!.diverged ? [last!.summary[0]!] : []), ...lines, 'The picture shows the fastest of them.'] };
 }
 
 type V = [number, number, number];

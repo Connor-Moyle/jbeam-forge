@@ -183,6 +183,18 @@ function ActiveTest() {
             <Button size="sm" onClick={() => scenario('crash-offset', { kmh })} disabled={!!busy}>
               40 % offset
             </Button>
+            <Button size="sm" onClick={() => scenario('crash-rear', { kmh })} disabled={!!busy} title="Backwards into a wall" data-testid="scenario-rear">
+              Rear
+            </Button>
+            <Button size="sm" onClick={() => scenario('crash-side', { kmh })} disabled={!!busy} title="Sideways into a pole at the middle of the car" data-testid="scenario-side">
+              Side pole
+            </Button>
+            <Button size="sm" onClick={() => scenario('rollover')} disabled={!!busy} title="Dropped on its roof from half a metre" data-testid="scenario-rollover">
+              Roof drop
+            </Button>
+            <Button size="sm" onClick={() => scenario('crash-sweep')} disabled={!!busy} title="Into a wall at 20, 35, 50, 65 and 80 km/h: how the crush grows with speed" data-testid="scenario-sweep">
+              Speed sweep
+            </Button>
           </div>
           {busy && <p className={styles.hint}>Running {busy}…</p>}
         </FieldGroup>

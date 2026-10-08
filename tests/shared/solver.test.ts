@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Solver, type SimModel } from '../../src/shared/sim/solver';
 import { precheck } from '../../src/shared/sim/model';
-import { crash, drop, settle } from '../../src/shared/sim/scenarios';
+import { crash, crashRear, crashSide, crashSweep, drop, rollover, settle, SWEEP_SPEEDS } from '../../src/shared/sim/scenarios';
 
 /** Build a model from nodes and beams with uniform beam values. */
 function model(nodes: [number, number, number][], beams: [number, number][], opts: Partial<{ mass: number; spring: number; damp: number; deform: number; strength: number; support: boolean; group: number[] }> = {}): SimModel {
@@ -164,6 +164,24 @@ describe('scenarios', () => {
     const c = crash(cube(0.3), 'wall', 30, 0.2);
     expect(c.summary[0]).toMatch(/30 km\/h into a full-width wall/);
     expect(c.beamStress.length).toBe(28);
+  });
+
+  it('crashes from behind and from the side, drops on the roof, and sweeps the speeds', () => {
+    const rear = crashRear(cube(0.3), 30, 0.2);
+    expect(rear.summary[0]).toMatch(/30 km\/h backwards into a wall/);
+    expect(rear.obstacles[0]).toMatchObject({ kind: 'wall', ny: -1 });
+    const side = crashSide(cube(0.3), 30, 0.2);
+    expect(side.summary[0]).toMatch(/30 km\/h sideways into a pole/);
+    expect(side.obstacles[0]!.kind).toBe('pole');
+    // Both met their obstacle: the cube's nodes were stopped, not left to sail on.
+    expect(Math.max(...rear.nodeDisplacement)).toBeLessThan((30 / 3.6) * 0.2);
+    expect(Math.max(...side.nodeDisplacement)).toBeLessThan((30 / 3.6) * 0.2);
+    const roof = rollover(cube(0.3), 0.5, 1);
+    expect(roof.summary[0]).toMatch(/Dropped on its roof from 0\.5 m/);
+    expect(roof.diverged).toBeNull();
+    const sweep = crashSweep(cube(0.3));
+    expect(sweep.scenario).toBe('crash-sweep');
+    expect(sweep.summary.filter((l) => /km\/h into a full-width wall/.test(l))).toHaveLength(SWEEP_SPEEDS.length);
   });
 });
 
