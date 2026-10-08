@@ -6,6 +6,8 @@
 
 JBeam Forge is a Windows desktop app I built because I was sick of the gap between "I've got a nice model of a car" and "I've got a car that actually spawns in BeamNG." You bring the mesh. Forge sorts out the parts, builds the node and beam structure, lets you edit every bit of it, tests it in a little physics sandbox, and spits out a mod zip you can drop straight into your mods folder. Configs, preview images, tuning sliders, lights, skins, the lot.
 
+Please Be Aware AI was used to assist with porting and other small parts and the integration of ai into the program to auto gen jbeams prices etc only if you want it is not necessary 
+
 
 ---
 
