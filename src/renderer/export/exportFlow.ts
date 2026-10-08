@@ -38,6 +38,9 @@ import { setWheels, wheelNames, wheelSlotEnds } from '@shared/suspension/wheels'
 import { archWarning, nodesFoulingTyres } from '@shared/suspension/arch';
 import { suspensionLoadWarning } from '@shared/suspension/load';
 import { jbeamMaterialRefs } from '@shared/export/materialRefs';
+import { blockBounds } from '@shared/powertrain/placement';
+import { engineFit, engineFitWarning } from '@shared/powertrain/fit';
+import { budgetWarnings } from '@shared/export/budgets';
 import { powertrainDevices } from '@shared/powertrain/specs';
 import { powertrainChain } from '@shared/powertrain/chain';
 import { isJbeamObject, parseJbeam } from '@shared/jbeam/parse';
@@ -338,6 +341,18 @@ export function prepareExport(): PreparedExport | null {
     if (engine.includes('electricMotor') && !engine.includes('combustionEngine') && (box.includes('frictionClutch') || box.includes('dctGearbox')))
       report.errors.push({ code: 'ELECTRIC_WITH_CLUTCH', message: `${pt.engine.name} is electric, and ${pt.gearbox.name} has a clutch made for a combustion engine: the game can't run the two together. Choose an electric car's gearbox (a single reduction), or no gearbox.` });
   }
+  // A fitted engine bigger than the car's own engine model, which is the measure of its bay.
+  if (pt?.engine) {
+    const block = blockBounds(setData[pt.engine.setId]?.parts ?? {}, 'engine');
+    const ownIds = new Set(doc.parts.filter((p) => p.taxonomyId === 'engine' && !p.variantOf).map((p) => p.id));
+    const ownNodes = doc.nodes.filter((n) => ownIds.has(n.partId));
+    if (block && ownNodes.length >= 4) {
+      const own = { min: [0, 1, 2].map((k) => Math.min(...ownNodes.map((n) => n.pos[k]!))), max: [0, 1, 2].map((k) => Math.max(...ownNodes.map((n) => n.pos[k]!))) };
+      const at = doc.sources.find((s) => s.id === pt.engine!.sourceId)?.placement.position ?? [0, 0, 0];
+      const text = engineFitWarning(`${pt.engine.vehicle} ${pt.engine.name}`, engineFit(block, at, own));
+      if (text) report.warnings.push({ code: 'ENGINE_TOO_BIG', message: text });
+    }
+  }
   // The engine's power has to reach a wheel: a front-engined car's driveshaft behind a rear-engined
   // buggy's axle (no differential of its own) turned nothing, and the car sat still at full revs.
   if (pt?.engine) {
@@ -380,6 +395,7 @@ export function prepareExport(): PreparedExport | null {
   const credits = creditsForSources(doc.sources.map((src) => src.absolutePath));
   if (credits.length && kind === 'vehicle') files.push({ path: `${root}/credits.txt`, text: creditsText(credits, doc.meta.name) });
   if (kind !== 'vehicle') return partModExport(doc, kind, { author, files, copies: mats.copies, dae, meshCount: exported.length, meshNames: daeMeshes.map((m) => m.name) });
+  for (const message of budgetWarnings({ nodes: doc.nodes.length, beams: doc.beams.length, triangles: doc.tris.length, meshes: exported.length })) report.warnings.push({ code: 'BUDGET', message });
   for (const m of sharedLights) report.warnings.push({ code: 'LIGHT_SHARED_MATERIAL', message: `Material ${m} is on a light and on other parts too, so it won't glow (or the other parts would). Give the light its own material.` });
   // Materials the mod needs from the game: those on its meshes, and those its parts' glow maps and
   // material swaps name (a borrowed gear indicator's lit face, each brake disc's own).

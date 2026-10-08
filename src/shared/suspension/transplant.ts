@@ -435,6 +435,14 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       } else collectStrings(v, used);
     }
 
+  // How many bolts each body node already carries: the next point looks a little further for a
+  // node less loaded. The Autobello's transaxle put seven of its points on one light engine-bay
+  // node, and that node's own beams broke at spawn.
+  const bolted = new Map<string, number>();
+  const spread = (d: number, id: string) => d * (1 + 0.5 * (bolted.get(id) ?? 0)) ** 2;
+  const took = (ids: readonly string[]) => {
+    for (const id of ids) bolted.set(id, (bolted.get(id) ?? 0) + 1);
+  };
   const attached: Record<string, string> = {};
   const extra: [string, V3, number?][] = [];
   const mounts: [string, string][] = [];
@@ -474,13 +482,14 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
       const holds = (t: { weight?: number; structural?: boolean }) => t.structural !== false && (t.weight === undefined || Math.sqrt(MOUNT.beamSpring / t.weight) * STABILITY_DT <= MOUNT_RATIO);
       const ranked = input.target
         .filter(holds)
-        .map((t) => ({ id: t.id, pos: t.pos, d: dist2(at, t.pos) }))
+        .map((t) => ({ id: t.id, pos: t.pos, d: spread(dist2(at, t.pos), t.id) }))
         .sort((a, b) => a.d - b.d);
       // Three bolts in one plane with the point don't hold it across that plane: more are added
       // until it is held every way (the Vivace's strut-tower points, bolted to three body nodes
       // nearly in line, sat 30-46 mm out at rest). A point something twists always gets a fourth.
       const near = mountsHolding(at, ranked, MOUNT_LINKS, rigid.has(id) ? MOUNT_LINKS + 1 : 0);
       const links = near.length ? near : [best];
+      took(links.map((t) => t.id));
       for (const t of links) mounts.push([kept, t.id]);
       // Heavy enough for the set's own beams on it and the mount, inside the stability limit.
       const load = k + links.length * MOUNT.beamSpring;
@@ -534,11 +543,12 @@ export function transplantSuspension(input: TransplantInput): TransplantResult {
     const p = add(at, input.offset);
     const ranked = input.target
       .filter((t) => t.structural !== false)
-      .map((t) => ({ id: t.id, pos: t.pos, d: dist2(p, t.pos) }))
+      .map((t) => ({ id: t.id, pos: t.pos, d: spread(dist2(p, t.pos), t.id) }))
       .sort((a, b) => a.d - b.d);
     const near = mountsHolding(p, ranked, MOUNT_LINKS);
     const to = near.map((t) => t.id);
     if (!to.length) continue;
+    took(to);
     const w = weights.get(id) ?? 25;
     // What its weight can carry less what the set's own beams already put on it: a subframe node
     // on a 26 MN/m lower arm, given four full bolts as well, shook until the arm broke at spawn

@@ -50,7 +50,9 @@ export function beamPhysics(kind: StructBeam['kind'], preset: BeamPresetId, atta
       return { beamSpring: 1_001_000, beamDamp: 50, beamDeform: 8_000, beamStrength: 200_000, deformLimitExpansion: e, breakGroup: `${partName}_supportBeams`, beamType: 'SUPPORT', longBound: 30 };
     case 'popopen':
       // The game's own doors: 2.3 % of the beam's length, enough to move the edge off the catch.
-      return { beamSpring: 50_000, beamDamp: 1_320, beamDeform: 40_000, beamStrength: 10_000, deformLimitExpansion: e, breakGroup: `${partName}_hinge`, beamType: 'SUPPORT', longBound: 25, precompression: 1.023, breakGroupType: 1 };
+      // It goes with the hinge when the part is torn off, and never on its own: at 10 kN its damper
+      // alone broke it as two cars settled at spawn, and their bonnets no longer popped open.
+      return { beamSpring: 50_000, beamDamp: 1_320, beamDeform: 40_000, beamStrength: null, deformLimitExpansion: e, breakGroup: `${partName}_hinge`, beamType: 'SUPPORT', longBound: 25, precompression: 1.023, breakGroupType: 1 };
     default:
       break;
   }

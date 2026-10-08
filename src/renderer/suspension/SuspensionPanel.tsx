@@ -15,6 +15,7 @@ import { Toggle } from '@renderer/ui/components/Toggle';
 import { SetPicker, TuningView } from '@renderer/workshop/WorkshopUi';
 import { addAxle, axleKind, fitSuspension, removeAxle, removeSuspension, setSuspensionChoices, setTuning, setUpAxles, updateAxle, showGameMeshes, showOwnMeshes, useSuspensionCatalogue, useSuspensionUi } from './commands';
 import { DrivelineView } from './DrivelineView';
+import { TravelCheck } from './TravelCheck';
 import styles from '@renderer/workshop/Workshop.module.css';
 
 /** Suspension workshop: the car's axles, and a complete suspension from the game on each. */
@@ -133,6 +134,7 @@ function AxleCard({ axle }: { axle: Axle }) {
               </Button>
             )}
           </div>
+          <TravelCheck axle={{ ...axle, fitted: axle.fitted }} />
           {!own && <p className={styles.note}>Made your own suspension? Select its meshes and use them: this set&rsquo;s jbeam does the physics, your meshes are what you see.</p>}
         </>
       ) : (
